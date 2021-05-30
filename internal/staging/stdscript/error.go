@@ -12,6 +12,14 @@ const (
 	// ErrUnsupportedScriptVersion indicates that a given script version is not
 	// supported.
 	ErrUnsupportedScriptVersion = ErrorKind("ErrUnsupportedScriptVersion")
+
+	// ErrTooManyRequiredSigs is returned from MultiSigScript when the
+	// specified number of required signatures is larger than the number of
+	// provided public keys.
+	ErrTooManyRequiredSigs = ErrorKind("ErrTooManyRequiredSigs")
+
+	// ErrPubKeyType is returned when a script contains invalid public keys.
+	ErrPubKeyType = ErrorKind("ErrPubKeyType")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

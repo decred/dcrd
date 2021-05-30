@@ -7,6 +7,7 @@ package stdscript
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -947,6 +948,78 @@ func TestMultiSigRedeemScriptFromScriptSigV0(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected redeem script -- got %x, want %x",
 				test.name, got, want)
+			continue
+		}
+	}
+}
+
+// TestMultiSigScriptV0 ensures the version 0 ECDSA multisignature script
+// creation function returns the expected scripts and errors.
+func TestMultiSigScriptV0(t *testing.T) {
+	t.Parallel()
+
+	//  mainnet p2pk 13CG6SJ3yHUXo4Cr2RY4THLLJrNFuG3gUg
+	p2pkCompressedMain := hexToBytes("02192d74d0cb94344c9569c2e77901573d8d790" +
+		"3c3ebec3a957724895dca52c6b4")
+	p2pkCompressed2Main := hexToBytes("03b0bd634234abbb1ba1e986e884185c61cf43" +
+		"e001f9137f23c2c409273eb16e65")
+	p2pkUncompressedMain := hexToBytes("0411db93e1dcdb8a016b49840f8c53bc1eb68" +
+		"a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f" +
+		"9d4c03f999b8643f656b412a3")
+
+	tests := []struct {
+		name      string
+		threshold int
+		pubKeys   [][]byte
+		expected  string
+		err       error
+	}{{
+		name:      "normal 1-of-2",
+		threshold: 1,
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		expected: fmt.Sprintf("1 DATA_%d 0x%x DATA_%d 0x%x 2 CHECKMULTISIG",
+			len(p2pkCompressedMain), p2pkCompressedMain,
+			len(p2pkCompressed2Main), p2pkCompressed2Main),
+	}, {
+		name:      "normal 2-of-2",
+		threshold: 2,
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		expected: fmt.Sprintf("2 DATA_%d 0x%x DATA_%d 0x%x 2 CHECKMULTISIG",
+			len(p2pkCompressedMain), p2pkCompressedMain,
+			len(p2pkCompressed2Main), p2pkCompressed2Main),
+	}, {
+		name:      "threshold 3 > 2 pubkeys",
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		threshold: 3,
+		expected:  "",
+		err:       ErrTooManyRequiredSigs,
+	}, {
+		name:      "threshold 2 > 1 pubkey",
+		pubKeys:   [][]byte{p2pkCompressedMain},
+		threshold: 2,
+		expected:  "",
+		err:       ErrTooManyRequiredSigs,
+	}, {
+		name:      "reject uncompressed pubkeys",
+		pubKeys:   [][]byte{p2pkUncompressedMain},
+		threshold: 1,
+		expected:  "",
+		err:       ErrPubKeyType,
+	}}
+
+	for _, test := range tests {
+		script, err := MultiSigScriptV0(test.threshold, test.pubKeys...)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected error - got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+
+		const scriptVer = 0
+		expected := mustParseShortForm(scriptVer, test.expected)
+		if !bytes.Equal(script, expected) {
+			t.Errorf("%q: unexpected result -- got: %x\nwant: %x", test.name,
+				script, expected)
 			continue
 		}
 	}

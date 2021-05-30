@@ -17,6 +17,8 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
+		{ErrTooManyRequiredSigs, "ErrTooManyRequiredSigs"},
+		{ErrPubKeyType, "ErrPubKeyType"},
 	}
 
 	for i, test := range tests {
@@ -73,6 +75,30 @@ func TestErrorKindIsAs(t *testing.T) {
 		target:    ErrUnsupportedScriptVersion,
 		wantMatch: true,
 		wantAs:    ErrUnsupportedScriptVersion,
+	}, {
+		name:      "ErrTooManyRequiredSigs != ErrPubKeyType",
+		err:       ErrTooManyRequiredSigs,
+		target:    ErrPubKeyType,
+		wantMatch: false,
+		wantAs:    ErrTooManyRequiredSigs,
+	}, {
+		name:      "Error.ErrTooManyRequiredSigs != ErrPubKeyType",
+		err:       makeError(ErrTooManyRequiredSigs, ""),
+		target:    ErrPubKeyType,
+		wantMatch: false,
+		wantAs:    ErrTooManyRequiredSigs,
+	}, {
+		name:      "ErrTooManyRequiredSigs != Error.ErrPubKeyType",
+		err:       ErrTooManyRequiredSigs,
+		target:    makeError(ErrPubKeyType, ""),
+		wantMatch: false,
+		wantAs:    ErrTooManyRequiredSigs,
+	}, {
+		name:      "Error.ErrTooManyRequiredSigs != Error.ErrPubKeyType",
+		err:       makeError(ErrTooManyRequiredSigs, ""),
+		target:    makeError(ErrPubKeyType, ""),
+		wantMatch: false,
+		wantAs:    ErrTooManyRequiredSigs,
 	}, {
 		name:      "Error.ErrUnsupportedScriptVersion != io.EOF",
 		err:       makeError(ErrUnsupportedScriptVersion, ""),
