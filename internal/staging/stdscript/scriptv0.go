@@ -141,6 +141,53 @@ func IsPubKeyHashScriptV0(script []byte) bool {
 	return ExtractPubKeyHashV0(script) != nil
 }
 
+// IsStandardAltSignatureTypeV0 returns whether or not the provided version 0
+// script opcode represents a push of a standard alt signature type.
+func IsStandardAltSignatureTypeV0(op byte) bool {
+	if !txscript.IsSmallInt(op) {
+		return false
+	}
+
+	// TODO: Check Schnorr+secp too.
+	sigType := txscript.AsSmallInt(op)
+	return sigType == dcrec.STEd25519
+}
+
+// ExtractPubKeyHashAltDetailsV0 extracts the public key hash and signature type
+// from the passed script if it is a standard version 0 pay-to-alt-pubkey-hash
+// script.  It will return nil otherwise.
+func ExtractPubKeyHashAltDetailsV0(script []byte) ([]byte, dcrec.SignatureType) {
+	// A pay-to-alt-pubkey-hash script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY SIGTYPE CHECKSIG
+	//
+	// The only two currently supported alternative signature types are ed25519
+	// and schnorr + secp256k1 (with a compressed pubkey).
+	//
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte ed25519 sigtype> CHECKSIGALT
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte schnorr+secp sigtype> CHECKSIGALT
+	//
+	//  Notice that OP_0 is not specified since signature type 0 disabled.
+	if len(script) == 26 &&
+		script[0] == txscript.OP_DUP &&
+		script[1] == txscript.OP_HASH160 &&
+		script[2] == txscript.OP_DATA_20 &&
+		script[23] == txscript.OP_EQUALVERIFY &&
+		IsStandardAltSignatureTypeV0(script[24]) &&
+		script[25] == txscript.OP_CHECKSIGALT {
+
+		return script[3:23], dcrec.SignatureType(txscript.AsSmallInt(script[24]))
+	}
+
+	return nil, 0
+}
+
+// IsPubKeyHashEd25519ScriptV0 returns whether or not the passed script is a
+// standard version 0 pay-to-pubkey-hash-ed25519 script.
+func IsPubKeyHashEd25519ScriptV0(script []byte) bool {
+	pk, sigType := ExtractPubKeyHashAltDetailsV0(script)
+	return pk != nil && sigType == dcrec.STEd25519
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -156,6 +203,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STPubKeySchnorrSecp256k1
 	case IsPubKeyHashScriptV0(script):
 		return STPubKeyHashEcdsaSecp256k1
+	case IsPubKeyHashEd25519ScriptV0(script):
+		return STPubKeyHashEd25519
 	}
 
 	return STNonStandard

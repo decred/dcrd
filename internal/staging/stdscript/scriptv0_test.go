@@ -53,8 +53,9 @@ var scriptV0Tests = func() []scriptTest {
 	pkHE := "05" + pkUE[2:]
 	pkHO := "06" + pkUO[2:]
 
-	// Ed25519 public key.
+	// Ed25519 public key and hash.
 	pkEd := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+	h160Ed := "456d8ee57a4b9121987b4ecab8c3bcb5797e8a53"
 
 	return []scriptTest{{
 		// ---------------------------------------------------------------------
@@ -215,6 +216,49 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
 		wantType: STPubKeyHashEcdsaSecp256k1,
 		wantData: hexToBytes(h160CE),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH Alt tests.
+		// ---------------------------------------------------------------------
+
+		name: "v0 p2pkh-alt unsupported signature type 0",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 0 CHECKSIGALT",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		name: "v0 p2pkh-alt unsupported signature type 3",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 3 CHECKSIGALT",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		name: "almost v0 p2pkh-alt -- signature type not a small int",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY DATA_1 2 CHECKSIGALT",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		name: "almost v0 p2pkh-alt -- NOP for signature type",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY NOP CHECKSIGALT",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "almost v0 p2pkh-ed25519 -- wrong hash length",
+		script: p("DUP HASH160 DATA_21 0x00%s EQUALVERIFY 1 CHECKSIGALT",
+			h160Ed),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "v0 p2pkh-ed25519",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 1 CHECKSIGALT",
+			h160Ed),
+		wantType: STPubKeyHashEd25519,
+		wantData: hexToBytes(h160Ed),
 	}}
 }()
 
@@ -312,6 +356,35 @@ func TestExtractPubKeyHashV0(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
 				got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractPubKeyHashAltDetailsV0 ensures that extracting a public key hash
+// and signature type from the version 0 pay-to-alt-pubkey-hash style scripts
+// works as intended for all of the version 0 test scripts.
+func TestExtractPubKeyHashAltDetailsV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var wantBytes []byte
+		var wantSigType dcrec.SignatureType
+		switch test.wantType {
+		case STPubKeyHashEd25519:
+			wantBytes = asByteSlice(t, test)
+			wantSigType = dcrec.STEd25519
+		}
+
+		gotBytes, gotSigType := ExtractPubKeyHashAltDetailsV0(test.script)
+		if !bytes.Equal(gotBytes, wantBytes) {
+			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				gotBytes, wantBytes)
+			continue
+		}
+		if gotBytes != nil && gotSigType != wantSigType {
+			t.Errorf("%q: unexpected sig type -- got %d, want %d", test.name,
+				gotSigType, wantSigType)
 			continue
 		}
 	}

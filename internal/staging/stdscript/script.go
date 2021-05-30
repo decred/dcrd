@@ -45,6 +45,13 @@ const (
 	// script or the more specific pay-to-pubkey-hash-ecdsa-secp256k1 script.
 	STPubKeyHashEcdsaSecp256k1
 
+	// STPubKeyHashEd25519 identifies a standard script that imposes an
+	// encumbrance that requires an Ed25519 public key that hashes to a specific
+	// value along with a valid Ed25519 signature for that public key.
+	//
+	// This is commonly referred to as a pay-to-pubkey-hash-ed25519 script.
+	STPubKeyHashEd25519
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -58,6 +65,7 @@ var scriptTypeToName = []string{
 	STPubKeyEd25519:            "pubkey-ed25519",
 	STPubKeySchnorrSecp256k1:   "pubkey-schnorr-secp256k1",
 	STPubKeyHashEcdsaSecp256k1: "pubkeyhash",
+	STPubKeyHashEd25519:        "pubkeyhash-ed25519",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -120,6 +128,20 @@ func IsPubKeyHashScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsPubKeyHashScriptV0(script)
+	}
+
+	return false
+}
+
+// IsPubKeyHashEd25519Script returns whether or not the passed script is a
+// standard pay-to-pubkey-hash-ed25519 script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsPubKeyHashEd25519Script(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsPubKeyHashEd25519ScriptV0(script)
 	}
 
 	return false
