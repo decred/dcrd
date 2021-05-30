@@ -1,0 +1,86 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package stdscript
+
+import (
+	"bytes"
+	"testing"
+
+	"github.com/decred/dcrd/txscript/v4"
+)
+
+// complexScriptV0 is a version 0 script comprised of half as many opcodes as
+// the maximum allowed followed by as many max size data pushes fit without
+// exceeding the max allowed script size.
+var complexScriptV0 = func() []byte {
+	const (
+		maxScriptSize        = txscript.MaxScriptSize
+		maxScriptElementSize = txscript.MaxScriptElementSize
+	)
+	var scriptLen int
+	builder := txscript.NewScriptBuilder()
+	for i := 0; i < txscript.MaxOpsPerScript/2; i++ {
+		builder.AddOp(txscript.OP_TRUE)
+		scriptLen++
+	}
+	maxData := bytes.Repeat([]byte{0x02}, maxScriptElementSize)
+	for i := 0; i < (maxScriptSize-scriptLen)/maxScriptElementSize; i++ {
+		builder.AddData(maxData)
+	}
+	script, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	return script
+}()
+
+// makeBenchmarks constructs a slice of tests to use in the benchmarks as
+// follows:
+// - Start with a version 0 complex non standard script
+// - Add all tests for which the provided filter function returns true
+func makeBenchmarks(filterFn func(test scriptTest) bool) []scriptTest {
+	benches := make([]scriptTest, 0, 5)
+	benches = append(benches, scriptTest{
+		name:    "v0 complex non standard",
+		version: 0,
+		script:  complexScriptV0,
+	})
+	for _, test := range scriptV0Tests {
+		if filterFn(test) {
+			benches = append(benches, test)
+		}
+	}
+	return benches
+}
+
+// benchIsX is a convenience function that runs benchmarks for the entries that
+// match the provided filter function using the given script type determination
+// function and ensures the result matches the expected one.
+func benchIsX(b *testing.B, filterFn func(test scriptTest) bool, isXFn func(scriptVersion uint16, script []byte) bool) {
+	benches := makeBenchmarks(filterFn)
+	for _, bench := range benches {
+		want := filterFn(bench)
+		b.Run(bench.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				got := isXFn(bench.version, bench.script)
+				if got != want {
+					b.Fatalf("%q: unexpected result -- got %v, want %v",
+						bench.name, got, want)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkIsPubKeyScript benchmarks the performance of analyzing various
+// public key scripts to determine if they are p2pk-ecdsa-secp256k1 scripts.
+func BenchmarkIsPubKeyScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STPubKeyEcdsaSecp256k1
+	}
+	benchIsX(b, filterFn, IsPubKeyScript)
+}
