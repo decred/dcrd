@@ -161,3 +161,26 @@ func BenchmarkIsMultiSigSigScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsMultiSigSigScript)
 }
+
+// BenchmarkMultiSigRedeemScriptFromScriptSigV0 benchmarks the performance of
+// extracting the redeem script from various version 0 signature scripts.
+func BenchmarkMultiSigRedeemScriptFromScriptSigV0(b *testing.B) {
+	for _, test := range scriptV0Tests {
+		if test.version != 0 || test.wantType != STMultiSig || !test.isSig {
+			continue
+		}
+		want := test.wantData.([]byte)
+
+		b.Run(test.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				got := MultiSigRedeemScriptFromScriptSigV0(test.script)
+				if !bytes.Equal(got, want) {
+					b.Fatalf("%q: unexpected result -- got %x, want %x",
+						test.name, got, want)
+				}
+			}
+		})
+	}
+}
