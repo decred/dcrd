@@ -95,3 +95,13 @@ func BenchmarkIsPubKeyEd25519Script(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsPubKeyEd25519Script)
 }
+
+// BenchmarkIsPubKeySchnorrSecp256k1Script benchmarks the performance of
+// analyzing various public key scripts to determine if they are
+// p2pkh-schnorr-secp256k1 scripts.
+func BenchmarkIsPubKeySchnorrSecp256k1Script(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STPubKeySchnorrSecp256k1
+	}
+	benchIsX(b, filterFn, IsPubKeySchnorrSecp256k1Script)
+}
