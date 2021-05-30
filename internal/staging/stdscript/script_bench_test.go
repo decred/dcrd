@@ -6,9 +6,15 @@ package stdscript
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/decred/dcrd/txscript/v4"
+)
+
+// These variables are used to help ensure the benchmarks do not elide code.
+var (
+	noElideSwapData *AtomicSwapDataPushesV0
 )
 
 // complexScriptV0 is a version 0 script comprised of half as many opcodes as
@@ -322,6 +328,42 @@ func BenchmarkDetermineScriptType(b *testing.B) {
 					b.Fatalf("%q: unexpected result -- got %v, want %v",
 						bench.name, got, bench.wantType)
 				}
+			}
+		})
+	}
+}
+
+// BenchmarkExtractAtomicSwapDataPushes benchmarks the performance of
+// attempting to extract the atomic swap data pushes from various version 0
+// public key scripts.
+func BenchmarkExtractAtomicSwapDataPushes(b *testing.B) {
+	benches := []struct {
+		name   string // benchmark name
+		script []byte // script to analyze
+	}{{
+		name:   "v0 complex not atomic swap",
+		script: complexScriptV0,
+	}, {
+		name: "v0 normal valid atomic swap",
+		script: mustParseShortForm(0, fmt.Sprintf("IF "+
+			"SIZE 32 EQUALVERIFY "+
+			"SHA256 DATA_32 "+
+			"0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08 "+
+			"EQUALVERIFY DUP HASH160 "+
+			"DATA_20 0x0000000000000000000000000000000000000001 "+
+			"ELSE "+
+			"300000 CHECKLOCKTIMEVERIFY DROP DUP HASH160 "+
+			"DATA_20 0x0000000000000000000000000000000000000002 "+
+			"ENDIF "+
+			"EQUALVERIFY CHECKSIG")),
+	}}
+
+	for _, bench := range benches {
+		b.Run(bench.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				noElideSwapData = ExtractAtomicSwapDataPushesV0(bench.script)
 			}
 		})
 	}
