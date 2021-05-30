@@ -59,6 +59,8 @@ func makeBenchmarks(filterFn func(test scriptTest) bool) []scriptTest {
 // match the provided filter function using the given script type determination
 // function and ensures the result matches the expected one.
 func benchIsX(b *testing.B, filterFn func(test scriptTest) bool, isXFn func(scriptVersion uint16, script []byte) bool) {
+	b.Helper()
+
 	benches := makeBenchmarks(filterFn)
 	for _, bench := range benches {
 		want := filterFn(bench)
@@ -83,4 +85,13 @@ func BenchmarkIsPubKeyScript(b *testing.B) {
 		return test.wantType == STPubKeyEcdsaSecp256k1
 	}
 	benchIsX(b, filterFn, IsPubKeyScript)
+}
+
+// BenchmarkIsPubKeyEd25519Script benchmarks the performance of analyzing
+// various public key scripts to determine if they are p2pkh-ed25519 scripts.
+func BenchmarkIsPubKeyEd25519Script(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STPubKeyEd25519
+	}
+	benchIsX(b, filterFn, IsPubKeyEd25519Script)
 }
