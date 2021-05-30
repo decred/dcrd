@@ -510,6 +510,22 @@ func IsStakeGenPubKeyHashScriptV0(script []byte) bool {
 	return ExtractStakeGenPubKeyHashV0(script) != nil
 }
 
+// ExtractStakeGenScriptHashV0 extracts the script hash from the passed
+// script if it is a standard version 0 stake generation pay-to-script-hash
+// script.  It will return nil otherwise.
+func ExtractStakeGenScriptHashV0(script []byte) []byte {
+	// A stake generation pay-to-script-hash script is of the form:
+	//  OP_SSGEN <standard-pay-to-script-hash script>
+	const stakeOpcode = txscript.OP_SSGEN
+	return extractStakeScriptHashV0(script, stakeOpcode)
+}
+
+// IsStakeGenScriptHashScriptV0 returns whether or not the passed script is a
+// standard version 0 stake generation pay-to-script-hash script.
+func IsStakeGenScriptHashScriptV0(script []byte) bool {
+	return ExtractStakeGenScriptHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -541,6 +557,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STStakeSubmissionScriptHash
 	case IsStakeGenPubKeyHashScriptV0(script):
 		return STStakeGenPubKeyHash
+	case IsStakeGenScriptHashScriptV0(script):
+		return STStakeGenScriptHash
 	}
 
 	return STNonStandard
