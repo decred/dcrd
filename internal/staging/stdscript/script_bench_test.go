@@ -142,3 +142,12 @@ func BenchmarkIsScriptHashScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsScriptHashScript)
 }
+
+// BenchmarkIsMultiSigScript benchmarks the performance of analyzing various
+// public key scripts to determine if they are multisignature scripts.
+func BenchmarkIsMultiSigScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STMultiSig && !test.isSig
+	}
+	benchIsX(b, filterFn, IsMultiSigScript)
+}
