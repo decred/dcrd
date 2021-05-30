@@ -151,3 +151,13 @@ func BenchmarkIsMultiSigScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsMultiSigScript)
 }
+
+// BenchmarkIsMultiSigSigScript benchmarks the performance of analyzing various
+// signature scripts to determine if they are likely to be multisignature redeem
+// scripts.
+func BenchmarkIsMultiSigSigScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STMultiSig && test.isSig
+	}
+	benchIsX(b, filterFn, IsMultiSigSigScript)
+}
