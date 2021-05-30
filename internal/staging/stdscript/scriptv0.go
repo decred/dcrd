@@ -461,6 +461,39 @@ func IsStakeSubmissionPubKeyHashScriptV0(script []byte) bool {
 	return ExtractStakeSubmissionPubKeyHashV0(script) != nil
 }
 
+// extractStakeScriptHashV0 extracts the script hash from the passed script if
+// it is a standard version 0 stake-tagged pay-to-script-hash script with the
+// provided stake opcode.  It will return nil otherwise.
+func extractStakeScriptHashV0(script []byte, stakeOpcode byte) []byte {
+	// A stake-tagged pay-to-script-hash is of the form:
+	//   <stake opcode> <standard-pay-to-script-hash script>
+
+	// The script can't possibly be a stake-tagged pay-to-script-hash if it
+	// doesn't start with the given stake opcode.  Fail fast to avoid more work
+	// below.
+	if len(script) < 1 || script[0] != stakeOpcode {
+		return nil
+	}
+
+	return txscript.ExtractScriptHash(script[1:])
+}
+
+// ExtractStakeSubmissionScriptHashV0 extracts the script hash from the
+// passed script if it is a standard version 0 stake submission
+// pay-to-script-hash script.  It will return nil otherwise.
+func ExtractStakeSubmissionScriptHashV0(script []byte) []byte {
+	// A stake submission pay-to-script-hash script is of the form:
+	//  OP_SSTX <standard-pay-to-script-hash script>
+	const stakeOpcode = txscript.OP_SSTX
+	return extractStakeScriptHashV0(script, stakeOpcode)
+}
+
+// IsStakeSubmissionScriptHashScriptV0 returns whether or not the passed script
+// is a standard version 0 stake submission pay-to-script-hash script.
+func IsStakeSubmissionScriptHashScriptV0(script []byte) bool {
+	return ExtractStakeSubmissionScriptHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -488,6 +521,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STNullData
 	case IsStakeSubmissionPubKeyHashScriptV0(script):
 		return STStakeSubmissionPubKeyHash
+	case IsStakeSubmissionScriptHashScriptV0(script):
+		return STStakeSubmissionScriptHash
 	}
 
 	return STNonStandard

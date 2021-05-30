@@ -538,6 +538,23 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSTX DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
 		wantType: STStakeSubmissionPubKeyHash,
 		wantData: hexToBytes(h160CE),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative stake submission P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 stake submission p2sh -- wrong hash length",
+		script:   p("SSTX HASH160 DATA_21 0x00%s EQUAL", p2sh),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive stake submission P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 stake submission p2sh",
+		script:   p("SSTX HASH160 DATA_20 0x%s EQUAL", p2sh),
+		wantType: STStakeSubmissionScriptHash,
+		wantData: hexToBytes(p2sh),
 	}}
 }()
 
@@ -786,6 +803,27 @@ func TestExtractStakeSubmissionPubKeyHashV0(t *testing.T) {
 		got := ExtractStakeSubmissionPubKeyHashV0(test.script)
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractStakeSubmissionScriptHashV0 ensures that extracting a script hash
+// from a version 0 stake submission pay-to-script-hash script works as intended
+// for all of the version 0 test scripts.
+func TestExtractStakeSubmissionScriptHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STStakeSubmissionScriptHash {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractStakeSubmissionScriptHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
 				got, want)
 			continue
 		}
