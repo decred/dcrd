@@ -148,9 +148,8 @@ func IsStandardAltSignatureTypeV0(op byte) bool {
 		return false
 	}
 
-	// TODO: Check Schnorr+secp too.
 	sigType := txscript.AsSmallInt(op)
-	return sigType == dcrec.STEd25519
+	return sigType == dcrec.STEd25519 || sigType == dcrec.STSchnorrSecp256k1
 }
 
 // ExtractPubKeyHashAltDetailsV0 extracts the public key hash and signature type
@@ -188,6 +187,13 @@ func IsPubKeyHashEd25519ScriptV0(script []byte) bool {
 	return pk != nil && sigType == dcrec.STEd25519
 }
 
+// IsPubKeyHashSchnorrSecp256k1ScriptV0 returns whether or not the passed script
+// is a standard version 0 pay-to-pubkey-hash-schnorr-secp256k1 script.
+func IsPubKeyHashSchnorrSecp256k1ScriptV0(script []byte) bool {
+	pk, sigType := ExtractPubKeyHashAltDetailsV0(script)
+	return pk != nil && sigType == dcrec.STSchnorrSecp256k1
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -205,6 +211,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STPubKeyHashEcdsaSecp256k1
 	case IsPubKeyHashEd25519ScriptV0(script):
 		return STPubKeyHashEd25519
+	case IsPubKeyHashSchnorrSecp256k1ScriptV0(script):
+		return STPubKeyHashSchnorrSecp256k1
 	}
 
 	return STNonStandard

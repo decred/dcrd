@@ -49,6 +49,7 @@ var scriptV0Tests = func() []scriptTest {
 		"56ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297"
 	pkCE := "02" + pkUE[2:66]
 	h160CE := "e280cb6e66b96679aec288b1fbdbd4db08077a1b"
+	h160CE2 := "01557763e0252dc0ff9e0996ad1d04b167bb993c"
 	pkCO := "03" + pkUO[2:66]
 	pkHE := "05" + pkUE[2:]
 	pkHO := "06" + pkUO[2:]
@@ -259,6 +260,31 @@ var scriptV0Tests = func() []scriptTest {
 			h160Ed),
 		wantType: STPubKeyHashEd25519,
 		wantData: hexToBytes(h160Ed),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "almost v0 p2pkh-schnorr-secp256k1 -- wrong hash length",
+		script: p("DUP HASH160 DATA_21 0x00%s EQUALVERIFY 2 CHECKSIGALT",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "v0 p2pkh-schnorr-secp256k1",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 2 CHECKSIGALT",
+			h160CE),
+		wantType: STPubKeyHashSchnorrSecp256k1,
+		wantData: hexToBytes(h160CE),
+	}, {
+		name: "v0 p2pkh-schnorr-secp256k1 2",
+		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 2 CHECKSIGALT",
+			h160CE2),
+		wantType: STPubKeyHashSchnorrSecp256k1,
+		wantData: hexToBytes(h160CE2),
 	}}
 }()
 
@@ -374,6 +400,10 @@ func TestExtractPubKeyHashAltDetailsV0(t *testing.T) {
 		case STPubKeyHashEd25519:
 			wantBytes = asByteSlice(t, test)
 			wantSigType = dcrec.STEd25519
+
+		case STPubKeyHashSchnorrSecp256k1:
+			wantBytes = asByteSlice(t, test)
+			wantSigType = dcrec.STSchnorrSecp256k1
 		}
 
 		gotBytes, gotSigType := ExtractPubKeyHashAltDetailsV0(test.script)

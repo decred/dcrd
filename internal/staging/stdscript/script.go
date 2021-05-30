@@ -52,6 +52,15 @@ const (
 	// This is commonly referred to as a pay-to-pubkey-hash-ed25519 script.
 	STPubKeyHashEd25519
 
+	// STPubKeyHashSchnorrSecp256k1 identifies a standard script that imposes an
+	// encumbrance that requires a secp256k1 public key that hashes to a
+	// specific value along with a valid EC-Schnorr-DCRv0 signature for that
+	// public key.
+	//
+	// This is commonly referred to as a pay-to-pubkey-hash-schnorr-secp256k1
+	// script.
+	STPubKeyHashSchnorrSecp256k1
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -60,12 +69,13 @@ const (
 // scriptTypeToName houses the human-readable strings which describe each script
 // type.
 var scriptTypeToName = []string{
-	STNonStandard:              "nonstandard",
-	STPubKeyEcdsaSecp256k1:     "pubkey",
-	STPubKeyEd25519:            "pubkey-ed25519",
-	STPubKeySchnorrSecp256k1:   "pubkey-schnorr-secp256k1",
-	STPubKeyHashEcdsaSecp256k1: "pubkeyhash",
-	STPubKeyHashEd25519:        "pubkeyhash-ed25519",
+	STNonStandard:                "nonstandard",
+	STPubKeyEcdsaSecp256k1:       "pubkey",
+	STPubKeyEd25519:              "pubkey-ed25519",
+	STPubKeySchnorrSecp256k1:     "pubkey-schnorr-secp256k1",
+	STPubKeyHashEcdsaSecp256k1:   "pubkeyhash",
+	STPubKeyHashEd25519:          "pubkeyhash-ed25519",
+	STPubKeyHashSchnorrSecp256k1: "pubkeyhash-schnorr-secp256k1",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -142,6 +152,20 @@ func IsPubKeyHashEd25519Script(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsPubKeyHashEd25519ScriptV0(script)
+	}
+
+	return false
+}
+
+// IsPubKeyHashSchnorrSecp256k1Script returns whether or not the passed script
+// is a standard pay-to-pubkey-hash-schnorr-secp256k1 script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsPubKeyHashSchnorrSecp256k1Script(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsPubKeyHashSchnorrSecp256k1ScriptV0(script)
 	}
 
 	return false
