@@ -291,3 +291,13 @@ func BenchmarkIsTreasuryGenPubKeyHashScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsTreasuryGenPubKeyHashScript)
 }
+
+// BenchmarkIsTreasuryGenScriptHashScript benchmarks the performance of
+// analyzing various public key scripts to determine if they are treasury
+// generation p2sh scripts.
+func BenchmarkIsTreasuryGenScriptHashScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STTreasuryGenScriptHash
+	}
+	benchIsX(b, filterFn, IsTreasuryGenScriptHashScript)
+}
