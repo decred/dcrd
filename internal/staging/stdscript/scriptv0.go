@@ -596,6 +596,22 @@ func IsTreasuryAddScriptV0(script []byte) bool {
 	return len(script) == 1 && script[0] == txscript.OP_TADD
 }
 
+// ExtractTreasuryGenPubKeyHashV0 extracts the public key hash from the
+// passed script if it is a standard version 0 treasury generation
+// pay-to-pubkey-hash script.  It will return nil otherwise.
+func ExtractTreasuryGenPubKeyHashV0(script []byte) []byte {
+	// A treasury generation pay-to-pubkey-hash script is of the form:
+	//  OP_TGEN <standard-pay-to-pubkey-hash script>
+	const stakeOpcode = txscript.OP_TGEN
+	return extractStakePubKeyHashV0(script, stakeOpcode)
+}
+
+// IsTreasuryGenPubKeyHashScriptV0 returns whether or not the passed script is a
+// standard version 0 treasury generation pay-to-pubkey-hash script.
+func IsTreasuryGenPubKeyHashScriptV0(script []byte) bool {
+	return ExtractTreasuryGenPubKeyHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -639,6 +655,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STStakeChangeScriptHash
 	case IsTreasuryAddScriptV0(script):
 		return STTreasuryAdd
+	case IsTreasuryGenPubKeyHashScriptV0(script):
+		return STTreasuryGenPubKeyHash
 	}
 
 	return STNonStandard
