@@ -91,7 +91,13 @@ func ExtractPubKeyAltDetailsV0(script []byte) ([]byte, dcrec.SignatureType) {
 		return script[1:33], dcrec.STEd25519
 	}
 
-	// TODO: Add schnorr+secp here.
+	if len(script) == 36 && script[0] == txscript.OP_DATA_33 &&
+		txscript.IsSmallInt(script[34]) &&
+		txscript.AsSmallInt(script[34]) == dcrec.STSchnorrSecp256k1 &&
+		txscript.IsStrictCompressedPubKeyEncoding(script[1:34]) {
+
+		return script[1:34], dcrec.STSchnorrSecp256k1
+	}
 
 	return nil, 0
 }
@@ -101,6 +107,13 @@ func ExtractPubKeyAltDetailsV0(script []byte) ([]byte, dcrec.SignatureType) {
 func IsPubKeyEd25519ScriptV0(script []byte) bool {
 	pk, sigType := ExtractPubKeyAltDetailsV0(script)
 	return pk != nil && sigType == dcrec.STEd25519
+}
+
+// IsPubKeySchnorrSecp256k1ScriptV0 returns whether or not the passed script is
+// a standard version 0 pay-to-schnorr-secp256k1-pubkey script.
+func IsPubKeySchnorrSecp256k1ScriptV0(script []byte) bool {
+	pk, sigType := ExtractPubKeyAltDetailsV0(script)
+	return pk != nil && sigType == dcrec.STSchnorrSecp256k1
 }
 
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
@@ -114,6 +127,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STPubKeyEcdsaSecp256k1
 	case IsPubKeyEd25519ScriptV0(script):
 		return STPubKeyEd25519
+	case IsPubKeySchnorrSecp256k1ScriptV0(script):
+		return STPubKeySchnorrSecp256k1
 	}
 
 	return STNonStandard

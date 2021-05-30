@@ -154,6 +154,48 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_32 0x%s 1 CHECKSIGALT", pkEd),
 		wantType: STPubKeyEd25519,
 		wantData: hexToBytes(pkEd),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2pk-schnorr-secp256k1 uncompressed",
+		script:   p("DATA_65 0x%s 2 CHECKSIGALT", pkUE),
+		wantType: STNonStandard,
+	}, {
+		name:     "v0 p2pk-schnorr-secp256k1 hybrid odd",
+		script:   p("DATA_65 0x%s 2 CHECKSIGALT", pkHO),
+		wantType: STNonStandard,
+	}, {
+		name:     "v0 p2pk-schnorr-secp256k1 hybrid even",
+		script:   p("DATA_65 0x%s 2 CHECKSIGALT", pkHE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-schnorr-secp256k1 -- trailing opcode",
+		script:   p("DATA_33 0x%s 2 CHECKSIGALT TRUE", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-schnorr-secp256k1 -- pubkey not pushed",
+		script:   p("0x%s 2 CHECKSIGALT", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-schnorr-secp256k1 -- malformed pubkey prefix",
+		script:   p("DATA_33 0x08%s 2 CHECKSIGALT", pkCE[2:]),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PK Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2pk-schnorr-secp256k1 compressed even",
+		script:   p("DATA_33 0x%s 2 CHECKSIGALT", pkCE),
+		wantType: STPubKeySchnorrSecp256k1,
+		wantData: hexToBytes(pkCE),
+	}, {
+		name:     "v0 p2pk-schnorr-secp256k1 compressed odd",
+		script:   p("DATA_33 0x%s 2 CHECKSIGALT", pkCO),
+		wantType: STPubKeySchnorrSecp256k1,
+		wantData: hexToBytes(pkCO),
 	}}
 }()
 
@@ -215,6 +257,10 @@ func TestExtractPubKeyAltDetailsV0(t *testing.T) {
 		case STPubKeyEd25519:
 			wantBytes = asByteSlice(t, test)
 			wantSigType = dcrec.STEd25519
+
+		case STPubKeySchnorrSecp256k1:
+			wantBytes = asByteSlice(t, test)
+			wantSigType = dcrec.STSchnorrSecp256k1
 		}
 
 		gotBytes, gotSigType := ExtractPubKeyAltDetailsV0(test.script)

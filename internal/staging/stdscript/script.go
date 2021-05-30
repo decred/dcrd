@@ -30,6 +30,13 @@ const (
 	// This is commonly referred to as a pay-to-pubkey-ed25519 script.
 	STPubKeyEd25519
 
+	// STPubKeySchnorrSecp256k1 identifies a standard script that imposes an
+	// encumbrance that requires a valid EC-Schnorr-DCRv0 signature for a
+	// specific secp256k1 public key.
+	//
+	// This is commonly referred to as a pay-to-pubkey-schnorr-secp256k1 script.
+	STPubKeySchnorrSecp256k1
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -38,9 +45,10 @@ const (
 // scriptTypeToName houses the human-readable strings which describe each script
 // type.
 var scriptTypeToName = []string{
-	STNonStandard:          "nonstandard",
-	STPubKeyEcdsaSecp256k1: "pubkey",
-	STPubKeyEd25519:        "pubkey-ed25519",
+	STNonStandard:            "nonstandard",
+	STPubKeyEcdsaSecp256k1:   "pubkey",
+	STPubKeyEd25519:          "pubkey-ed25519",
+	STPubKeySchnorrSecp256k1: "pubkey-schnorr-secp256k1",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -75,6 +83,20 @@ func IsPubKeyEd25519Script(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsPubKeyEd25519ScriptV0(script)
+	}
+
+	return false
+}
+
+// IsPubKeySchnorrSecp256k1Script returns whether or not the passed script is a
+// standard pay-to-schnorr-secp256k1-pubkey script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsPubKeySchnorrSecp256k1Script(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsPubKeySchnorrSecp256k1ScriptV0(script)
 	}
 
 	return false
