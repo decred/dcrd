@@ -184,3 +184,12 @@ func BenchmarkMultiSigRedeemScriptFromScriptSigV0(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkIsNullDataScript benchmarks the performance of analyzing various
+// public key scripts to determine if they are nulldata scripts.
+func BenchmarkIsNullDataScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STNullData
+	}
+	benchIsX(b, filterFn, IsNullDataScript)
+}
