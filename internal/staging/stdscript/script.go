@@ -15,6 +15,14 @@ const (
 	// forms.
 	STNonStandard ScriptType = iota
 
+	// STPubKeyEcdsaSecp256k1 identifies a standard script that imposes an
+	// encumbrance that requires a valid ECDSA signature for a specific
+	// secp256k1 public key.
+	//
+	// This is commonly referred to as either a pay-to-pubkey (P2PK) script or
+	// the more specific pay-to-pubkey-ecdsa-secp256k1 script.
+	STPubKeyEcdsaSecp256k1
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -23,7 +31,8 @@ const (
 // scriptTypeToName houses the human-readable strings which describe each script
 // type.
 var scriptTypeToName = []string{
-	STNonStandard: "nonstandard",
+	STNonStandard:          "nonstandard",
+	STPubKeyEcdsaSecp256k1: "pubkey",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -32,6 +41,21 @@ func (t ScriptType) String() string {
 		return "invalid"
 	}
 	return scriptTypeToName[t]
+}
+
+// IsPubKeyScript returns whether or not the passed script is either a standard
+// pay-to-compressed-secp256k1-pubkey or pay-to-uncompressed-secp256k1-pubkey
+// script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsPubKeyScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsPubKeyScriptV0(script)
+	}
+
+	return false
 }
 
 // DetermineScriptType returns the type of the script passed.

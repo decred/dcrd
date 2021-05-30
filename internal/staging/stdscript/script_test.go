@@ -17,6 +17,7 @@ func TestScriptTypeStringer(t *testing.T) {
 		want string
 	}{
 		{STNonStandard, "nonstandard"},
+		{STPubKeyEcdsaSecp256k1, "pubkey"},
 		{0xff, "invalid"},
 	}
 
@@ -91,7 +92,36 @@ func TestDetermineScriptType(t *testing.T) {
 			continue
 		}
 
-		// TODO: Remove once used.
-		_ = test.wantData
+		// These are convenience helpers to ensure a given individual script
+		// type determination function matches the expected result per the given
+		// desired type.
+		type isXFn func(scriptVersion uint16, script []byte) bool
+		testIsXInternal := func(fn isXFn, isSig bool, wantType ScriptType) {
+			t.Helper()
+
+			// Ensure that the script is considered non standard for unsupported
+			// script versions regardless.
+			got := fn(unsupportedScriptVer, test.script)
+			if got {
+				t.Errorf("%q -- unsupported script version return true "+
+					"(script %x)", test.name, test.script)
+				return
+			}
+
+			got = fn(test.version, test.script)
+			want := test.isSig == isSig && test.wantType == wantType
+			if got != want {
+				t.Errorf("%q: mismatched is func %v -- got %v, want %v "+
+					"(script %x)", test.name, wantType, got, want, test.script)
+			}
+		}
+		testIsX := func(fn isXFn, wantType ScriptType) {
+			t.Helper()
+			testIsXInternal(fn, false, wantType)
+		}
+
+		// Ensure the individual determination methods produce the expected
+		// results.
+		testIsX(IsPubKeyScript, STPubKeyEcdsaSecp256k1)
 	}
 }
