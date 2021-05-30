@@ -272,3 +272,12 @@ func BenchmarkIsStakeChangeScriptHash(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsStakeChangeScriptHashScript)
 }
+
+// BenchmarkIsTreasuryAddScript benchmarks the performance of analyzing various
+// public key scripts to determine if they are treasury add scripts.
+func BenchmarkIsTreasuryAddScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STTreasuryAdd
+	}
+	benchIsX(b, filterFn, IsTreasuryAddScript)
+}
