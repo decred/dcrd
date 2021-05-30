@@ -208,6 +208,110 @@ func IsScriptHashScriptV0(script []byte) bool {
 	return ExtractScriptHashV0(script) != nil
 }
 
+// MultiSigDetailsV0 houses details extracted from a standard version 0 ECDSA
+// multisig script.
+type MultiSigDetailsV0 struct {
+	RequiredSigs int
+	NumPubKeys   int
+	PubKeys      [][]byte
+	Valid        bool
+}
+
+// ExtractMultiSigScriptDetailsV0 attempts to extract details from the passed
+// version 0 script if it is a standard ECDSA multisig script.  The returned
+// details struct will have the valid flag set to false otherwise.
+//
+// The extract pubkeys flag indicates whether or not the pubkeys themselves
+// should also be extracted and is provided because extracting them results in
+// an allocation that the caller might wish to avoid.  The PubKeys member of the
+// returned details struct will be nil when the flag is false.
+func ExtractMultiSigScriptDetailsV0(script []byte, extractPubKeys bool) MultiSigDetailsV0 {
+	// A multi-signature script is of the form:
+	//  REQ_SIGS PUBKEY PUBKEY PUBKEY ... NUM_PUBKEYS OP_CHECKMULTISIG
+
+	// The script can't possibly be a multisig script if it doesn't end with
+	// OP_CHECKMULTISIG or have at least two small integer pushes preceding it.
+	// Fail fast to avoid more work below.
+	if len(script) < 3 || script[len(script)-1] != txscript.OP_CHECKMULTISIG {
+		return MultiSigDetailsV0{}
+	}
+
+	// The first opcode must be a small integer specifying the number of
+	// signatures required.
+	const scriptVersion = 0
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
+	if !tokenizer.Next() || !txscript.IsSmallInt(tokenizer.Opcode()) {
+		return MultiSigDetailsV0{}
+	}
+	requiredSigs := txscript.AsSmallInt(tokenizer.Opcode())
+
+	// There must be at least one required signature.
+	if requiredSigs == 0 {
+		return MultiSigDetailsV0{}
+	}
+
+	// The next series of opcodes must either push public keys or be a small
+	// integer specifying the number of public keys.  It should be noted that
+	// although the consensus rules allow a higher maximum number of pubkeys,
+	// this intentionally further restricts the maximum number to what can be
+	// represented by a small integer push (up to a max of 16).
+	var numPubKeys int
+	var pubKeys [][]byte
+	if extractPubKeys {
+		pubKeys = make([][]byte, 0, txscript.MaxPubKeysPerMultiSig)
+	}
+	for tokenizer.Next() {
+		data := tokenizer.Data()
+		if !txscript.IsStrictCompressedPubKeyEncoding(data) {
+			break
+		}
+		numPubKeys++
+		if extractPubKeys {
+			pubKeys = append(pubKeys, data)
+		}
+	}
+	if tokenizer.Done() {
+		return MultiSigDetailsV0{}
+	}
+
+	// The next opcode must be a small integer specifying the number of public
+	// keys required.
+	op := tokenizer.Opcode()
+	if !txscript.IsSmallInt(op) || txscript.AsSmallInt(op) != numPubKeys {
+		return MultiSigDetailsV0{}
+	}
+
+	// There must be at least as many pubkeys as required signatures.
+	if numPubKeys < requiredSigs {
+		return MultiSigDetailsV0{}
+	}
+
+	// There must only be a single opcode left unparsed which will be
+	// OP_CHECKMULTISIG per the check above.
+	if int32(len(tokenizer.Script()))-tokenizer.ByteIndex() != 1 {
+		return MultiSigDetailsV0{}
+	}
+
+	return MultiSigDetailsV0{
+		RequiredSigs: requiredSigs,
+		NumPubKeys:   numPubKeys,
+		PubKeys:      pubKeys,
+		Valid:        true,
+	}
+}
+
+// IsMultiSigScriptV0 returns whether or not the passed script is a standard
+// version 0 ECDSA multisig script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func IsMultiSigScriptV0(script []byte) bool {
+	// Since this is only checking the form of the script, don't extract the
+	// public keys to avoid the allocation.
+	details := ExtractMultiSigScriptDetailsV0(script, false)
+	return details.Valid
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -229,6 +333,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STPubKeyHashSchnorrSecp256k1
 	case IsScriptHashScriptV0(script):
 		return STScriptHash
+	case IsMultiSigScriptV0(script):
+		return STMultiSig
 	}
 
 	return STNonStandard

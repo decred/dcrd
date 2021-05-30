@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/decred/dcrd/dcrec"
@@ -49,6 +50,7 @@ var scriptV0Tests = func() []scriptTest {
 		"56ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297"
 	pkCE := "02" + pkUE[2:66]
 	h160CE := "e280cb6e66b96679aec288b1fbdbd4db08077a1b"
+	pkCE2 := "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
 	h160CE2 := "01557763e0252dc0ff9e0996ad1d04b167bb993c"
 	pkCO := "03" + pkUO[2:66]
 	pkHE := "05" + pkUE[2:]
@@ -309,6 +311,107 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STScriptHash,
 		wantData: hexToBytes(p2sh),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative ECDSA multisig secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 multisig 1-of-2 -- mixed (un)compressed pubkeys",
+		script:   p("1 DATA_65 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkUE, pkCO),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- no req sigs",
+		script:   p("0 0 CHECKMULTISIG"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- invalid pubkey",
+		script:   p("1 DATA_32 0x%s 1 CHECKMULTISIG", pkCE[2:]),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- hybrid pubkey",
+		script:   p("1 DATA_65 0x%s 1 CHECKMULTISIG", pkHO),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- invalid number of signatures",
+		script:   p("DUP DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- ends with CHECKSIG instead",
+		script:   p("1 DATA_33 0x%s 1 CHECKSIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- num required sigs not small int",
+		script:   p("DATA_1 1 DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- num public keys not small int",
+		script:   p("1 DATA_33 0x%s DATA_1 1 CHECKMULTISIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- missing num public keys",
+		script:   p("1 DATA_33 0x%s CHECKMULTISIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- num pubkeys does not match given keys",
+		script:   p("2 DATA_33 0x%s DATA_33 0x%s 3 CHECKMULTISIG", pkCE, pkCO),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- fewer pubkeys than num required sigs",
+		script:   p("1 0 CHECKMULTISIG"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- CHECKMULTISIGVERIFY",
+		script:   p("1 DATA_33 0x%s 1 CHECKMULTISIGVERIFY", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- extra NOP prior to final opcode",
+		script:   p("1 DATA_33 0x%s 1 NOP CHECKMULTISIG", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- trailing opcode",
+		script:   p("1 DATA_33 0x%s 1 CHECKMULTISIG TRUE", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig -- no pubkeys specified",
+		script:   p("1 CHECKMULTISIG"),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive ECDSA multisig secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 multisig 1-of-1 compressed pubkey",
+		script:   p("1 DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+		wantType: STMultiSig,
+		wantData: MultiSigDetailsV0{
+			RequiredSigs: 1,
+			NumPubKeys:   1,
+			PubKeys:      [][]byte{hexToBytes(pkCE)},
+			Valid:        true,
+		},
+	}, {
+		name:     "v0 multisig 1-of-2 compressed pubkeys",
+		script:   p("1 DATA_33 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkCE, pkCE2),
+		wantType: STMultiSig,
+		wantData: MultiSigDetailsV0{
+			RequiredSigs: 1,
+			NumPubKeys:   2,
+			PubKeys:      [][]byte{hexToBytes(pkCE), hexToBytes(pkCE2)},
+			Valid:        true,
+		},
+	}, {
+		name: "v0 multisig 2-of-3 compressed pubkeys",
+		script: p("2 DATA_33 0x%s DATA_33 0x%s DATA_33 0x%s 3 CHECKMULTISIG",
+			pkCE, pkCE2, pkCO),
+		wantType: STMultiSig,
+		wantData: MultiSigDetailsV0{
+			RequiredSigs: 2,
+			NumPubKeys:   3,
+			PubKeys: [][]byte{
+				hexToBytes(pkCE), hexToBytes(pkCE2), hexToBytes(pkCO),
+			},
+			Valid: true,
+		},
 	}}
 }()
 
@@ -460,6 +563,49 @@ func TestExtractScriptHashV0(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
 				got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractMultiSigScriptDetailsV0 ensures that extracting details about a
+// version 0 ECDSA multisignature script works as intended for all of the
+// version 0 test scripts.
+func TestExtractMultiSigScriptDetailsV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want MultiSigDetailsV0
+		if test.wantType == STMultiSig && !test.isSig {
+			var ok bool
+			want, ok = test.wantData.(MultiSigDetailsV0)
+			if !ok {
+				t.Fatalf("%q: unexpected want data type -- got %T", test.name,
+					test.wantData)
+			}
+		}
+
+		// Attempt to extract the multisig data from the script and ensure
+		// the individual fields of the extracted data is accurate.
+		got := ExtractMultiSigScriptDetailsV0(test.script, true)
+		if got.Valid != want.Valid {
+			t.Errorf("%q: unexpected validity -- got %v, want %v", test.name,
+				got.Valid, want.Valid)
+			continue
+		}
+		if got.RequiredSigs != want.RequiredSigs {
+			t.Errorf("%q: unexpected required sigs -- got %d, want %d",
+				test.name, got.RequiredSigs, want.RequiredSigs)
+			continue
+		}
+		if got.NumPubKeys != want.NumPubKeys {
+			t.Errorf("%q: unexpected num public keys -- got %d, want %d",
+				test.name, got.NumPubKeys, want.NumPubKeys)
+			continue
+		}
+		if !reflect.DeepEqual(got.PubKeys, want.PubKeys) {
+			t.Errorf("%q: unexpected extracted pubkeys -- got %x, want %x",
+				test.name, got.PubKeys, want.PubKeys)
 			continue
 		}
 	}

@@ -24,6 +24,7 @@ func TestScriptTypeStringer(t *testing.T) {
 		{STPubKeyHashEd25519, "pubkeyhash-ed25519"},
 		{STPubKeyHashSchnorrSecp256k1, "pubkeyhash-schnorr-secp256k1"},
 		{STScriptHash, "scripthash"},
+		{STMultiSig, "multisig"},
 		{0xff, "invalid"},
 	}
 
@@ -135,5 +136,6 @@ func TestDetermineScriptType(t *testing.T) {
 		testIsX(IsPubKeyHashEd25519Script, STPubKeyHashEd25519)
 		testIsX(IsPubKeyHashSchnorrSecp256k1Script, STPubKeyHashSchnorrSecp256k1)
 		testIsX(IsScriptHashScript, STScriptHash)
+		testIsX(IsMultiSigScript, STMultiSig)
 	}
 }

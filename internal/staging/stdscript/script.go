@@ -69,6 +69,14 @@ const (
 	// This is commonly referred to as pay-to-script-hash (P2SH).
 	STScriptHash
 
+	// STMultiSig identifies a standard script that imposes an encumbrance that
+	// requires a given number of valid ECDSA signatures which correspond to
+	// given secp256k1 public keys.
+	//
+	// This is commonly referred to as a standard ECDSA n-of-m multi-signature
+	// script.
+	STMultiSig
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -85,6 +93,7 @@ var scriptTypeToName = []string{
 	STPubKeyHashEd25519:          "pubkeyhash-ed25519",
 	STPubKeyHashSchnorrSecp256k1: "pubkeyhash-schnorr-secp256k1",
 	STScriptHash:                 "scripthash",
+	STMultiSig:                   "multisig",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -189,6 +198,20 @@ func IsScriptHashScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsScriptHashScriptV0(script)
+	}
+
+	return false
+}
+
+// IsMultiSigScript returns whether or not the passed script is a standard
+// ECDSA multisig script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsMultiSigScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsMultiSigScriptV0(script)
 	}
 
 	return false
