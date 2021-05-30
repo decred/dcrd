@@ -262,3 +262,13 @@ func BenchmarkIsStakeChangePubKeyHash(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsStakeChangePubKeyHashScript)
 }
+
+// BenchmarkIsStakeChangeScriptHash benchmarks the performance of analyzing
+// various public key scripts to determine if they are stake change p2sh
+// scripts.
+func BenchmarkIsStakeChangeScriptHash(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STStakeChangeScriptHash
+	}
+	benchIsX(b, filterFn, IsStakeChangeScriptHashScript)
+}
