@@ -114,3 +114,12 @@ func BenchmarkIsPubKeyHashScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsPubKeyHashScript)
 }
+
+// BenchmarkIsPubKeyHashEd25519Script benchmarks the performance of analyzing
+// various public key scripts to determine if they are p2pkh-ed25519 scripts.
+func BenchmarkIsPubKeyHashEd25519Script(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STPubKeyHashEd25519
+	}
+	benchIsX(b, filterFn, IsPubKeyHashEd25519Script)
+}
