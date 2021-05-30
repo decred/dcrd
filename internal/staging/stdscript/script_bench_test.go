@@ -193,3 +193,13 @@ func BenchmarkIsNullDataScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsNullDataScript)
 }
+
+// BenchmarkIsStakeSubmissionPubKeyHashScript benchmarks the performance of
+// analyzing various public key scripts to determine if they are stake
+// submission p2pkh-ecdsa-secp256k1 scripts.
+func BenchmarkIsStakeSubmissionPubKeyHashScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STStakeSubmissionPubKeyHash
+	}
+	benchIsX(b, filterFn, IsStakeSubmissionPubKeyHashScript)
+}
