@@ -590,6 +590,12 @@ func IsStakeChangeScriptHashScriptV0(script []byte) bool {
 	return ExtractStakeChangeScriptHashV0(script) != nil
 }
 
+// IsTreasuryAddScriptV0 returns whether or not the passed script is a supported
+// version 0 treasury add script.
+func IsTreasuryAddScriptV0(script []byte) bool {
+	return len(script) == 1 && script[0] == txscript.OP_TADD
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -631,6 +637,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STStakeChangePubKeyHash
 	case IsStakeChangeScriptHashScriptV0(script):
 		return STStakeChangeScriptHash
+	case IsTreasuryAddScriptV0(script):
+		return STTreasuryAdd
 	}
 
 	return STNonStandard

@@ -663,6 +663,26 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSTXCHANGE HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STStakeChangeScriptHash,
 		wantData: hexToBytes(p2sh),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative treasury add tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 treasury add -- trailing opcode",
+		script:   p("TADD TRUE"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 treasury add -- two TADD",
+		script:   p("TADD TADD"),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive treasury add tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 treasury add",
+		script:   p("TADD"),
+		wantType: STTreasuryAdd,
 	}}
 }()
 
