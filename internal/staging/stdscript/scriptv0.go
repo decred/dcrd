@@ -542,6 +542,22 @@ func IsStakeRevocationPubKeyHashScriptV0(script []byte) bool {
 	return ExtractStakeRevocationPubKeyHashV0(script) != nil
 }
 
+// ExtractStakeRevocationScriptHashV0 extracts the script hash from the
+// passed script if it is a standard version 0 stake revocation
+// pay-to-script-hash script.  It will return nil otherwise.
+func ExtractStakeRevocationScriptHashV0(script []byte) []byte {
+	// A stake revocation pay-to-script-hash script is of the form:
+	//  OP_SSRTX <standard-pay-to-script-hash script>
+	const stakeOpcode = txscript.OP_SSRTX
+	return extractStakeScriptHashV0(script, stakeOpcode)
+}
+
+// IsStakeRevocationScriptHashScript returns whether or not the passed script is
+// a standard version 0 stake revocation pay-to-script-hash script.
+func IsStakeRevocationScriptHashScriptV0(script []byte) bool {
+	return ExtractStakeRevocationScriptHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -577,6 +593,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STStakeGenScriptHash
 	case IsStakeRevocationPubKeyHashScriptV0(script):
 		return STStakeRevocationPubKeyHash
+	case IsStakeRevocationScriptHashScriptV0(script):
+		return STStakeRevocationScriptHash
 	}
 
 	return STNonStandard

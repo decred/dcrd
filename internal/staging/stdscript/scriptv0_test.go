@@ -610,6 +610,23 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STStakeRevocationPubKeyHash,
 		wantData: hexToBytes(h160CE),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative stake submission revocation P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 stake revoke p2sh -- wrong hash length",
+		script:   p("SSRTX HASH160 DATA_21 0x00%s EQUAL", p2sh),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive stake submission revocation P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 stake revoke p2sh",
+		script:   p("SSRTX HASH160 DATA_20 0x%s EQUAL", p2sh),
+		wantType: STStakeRevocationScriptHash,
+		wantData: hexToBytes(p2sh),
 	}}
 }()
 
@@ -942,6 +959,27 @@ func TestExtractStakeRevocationPubKeyHashV0(t *testing.T) {
 		got := ExtractStakeRevocationPubKeyHashV0(test.script)
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractStakeRevocationScriptHashV0 ensures that extracting a script hash
+// from a version 0 stake revocation pay-to-script-hash script works as intended
+// for all of the version 0 test scripts.
+func TestExtractStakeRevocationScriptHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STStakeRevocationScriptHash {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractStakeRevocationScriptHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
 				got, want)
 			continue
 		}
