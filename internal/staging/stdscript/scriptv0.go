@@ -5,6 +5,7 @@
 package stdscript
 
 import (
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/txscript/v4"
 )
 
@@ -62,6 +63,46 @@ func IsPubKeyScriptV0(script []byte) bool {
 	return ExtractPubKeyV0(script) != nil
 }
 
+// ExtractPubKeyAltDetailsV0 extracts the public key and signature type from the
+// passed script if it is a standard version 0 pay-to-alt-pubkey script.  It
+// will return nil otherwise.
+func ExtractPubKeyAltDetailsV0(script []byte) ([]byte, dcrec.SignatureType) {
+	// A pay-to-alt-pubkey script is of the form:
+	//  PUBKEY SIGTYPE OP_CHECKSIGALT
+	//
+	// The only two currently supported alternative signature types are ed25519
+	// and schnorr + secp256k1 (with a compressed pubkey).
+	//
+	//  OP_DATA_32 <32-byte pubkey> <1-byte ed25519 sigtype> OP_CHECKSIGALT
+	//  OP_DATA_33 <33-byte pubkey> <1-byte schnorr+secp sigtype> OP_CHECKSIGALT
+
+	// The script can't possibly be a pay-to-alt-pubkey script if it doesn't
+	// end with OP_CHECKSIGALT or have at least two small integer pushes
+	// preceding it (although any reasonable pubkey will certainly be larger).
+	// Fail fast to avoid more work below.
+	if len(script) < 3 || script[len(script)-1] != txscript.OP_CHECKSIGALT {
+		return nil, 0
+	}
+
+	if len(script) == 35 && script[0] == txscript.OP_DATA_32 &&
+		txscript.IsSmallInt(script[33]) &&
+		txscript.AsSmallInt(script[33]) == dcrec.STEd25519 {
+
+		return script[1:33], dcrec.STEd25519
+	}
+
+	// TODO: Add schnorr+secp here.
+
+	return nil, 0
+}
+
+// IsPubKeyEd25519ScriptV0 returns whether or not the passed script is a
+// standard version 0 pay-to-ed25519-pubkey script.
+func IsPubKeyEd25519ScriptV0(script []byte) bool {
+	pk, sigType := ExtractPubKeyAltDetailsV0(script)
+	return pk != nil && sigType == dcrec.STEd25519
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -71,6 +112,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 	switch {
 	case IsPubKeyScriptV0(script):
 		return STPubKeyEcdsaSecp256k1
+	case IsPubKeyEd25519ScriptV0(script):
+		return STPubKeyEd25519
 	}
 
 	return STNonStandard

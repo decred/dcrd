@@ -18,6 +18,7 @@ func TestScriptTypeStringer(t *testing.T) {
 	}{
 		{STNonStandard, "nonstandard"},
 		{STPubKeyEcdsaSecp256k1, "pubkey"},
+		{STPubKeyEd25519, "pubkey-ed25519"},
 		{0xff, "invalid"},
 	}
 
@@ -123,5 +124,6 @@ func TestDetermineScriptType(t *testing.T) {
 		// Ensure the individual determination methods produce the expected
 		// results.
 		testIsX(IsPubKeyScript, STPubKeyEcdsaSecp256k1)
+		testIsX(IsPubKeyEd25519Script, STPubKeyEd25519)
 	}
 }

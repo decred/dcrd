@@ -9,6 +9,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // hexToBytes converts the passed hex string into bytes and will panic if there
@@ -48,6 +50,9 @@ var scriptV0Tests = func() []scriptTest {
 	pkCO := "03" + pkUO[2:66]
 	pkHE := "05" + pkUE[2:]
 	pkHO := "06" + pkUO[2:]
+
+	// Ed25519 public key.
+	pkEd := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
 
 	return []scriptTest{{
 		// ---------------------------------------------------------------------
@@ -104,6 +109,51 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_33 0x%s CHECKSIG", pkCO),
 		wantType: STPubKeyEcdsaSecp256k1,
 		wantData: hexToBytes(pkCO),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Alt tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2pk-alt unsupported signature type 0",
+		script:   p("DATA_33 0x%s 0 CHECKSIGALT", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "v0 p2pk-alt unsupported signature type 3",
+		script:   p("DATA_33 0x%s 3 CHECKSIGALT", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-alt -- signature type not small int",
+		script:   p("DATA_33 0x%s DATA_1 2 CHECKSIGALT", pkCE),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-alt -- NOP for signature type",
+		script:   p("DATA_33 0x%s NOP CHECKSIGALT", pkCE),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 p2pk-ed25519 -- trailing opcode",
+		script:   p("DATA_32 0x%s 1 CHECKSIGALT TRUE", pkEd),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-ed25519 -- pubkey not pushed",
+		script:   p("0x%s 1 CHECKSIGALT", pkEd),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2pk-ed25519 -- wrong signature type",
+		script:   p("DATA_32 0x%s 2 CHECKSIGALT", pkEd),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PK Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2pk-ed25519",
+		script:   p("DATA_32 0x%s 1 CHECKSIGALT", pkEd),
+		wantType: STPubKeyEd25519,
+		wantData: hexToBytes(pkEd),
 	}}
 }()
 
@@ -149,5 +199,34 @@ func TestExtractPubKeysV0(t *testing.T) {
 		testExtract(ExtractPubKeyV0, want)
 		testExtract(ExtractCompressedPubKeyV0, wantCompressed)
 		testExtract(ExtractUncompressedPubKeyV0, wantUncompressed)
+	}
+}
+
+// TestExtractPubKeyAltDetailsV0 ensures that extracting a public key and
+// signature type from the various version 0 pay-to-alt-pubkey style scripts
+// works as intended for all of the version 0 test scripts.
+func TestExtractPubKeyAltDetailsV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var wantBytes []byte
+		var wantSigType dcrec.SignatureType
+		switch test.wantType {
+		case STPubKeyEd25519:
+			wantBytes = asByteSlice(t, test)
+			wantSigType = dcrec.STEd25519
+		}
+
+		gotBytes, gotSigType := ExtractPubKeyAltDetailsV0(test.script)
+		if !bytes.Equal(gotBytes, wantBytes) {
+			t.Errorf("%q: unexpected pubkey -- got %x, want %x", test.name,
+				gotBytes, wantBytes)
+			continue
+		}
+		if gotBytes != nil && gotSigType != wantSigType {
+			t.Errorf("%q: unexpected sig type -- got %d, want %d", test.name,
+				gotSigType, wantSigType)
+			continue
+		}
 	}
 }
