@@ -301,3 +301,28 @@ func BenchmarkIsTreasuryGenScriptHashScript(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsTreasuryGenScriptHashScript)
 }
+
+// BenchmarkDetermineScriptType benchmarks the performance of analyzing various
+// public key scripts to determine what type of standard script they are.
+func BenchmarkDetermineScriptType(b *testing.B) {
+	counts := make(map[ScriptType]int)
+	benches := makeBenchmarks(func(test scriptTest) bool {
+		// Limit to one of each script type.
+		counts[test.wantType]++
+		return test.wantType != STNonStandard && counts[test.wantType] == 1
+	})
+
+	for _, bench := range benches {
+		b.Run(bench.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				got := DetermineScriptType(bench.version, bench.script)
+				if got != bench.wantType {
+					b.Fatalf("%q: unexpected result -- got %v, want %v",
+						bench.name, got, bench.wantType)
+				}
+			}
+		})
+	}
+}
