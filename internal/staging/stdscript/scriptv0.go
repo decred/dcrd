@@ -116,6 +116,31 @@ func IsPubKeySchnorrSecp256k1ScriptV0(script []byte) bool {
 	return pk != nil && sigType == dcrec.STSchnorrSecp256k1
 }
 
+// ExtractPubKeyHashV0 extracts the public key hash from the passed script if it
+// is a standard version 0 pay-to-pubkey-hash-ecdsa-secp256k1 script.  It will
+// return nil otherwise.
+func ExtractPubKeyHashV0(script []byte) []byte {
+	// A pay-to-pubkey-hash script is of the form:
+	//  OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
+	if len(script) == 25 &&
+		script[0] == txscript.OP_DUP &&
+		script[1] == txscript.OP_HASH160 &&
+		script[2] == txscript.OP_DATA_20 &&
+		script[23] == txscript.OP_EQUALVERIFY &&
+		script[24] == txscript.OP_CHECKSIG {
+
+		return script[3:23]
+	}
+
+	return nil
+}
+
+// IsPubKeyHashScriptV0 returns whether or not the passed script is a standard
+// version 0 pay-to-pubkey-hash-ecdsa-secp256k1 script.
+func IsPubKeyHashScriptV0(script []byte) bool {
+	return ExtractPubKeyHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -129,6 +154,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STPubKeyEd25519
 	case IsPubKeySchnorrSecp256k1ScriptV0(script):
 		return STPubKeySchnorrSecp256k1
+	case IsPubKeyHashScriptV0(script):
+		return STPubKeyHashEcdsaSecp256k1
 	}
 
 	return STNonStandard

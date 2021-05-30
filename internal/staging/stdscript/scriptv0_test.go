@@ -41,12 +41,14 @@ var scriptV0Tests = func() []scriptTest {
 	// Define some data shared in the tests for convenience.
 	// ---------------------------------------------------------------------
 
-	// Uncompressed and compressed/hybrid even/odd secp256k1 public keys.
+	// Uncompressed and compressed/hybrid even/odd secp256k1 public keys along
+	// with hash160s of the compressed even ones.
 	pkUE := "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817" +
 		"98483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
 	pkUO := "04fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a14602975" +
 		"56ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297"
 	pkCE := "02" + pkUE[2:66]
+	h160CE := "e280cb6e66b96679aec288b1fbdbd4db08077a1b"
 	pkCO := "03" + pkUO[2:66]
 	pkHE := "05" + pkUE[2:]
 	pkHO := "06" + pkUO[2:]
@@ -196,6 +198,23 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_33 0x%s 2 CHECKSIGALT", pkCO),
 		wantType: STPubKeySchnorrSecp256k1,
 		wantData: hexToBytes(pkCO),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH ECDSA secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 p2pkh-ecdsa-secp256k1 -- wrong hash length",
+		script:   p("DUP HASH160 DATA_21 0x00%s EQUALVERIFY CHECKSIG", h160CE),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH ECDSA secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2pkh-ecdsa-secp256k1",
+		script:   p("DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
+		wantType: STPubKeyHashEcdsaSecp256k1,
+		wantData: hexToBytes(h160CE),
 	}}
 }()
 
@@ -272,6 +291,27 @@ func TestExtractPubKeyAltDetailsV0(t *testing.T) {
 		if gotBytes != nil && gotSigType != wantSigType {
 			t.Errorf("%q: unexpected sig type -- got %d, want %d", test.name,
 				gotSigType, wantSigType)
+			continue
+		}
+	}
+}
+
+// TestExtractPubKeyHashV0 ensures that extracting a public key hash from the
+// various version 0 pay-to-pubkey-hash-ecdsa-secp256k1 scripts works as
+// intended for all of the version 0 test scripts.
+func TestExtractPubKeyHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STPubKeyHashEcdsaSecp256k1 {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractPubKeyHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
 			continue
 		}
 	}
