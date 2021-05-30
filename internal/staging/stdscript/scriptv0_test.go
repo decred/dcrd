@@ -702,6 +702,23 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STTreasuryGenPubKeyHash,
 		wantData: hexToBytes(h160CE),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative treasury generation P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 treasury generation p2sh -- wrong hash length",
+		script:   p("TGEN HASH160 DATA_21 0x00%s EQUAL", p2sh),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive treasury generation P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 treasury generation p2sh",
+		script:   p("TGEN HASH160 DATA_20 0x%s EQUAL", p2sh),
+		wantType: STTreasuryGenScriptHash,
+		wantData: hexToBytes(p2sh),
 	}}
 }()
 
@@ -1118,6 +1135,27 @@ func TestExtractTreasuryGenPubKeyHashV0(t *testing.T) {
 		got := ExtractTreasuryGenPubKeyHashV0(test.script)
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractTreasuryGenScriptHashV0 ensures that extracting a script hash from
+// a version 0 treasury generation pay-to-script-hash script works as intended
+// for all of the version 0 test scripts.
+func TestExtractTreasuryGenScriptHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STTreasuryGenScriptHash {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractTreasuryGenScriptHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
 				got, want)
 			continue
 		}

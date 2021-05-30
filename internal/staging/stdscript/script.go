@@ -161,6 +161,15 @@ const (
 	// public key.
 	STTreasuryGenPubKeyHash
 
+	// STTreasuryGenScriptHash identifies a script that is only valid when used
+	// as part supported transactions in the staking system and generates utxos
+	// from the treasury account.
+	//
+	// It imposes an encumbrance that requires a script that hashes to a
+	// specific value along with all of the encumbrances that script itself
+	// imposes.  The script is commonly referred to as a redeem script.
+	STTreasuryGenScriptHash
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -189,6 +198,7 @@ var scriptTypeToName = []string{
 	STStakeChangeScriptHash:      "stakechange-scripthash",
 	STTreasuryAdd:                "treasuryadd",
 	STTreasuryGenPubKeyHash:      "treasurygen-pubkeyhash",
+	STTreasuryGenScriptHash:      "treasurygen-scripthash",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -481,6 +491,20 @@ func IsTreasuryGenPubKeyHashScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsTreasuryGenPubKeyHashScriptV0(script)
+	}
+
+	return false
+}
+
+// IsTreasuryGenScriptHashScript returns whether or not the passed script is a
+// standard treasury generation pay-to-script-hash script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsTreasuryGenScriptHashScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsTreasuryGenScriptHashScriptV0(script)
 	}
 
 	return false
