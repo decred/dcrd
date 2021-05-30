@@ -43,3 +43,17 @@ func ExampleDetermineScriptType() {
 	// Output:
 	// standard version 0 pubkeyhash script
 }
+
+// This example demonstrates extracting a public key hash from a standard
+// pay-to-pubkey-hash script for scripting language version 0.
+func ExampleExtractPubKeyHashV0() {
+	// Ordinarily the script version and script would be obtained from the
+	// output of a transaction, but the version is assumed to be zero and the
+	// script is hard coded here for the purposes of this example.
+	script := hexToBytes("76a914e280cb6e66b96679aec288b1fbdbd4db08077a1b88ac")
+	pkHash := stdscript.ExtractPubKeyHashV0(script)
+	fmt.Printf("public key hash: %x\n", pkHash)
+
+	// Output:
+	// public key hash: e280cb6e66b96679aec288b1fbdbd4db08077a1b
+}
