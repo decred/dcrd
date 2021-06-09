@@ -86,8 +86,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// Only 1 stake change output allowed.
 	if len(mtx.TxOut) == 2 {
 		// Script length has been already verified.
-		if !txscript.IsStakeChangeScript(mtx.TxOut[1].Version,
-			mtx.TxOut[1].PkScript) {
+		if !IsStakeChangeScript(mtx.TxOut[1].Version, mtx.TxOut[1].PkScript) {
 			return stakeRuleError(ErrTAddInvalidChange,
 				"second output must be an OP_SSTXCHANGE script")
 		}
@@ -182,11 +181,11 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 				fmt.Sprintf("Output %v is not tagged with "+
 					"OP_TGEN", k+1))
 		}
-		if !(txscript.IsPubKeyHashScript(txOut.PkScript[1:]) ||
-			txscript.IsPayToScriptHash(txOut.PkScript[1:])) {
+		if !(isPubKeyHashScript(txOut.PkScript[1:]) ||
+			isScriptHashScript(txOut.PkScript[1:])) {
+
 			return nil, nil, stakeRuleError(ErrTSpendInvalidSpendScript,
-				fmt.Sprintf("Output %v is not P2SH or P2PKH",
-					k+1))
+				fmt.Sprintf("Output %v is not P2SH or P2PKH", k+1))
 		}
 	}
 

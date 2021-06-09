@@ -131,6 +131,10 @@ const (
 	// VoteConsensusVersionAbsent is the value of the consensus version
 	// for a short read of the voteBits.
 	VoteConsensusVersionAbsent = 0
+
+	// MaxDataCarrierSize is the maximum number of bytes allowed in pushed
+	// data in the various stake transactions.
+	MaxDataCarrierSize = 256
 )
 
 var (
@@ -277,7 +281,7 @@ func IsNullDataScript(scriptVersion uint16, script []byte) bool {
 	return tokenizer.Next() && tokenizer.Done() &&
 		(isSmallInt(tokenizer.Opcode()) ||
 			tokenizer.Opcode() <= txscript.OP_PUSHDATA4) &&
-		len(tokenizer.Data()) <= txscript.MaxDataCarrierSize
+		len(tokenizer.Data()) <= MaxDataCarrierSize
 }
 
 // IsStakeBase returns whether or not a tx could be considered as having a
@@ -324,10 +328,11 @@ func ConvertToMinimalOutputs(tx *wire.MsgTx) []*MinimalOutput {
 }
 
 // SStxStakeOutputInfo takes an SStx as input and scans through its outputs,
-// returning the pubkeyhashs and amounts for any NullDataTy's (future
+// returning the pubkeyhashs and amounts for any null data pushes (future
 // commitments to stake generation rewards).
 func SStxStakeOutputInfo(outs []*MinimalOutput) ([]bool, [][]byte, []int64,
 	[]int64, [][]bool, [][]uint16) {
+
 	expectedInLen := len(outs) / 2
 	isP2SH := make([]bool, expectedInLen)
 	addresses := make([][]byte, expectedInLen)
@@ -386,10 +391,11 @@ func SStxStakeOutputInfo(outs []*MinimalOutput) ([]bool, [][]byte, []int64,
 }
 
 // TxSStxStakeOutputInfo takes an SStx as input and scans through its outputs,
-// returning the pubkeyhashs and amounts for any NullDataTy's (future
+// returning the pubkeyhashs and amounts for any null data pushes (future
 // commitments to stake generation rewards).
 func TxSStxStakeOutputInfo(tx *wire.MsgTx) ([]bool, [][]byte, []int64, []int64,
 	[][]bool, [][]uint16) {
+
 	return SStxStakeOutputInfo(ConvertToMinimalOutputs(tx))
 }
 
@@ -665,10 +671,10 @@ func CheckSStx(tx *wire.MsgTx) error {
 		}
 
 		// Else (odd) check commitment outputs.  The script should be a
-		// NullDataTy output.
+		// null data output.
 		if !IsNullDataScript(scrVersion, rawScript) {
 			str := fmt.Sprintf("SStx output at output index %d was not "+
-				"a NullData (OP_RETURN) push", outTxIndex)
+				"a null data (OP_RETURN) push", outTxIndex)
 			return stakeRuleError(ErrSStxInvalidOutputs, str)
 		}
 
@@ -676,7 +682,7 @@ func CheckSStx(tx *wire.MsgTx) error {
 		if len(rawScript) < SStxPKHMinOutSize ||
 			len(rawScript) > SStxPKHMaxOutSize {
 			str := fmt.Sprintf("SStx output at output index %d was a "+
-				"NullData (OP_RETURN) push of the wrong size", outTxIndex)
+				"null data (OP_RETURN) push of the wrong size", outTxIndex)
 			return stakeRuleError(ErrSStxInvalidOutputs, str)
 		}
 
@@ -1003,9 +1009,9 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
 	var votes []TreasuryVoteTuple
-	if isTreasuryEnabled &&
-		txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript,
-			isTreasuryEnabled) == txscript.NullDataTy {
+	if isTreasuryEnabled && IsNullDataScript(lastTxOut.Version,
+		lastTxOut.PkScript) {
+
 		txOutLen--
 
 		// We call this function in order to prevent rolling of

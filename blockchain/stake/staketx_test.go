@@ -844,10 +844,8 @@ func TestSSGenTreasuryVotes(t *testing.T) {
 
 	// Check null data
 	lastTxOut := ssgenMsgTxValid.TxOut[len(ssgenMsgTxValid.TxOut)-1]
-	if sc := txscript.GetScriptClass(0, lastTxOut.PkScript,
-		true); sc != txscript.NullDataTy {
-		t.Fatalf("Invalid script class, expected %v got %v",
-			txscript.NullDataTy, sc)
+	if !IsNullDataScript(lastTxOut.Version, lastTxOut.PkScript) {
+		t.Fatal("Expected null data script for final output")
 	}
 
 	// Make sure ssgen is valid.
