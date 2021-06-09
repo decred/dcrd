@@ -74,3 +74,9 @@ func IsStakeChangeScript(version uint16, script []byte) bool {
 func IsVoteScript(version uint16, script []byte) bool {
 	return isTaggedScript(version, script, txscript.OP_SSGEN)
 }
+
+// IsTreasuryGenScript checks if the provided script is a treasury generation
+// script.
+func IsTreasuryGenScript(version uint16, script []byte) bool {
+	return isTaggedScript(version, script, txscript.OP_TGEN)
+}
