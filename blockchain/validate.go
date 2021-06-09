@@ -2729,25 +2729,20 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			}
 		}
 
-		// OP_TADD and OP_TGEN tagged outputs can only be spent after
-		// CoinbaseMaturity blocks.
+		// OP_TGEN tagged outputs can only be spent after coinbase maturity
+		// many blocks.
 		if isTreasuryEnabled {
 			scriptClass := txscript.GetScriptClass(utxoEntry.ScriptVersion(),
 				utxoEntry.PkScript(), isTreasuryEnabled)
-			if scriptClass == txscript.TreasuryAddTy ||
-				scriptClass == txscript.TreasuryGenTy {
+			if scriptClass == txscript.TreasuryGenTy {
 				originHeight := utxoEntry.BlockHeight()
 				blocksSincePrev := txHeight - originHeight
 				if blocksSincePrev < coinbaseMaturity {
-					str := fmt.Sprintf("tried to spend "+
-						"OP_TADD or OP_TGEN output "+
-						"from tx %v from height %v at"+
-						"height %v before required "+
-						"maturity of %v blocks",
-						txInHash, originHeight,
+					str := fmt.Sprintf("tried to spend OP_TGEN output from tx "+
+						"%v from height %v at height %v before required "+
+						"maturity of %v blocks", txInHash, originHeight,
 						txHeight, coinbaseMaturity)
-					return 0, ruleError(ErrImmatureSpend,
-						str)
+					return 0, ruleError(ErrImmatureSpend, str)
 				}
 			}
 		}
