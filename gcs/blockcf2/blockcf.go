@@ -101,12 +101,11 @@ func Key(merkleRoot *chainhash.Hash) [gcs.KeySize]byte {
 
 // isStakeOutput returns true if a script output is a stake type.
 func isStakeOutput(scriptVersion uint16, pkScript []byte) bool {
-	class := txscript.GetScriptClass(scriptVersion, pkScript, true)
-	return class == txscript.StakeSubmissionTy ||
-		class == txscript.StakeGenTy ||
-		class == txscript.StakeRevocationTy ||
-		class == txscript.StakeSubChangeTy ||
-		class == txscript.TreasuryGenTy
+	return stake.IsTicketPurchaseScript(scriptVersion, pkScript) ||
+		stake.IsVoteScript(scriptVersion, pkScript) ||
+		stake.IsRevocationScript(scriptVersion, pkScript) ||
+		stake.IsStakeChangeScript(scriptVersion, pkScript) ||
+		stake.IsTreasuryGenScript(scriptVersion, pkScript)
 }
 
 // extractTicketCommitHash extracts the commitment hash from a ticket output
