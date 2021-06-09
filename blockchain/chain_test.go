@@ -127,7 +127,7 @@ func TestBlockchainFunctions(t *testing.T) {
 	}
 
 	a, _ := stdaddr.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
-	hs, err := chain.TicketsWithAddress(a, noTreasury)
+	hs, err := chain.TicketsWithAddress(a.(stdaddr.StakeAddress))
 	if err != nil {
 		t.Errorf("Failed to do TicketsWithAddress: %v", err)
 	}

@@ -5100,15 +5100,14 @@ func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (int
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	// Determine if the treasury rules are active as of the current best tip.
-	chain := s.cfg.Chain
-	prevBlkHash := chain.BestSnapshot().Hash
-	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
+	stakeAddr, ok := addr.(stdaddr.StakeAddress)
+	if !ok {
+		return nil, rpcInvalidError("Address is not valid for use in the " +
+			"staking system")
 	}
 
-	tickets, err := chain.TicketsWithAddress(addr, isTreasuryEnabled)
+	chain := s.cfg.Chain
+	tickets, err := chain.TicketsWithAddress(stakeAddr)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}

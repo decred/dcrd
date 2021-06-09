@@ -6,9 +6,10 @@
 package blockchain
 
 import (
+	"bytes"
+
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -101,16 +102,14 @@ func (b *BlockChain) MissedTickets() ([]chainhash.Hash, error) {
 // corresponding to the given address.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
+func (b *BlockChain) TicketsWithAddress(address stdaddr.StakeAddress) ([]chainhash.Hash, error) {
 	b.chainLock.RLock()
 	sn := b.bestChain.Tip().stakeNode
 	b.chainLock.RUnlock()
 
-	tickets := sn.LiveTickets()
-
-	encodedAddr := address.String()
 	var ticketsWithAddr []chainhash.Hash
-
+	votingRightsScriptVer, votingRightsScript := address.VotingRightsScript()
+	tickets := sn.LiveTickets()
 	for _, hash := range tickets {
 		outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
 		utxo, err := b.utxoCache.FetchEntry(outpoint)
@@ -118,12 +117,9 @@ func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabl
 			return nil, err
 		}
 
-		_, addrs, _, err := txscript.ExtractPkScriptAddrs(utxo.ScriptVersion(),
-			utxo.PkScript(), b.chainParams, isTreasuryEnabled)
-		if err != nil {
-			return nil, err
-		}
-		if addrs[0].String() == encodedAddr {
+		if utxo.ScriptVersion() == votingRightsScriptVer &&
+			bytes.Equal(utxo.PkScript(), votingRightsScript) {
+
 			ticketsWithAddr = append(ticketsWithAddr, hash)
 		}
 	}

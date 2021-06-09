@@ -401,7 +401,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
-func (c *testRPCChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
+func (c *testRPCChain) TicketsWithAddress(address stdaddr.StakeAddress) ([]chainhash.Hash, error) {
 	return c.ticketsWithAddress, c.ticketsWithAddressErr
 }
 
@@ -6607,20 +6607,14 @@ func TestTicketsForAddress(t *testing.T) {
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
-		name:    "handleTicketsForAddress: unable to fetch treasury agenda status",
+		name:    "handleTicketsForAddress: non-stake address",
 		handler: handleTicketsForAddress,
 		cmd: &types.TicketsForAddressCmd{
-			Address: addr,
+			// v0 pay-to-pubkey ecdsa.
+			Address: "SkLUJQxtYoVrewN6fwqsU6JQjxLs5a6xfcTsGfUYiLr2AUY6HuLMN",
 		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.treasuryActive = false
-			chain.treasuryActiveErr =
-				errors.New("unable to fetch treasury agenda status")
-			return chain
-		}(),
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
 		name:    "handleTicketsForAddress: unable to fetch tickets for address",
 		handler: handleTicketsForAddress,
