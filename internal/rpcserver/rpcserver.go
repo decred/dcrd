@@ -955,7 +955,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	}
 
 	// 1. Fetch the SStx, then calculate all the values we'll need later
-	// for the generation of the SSGen tx outputs.
+	// for the generation of the SSRtx tx outputs.
 	//
 	// Convert the provided transaction hash hex to a chainhash.Hash.
 	input := c.Inputs[0]
@@ -1044,7 +1044,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
 		}
 
-		// Add the txout to our SSGen tx.
+		// Add the txout to our SSRtx tx.
 		amt := ssrtxCalcAmts[i]
 		if !feeApplied && int64(feeAmt) < amt {
 			amt -= int64(feeAmt)
