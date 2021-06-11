@@ -69,8 +69,7 @@ const (
 
 	// MaxOutputsPerSSRtx is the maximum number of outputs in an SSRtx, which
 	// are all outputs to the addresses specified in the OP_RETURNs of the
-	// original SStx referenced as input plus a reference to the block header
-	// hash of the block in which voting was missed.
+	// original SStx referenced.
 	MaxOutputsPerSSRtx = MaxInputsPerSStx
 
 	// SStxPKHMinOutSize is the minimum size of an OP_RETURN commitment output
