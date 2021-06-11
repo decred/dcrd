@@ -1250,6 +1250,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 		if commitAmt != nil {
 			voutSPK.CommitAmt = dcrjson.Float64(commitAmt.ToCoin())
 		}
+		voutSPK.Version = v.Version
 
 		voutList = append(voutList, vout)
 	}
