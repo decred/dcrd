@@ -1084,17 +1084,19 @@ func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 // valid.
 //
 // SSRtx transactions are specified as below.
+//
 // Inputs:
-// SStx-tagged output [index 0]
+//   [index 0] SStx-tagged output
 //
 // Outputs:
-// SSGen-tagged output to address from SStx-tagged output's tx index output 1
-//     [index 0]
-// SSGen-tagged output to address from SStx-tagged output's tx index output 2
-//     [index 1]
-// ...
-// SSGen-tagged output to address from SStx-tagged output's tx index output
-//     MaxInputsPerSStx [index MaxOutputsPerSSRtx - 1]
+//   [index 0] SSRtx-tagged output to the first payment commitment address from
+//     SStx-tagged output's tx (output index 1)
+//   [index 1] SSRtx-tagged output to the second payment commitment address from
+//     SStx-tagged output's tx (output index 3)
+//   ...
+//   [index MaxOutputsPerSSRtx - 1] SSRtx-tagged output to the last payment
+//     commitment address from SStx-tagged output's tx index output (output
+//     index MaxInputsPerSStx - 1)
 func CheckSSRtx(tx *wire.MsgTx) error {
 	// Check to make sure there is the correct number of inputs.
 	if len(tx.TxIn) != NumInputsPerSSRtx {
