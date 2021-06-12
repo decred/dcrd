@@ -1115,20 +1115,6 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 		}
 	}
 
-	// Ensure that the first input is an SStx tagged output.
-	// TODO: Do this in validate, needs a DB and chain.
-
-	// Ensure that the tx height given in the last 8 bytes is StakeMaturity
-	// many blocks ahead of the block in which that SStx appear, otherwise
-	// this ticket has failed to mature and the SStx must be invalid.
-	// TODO: Do this in validate, needs a DB and chain.
-
-	// Ensure that the outputs are OP_SSRTX tagged.
-	// Ensure that the tx height given in the last 8 bytes is StakeMaturity
-	// many blocks ahead of the block in which that SStx appear, otherwise
-	// this ticket has failed to mature and the SStx must be invalid.
-	// TODO: This is validate level stuff, do this there.
-
 	// Ensure that the outputs are OP_SSRTX tagged.
 	for outTxIndex := 0; outTxIndex < len(tx.TxOut); outTxIndex++ {
 		scrVersion := tx.TxOut[outTxIndex].Version
@@ -1141,10 +1127,6 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 			return stakeRuleError(ErrSSRtxBadOuts, str)
 		}
 	}
-
-	// Ensure the number of outputs is equal to the number of inputs found in
-	// the original SStx.
-	// TODO: Do this in validate, needs a DB and chain.
 
 	return nil
 }
