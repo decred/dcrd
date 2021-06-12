@@ -55,6 +55,12 @@ const (
 	// which are all outputs to the addresses specified in the OP_RETURNs of
 	// the original SStx referenced as input plus reference and vote
 	// OP_RETURN outputs in the zeroeth and first position.
+	//
+	// NOTE: If the treasury agenda is active, an OP_RETURN TV (treasury vote)
+	// output is additionally included in the last position when voting on a
+	// treasury spend.  The MaxOutputsPerSSGen value does NOT account for this
+	// output, and should technically be increased by 1, but since the treasury
+	// agenda is already active this cannot be updated without a consensus vote.
 	MaxOutputsPerSSGen = MaxInputsPerSStx + 2
 
 	// NumInputsPerSSRtx is the exact number of inputs for an SSRtx (stake
