@@ -855,26 +855,30 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 // value of input[0] + subsidy = value of the outputs.
 //
 // SSGen transactions are specified as below.
+//
 // Inputs:
-// Stakebase null input [index 0]
-// SStx-tagged output [index 1]
+//   [index 0] Stakebase null input
+//   [index 1] SStx-tagged output
 //
 // Outputs:
-// OP_RETURN push of 40 bytes containing: [index 0]
+//   [index 0] OP_RETURN push of 40 bytes containing:
 //     i. 32-byte block header of block being voted on.
 //     ii. 8-byte int of this block's height.
-// OP_RETURN push of 2 bytes containing votebits [index 1]
-// SSGen-tagged output to address from SStx-tagged output's tx index output 1
-//     [index 2]
-// SSGen-tagged output to address from SStx-tagged output's tx index output 2
-//     [index 3]
-// ...
-// SSGen-tagged output to address from SStx-tagged output's tx index output
-//     MaxInputsPerSStx [index MaxOutputsPerSSgen - 1]
-// OP_RETURN push of 2 bytes containing opcode designating what the remaining
-// data that is pushed is.
-// In the case of 'TV` (Treasury Vote) it checks for a <hash><vote> tuple.
-// For example: OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
+//   [index 1] OP_RETURN push of 2 bytes containing votebits
+//   [index 2] SSGen-tagged output to the first payment commitment address from
+//     SStx-tagged output's tx (output index 1)
+//   [index 3] SSGen-tagged output to the second payment commitment address from
+//     SStx-tagged output's tx (output index 3)
+//   ...
+//   [index maxOuts - 2] SSGen-tagged output to the last payment
+//     commitment address from SStx-tagged output's tx index output (output
+//     index MaxInputsPerSStx - 1)
+//   [index maxOuts - 1] OP_RETURN push of 2 bytes containing opcode
+//     designating what the remaining data that is pushed is.  In the case of
+//     'TV' (Treasury Vote) it checks for a <hash><vote> tuple. For example:
+//     OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
+//     NOTE: This output is only appended when the treasury agenda is active
+//     and a treasury spend is being voted on.
 func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTuple, error) {
 	// Check to make sure there aren't too many inputs.
 	if len(tx.TxIn) != NumInputsPerSSGen {
