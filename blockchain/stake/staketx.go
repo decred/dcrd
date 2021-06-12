@@ -935,14 +935,6 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 		}
 	}
 
-	// Ensure the number of outputs is equal to the number of inputs found
-	// in the original SStx + 3.
-	// TODO: Do this in validate, requires DB and valid chain.
-
-	// Ensure that the second input is an SStx tagged output.
-	// TODO: Do this in validate, as we don't want to actually lookup
-	// old tx here.  This function is for more general sorting.
-
 	// Ensure that the first output is an OP_RETURN push.
 	zeroethOutputVersion := tx.TxOut[0].Version
 	zeroethOutputScript := tx.TxOut[0].PkScript
@@ -969,10 +961,6 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 		str := "first SSGen output had an invalid prefix"
 		return nil, stakeRuleError(ErrSSGenBadReference, str)
 	}
-
-	// Ensure that the block header hash given in the first 32 bytes of the
-	// OP_RETURN push is a valid block header and found in the main chain.
-	// TODO: This is validate level stuff, do this there.
 
 	// Ensure that the second output is an OP_RETURN push.
 	firstOutputVersion := tx.TxOut[1].Version
@@ -1041,11 +1029,6 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 				str)
 		}
 	}
-
-	// Ensure that the tx height given in the last 8 bytes is StakeMaturity
-	// many blocks ahead of the block in which that SStx appears, otherwise
-	// this ticket has failed to mature and the SStx must be invalid.
-	// TODO: This is validate level stuff, do this there.
 
 	// Ensure that the remaining outputs are OP_SSGEN tagged.
 	for outTxIndex := 2; outTxIndex < txOutLen; outTxIndex++ {
