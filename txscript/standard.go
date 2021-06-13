@@ -686,24 +686,6 @@ func GetStakeOutSubclass(pkScript []byte, isTreasuryEnabled bool) (ScriptClass, 
 	return subClass, nil
 }
 
-// ContainsStakeOpCodes returns whether or not a pkScript contains stake tagging
-// OP codes.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func ContainsStakeOpCodes(pkScript []byte, isTreasuryEnabled bool) (bool, error) {
-	const scriptVersion = 0
-	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
-	for tokenizer.Next() {
-		if isStakeOpcode(tokenizer.Opcode(), isTreasuryEnabled) {
-			return true, nil
-		}
-	}
-
-	return false, tokenizer.Err()
-}
-
 // CalcMultiSigStats returns the number of public keys and signatures from
 // a multi-signature transaction script.  The passed script MUST already be
 // known to be a multi-signature script.

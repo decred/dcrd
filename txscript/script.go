@@ -115,6 +115,24 @@ func (vm *Engine) isAnyKindOfScriptHash(script []byte) bool {
 	return isScriptHashScript(script) || vm.isStakeScriptHashScript(script)
 }
 
+// ContainsStakeOpCodes returns whether or not a public key script contains any
+// stake tagging opcodes.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func ContainsStakeOpCodes(pkScript []byte, isTreasuryEnabled bool) (bool, error) {
+	const scriptVersion = 0
+	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
+	for tokenizer.Next() {
+		if isStakeOpcode(tokenizer.Opcode(), isTreasuryEnabled) {
+			return true, nil
+		}
+	}
+
+	return false, tokenizer.Err()
+}
+
 // hasP2SHRedeemScriptStakeOpCodes returns an error if the provided public key
 // script is a regular pay-to-script-hash or a stake-tagged pay-to-script and,
 // when it is, that the redeem script within the provided signature script
