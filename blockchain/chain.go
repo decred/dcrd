@@ -2214,7 +2214,7 @@ func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
 	return err
 }
 
-// ChainParams returns the network paramters of the chain.
+// ChainParams returns the network parameters of the chain.
 //
 // This is part of the indexers.ChainQueryer interface.
 func (q *ChainQueryerAdapter) ChainParams() *chaincfg.Params {
