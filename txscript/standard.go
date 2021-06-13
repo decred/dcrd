@@ -764,30 +764,6 @@ func MultiSigScript(threshold int, pubKeys ...[]byte) ([]byte, error) {
 	return builder.Script()
 }
 
-// PushedData returns an array of byte slices containing any pushed data found
-// in the passed script.  This includes OP_0, but not OP_1 - OP_16.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func PushedData(script []byte) ([][]byte, error) {
-	const scriptVersion = 0
-
-	var data [][]byte
-	tokenizer := MakeScriptTokenizer(scriptVersion, script)
-	for tokenizer.Next() {
-		if tokenizer.Data() != nil {
-			data = append(data, tokenizer.Data())
-		} else if tokenizer.Opcode() == OP_0 {
-			data = append(data, nil)
-		}
-	}
-	if err := tokenizer.Err(); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.

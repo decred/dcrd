@@ -9,72 +9,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
-
-// TestPushedData ensured the PushedData function extracts the expected data out
-// of various scripts.
-func TestPushedData(t *testing.T) {
-	t.Parallel()
-
-	var tests = []struct {
-		script string
-		out    [][]byte
-		valid  bool
-	}{
-		{
-			"0 IF 0 ELSE 2 ENDIF",
-			[][]byte{nil, nil},
-			true,
-		},
-		{
-			"16777216 10000000",
-			[][]byte{
-				{0x00, 0x00, 0x00, 0x01}, // 16777216
-				{0x80, 0x96, 0x98, 0x00}, // 10000000
-			},
-			true,
-		},
-		{
-			"DUP HASH160 '17VZNX1SN5NtKa8UQFxwQbFeFc3iqRYhem' EQUALVERIFY CHECKSIG",
-			[][]byte{
-				// 17VZNX1SN5NtKa8UQFxwQbFeFc3iqRYhem
-				{
-					0x31, 0x37, 0x56, 0x5a, 0x4e, 0x58, 0x31, 0x53, 0x4e, 0x35,
-					0x4e, 0x74, 0x4b, 0x61, 0x38, 0x55, 0x51, 0x46, 0x78, 0x77,
-					0x51, 0x62, 0x46, 0x65, 0x46, 0x63, 0x33, 0x69, 0x71, 0x52,
-					0x59, 0x68, 0x65, 0x6d,
-				},
-			},
-			true,
-		},
-		{
-			"PUSHDATA4 1000 EQUAL",
-			nil,
-			false,
-		},
-	}
-
-	for i, test := range tests {
-		script := mustParseShortForm(test.script)
-		data, err := PushedData(script)
-		if test.valid && err != nil {
-			t.Errorf("TestPushedData failed test #%d: %v\n", i, err)
-			continue
-		} else if !test.valid && err == nil {
-			t.Errorf("TestPushedData failed test #%d: test should "+
-				"be invalid\n", i)
-			continue
-		}
-		if !reflect.DeepEqual(data, test.out) {
-			t.Errorf("TestPushedData failed test #%d: want: %x "+
-				"got: %x\n", i, test.out, data)
-		}
-	}
-}
 
 // TestHasCanonicalPush ensures the isCanonicalPush function works as expected.
 func TestHasCanonicalPush(t *testing.T) {
