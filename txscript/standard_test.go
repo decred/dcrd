@@ -913,30 +913,6 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 	}
 }
 
-// TestGenerateSSGenVotes ensures an expected OP_RETURN push is generated.
-func TestGenerateSSGenVotes(t *testing.T) {
-	var tests = []struct {
-		votebits uint16
-		expected []byte
-	}{
-		{65535, hexToBytes("6a02ffff")},
-		{256, hexToBytes("6a020001")},
-		{127, hexToBytes("6a027f00")},
-		{0, hexToBytes("6a020000")},
-	}
-	for _, test := range tests {
-		s, err := GenerateSSGenVotes(test.votebits)
-		if err != nil {
-			t.Errorf("GenerateSSGenVotes failed: %v", err)
-			continue
-		}
-		if !bytes.Equal(s, test.expected) {
-			t.Errorf("GenerateSSGenVotes: unexpected script:\n "+
-				"got %x\nwant %x", s, test.expected)
-		}
-	}
-}
-
 // mustExpectedAtomicSwapData is a convenience function that converts the passed
 // parameters into an expected atomic swap data pushes structure and will panic
 // if there is an error.  This is only provided for the hard-coded constants so

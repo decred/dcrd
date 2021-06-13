@@ -481,3 +481,13 @@ func GenerateSSGenBlockRef(blockHash chainhash.Hash, height uint32) ([]byte, err
 
 	return NewScriptBuilder().AddOp(OP_RETURN).AddData(brBytes).Script()
 }
+
+// GenerateSSGenVotes generates a vote script for the given vote bits.  The
+// script is for use in stake vote transactions.
+func GenerateSSGenVotes(votebits uint16) ([]byte, error) {
+	// Serialize the votebits
+	vbBytes := make([]byte, 2)
+	binary.LittleEndian.PutUint16(vbBytes, votebits)
+
+	return NewScriptBuilder().AddOp(OP_RETURN).AddData(vbBytes).Script()
+}

@@ -712,3 +712,28 @@ func TestGenerateSSGenBlockRef(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerateSSGenVotes ensures the expected vote script for use in stake
+// vote transactions is generated correctly for various vote bits.
+func TestGenerateSSGenVotes(t *testing.T) {
+	var tests = []struct {
+		votebits uint16
+		expected []byte
+	}{
+		{65535, hexToBytes("6a02ffff")},
+		{256, hexToBytes("6a020001")},
+		{127, hexToBytes("6a027f00")},
+		{0, hexToBytes("6a020000")},
+	}
+	for _, test := range tests {
+		s, err := GenerateSSGenVotes(test.votebits)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+			continue
+		}
+		if !bytes.Equal(s, test.expected) {
+			t.Errorf("unexpected script -- got %x, want %x", s, test.expected)
+			continue
+		}
+	}
+}

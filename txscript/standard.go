@@ -6,7 +6,6 @@
 package txscript
 
 import (
-	"encoding/binary"
 	"fmt"
 
 	"github.com/decred/dcrd/dcrec"
@@ -717,15 +716,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	// The redeemScript is always the last item on the stack of the script sig.
 	const scriptVersion = 0
 	return finalOpcodeData(scriptVersion, script)
-}
-
-// GenerateSSGenVotes generates an OP_RETURN push for the vote bits in an SSGen tx.
-func GenerateSSGenVotes(votebits uint16) ([]byte, error) {
-	// Serialize the votebits
-	vbBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(vbBytes, votebits)
-
-	return NewScriptBuilder().AddOp(OP_RETURN).AddData(vbBytes).Script()
 }
 
 // GenerateProvablyPruneableOut creates a provably-prunable script containing
