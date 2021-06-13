@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -910,44 +909,6 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 				"got: %v, want: %v", i, test.name, scriptType,
 				test.class)
 			continue
-		}
-	}
-}
-
-// TestGenerateSSGenBlockRef ensures an expected OP_RETURN push is generated.
-func TestGenerateSSGenBlockRef(t *testing.T) {
-	var tests = []struct {
-		blockHash string
-		height    uint32
-		expected  []byte
-	}{
-		{
-			"0000000000004740ad140c86753f9295e09f9cc81b1bb75d7f5552aeeedb7012",
-			1000,
-			hexToBytes("6a241270dbeeae52557f5db71b1bc89c9fe095923" +
-				"f75860c14ad4047000000000000e8030000"),
-		},
-		{
-			"000000000000000033eafc268a67c8d1f02343d7a96cf3fe2a4915ef779b52f9",
-			290000,
-			hexToBytes("6a24f9529b77ef15492afef36ca9d74323f0d1c86" +
-				"78a26fcea330000000000000000d06c0400"),
-		},
-	}
-	for _, test := range tests {
-		h, err := chainhash.NewHashFromStr(test.blockHash)
-		if err != nil {
-			t.Errorf("NewHashFromStr failed: %v", err)
-			continue
-		}
-		s, err := GenerateSSGenBlockRef(*h, test.height)
-		if err != nil {
-			t.Errorf("GenerateSSGenBlockRef failed: %v", err)
-			continue
-		}
-		if !bytes.Equal(s, test.expected) {
-			t.Errorf("GenerateSSGenBlockRef: unexpected script:\n"+
-				" got %x\nwant %x", s, test.expected)
 		}
 	}
 }

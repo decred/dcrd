@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -718,17 +717,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	// The redeemScript is always the last item on the stack of the script sig.
 	const scriptVersion = 0
 	return finalOpcodeData(scriptVersion, script)
-}
-
-// GenerateSSGenBlockRef generates an OP_RETURN push for the block header hash and
-// height which the block votes on.
-func GenerateSSGenBlockRef(blockHash chainhash.Hash, height uint32) ([]byte, error) {
-	// Serialize the block hash and height
-	brBytes := make([]byte, 32+4)
-	copy(brBytes[0:32], blockHash[:])
-	binary.LittleEndian.PutUint32(brBytes[32:36], height)
-
-	return NewScriptBuilder().AddOp(OP_RETURN).AddData(brBytes).Script()
 }
 
 // GenerateSSGenVotes generates an OP_RETURN push for the vote bits in an SSGen tx.

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 // TestPushedData ensured the PushedData function extracts the expected data out
@@ -668,6 +670,44 @@ func TestIsUnspendable(t *testing.T) {
 		if res != test.expected {
 			t.Errorf("IsUnspendable #%d failed: got %v want %v", i,
 				res, test.expected)
+			continue
+		}
+	}
+}
+
+// TestGenerateSSGenBlockRef ensures the block reference script for use in stake
+// vote transactions is generated correctly for various block hashes and
+// heights.
+func TestGenerateSSGenBlockRef(t *testing.T) {
+	var tests = []struct {
+		blockHash string
+		height    uint32
+		expected  []byte
+	}{{
+		"0000000000004740ad140c86753f9295e09f9cc81b1bb75d7f5552aeeedb7012",
+		1000,
+		hexToBytes("6a241270dbeeae52557f5db71b1bc89c9fe095923f75860c14ad40470" +
+			"00000000000e8030000"),
+	}, {
+		"000000000000000033eafc268a67c8d1f02343d7a96cf3fe2a4915ef779b52f9",
+		290000,
+		hexToBytes("6a24f9529b77ef15492afef36ca9d74323f0d1c8678a26fcea3300000" +
+			"00000000000d06c0400"),
+	}}
+
+	for _, test := range tests {
+		h, err := chainhash.NewHashFromStr(test.blockHash)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+			continue
+		}
+		s, err := GenerateSSGenBlockRef(*h, test.height)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+			continue
+		}
+		if !bytes.Equal(s, test.expected) {
+			t.Errorf("unexpected script -- got %x, want %x", s, test.expected)
 			continue
 		}
 	}

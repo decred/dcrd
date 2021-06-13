@@ -7,7 +7,10 @@ package txscript
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 // These are the constants specified for maximums in individual scripts.
@@ -465,4 +468,16 @@ func IsUnspendable(amount int64, pkScript []byte) bool {
 	// The script is unspendable if it is guaranteed to fail at execution.
 	const scriptVersion = 0
 	return checkScriptParses(scriptVersion, pkScript) != nil
+}
+
+// GenerateSSGenBlockRef generates a block reference script for the given block
+// hash and height which a block votes on.  The script is for use in stake vote
+// transactions.
+func GenerateSSGenBlockRef(blockHash chainhash.Hash, height uint32) ([]byte, error) {
+	// Serialize the block hash and height
+	brBytes := make([]byte, 32+4)
+	copy(brBytes[0:32], blockHash[:])
+	binary.LittleEndian.PutUint32(brBytes[32:36], height)
+
+	return NewScriptBuilder().AddOp(OP_RETURN).AddData(brBytes).Script()
 }
