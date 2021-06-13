@@ -21,20 +21,6 @@ import (
 // throughout the tests.
 var mainNetParams = chaincfg.MainNetParams()
 
-// mustParseShortForm parses the passed short form script and returns the
-// resulting bytes.  It panics if an error occurs.  This is only used in the
-// tests as a helper since the only way it can fail is if there is an error in
-// the test source code.
-func mustParseShortForm(script string) []byte {
-	s, err := parseShortForm(script)
-	if err != nil {
-		panic("invalid short form script in test source: err " +
-			err.Error() + ", script: " + script)
-	}
-
-	return s
-}
-
 // newAddressPubKey returns a new pubkey address from the provided serialized
 // public key.  It panics if an error occurs.  This is only used in the tests as
 // a helper since the only way it can fail is if there is an error in the test
