@@ -287,12 +287,6 @@ func IsStrictNullData(scriptVersion uint16, script []byte, requiredLen uint32) b
 				uint32(len(tokenizer.Data())) == requiredLen))
 }
 
-// IsPubKeyHashScript returns whether or not the passed script is a standard
-// pay-to-pubkey-hash script.
-func IsPubKeyHashScript(script []byte) bool {
-	return extractPubKeyHash(script) != nil
-}
-
 // IsStakeChangeScript returns whether or not the passed script is a supported
 // stake change script.
 //
