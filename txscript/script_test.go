@@ -458,17 +458,45 @@ func TestRemoveOpcodeByData(t *testing.T) {
 }
 
 // TestIsPayToScriptHash ensures the IsPayToScriptHash function returns the
-// expected results for all the scripts in scriptClassTests.
+// expected results.
 func TestIsPayToScriptHash(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range scriptClassTests {
-		script := mustParseShortForm(test.script)
-		shouldBe := (test.class == ScriptHashTy)
-		p2sh := IsPayToScriptHash(script)
-		if p2sh != shouldBe {
-			t.Errorf("%s: expected p2sh %v, got %v", test.name,
-				shouldBe, p2sh)
+	// Convience function that combines fmt.Sprintf with mustParseShortForm
+	// to create more compact tests.
+	p := func(format string, a ...interface{}) []byte {
+		return mustParseShortForm(fmt.Sprintf(format, a...))
+	}
+
+	// Script hash for a 2-of-3 multisig composed of the following public keys:
+	// pk1: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
+	// pk2: 02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9
+	// pk3: 03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556
+	p2sh := "f86b5a7c6d32566aa4dccc04d1533530b4d64cf3"
+
+	tests := []struct {
+		name   string // test description
+		script []byte // script to examine
+		want   bool   // expected p2sh?
+	}{{
+		name:   "almost v0 p2sh -- wrong hash length",
+		script: p("HASH160 DATA_21 0x00%s EQUAL", p2sh),
+		want:   false,
+	}, {
+		name:   "almost v0 p2sh -- trailing opcode",
+		script: p("HASH160 DATA_20 0x%s EQUAL TRUE", p2sh),
+		want:   false,
+	}, {
+		name:   "v0 p2sh",
+		script: p("HASH160 DATA_20 0x%s EQUAL", p2sh),
+		want:   true,
+	}}
+
+	for _, test := range tests {
+		got := IsPayToScriptHash(test.script)
+		if got != test.want {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name,
+				got, test.want)
 		}
 	}
 }
