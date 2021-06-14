@@ -1135,21 +1135,22 @@ func TestGetSSGenVersion(t *testing.T) {
 	missingVersion := uint32(VoteConsensusVersionAbsent)
 	version := SSGenVersion(ssgen)
 	if version != missingVersion {
-		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
+		t.Fatalf("Error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", missingVersion, version)
 	}
 
 	vbBytes := []byte{0x01, 0x00, 0x01, 0xef, 0xcd, 0xab}
 	expectedVersion := uint32(0xabcdef01)
-	pkScript, err := txscript.GenerateProvablyPruneableOut(vbBytes)
+	builder := txscript.NewScriptBuilder()
+	pkScript, err := builder.AddOp(txscript.OP_RETURN).AddData(vbBytes).Script()
 	if err != nil {
-		t.Errorf("GenerateProvablyPruneableOut error %v", err)
+		t.Fatalf("error generating vote bits: %v", err)
 	}
 	ssgen.TxOut[1].PkScript = pkScript
 	version = SSGenVersion(ssgen)
 
 	if version != expectedVersion {
-		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
+		t.Fatalf("Error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", expectedVersion, version)
 	}
 }
@@ -1260,8 +1261,8 @@ func TestGetStakeRewards(t *testing.T) {
 
 func TestIsNullDataScript(t *testing.T) {
 	var hash160 = stdaddr.Hash160([]byte("test"))
-	var overMaxDataCarrierSize = make([]byte, txscript.MaxDataCarrierSize+1)
-	var underMaxDataCarrierSize = make([]byte, txscript.MaxDataCarrierSize/2)
+	var overMaxDataCarrierSize = make([]byte, MaxDataCarrierSize+1)
+	var underMaxDataCarrierSize = make([]byte, MaxDataCarrierSize/2)
 	rand.Read(overMaxDataCarrierSize)
 	rand.Read(underMaxDataCarrierSize)
 
