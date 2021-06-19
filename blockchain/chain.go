@@ -1310,7 +1310,20 @@ func (b *BlockChain) reorganizeChain(target *blockNode) error {
 	// actually is here versus using the one from above since it might not match
 	// reality if there were errors while reorganizing.
 	newTip := b.bestChain.Tip()
+	wasLatched := b.isCurrentLatch
 	b.maybeUpdateIsCurrent(newTip)
+
+	// If the chain just latched to current, force the UTXO cache to flush to the
+	// database.  This ensures that the full UTXO set is always flushed to the
+	// database when the chain becomes current, which allows for fetching
+	// up-to-date UTXO set stats.
+	if !wasLatched && b.isCurrentLatch {
+		err := b.utxoCache.MaybeFlush(&newTip.hash, uint32(newTip.height), true,
+			true)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Log chain reorganizations and send a notification as needed.
 	if sentReorgingNtfn && newTip != origTip {
