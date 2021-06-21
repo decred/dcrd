@@ -69,11 +69,11 @@ var (
 var (
 	ErrClientNotConnected = RPCError{
 		Code:    -9,
-		Message: "dcrd is not connected",
+		Message: "node is not connected",
 	}
 	ErrClientInInitialDownload = RPCError{
 		Code:    -10,
-		Message: "dcrd is downloading blocks...",
+		Message: "node is downloading blocks...",
 	}
 )
 
