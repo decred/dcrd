@@ -325,6 +325,34 @@ func MainNetParams() *Params {
 				StartTime:  1596240000, // Aug 1st, 2020
 				ExpireTime: 1627776000, // Aug 1st, 2021
 			}},
+			9: {{
+				Vote: Vote{
+					Id:          VoteIDRevertTreasuryPolicy,
+					Description: "Change maximum treasury expenditure policy as defined in DCP0007",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1631750400, // Sep 16th, 2021
+				ExpireTime: 1694822400, // Sep 16th, 2023
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
