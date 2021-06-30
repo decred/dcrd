@@ -15,6 +15,9 @@ such as [https://github.com/decred/dcrwallet dcrwallet] for inter-process
 communication with dcrd.  The websocket connection endpoint for dcrd is
 <code>wss://your_ip_or_domain:9109/ws</code>.
 
+All requests are limited to a maximum size of 8 MiB when accessed via HTTP POST
+and 16 MiB when accessed via Websockets.
+
 In addition to the [[#5-standard-methods|standard API]], an [[#6-websocket-methods-websocket-specific|extension API]]
 has been developed that is exclusive to clients using Websockets. In its current
 state, this API attempts to cover features found missing in the standard API
@@ -96,7 +99,6 @@ The [[#authenticate|authenticate]] command must be the first command sent after
 connecting to the websocket.  Sending any other commands before authenticating,
 supplying invalid credentials, or attempting to authenticate again when already
 authenticated will cause the websocket to be closed immediately.
-
 
 ==4. Command-line Utility==
 
