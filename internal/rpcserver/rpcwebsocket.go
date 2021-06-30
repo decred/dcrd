@@ -44,6 +44,14 @@ const (
 	// handler since notifications have their own queuing mechanism
 	// independent of the send channel buffer.
 	websocketSendBufferSize = 50
+
+	// websocketReadLimitUnauthenticated is the maximum number of bytes allowed
+	// for an unauthenticated JSON-RPC message read from a websocket client.
+	websocketReadLimitUnauthenticated = 1 << 12 // 4 KiB
+
+	// websocketReadLimitAuthenticated is the maximum number of bytes allowed
+	// for an authenticated JSON-RPC message read from a websocket client.
+	websocketReadLimitAuthenticated = 1 << 24 // 16 MiB
 )
 
 type semaphore chan struct{}
@@ -1460,6 +1468,9 @@ out:
 				}
 				c.authenticated = true
 				c.isAdmin = cmp == 1
+
+				// Increase the read limits for authenticated connections.
+				c.conn.SetReadLimit(websocketReadLimitAuthenticated)
 
 				// Marshal and send response.
 				reply, err = createMarshalledReply(cmd.jsonrpc, cmd.id, nil, nil)

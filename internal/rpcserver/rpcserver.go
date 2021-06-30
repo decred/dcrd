@@ -68,6 +68,10 @@ const (
 	// is closed.
 	rpcAuthTimeoutSeconds = 10
 
+	// rpcReadLimitAuthenticated is the maximum number of bytes allowed for a
+	// JSON-RPC message read from a client.
+	rpcReadLimitAuthenticated = 1 << 23 // 8 MiB
+
 	// uint256Size is the number of bytes needed to represent an unsigned
 	// 256-bit integer.
 	uint256Size = 32
@@ -5805,7 +5809,8 @@ func (s *Server) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *htt
 	}
 
 	// Read and close the JSON-RPC request body from the caller.
-	body, err := ioutil.ReadAll(r.Body)
+	bodyReader := io.LimitReader(r.Body, rpcReadLimitAuthenticated)
+	body, err := ioutil.ReadAll(bodyReader)
 	r.Body.Close()
 	if err != nil {
 		errMsg := fmt.Sprintf("error reading JSON message: %v", err)
@@ -6061,8 +6066,9 @@ func (s *Server) route(ctx context.Context) *http.Server {
 			return
 		}
 
-		// Attempt to upgrade the connection to a websocket connection
-		// using the default size for read/write buffers.
+		// Attempt to upgrade the connection to a websocket connection using the
+		// default size for read/write buffers and impose a read limit that
+		// depends on whether or not the connection is authenticated yet.
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		}
@@ -6090,6 +6096,11 @@ func (s *Server) route(ctx context.Context) *http.Server {
 			log.Tracef("pong payload: %s", payload)
 			return nil
 		})
+		if !authenticated {
+			ws.SetReadLimit(websocketReadLimitUnauthenticated)
+		} else {
+			ws.SetReadLimit(websocketReadLimitAuthenticated)
+		}
 		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
 	})
 	return httpServer
