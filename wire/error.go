@@ -64,7 +64,7 @@ const (
 	// the maximum size allowed.
 	ErrFilterTooLarge
 
-	// ErrTooManyProofs is returned when the numeber of proof hashes
+	// ErrTooManyProofs is returned when the number of proof hashes
 	// exceeds the maximum allowed.
 	ErrTooManyProofs
 
