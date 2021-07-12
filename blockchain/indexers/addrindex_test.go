@@ -14,7 +14,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -310,6 +310,11 @@ func TestAddrIndexAsync(t *testing.T) {
 
 	subber := NewIndexSubscriber(ctx)
 	go subber.Run(ctx)
+
+	err = AddIndexSpendConsumers(db, chain)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	txIdx, err := NewTxIndex(subber, db, chain)
 	if err != nil {

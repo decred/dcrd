@@ -2244,6 +2244,17 @@ func (q *ChainQueryerAdapter) AddSpendConsumer(consumer spendpruner.SpendConsume
 	q.spendPruner.AddConsumer(consumer)
 }
 
+// FetchSpendConsumer returns the spend journal consumer associated with the
+// provided id.
+func (q *ChainQueryerAdapter) FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error) {
+	return q.spendPruner.FetchConsumer(id)
+}
+
+// BlockHeaderByHash returns the block header identified by the given hash.
+func (q *ChainQueryerAdapter) BlockHeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
+	return q.HeaderByHash(hash)
+}
+
 // SpendPrunerHandler processes incoming spending pruner signals.
 //
 // This must be run as a goroutine.
@@ -2407,9 +2418,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
-	spendPrunerAdapter := &spendPurgerAdapter{BlockChain: &b}
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db,
-		spendPrunerAdapter)
+	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db, b.RemoveSpendEntry)
 	if err != nil {
 		return nil, err
 	}
