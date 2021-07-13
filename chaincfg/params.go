@@ -155,6 +155,10 @@ const (
 	// rejection of new transaction and script versions until they are
 	// explicitly enabled via a consensus vote as defined by DCP0008.
 	VoteIDExplicitVersionUpgrades = "explicitverupgrades"
+
+	// VoteIDAutoRevocations is the vote ID for the agenda that enables automatic
+	// ticket revocations as defined in DCP0009.
+	VoteIDAutoRevocations = "autorevocations"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
