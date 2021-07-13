@@ -365,6 +365,33 @@ var regNetParams = &chaincfg.Params{
 			},
 			StartTime:  0,             // Always available for vote
 			ExpireTime: math.MaxInt64, // Never expires
+		}, {
+			Vote: chaincfg.Vote{
+				Id:          chaincfg.VoteIDAutoRevocations,
+				Description: "Enable automatic ticket revocations as defined in DCP0009",
+				Mask:        0x0060, // Bits 5 and 6
+				Choices: []chaincfg.Choice{{
+					Id:          "abstain",
+					Description: "abstain voting for change",
+					Bits:        0x0000,
+					IsAbstain:   true,
+					IsNo:        false,
+				}, {
+					Id:          "no",
+					Description: "keep the existing consensus rules",
+					Bits:        0x0020, // Bit 5
+					IsAbstain:   false,
+					IsNo:        true,
+				}, {
+					Id:          "yes",
+					Description: "change to the new consensus rules",
+					Bits:        0x0040, // Bit 6
+					IsAbstain:   false,
+					IsNo:        false,
+				}},
+			},
+			StartTime:  0,             // Always available for vote
+			ExpireTime: math.MaxInt64, // Never expires
 		}},
 	},
 
