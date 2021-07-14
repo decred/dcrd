@@ -152,6 +152,10 @@ type Client struct {
 	// It is protected by mtx.
 	wsConn *websocket.Conn
 
+	// cancel is a function used to cancel the client context which forces a
+	// shutdown.
+	cancel func()
+
 	// disconnected indicated whether or not the server is disconnected.
 	disconnected bool
 
@@ -1014,6 +1018,11 @@ func (c *Client) doShutdown() bool {
 
 	log.Tracef("Shutting down RPC client %s", c.config.Host)
 	close(c.shutdown)
+	c.mtx.Lock()
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.mtx.Unlock()
 	return true
 }
 
@@ -1380,6 +1389,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	}
 
 	// Shutdown the client on context cancellation.
+	ctx, c.cancel = context.WithCancel(ctx)
 	c.wg.Add(1)
 	go func() {
 		<-ctx.Done()
