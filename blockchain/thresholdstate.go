@@ -828,6 +828,51 @@ func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash)
 	return isActive, err
 }
 
+// isAutoRevocationsAgendaActive returns whether or not the automatic ticket
+// revocations agenda, as defined in DCP0009, has passed and is now active from
+// the point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, error) {
+	const deploymentID = chaincfg.VoteIDAutoRevocations
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
+		return true, nil
+	}
+
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	if err != nil {
+		return false, err
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	return state.State == ThresholdActive, nil
+}
+
+// IsAutoRevocationsAgendaActive returns whether or not the automatic ticket
+// revocations agenda vote, as defined in DCP0009, has passed and is now active
+// for the block AFTER the given block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
+		return false, unknownBlockError(prevHash)
+	}
+
+	b.chainLock.Lock()
+	isActive, err := b.isAutoRevocationsAgendaActive(prevNode)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
 // VoteCounts is a compacted struct that is used to message vote counts.
 type VoteCounts struct {
 	Total        uint32
