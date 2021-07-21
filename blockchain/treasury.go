@@ -81,6 +81,12 @@ func (e errDbTreasury) Is(target error) bool {
 // treasury balance.
 type treasuryValueType byte
 
+// IsDebit returns true if the type of value is a debit from the treasury
+// account.
+func (typ treasuryValueType) IsDebit() bool {
+	return typ == treasuryValueFee || typ == treasuryValueTSpend
+}
+
 // The following constants define the known types of values that modify the
 // treasury balance.
 const (
@@ -136,8 +142,7 @@ func serializeTreasuryState(ts treasuryState) ([]byte, error) {
 	for _, value := range ts.values {
 		// Prevent serialization of wrong negative value. Note that
 		// zero is still allowed even in negative types.
-		wantNegative := value.typ == treasuryValueFee ||
-			value.typ == treasuryValueTSpend
+		wantNegative := value.typ.IsDebit()
 		gotNegative := value.amount < 0
 		if value.amount != 0 && wantNegative != gotNegative {
 			str := fmt.Sprintf("incorrect negative value for type "+
@@ -205,11 +210,9 @@ func deserializeTreasuryState(data []byte) (*treasuryState, error) {
 			typ := treasuryValueType(byte(flag) & tvFlagTypMask)
 			amount := int64(value)
 
-			// tspends and fees are negative but stored as
+			// Debits (tspends and fees) are negative but stored as
 			// positive, so negate the amount if needed.
-			wantNegative := typ == treasuryValueFee ||
-				typ == treasuryValueTSpend
-			if wantNegative {
+			if typ.IsDebit() {
 				amount = -amount
 			}
 			values[i] = treasuryValue{
