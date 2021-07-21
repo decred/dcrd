@@ -38,6 +38,40 @@ var (
 	privKey2 = hexToBytes("2527f13f61024c9b9f4b30186f16e0b0af35b08c54ed2ed67def863b447ea11b")
 )
 
+// TestTreasuryValueTypeDebits ensures the IsDebit() method of
+// treasuryValueType works as expected.
+func TestTreasuryValueTypeDebits(t *testing.T) {
+	tests := []struct {
+		name      string
+		typ       treasuryValueType
+		wantDebit bool
+	}{{
+		name:      "treasuryValueTBase",
+		typ:       treasuryValueTBase,
+		wantDebit: false,
+	}, {
+		name:      "treasuryValueTAdd",
+		typ:       treasuryValueTAdd,
+		wantDebit: false,
+	}, {
+		name:      "treasuryValueFee",
+		typ:       treasuryValueFee,
+		wantDebit: true,
+	}, {
+		name:      "treasuryValueTSpend",
+		typ:       treasuryValueTSpend,
+		wantDebit: true,
+	}}
+
+	for _, test := range tests {
+		gotDebit := test.typ.IsDebit()
+		if gotDebit != test.wantDebit {
+			t.Fatalf("mismatched IsDebit result for %s -- got %v, "+
+				"want %v", test.name, gotDebit, test.wantDebit)
+		}
+	}
+}
+
 // TestTreasuryStateSerialization ensures serializing and deserializing treasury
 // states works as expected, including the possible error conditions.
 func TestTreasuryStateSerialization(t *testing.T) {
