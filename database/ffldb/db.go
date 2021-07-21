@@ -2078,6 +2078,12 @@ func openDB(dbPath string, network wire.CurrencyNet, create bool) (database.DB, 
 		// The error can be ignored here since the call to
 		// leveldb.OpenFile will fail if the directory couldn't be
 		// created.
+		//
+		// NOTE: It is important that os.MkdirAll is only called if the database
+		// does not exist.  The documentation states that os.MidirAll does nothing
+		// if the directory already exists.  However, this has proven not to be the
+		// case on some less supported OSes and can lead to creating new directories
+		// with the wrong permissions or otherwise lead to hard to diagnose issues.
 		_ = os.MkdirAll(dbPath, 0700)
 	}
 
