@@ -155,6 +155,10 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrNoFilter, "ErrNoFilter"},
 		{ErrNoTreasuryBalance, "ErrNoTreasuryBalance"},
 		{ErrInvalidateGenesisBlock, "ErrInvalidateGenesisBlock"},
+		{ErrUtxoBackend, "ErrUtxoBackend"},
+		{ErrUtxoBackendCorruption, "ErrUtxoBackendCorruption"},
+		{ErrUtxoBackendNotOpen, "ErrUtxoBackendNotOpen"},
+		{ErrUtxoBackendTxClosed, "ErrUtxoBackendTxClosed"},
 	}
 
 	t.Logf("Running %d tests", len(tests))

@@ -598,6 +598,27 @@ const (
 	// ErrInvalidateGenesisBlock indicates an attempt to invalidate the genesis
 	// block which is not allowed.
 	ErrInvalidateGenesisBlock = ErrorKind("ErrInvalidateGenesisBlock")
+
+	// ------------------------------------------
+	// Errors related to the UTXO backend.
+	// ------------------------------------------
+
+	// ErrUtxoBackend indicates that a general error was encountered when
+	// accessing the UTXO backend.
+	ErrUtxoBackend = ErrorKind("ErrUtxoBackend")
+
+	// ErrUtxoBackendCorruption indicates that underlying data being accessed in
+	// the UTXO backend is corrupted.
+	ErrUtxoBackendCorruption = ErrorKind("ErrUtxoBackendCorruption")
+
+	// ErrUtxoBackendNotOpen indicates that the UTXO backend was accessed before
+	// it was opened or after it was closed.
+	ErrUtxoBackendNotOpen = ErrorKind("ErrUtxoBackendNotOpen")
+
+	// ErrUtxoBackendTxClosed indicates an attempt was made to commit or rollback
+	// a UTXO backend transaction that has already had one of those operations
+	// performed.
+	ErrUtxoBackendTxClosed = ErrorKind("ErrUtxoBackendTxClosed")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -608,9 +629,13 @@ func (e ErrorKind) Error() string {
 // ContextError wraps an error with additional context.  It has full support for
 // errors.Is and errors.As, so the caller can ascertain the specific wrapped
 // error.
+//
+// RawErr contains the original error in the case where an error has been
+// converted.
 type ContextError struct {
 	Err         error
 	Description string
+	RawErr      error
 }
 
 // Error satisfies the error interface and prints human-readable errors.
