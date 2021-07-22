@@ -17,6 +17,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
+	"github.com/syndtr/goleveldb/leveldb"
+	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 const (
@@ -142,6 +144,36 @@ type LevelDbUtxoBackend struct {
 
 // Ensure LevelDbUtxoBackend implements the UtxoBackend interface.
 var _ UtxoBackend = (*LevelDbUtxoBackend)(nil)
+
+// convertLdbErr converts the passed leveldb error into a context error with an
+// equivalent error kind and the passed description.  It also sets the passed
+// error as the underlying error.
+func convertLdbErr(ldbErr error, desc string) ContextError {
+	// Use the general UTXO backend error kind by default.  The code below will
+	// update this with the converted error if it's recognized.
+	var kind = ErrUtxoBackend
+
+	switch {
+	// Database corruption errors.
+	case ldberrors.IsCorrupted(ldbErr):
+		kind = ErrUtxoBackendCorruption
+
+	// Database open/create errors.
+	case errors.Is(ldbErr, leveldb.ErrClosed):
+		kind = ErrUtxoBackendNotOpen
+
+	// Transaction errors.
+	case errors.Is(ldbErr, leveldb.ErrSnapshotReleased):
+		kind = ErrUtxoBackendTxClosed
+	case errors.Is(ldbErr, leveldb.ErrIterReleased):
+		kind = ErrUtxoBackendTxClosed
+	}
+
+	err := contextError(kind, desc)
+	err.RawErr = ldbErr
+
+	return err
+}
 
 // removeDB removes the database at the provided path.  The fi parameter MUST
 // agree with the provided path.

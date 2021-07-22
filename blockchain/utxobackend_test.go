@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
+	"github.com/syndtr/goleveldb/leveldb"
+	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 // createTestUtxoBackend creates a test backend with the utxo set bucket.
@@ -43,6 +46,70 @@ func createTestUtxoBackend(t *testing.T) *LevelDbUtxoBackend {
 	}
 
 	return NewLevelDbUtxoBackend(db)
+}
+
+// TestConvertLdbErr validates that leveldb errors are converted to context
+// errors with the expected error kind and description.
+func TestConvertLdbErr(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		ldbErr error
+		desc   string
+		want   ErrorKind
+	}{{
+		name:   "General error",
+		ldbErr: errors.New("General error"),
+		desc:   "Some general error occurred",
+		want:   ErrUtxoBackend,
+	}, {
+		name:   "Corruption error",
+		ldbErr: &ldberrors.ErrCorrupted{},
+		desc:   "Some corruption error occurred",
+		want:   ErrUtxoBackendCorruption,
+	}, {
+		name:   "Database not open error",
+		ldbErr: leveldb.ErrClosed,
+		desc:   "Some database not open error occurred",
+		want:   ErrUtxoBackendNotOpen,
+	}, {
+		name:   "Snapshot released error",
+		ldbErr: leveldb.ErrSnapshotReleased,
+		desc:   "Some snapshot released error occurred",
+		want:   ErrUtxoBackendTxClosed,
+	}, {
+		name:   "Iter released error",
+		ldbErr: leveldb.ErrIterReleased,
+		desc:   "Some iter released error occurred",
+		want:   ErrUtxoBackendTxClosed,
+	}}
+
+	for _, test := range tests {
+		// Convert the leveldb error.
+		gotErr := convertLdbErr(test.ldbErr, test.desc)
+
+		// Validate the error kind.
+		if gotErr.Err != test.want {
+			t.Errorf("%q: mismatched error kind:\nwant: %v\n got: %v\n", test.name,
+				test.want, gotErr.Err)
+			continue
+		}
+
+		// Validate the error description.
+		if gotErr.Description != test.desc {
+			t.Errorf("%q: mismatched error description:\nwant: %v\n got: %v\n",
+				test.name, test.desc, gotErr.Description)
+			continue
+		}
+
+		// Validate the raw error.
+		if gotErr.RawErr != test.ldbErr {
+			t.Errorf("%q: mismatched raw error:\nwant: %v\n got: %v\n", test.name,
+				test.ldbErr, gotErr.RawErr)
+			continue
+		}
+	}
 }
 
 // TestFetchEntryFromBackend validates that fetch entry returns the correct
