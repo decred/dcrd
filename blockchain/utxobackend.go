@@ -27,12 +27,8 @@ const (
 	// currentUtxoDatabaseVersion indicates the current UTXO database version.
 	currentUtxoDatabaseVersion = 2
 
-	// utxoDbDir is the directory for the UTXO database.
-	utxoDbDir = "utxodb"
-
-	// utxoLdbName is the name of UTXO leveldb database.  It is itself within the
-	// utxoDbDir directory.
-	utxoLdbName = "metadata"
+	// utxoDbName is the name of the UTXO database.
+	utxoDbName = "utxodb"
 )
 
 // -----------------------------------------------------------------------------
@@ -322,15 +318,24 @@ func fileExists(name string) bool {
 // LoadUtxoDB loads (or creates when needed) the UTXO database and returns a
 // handle to it.  It also contains additional logic such as ensuring the
 // regression test database is clean when in regression test mode.
-func LoadUtxoDB(params *chaincfg.Params, dataDir string) (*leveldb.DB, error) {
-	// Set the database path based on the data directory, UTXO database directory,
-	// and database name.
-	dbDir := filepath.Join(dataDir, utxoDbDir)
-	dbPath := filepath.Join(dbDir, utxoLdbName)
+func LoadUtxoDB(ctx context.Context, params *chaincfg.Params, dataDir string) (*leveldb.DB, error) {
+	// Set the database path based on the data directory and UTXO database name.
+	dbPath := filepath.Join(dataDir, utxoDbName)
 
 	// The regression test is special in that it needs a clean database for each
 	// run, so remove it now if it already exists.
 	_ = removeRegressionDB(params.Net, dbPath)
+
+	// Check if the UTXO database exists in the legacy location, and if it does,
+	// move it to the new location.  The UTXO database existed in a "metadata"
+	// subdirectory during the transition phase of moving the UTXO set to a
+	// separate database.
+	legacyDbPath := filepath.Join(dbPath, "metadata")
+	if fileExists(legacyDbPath) {
+		if err := moveUtxoDatabase(ctx, legacyDbPath, dbPath); err != nil {
+			return nil, err
+		}
+	}
 
 	// Ensure the full path to the database exists.
 	dbExists := fileExists(dbPath)
@@ -343,7 +348,7 @@ func LoadUtxoDB(params *chaincfg.Params, dataDir string) (*leveldb.DB, error) {
 		// if the directory already exists.  However, this has proven not to be the
 		// case on some less supported OSes and can lead to creating new directories
 		// with the wrong permissions or otherwise lead to hard to diagnose issues.
-		_ = os.MkdirAll(dbDir, 0700)
+		_ = os.MkdirAll(dataDir, 0700)
 	}
 
 	// Open the database (will create it if needed).
