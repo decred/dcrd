@@ -790,7 +790,7 @@ func loadConfig(appName string) (*config, []string, error) {
 			}
 		}
 
-		str := "%s: failed to create home directory: %w"
+		str := "%s: failed to create home directory: %s"
 		err := errSuppressUsage(fmt.Sprintf(str, funcName, err))
 		return nil, nil, err
 	}
