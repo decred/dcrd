@@ -25,7 +25,7 @@ import (
 
 const (
 	// currentDatabaseVersion indicates the current database version.
-	currentDatabaseVersion = 10
+	currentDatabaseVersion = 11
 
 	// currentBlockIndexVersion indicates the current block index database
 	// version.

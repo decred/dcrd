@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
@@ -22,6 +23,9 @@ import (
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // errInterruptRequested indicates that an operation was cancelled due
@@ -3234,6 +3238,31 @@ func upgradeToVersion10(ctx context.Context, db database.DB, dbInfo *databaseInf
 	return nil
 }
 
+// upgradeToVersion11 upgrades a version 10 blockchain database to version 11.
+// This entails bumping the overall block database version to 11 to prevent
+// downgrades as the UTXO database is being moved in this same set of changes.
+func upgradeToVersion11(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 11...")
+	start := time.Now()
+
+	// Update and persist the overall block database version.
+	err := db.Update(func(dbTx database.Tx) error {
+		dbInfo.version = 11
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // separateUtxoDatabase moves the UTXO set and state from the block database to
 // the UTXO database.
 func separateUtxoDatabase(ctx context.Context, db database.DB,
@@ -3749,6 +3778,134 @@ func upgradeUtxoDbToVersion2(ctx context.Context, utxoBackend UtxoBackend) error
 	return nil
 }
 
+// moveUtxoDatabase moves the UTXO database from the provided old path to the
+// provided new path.  The database must exist at the provided old path.
+func moveUtxoDatabase(ctx context.Context, oldPath string, newPath string) error {
+	log.Info("Moving UTXO database.  This may take a while...")
+	start := time.Now()
+
+	// Options for open the leveldb database.
+	opts := opt.Options{
+		Strict:      opt.DefaultStrict,
+		Compression: opt.NoCompression,
+		Filter:      filter.NewBloomFilter(10),
+	}
+
+	// Open the database at the old path.
+	oldDb, err := leveldb.OpenFile(oldPath, &opts)
+	if err != nil {
+		str := fmt.Sprintf("failed to open UTXO database at old path: %v", err)
+		return convertLdbErr(err, str)
+	}
+
+	// Create and open the database at the new path.
+	newDb, err := leveldb.OpenFile(newPath, &opts)
+	if err != nil {
+		if err := oldDb.Close(); err != nil {
+			return convertLdbErr(err, "failed to close UTXO database at old path")
+		}
+		str := fmt.Sprintf("failed to open UTXO database at new path: %v", err)
+		return convertLdbErr(err, str)
+	}
+
+	// doBatch contains the primary logic for moving the UTXO database entries.
+	// This is done because attempting to migrate in a single database transaction
+	// could result in massive memory usage and could potentially crash on many
+	// systems due to ulimits.
+	//
+	// It returns whether or not all entries have been updated.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	var totalMigrated uint64
+	doBatch := func(tx UtxoBackendTx) (bool, error) {
+		// Migrate UTXO database entries so long as the max number of entries for
+		// this batch has not been exceeded.
+		var logProgress bool
+		var numMigrated, numIterated uint32
+
+		iter := oldDb.NewIterator(nil, nil)
+		defer iter.Release()
+		for iter.Next() {
+			// Reset err on each iteration.
+			err = nil
+
+			if interruptRequested(ctx) {
+				logProgress = true
+				err = errInterruptRequested
+				break
+			}
+
+			if numMigrated >= maxEntries {
+				logProgress = true
+				err = errBatchFinished
+				break
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				continue
+			}
+			resumeOffset++
+
+			// Move the UTXO database entry to the new database.
+			err := tx.Put(iter.Key(), iter.Value())
+			if err != nil {
+				return false, fmt.Errorf("error migrating UTXO database entry: %w", err)
+			}
+
+			numMigrated++
+		}
+		if iterErr := iter.Error(); iterErr != nil {
+			return false, convertLdbErr(iterErr, iterErr.Error())
+		}
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numMigrated > 0 {
+			totalMigrated += uint64(numMigrated)
+			log.Infof("Migrated %d entries (%d total)", numMigrated,
+				totalMigrated)
+		}
+		return isFullyDone, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	utxoBackend := NewLevelDbUtxoBackend(newDb)
+	if err := utxoBackendBatchedUpdate(ctx, utxoBackend, doBatch); err != nil {
+		if err := oldDb.Close(); err != nil {
+			return convertLdbErr(err, "failed to close UTXO database at old path")
+		}
+		if err := newDb.Close(); err != nil {
+			return convertLdbErr(err, "failed to close UTXO database at new path")
+		}
+		return err
+	}
+
+	// Close the old and new databases.
+	if err := oldDb.Close(); err != nil {
+		return convertLdbErr(err, "failed to close UTXO database at old path")
+	}
+	if err := newDb.Close(); err != nil {
+		return convertLdbErr(err, "failed to close UTXO database at new path")
+	}
+
+	// Remove the old database.
+	fi, err := os.Stat(oldPath)
+	if err != nil {
+		return err
+	}
+	log.Infof("Removing old UTXO database from '%s'", oldPath)
+	err = removeDB(oldPath, fi)
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done moving UTXO database.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	return nil
+}
+
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
 // database version can no longer be upgraded due to being too old.
 func checkDBTooOldToUpgrade(dbVersion uint32) error {
@@ -3859,6 +4016,15 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// need to be handled here as well.
 	if dbInfo.version == 8 || dbInfo.version == 9 {
 		if err := upgradeToVersion10(ctx, db, dbInfo); err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 11 database if needed.  This entails bumping the
+	// overall block database version to 11 to prevent downgrades as the UTXO
+	// database is being moved in this same set of changes.
+	if dbInfo.version == 10 {
+		if err := upgradeToVersion11(ctx, db, dbInfo); err != nil {
 			return err
 		}
 	}

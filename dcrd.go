@@ -151,7 +151,7 @@ func dcrdMain() error {
 	}
 
 	// Load the UTXO database.
-	utxoDb, err := blockchain.LoadUtxoDB(cfg.params.Params, cfg.DataDir)
+	utxoDb, err := blockchain.LoadUtxoDB(ctx, cfg.params.Params, cfg.DataDir)
 	if err != nil {
 		dcrdLog.Errorf("%v", err)
 		return err
