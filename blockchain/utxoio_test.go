@@ -175,11 +175,7 @@ func TestUtxoSerialization(t *testing.T) {
 
 	for _, test := range tests {
 		// Ensure the utxo entry serializes to the expected value.
-		gotBytes, err := serializeUtxoEntry(test.entry)
-		if err != nil {
-			t.Errorf("%q: unexpected error: %v", test.name, err)
-			continue
-		}
+		gotBytes := serializeUtxoEntry(test.entry)
 		if !bytes.Equal(gotBytes, test.serialized) {
 			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name, gotBytes,
 				test.serialized)

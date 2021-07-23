@@ -137,10 +137,10 @@ func recycleOutpointKey(key *[]byte) {
 
 // serializeUtxoEntry returns the entry serialized to a format that is suitable
 // for long-term storage.  The format is described in detail above.
-func serializeUtxoEntry(entry *UtxoEntry) ([]byte, error) {
+func serializeUtxoEntry(entry *UtxoEntry) []byte {
 	// Spent entries have no serialization.
 	if entry.IsSpent() {
-		return nil, nil
+		return nil
 	}
 
 	// Calculate the size needed to serialize the entry.
@@ -169,7 +169,7 @@ func serializeUtxoEntry(entry *UtxoEntry) ([]byte, error) {
 		copy(serialized[offset:], entry.ticketMinOuts.data)
 	}
 
-	return serialized, nil
+	return serialized
 }
 
 // deserializeUtxoEntry decodes a utxo entry from the passed serialized byte
