@@ -617,12 +617,9 @@ func (l *LevelDbUtxoBackend) dbPutUtxoEntry(dbTx database.Tx,
 	}
 
 	// Serialize and store the utxo entry.
-	serialized, err := serializeUtxoEntry(entry)
-	if err != nil {
-		return err
-	}
+	serialized := serializeUtxoEntry(entry)
 	key := outpointKey(outpoint)
-	err = utxoBucket.Put(*key, serialized)
+	err := utxoBucket.Put(*key, serialized)
 	// NOTE: The key is intentionally not recycled here since the database
 	// interface contract prohibits modifications.  It will be garbage collected
 	// normally when the database is done with it.
