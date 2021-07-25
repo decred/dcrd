@@ -1079,7 +1079,7 @@ func (c *Client) Version(ctx context.Context) (map[string]chainjson.VersionResul
 	return c.VersionAsync(ctx).Receive()
 }
 
-// FutureGetTreasuryBalance is a future promise to deliver the result of a
+// FutureGetTreasuryBalanceResult is a future promise to deliver the result of a
 // GetTreasuryBalanceAsync RPC invocation (or an applicable error).
 type FutureGetTreasuryBalanceResult cmdRes
 
@@ -1127,8 +1127,8 @@ func (c *Client) GetTreasuryBalance(ctx context.Context, block *chainhash.Hash, 
 	return c.GetTreasuryBalanceAsync(ctx, block, verbose).Receive()
 }
 
-// FutureGetTreasurySpendVotes is a future promise to deliver the result of a
-// GetTreasurySpendVotesAsync RPC invocation (or an applicable error).
+// FutureGetTreasurySpendVotesResult is a future promise to deliver the result
+// of a GetTreasurySpendVotesAsync RPC invocation (or an applicable error).
 type FutureGetTreasurySpendVotesResult cmdRes
 
 // Receive waits for the response promised by the future and returns the

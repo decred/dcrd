@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -63,7 +63,7 @@ func (msg *MsgInitState) AddVoteHash(hash *chainhash.Hash) error {
 	return nil
 }
 
-// AddTSpend adds a new tspend hash to the message. Up to
+// AddTSpendHash adds a new treasury spend hash to the message.  Up to
 // MaxISTSpendsAtHeadPerMsg may be added before this function errors out.
 func (msg *MsgInitState) AddTSpendHash(hash *chainhash.Hash) error {
 	const op = "MsgInitState.AddTSpendHash"

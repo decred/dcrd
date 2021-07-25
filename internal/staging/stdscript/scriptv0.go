@@ -554,8 +554,8 @@ func ExtractStakeRevocationScriptHashV0(script []byte) []byte {
 	return extractStakeScriptHashV0(script, stakeOpcode)
 }
 
-// IsStakeRevocationScriptHashScript returns whether or not the passed script is
-// a standard version 0 stake revocation pay-to-script-hash script.
+// IsStakeRevocationScriptHashScriptV0 returns whether or not the passed script
+// is a standard version 0 stake revocation pay-to-script-hash script.
 func IsStakeRevocationScriptHashScriptV0(script []byte) bool {
 	return ExtractStakeRevocationScriptHashV0(script) != nil
 }

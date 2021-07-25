@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -117,7 +117,7 @@ func main() {
 		}
 	}
 
-	var cert *Cert
+	var cert *certWithPEM
 	pub, priv := keygen()
 	keyBlock, err := marshalPrivateKey(priv)
 	if err != nil {
@@ -215,7 +215,7 @@ func randomX509SerialNumber() (*big.Int, error) {
 // End of ASN.1 time
 var endOfTime = time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
 
-type Cert struct {
+type certWithPEM struct {
 	PEMBlock []byte
 	Cert     *x509.Certificate
 }
@@ -261,7 +261,7 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	return template, nil
 }
 
-func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*Cert, error) {
+func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*certWithPEM, error) {
 	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
 	template, err := newTemplate(hosts, org, validUntil)
 	if err != nil {
@@ -287,7 +287,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 		return nil, err
 	}
 
-	ca := &Cert{
+	ca := &certWithPEM{
 		PEMBlock: pemBlock,
 		Cert:     x509Cert,
 	}
@@ -295,7 +295,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 }
 
 func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
-	hosts []string, org string, years int) (*Cert, error) {
+	hosts []string, org string, years int) (*certWithPEM, error) {
 
 	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
 		return nil, fmt.Errorf("parent certificate cannot sign other certificates")
@@ -327,7 +327,7 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 		return nil, err
 	}
 
-	issuedCert := &Cert{
+	issuedCert := &certWithPEM{
 		PEMBlock: pemBlock,
 		Cert:     x509Cert,
 	}

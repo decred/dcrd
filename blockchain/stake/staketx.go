@@ -719,15 +719,23 @@ func IsSStx(tx *wire.MsgTx) bool {
 	return CheckSStx(tx) == nil
 }
 
-// TreasuryVoteT is the type that designates a treasury vote. There are two
+// TreasuryVoteT is the type that designates a treasury vote.  There are two
 // valid bits that may be set, although not simultaneously. 0x01 and 0x02. Any
 // other (or lack therefore) bits are considered invalid.
 type TreasuryVoteT byte
 
 const (
-	TreasuryVoteInvalid TreasuryVoteT = 0x00 // Invalid vote
-	TreasuryVoteYes     TreasuryVoteT = 0x01 // Vote YES
-	TreasuryVoteNo      TreasuryVoteT = 0x02 // Vote NO
+	// TreasuryVoteInvalid identifies an invalid vote for a treasury spend
+	// transaction.
+	TreasuryVoteInvalid TreasuryVoteT = 0x00
+
+	// TreasuryVoteYes identifies a vote in favor of a specific treasury spend
+	// transaction.
+	TreasuryVoteYes TreasuryVoteT = 0x01
+
+	// TreasuryVoteNo identifies a vote against a specific treasury spend
+	// transaction.
+	TreasuryVoteNo TreasuryVoteT = 0x02
 )
 
 // CheckTreasuryVote ensures that the provided treasury vote is valid. If the

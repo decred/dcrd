@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,9 +52,9 @@ const (
 	// it will parse them since they exist in the wild.
 	PubKeyFormatHybridEven byte = 0x06
 
-	// PubKeyIDHybridEven is the identifier prefix byte for a public key whose Y
-	// coordingate is odd when serialized according to the hybrid format per
-	// section 4.3.6 of [ANSI X9.62-1998].
+	// PubKeyFormatHybridOdd is the identifier prefix byte for a public key
+	// whose Y coordingate is odd when serialized according to the hybrid format
+	// per section 4.3.6 of [ANSI X9.62-1998].
 	//
 	// NOTE: This format makes little sense in practice an therefore this
 	// package will not produce public keys serialized in this format.  However,

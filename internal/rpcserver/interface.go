@@ -493,7 +493,7 @@ type CPUMiner interface {
 	SetNumWorkers(numWorkers int32)
 }
 
-// TemplaterSubber represents a block template subscription.
+// TemplateSubber represents a block template subscription.
 //
 // The interface contract requires that all these methods are safe for
 // concurrent access.
