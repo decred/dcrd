@@ -355,11 +355,7 @@ func (b *BlockChain) DisableVerify(disable bool) {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) HaveHeader(hash *chainhash.Hash) bool {
-	b.index.RLock()
-	node := b.index.index[*hash]
-	headerKnown := node != nil
-	b.index.RUnlock()
-	return headerKnown
+	return b.index.LookupNode(hash) != nil
 }
 
 // HaveBlock returns whether or not the chain instance has the block represented
