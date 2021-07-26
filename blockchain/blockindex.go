@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math/big"
 	"sort"
 	"sync"
@@ -501,8 +502,20 @@ type blockIndex struct {
 
 	// These following fields are protected by the embedded mutex.
 	//
-	// index contains an entry for every known block tracked by the block
-	// index.
+	// index and collisions jointly contain an entry for every block known to
+	// the block index such that index either contains the entry keyed by its
+	// shortened key directly when there is no collision or nil in the case
+	// there is a collision to indicate the entry is stored in the collisions
+	// map by its full key instead.  This approach saves a substantial amount of
+	// memory by allowing shorter keys to be used for all non-colliding entries
+	// in exchange for a small bit of processing overhead to handle collisions.
+	// It should be noted that the current implementation uses 4 bytes for the
+	// short keys and thus a relatively low number of collisions are expected.
+	// More concretely, the expected number of collisions is n(n-1)/2^33, where
+	// n is the number of blocks.  This implies the cutoff point where the
+	// overhead of the collisions is expected to reach just 10% of the savings
+	// gained is around 5800 years given the average mainnet block production
+	// rate.
 	//
 	// modified contains an entry for all nodes that have been modified
 	// since the last time the index was flushed to disk.
@@ -511,10 +524,11 @@ type blockIndex struct {
 	//
 	// totalTips tracks the total number of all known chain tips.
 	sync.RWMutex
-	index     map[chainhash.Hash]*blockNode
-	modified  map[*blockNode]struct{}
-	chainTips map[int64]chainTipEntry
-	totalTips uint64
+	index      map[uint32]*blockNode
+	collisions map[chainhash.Hash]*blockNode
+	modified   map[*blockNode]struct{}
+	chainTips  map[int64]chainTipEntry
+	totalTips  uint64
 
 	// These fields are related to selecting the best chain.  They are protected
 	// by the embedded mutex.
@@ -576,7 +590,8 @@ func newBlockIndex(db database.DB) *blockIndex {
 	// disk will be zero.
 	return &blockIndex{
 		db:                  db,
-		index:               make(map[chainhash.Hash]*blockNode),
+		index:               make(map[uint32]*blockNode),
+		collisions:          make(map[chainhash.Hash]*blockNode),
 		modified:            make(map[*blockNode]struct{}),
 		chainTips:           make(map[int64]chainTipEntry),
 		cachedTips:          make(map[chainhash.Hash]*blockNode),
@@ -598,12 +613,66 @@ func (bi *blockIndex) HaveBlock(hash *chainhash.Hash) bool {
 	return hasBlock
 }
 
+// shortBlockKey generates a short identifier from a standard block hash for use
+// as a key in the block index.
+func shortBlockKey(hash *chainhash.Hash) uint32 {
+	// Use the first bytes of the hash directly since it is the result of a hash
+	// function that produces a uniformly-random distribution.  It is also worth
+	// noting that the mining process reduces entropy by zeroing the bits at the
+	// other end of the array, but there would need to be effectively impossible
+	// to achieve hash rates exceeding ~2^215.77 hashes/sec (aka ~89.8 peta
+	// yotta yotta hashes/sec) in order to start zeroing out the bits used here.
+	// Not only is that impossible for all intents and purposes, the only effect
+	// would be reducing overall memory savings due to increased collisions
+	// among the shortened keys.
+	return binary.BigEndian.Uint32(hash[0:4])
+}
+
 // addNode adds the provided node to the block index.  Duplicate entries are not
 // checked so it is up to caller to avoid adding them.
 //
 // This function MUST be called with the block index lock held (for writes).
 func (bi *blockIndex) addNode(node *blockNode) {
-	bi.index[node.hash] = node
+	// Add the node to the block index based on a shortened key with proper
+	// collision handling.  Two maps are used to that end:
+	// 1) An index map keyed by the shortened key
+	// 2) A collisions map keyed by the full hash
+	//
+	// The entry in the index map is either a block node directly when there has
+	// not been any collisions for the shortened key, or nil when there has.
+	// The nil entry signals the block node is stored in the collisions map
+	// keyed by its full hash instead.
+	blockKey := shortBlockKey(&node.hash)
+	existingNode, ok := bi.index[blockKey]
+	switch {
+	// Add the new node directly to the index when there is no collision with
+	// the short key (aka there is no existing entry for it).
+	case !ok:
+		bi.index[blockKey] = node
+
+	// Add the new node to the collision map using the full hash as the key when
+	// there is a collision with the short key and the existing node has already
+	// been moved to the collisions map implying there was a previous collision.
+	// Note that this will replace the node when the full hash is the same.
+	case existingNode == nil:
+		bi.collisions[node.hash] = node
+
+	// At this point, there is an existing node for the shortened key indicating
+	// there were no previous collisions for it, so move that existing node to
+	// the collision map and nil out the entry in the index map to indicate the
+	// collision.  Finally, add the new node to the collision map using its full
+	// hash as the key as well.
+	case existingNode.hash != node.hash:
+		bi.index[blockKey] = nil
+		bi.collisions[existingNode.hash] = existingNode
+		bi.collisions[node.hash] = node
+
+	// Replace the node in the index when there is an existing node for the
+	// shortened key indicating there were no previous collisions for it and the
+	// full hashes are the same.
+	default:
+		bi.index[blockKey] = node
+	}
 
 	// Since the block index does not support nodes that do not connect to
 	// an existing node (except the genesis block), all new nodes are either
@@ -815,7 +884,27 @@ func (bi *blockIndex) forEachChainTipAfterHeight(filter *blockNode, f func(tip *
 //
 // This function MUST be called with the block index lock held (for reads).
 func (bi *blockIndex) lookupNode(hash *chainhash.Hash) *blockNode {
-	return bi.index[*hash]
+	// An existing non-nil entry for the shortened key means there was no
+	// previous collision when inserting nodes, but it still might collide with
+	// the requested hash, so ensure the full hash actually matches and return
+	// the node in the case it does.
+	blockKey := shortBlockKey(hash)
+	n, ok := bi.index[blockKey]
+	if n != nil && n.hash == *hash {
+		return n
+	}
+
+	// A nil entry for the shortened key (as opposed to no entry at all) means
+	// there was a previous collision when inserting nodes, so look up the node
+	// by its full hash in the collisions map.
+	if ok && n == nil {
+		return bi.collisions[*hash]
+	}
+
+	// There is no entry for the shortened key in the index at all or there is a
+	// non-nil entry for it, but it does not match the full hash.  The requested
+	// node does not exist in either case.
+	return nil
 }
 
 // LookupNode returns the block node identified by the provided hash.  It will

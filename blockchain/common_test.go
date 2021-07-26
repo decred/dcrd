@@ -232,7 +232,7 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 }
 
 // testNoncePrng provides a deterministic prng for the nonce in generated fake
-// nodes.  The ensures that the nodes have unique hashes.
+// nodes.  This ensures that the nodes have unique hashes.
 var testNoncePrng = mrand.New(mrand.NewSource(0))
 
 // newFakeNode creates a block node connected to the passed parent with the
