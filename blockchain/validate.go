@@ -328,6 +328,12 @@ const (
 	AFNone AgendaFlags = 0
 )
 
+// IsTreasuryEnabled returns whether the flags indicate that the treasury agenda
+// is enabled.
+func (flags AgendaFlags) IsTreasuryEnabled() bool {
+	return flags&AFTreasuryEnabled == AFTreasuryEnabled
+}
+
 // checkTransactionContext performs several validation checks on the transaction
 // which depend on having the full block data for all of its ancestors
 // available, most likely because the checks depend on whether or not an agenda
@@ -338,7 +344,7 @@ const (
 // in order to change how the validation rules are applied accordingly.
 func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags) error {
 	// Determine active agendas based on flags.
-	isTreasuryEnabled := flags&AFTreasuryEnabled == AFTreasuryEnabled
+	isTreasuryEnabled := flags.IsTreasuryEnabled()
 
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool
