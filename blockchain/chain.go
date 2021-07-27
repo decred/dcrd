@@ -560,6 +560,13 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
+	// Create agenda flags for checking transactions based on which ones are
+	// active as of the block being connected.
+	checkTxFlags := AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= AFTreasuryEnabled
+	}
+
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
@@ -708,9 +715,9 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	// updating wallets.
 	b.chainLock.Unlock()
 	b.sendNotification(NTBlockConnected, &BlockConnectedNtfnsData{
-		Block:            block,
-		ParentBlock:      parent,
-		IsTreasuryActive: isTreasuryEnabled,
+		Block:        block,
+		ParentBlock:  parent,
+		CheckTxFlags: checkTxFlags,
 	})
 	b.chainLock.Lock()
 
@@ -779,6 +786,13 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
+	}
+
+	// Create agenda flags for checking transactions based on which ones were
+	// active as of the block being disconnected.
+	checkTxFlags := AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= AFTreasuryEnabled
 	}
 
 	// Write any modified block index entries to the database before
@@ -898,9 +912,9 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	// updating wallets.
 	b.chainLock.Unlock()
 	b.sendNotification(NTBlockDisconnected, &BlockDisconnectedNtfnsData{
-		Block:            block,
-		ParentBlock:      parent,
-		IsTreasuryActive: isTreasuryEnabled,
+		Block:        block,
+		ParentBlock:  parent,
+		CheckTxFlags: checkTxFlags,
 	})
 	b.chainLock.Lock()
 
