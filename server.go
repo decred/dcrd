@@ -2614,7 +2614,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
 				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
-				acceptedTxs := txMemPool.ProcessOrphans(tx, isTreasuryEnabled)
+				acceptedTxs := txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 				s.AnnounceNewTransactions(acceptedTxs)
 
 				// Now that this block is in the blockchain, mark the
@@ -2739,7 +2739,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
 				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
-				txMemPool.ProcessOrphans(tx, isTreasuryEnabled)
+				txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 			}
 		}
 
