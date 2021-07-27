@@ -1215,7 +1215,10 @@ func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) 
 // so that we can easily pick different stake tx types from the mempool later.
 // This should probably be done at the bottom using "IsSStx" etc functions.
 // It should also set the dcrutil tree type for the tx as well.
-func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allowHighFees, rejectDupOrphans bool, isTreasuryEnabled bool) ([]*chainhash.Hash, error) {
+func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
+	allowHighFees, rejectDupOrphans bool,
+	checkTxFlags blockchain.AgendaFlags) ([]*chainhash.Hash, error) {
+
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()
 	// Don't accept the transaction if it already exists in the pool.  This
@@ -1228,13 +1231,12 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, txRuleError(ErrDuplicate, str)
 	}
 
+	// Determine active agendas based on flags.
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
+
 	// Perform preliminary validation checks on the transaction.  This makes use
 	// of blockchain which contains the invariant rules for what transactions
 	// are allowed into blocks.
-	checkTxFlags := blockchain.AFNone
-	if isTreasuryEnabled {
-		checkTxFlags |= blockchain.AFTreasuryEnabled
-	}
 	err := blockchain.CheckTransaction(msgTx, mp.cfg.ChainParams, checkTxFlags)
 	if err != nil {
 		var cerr blockchain.RuleError
@@ -1795,10 +1797,17 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 		return nil, err
 	}
 
+	// Create agenda flags for checking transactions based on which ones are
+	// active.
+	checkTxFlags := blockchain.AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= blockchain.AFTreasuryEnabled
+	}
+
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	hashes, err := mp.maybeAcceptTransaction(tx, isNew, rateLimit, true,
-		true, isTreasuryEnabled)
+		true, checkTxFlags)
 	mp.mtx.Unlock()
 
 	return hashes, err
@@ -1851,7 +1860,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 			for _, tx := range orphans {
 				missing, err := mp.maybeAcceptTransaction(
 					tx, true, true, true, false,
-					isTreasuryEnabled)
+					checkTxFlags)
 				if err != nil {
 					// The orphan is now invalid, so there
 					// is no way any other orphans which
@@ -2051,7 +2060,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 
 	// Potentially accept the transaction to the memory pool.
 	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit,
-		allowHighFees, true, isTreasuryEnabled)
+		allowHighFees, true, checkTxFlags)
 	if err != nil {
 		return nil, err
 	}
