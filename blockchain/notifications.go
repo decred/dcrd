@@ -128,9 +128,9 @@ type BlockConnectedNtfnsData struct {
 	// chain.
 	ParentBlock *dcrutil.Block
 
-	// IsTreasuryActive indicates whether or not the treasury agenda is active
-	// for the block that was connected.
-	IsTreasuryActive bool
+	// CheckTxFlags represents the agendas to consider as active when checking
+	// transactions for the block that was connected.
+	CheckTxFlags AgendaFlags
 }
 
 // BlockDisconnectedNtfnsData is the structure for data indicating information
@@ -143,9 +143,9 @@ type BlockDisconnectedNtfnsData struct {
 	// main chain meaning this block is now the tip of the main chain.
 	ParentBlock *dcrutil.Block
 
-	// IsTreasuryActive indicates whether or not the treasury agenda was active
-	// for the block that was **disconnected**.
-	IsTreasuryActive bool
+	// CheckTxFlags represents the agendas to consider as active when checking
+	// transactions for the block that was **disconnected**.
+	CheckTxFlags AgendaFlags
 }
 
 // ReorganizationNtfnsData is the structure for data indicating information

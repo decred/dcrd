@@ -2573,7 +2573,9 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		}
 		block := ntfn.Block
 		parentBlock := ntfn.ParentBlock
-		isTreasuryEnabled := ntfn.IsTreasuryActive
+
+		// Determine active agendas based on flags.
+		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
 
 		// Account for transactions mined in the newly connected block for fee
 		// estimation. This must be done before attempting to remove
@@ -2720,7 +2722,9 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		}
 		block := ntfn.Block
 		parentBlock := ntfn.ParentBlock
-		isTreasuryEnabled := ntfn.IsTreasuryActive
+
+		// Determine active agendas based on flags.
+		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
 
 		// In the case the regular tree of the previous block was disapproved,
 		// disconnecting the current block makes all of those transactions valid
