@@ -1808,8 +1808,11 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 // ProcessOrphans.  See the comment for ProcessOrphans for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
+func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain.AgendaFlags) []*dcrutil.Tx {
 	var acceptedTxns []*dcrutil.Tx
+
+	// Determine active agendas based on flags.
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// Start with processing at least the passed transaction.
 	processList := []*dcrutil.Tx{acceptedTx}
@@ -2005,9 +2008,9 @@ func (mp *TxPool) PruneExpiredTx() {
 // no transactions were moved from the orphan pool to the mempool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
+func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain.AgendaFlags) []*dcrutil.Tx {
 	mp.mtx.Lock()
-	acceptedTxns := mp.processOrphans(acceptedTx, isTreasuryEnabled)
+	acceptedTxns := mp.processOrphans(acceptedTx, checkTxFlags)
 	mp.mtx.Unlock()
 	return acceptedTxns
 }
@@ -2027,6 +2030,13 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
 	if err != nil {
 		return nil, err
+	}
+
+	// Create agenda flags for checking transactions based on which ones are
+	// active.
+	checkTxFlags := blockchain.AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= blockchain.AFTreasuryEnabled
 	}
 
 	// Protect concurrent access.
@@ -2052,7 +2062,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 		// transaction (they may no longer be orphans if all inputs
 		// are now available) and repeat for those accepted
 		// transactions until there are no more.
-		newTxs := mp.processOrphans(tx, isTreasuryEnabled)
+		newTxs := mp.processOrphans(tx, checkTxFlags)
 		acceptedTxs := make([]*dcrutil.Tx, len(newTxs)+1)
 
 		// Add the parent transaction first so remote nodes
