@@ -3488,6 +3488,10 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			tipHash := &s.chain.BestSnapshot().Hash
 			return s.chain.IsTreasuryAgendaActive(tipHash)
 		},
+		IsAutoRevocationsAgendaActive: func() (bool, error) {
+			tipHash := &s.chain.BestSnapshot().Hash
+			return s.chain.IsAutoRevocationsAgendaActive(tipHash)
+		},
 		TSpendMinedOnAncestor: func(tspend chainhash.Hash) error {
 			tipHash := s.chain.BestSnapshot().Hash
 			return s.chain.CheckTSpendExists(tipHash, tspend)

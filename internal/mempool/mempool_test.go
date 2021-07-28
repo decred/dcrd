@@ -345,13 +345,14 @@ type poolHarness struct {
 	//
 	// payScriptVer and payScript are the script version and script to pay the
 	// aforementioned payAddr.
-	signKey        []byte
-	sigType        dcrec.SignatureType
-	payAddr        stdaddr.StakeAddress
-	payScriptVer   uint16
-	payScript      []byte
-	chainParams    *chaincfg.Params
-	treasuryActive bool
+	signKey               []byte
+	sigType               dcrec.SignatureType
+	payAddr               stdaddr.StakeAddress
+	payScriptVer          uint16
+	payScript             []byte
+	chainParams           *chaincfg.Params
+	treasuryActive        bool
+	autoRevocationsActive bool
 
 	chain  *fakeChain
 	txPool *TxPool
@@ -826,6 +827,9 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			OnVoteReceived:        nil,
 			IsTreasuryAgendaActive: func() (bool, error) {
 				return harness.treasuryActive, nil
+			},
+			IsAutoRevocationsAgendaActive: func() (bool, error) {
+				return harness.autoRevocationsActive, nil
 			},
 		}),
 	}
