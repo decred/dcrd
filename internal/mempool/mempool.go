@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,6 +149,10 @@ type Config struct {
 	// IsTreasuryAgendaActive returns if the treasury agenda is active or
 	// not.
 	IsTreasuryAgendaActive func() (bool, error)
+
+	// IsAutoRevocationsAgendaActive returns if the automatic ticket revocations
+	// agenda is active or not.
+	IsAutoRevocationsAgendaActive func() (bool, error)
 
 	// OnTSpendReceived defines the function used to signal receiving a new
 	// tspend in the mempool.
