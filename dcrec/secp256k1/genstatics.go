@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -45,11 +45,12 @@ func (curve *KoblitzCurve) SerializedBytePoints() []byte {
 	doublingPoints := curve.getDoublingPoints()
 
 	// Segregate the bits into byte-sized windows
-	serialized := make([]byte, curve.byteSize*256*3*10*4)
+	curveByteSize := curve.BitSize / 8
+	serialized := make([]byte, curveByteSize*256*3*10*4)
 	offset := 0
-	for byteNum := 0; byteNum < curve.byteSize; byteNum++ {
+	for byteNum := 0; byteNum < curveByteSize; byteNum++ {
 		// Grab the 8 bits that make up this byte from doublingPoints.
-		startingBit := 8 * (curve.byteSize - byteNum - 1)
+		startingBit := 8 * (curveByteSize - byteNum - 1)
 		computingPoints := doublingPoints[startingBit : startingBit+8]
 
 		// Compute all points in this window and serialize them.
