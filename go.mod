@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/connmgr/v3 v3.0.0
 	github.com/decred/dcrd/container/apbf v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1
-	github.com/decred/dcrd/database/v2 v2.0.3-0.20210729220033-48762d6f3ca8
+	github.com/decred/dcrd/database/v3 v3.0.0-20210802132946-9ede6ae83e0f
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
 	github.com/decred/dcrd/dcrjson/v3 v3.1.0
@@ -53,6 +53,7 @@ replace (
 	github.com/decred/dcrd/container/apbf => ./container/apbf
 	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
 	github.com/decred/dcrd/crypto/ripemd160 => ./crypto/ripemd160
+	github.com/decred/dcrd/database/v3 => ./database
 	github.com/decred/dcrd/dcrec => ./dcrec
 	github.com/decred/dcrd/dcrec/secp256k1/v4 => ./dcrec/secp256k1
 	github.com/decred/dcrd/dcrjson/v3 => ./dcrjson
