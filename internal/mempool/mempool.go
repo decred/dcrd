@@ -1795,6 +1795,11 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 		return nil, err
 	}
 
+	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
+	if err != nil {
+		return nil, err
+	}
+
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	//
@@ -1802,6 +1807,9 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 	checkTxFlags := blockchain.AFExplicitVerUpgrades
 	if isTreasuryEnabled {
 		checkTxFlags |= blockchain.AFTreasuryEnabled
+	}
+	if isAutoRevocationsEnabled {
+		checkTxFlags |= blockchain.AFAutoRevocationsEnabled
 	}
 
 	// Protect concurrent access.
@@ -2041,6 +2049,11 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 		return nil, err
 	}
 
+	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
+	if err != nil {
+		return nil, err
+	}
+
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	//
@@ -2048,6 +2061,9 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	checkTxFlags := blockchain.AFExplicitVerUpgrades
 	if isTreasuryEnabled {
 		checkTxFlags |= blockchain.AFTreasuryEnabled
+	}
+	if isAutoRevocationsEnabled {
+		checkTxFlags |= blockchain.AFAutoRevocationsEnabled
 	}
 
 	// Protect concurrent access.
