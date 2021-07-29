@@ -14,6 +14,8 @@ github.com/decred/dcrd/crypto/blake256 v1.0.0 h1:/8DMNYp9SGi5f0w7uCm6d6M4OU2rGFK
 github.com/decred/dcrd/crypto/blake256 v1.0.0/go.mod h1:sQl2p6Y26YV+ZOcSTP6thNdn47hh8kt6rqSlvmrXFAc=
 github.com/decred/dcrd/crypto/ripemd160 v1.0.1 h1:TjRL4LfftzTjXzaufov96iDAkbY2R3aTvH2YMYa1IOc=
 github.com/decred/dcrd/crypto/ripemd160 v1.0.1/go.mod h1:F0H8cjIuWTRoixr/LM3REB8obcWkmYx0gbxpQWR8RPg=
+github.com/decred/dcrd/database/v2 v2.0.3-0.20210729220033-48762d6f3ca8 h1:DJ2JhUULvuYp3SmunlXiz0TjSB7P+hiq716kmo3td4w=
+github.com/decred/dcrd/database/v2 v2.0.3-0.20210729220033-48762d6f3ca8/go.mod h1:s9pAcB39CeM0vWQU1qor3AO6d9JdC3H2Ve9W+BP5i4g=
 github.com/decred/dcrd/dcrec v1.0.0 h1:W+z6Es+Rai3MXYVoPAxYr5U1DGis0Co33scJ6uH2J6o=
 github.com/decred/dcrd/dcrec v1.0.0/go.mod h1:HIaqbEJQ+PDzQcORxnqen5/V1FR3B4VpIfmePklt8Q8=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1 h1:V6eqU1crZzuoFT4KG2LhaU5xDSdkHuvLQsj25wd7Wb4=
