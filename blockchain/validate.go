@@ -330,6 +330,12 @@ const (
 	// being active are applied.
 	AFExplicitVerUpgrades
 
+	// AFAutoRevocationsEnabled may be set to indicate that the automatic ticket
+	// revocations agenda should be considered as active when checking a
+	// transaction so that any additional checks which depend on the agenda being
+	// active are applied.
+	AFAutoRevocationsEnabled
+
 	// AFNone is a convenience value to specifically indicate no flags.
 	AFNone AgendaFlags = 0
 )
@@ -344,6 +350,12 @@ func (flags AgendaFlags) IsTreasuryEnabled() bool {
 // explicit version upgrades agenda is enabled.
 func (flags AgendaFlags) IsExplicitVerUpgradesEnabled() bool {
 	return flags&AFExplicitVerUpgrades == AFExplicitVerUpgrades
+}
+
+// IsAutoRevocationsEnabled returns whether the flags indicate that the
+// automatic ticket revocations agenda is enabled.
+func (flags AgendaFlags) IsAutoRevocationsEnabled() bool {
+	return flags&AFAutoRevocationsEnabled == AFAutoRevocationsEnabled
 }
 
 // determineCheckTxFlags returns the flags to use when checking transactions
@@ -362,6 +374,13 @@ func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, er
 		return 0, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// block being checked.
+	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(prevNode)
+	if err != nil {
+		return 0, err
+	}
+
 	// Create and return agenda flags for checking transactions based on which
 	// ones are active as of the block being checked.
 	checkTxFlags := AFNone
@@ -370,6 +389,9 @@ func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, er
 	}
 	if explicitUpgradesActive {
 		checkTxFlags |= AFExplicitVerUpgrades
+	}
+	if isAutoRevocationsEnabled {
+		checkTxFlags |= AFAutoRevocationsEnabled
 	}
 	return checkTxFlags, nil
 }
