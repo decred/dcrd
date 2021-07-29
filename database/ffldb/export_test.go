@@ -12,7 +12,7 @@ The functions are only exported while the tests are being run.
 
 package ffldb
 
-import "github.com/decred/dcrd/database/v2"
+import "github.com/decred/dcrd/database/v3"
 
 // TstRunWithMaxBlockFileSize runs the passed function with the maximum allowed
 // file size for the database set to the provided value.  The value will be set
