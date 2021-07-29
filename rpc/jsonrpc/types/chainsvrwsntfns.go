@@ -24,11 +24,11 @@ const (
 
 	// WorkNtfnMethod is the method used for notifications from
 	// the chain server that a new block template has been generated.
-	WorkNtfnMethod = "work"
+	WorkNtfnMethod Method = "work"
 
 	// TSpendNtfnMethod is the method used for notifications from the chain
 	// server that a new tspend has arrived in the mempool.
-	TSpendNtfnMethod = "tspend"
+	TSpendNtfnMethod Method = "tspend"
 
 	// ReorganizationNtfnMethod is the method used for notifications that the
 	// block chain is in the process of a reorganization.
