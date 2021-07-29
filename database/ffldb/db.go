@@ -17,8 +17,8 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/database/v2/internal/treap"
+	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/database/v3/internal/treap"
 	"github.com/decred/dcrd/wire"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/comparer"

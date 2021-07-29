@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 )
 
 // fetchBlockCmd defines the configuration options for the fetchblock command.

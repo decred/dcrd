@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
-	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -24,7 +24,7 @@ func ExampleCreate() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
@@ -50,7 +50,7 @@ func Example_basicUsage() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
@@ -116,7 +116,7 @@ func Example_blockStorageAndRetrieval() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.

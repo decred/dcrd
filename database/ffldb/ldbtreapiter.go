@@ -6,7 +6,7 @@
 package ffldb
 
 import (
-	"github.com/decred/dcrd/database/v2/internal/treap"
+	"github.com/decred/dcrd/database/v3/internal/treap"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )

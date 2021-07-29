@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/decred/dcrd/database/v2"
-	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	_ "github.com/decred/dcrd/database/v3/ffldb"
 )
 
 // checkDbError ensures the passed error is an Error that matches the passed
