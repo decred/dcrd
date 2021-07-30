@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"reflect"
@@ -493,4 +494,176 @@ func TestWorkSorterCompare(t *testing.T) {
 				gotCmp, test.wantCmp)
 		}
 	}
+}
+
+// TestShortBlockKeyCollisions ensures the block index handles addition and
+// lookup of short key collisions as expected.
+func TestShortBlockKeyCollisions(t *testing.T) {
+	params := chaincfg.RegNetParams()
+	bc := newFakeChain(params)
+	genesis := bc.bestChain.Genesis()
+
+	// Assert the regression test genesis block hasn't changed because this test
+	// relies on specific hashes that are specially crafted to force collisions.
+	// Should this assertion fail in the future, it can be resolved by
+	// overriding the parameters above to match the expected values.
+	requiredHash := "2ced94b4ae95bba344cfa043268732d230649c640f92dce2d9518823d3057cb0"
+	if genesis.hash != *mustParseHash(requiredHash) {
+		t.Fatalf("this test relies on specific hash values which stem from a "+
+			"regression test genesis block with hash %s, but it has been "+
+			"changed to %s", requiredHash, genesis.hash)
+	}
+
+	// assertShortKeyCollision causes a fatal test error if the short key for
+	// the two provided nodes is not the same.
+	assertShortKeyCollision := func(node1, node2 *blockNode) {
+		t.Helper()
+
+		node1Key := shortBlockKey(&node1.hash)
+		node2Key := shortBlockKey(&node2.hash)
+		if node1Key != node2Key {
+			t.Fatalf("test data did not produce a key collision: %d != %d",
+				node1Key, node2Key)
+		}
+	}
+
+	// assertFullKeyCollision causes a fatal test error if the full key for
+	// the two provided nodes is not the same.
+	assertFullKeyCollision := func(node1, node2 *blockNode) {
+		t.Helper()
+
+		if node1.hash != node2.hash {
+			t.Fatalf("test data did not produce a key collision: %s != %s",
+				node1.hash, node2.hash)
+		}
+	}
+
+	// assertLookupResult causes a fatal test error if looking up the provided
+	// node from the block index does not produce given desired node.
+	assertLookupResult := func(lookup, want *blockNode) {
+		t.Helper()
+
+		got := bc.index.lookupNode(&lookup.hash)
+		if got != want {
+			gotStr, wantStr := "nil", "nil"
+			if got != nil {
+				gotStr = fmt.Sprintf("%s (short %x, pointer %p)", got.hash,
+					shortBlockKey(&got.hash), got)
+			}
+			if want != nil {
+				wantStr = fmt.Sprintf("%s (short %x, pointer %p)", want.hash,
+					shortBlockKey(&want.hash), want)
+			}
+			t.Fatalf("failed to lookup %s (short %x) -- got %s, want %s",
+				lookup.hash, shortBlockKey(&lookup.hash), gotStr, wantStr)
+		}
+	}
+
+	// mutatedHeader returns a copy of the header from the passed node modified
+	// to increase its height and timestamp by one second and to have the
+	// provided nonce and extra data byte.
+	mutatedHeader := func(node *blockNode, nonce uint32, extraData byte) *wire.BlockHeader {
+		headerCopy := node.Header()
+		headerCopy.Height++
+		headerCopy.Timestamp = headerCopy.Timestamp.Add(time.Second)
+		headerCopy.Nonce = nonce
+		headerCopy.ExtraData[0] = extraData
+		return &headerCopy
+	}
+
+	// Create a few nodes that do not have a collision with the short key.
+	nodes := make([]*blockNode, 10)
+	nodes[0] = newBlockNode(mutatedHeader(genesis, 0x1234, 0x00), genesis)
+	nodes[1] = newBlockNode(mutatedHeader(nodes[0], 0x1235, 0x00), nodes[0])
+	nodes[2] = newBlockNode(mutatedHeader(nodes[1], 0x1236, 0x00), nodes[1])
+	nodes[3] = newBlockNode(mutatedHeader(nodes[2], 0x1237, 0x00), nodes[2])
+	collisionFreeNodes := nodes[0:4]
+
+	// Create some nodes that are specifically crafted to have different full
+	// hashes that collide with the short key.
+	nodes[4] = newBlockNode(mutatedHeader(nodes[3], 0x1238, 0x00), nodes[3])
+	nodes[5] = newBlockNode(mutatedHeader(nodes[4], 0xd322d912, 0x00), nodes[4])
+	assertShortKeyCollision(nodes[4], nodes[5])
+	nodes[6] = newBlockNode(mutatedHeader(nodes[4], 0xe10a4cee, 0x01), nodes[4])
+	assertShortKeyCollision(nodes[4], nodes[6])
+	collisions := nodes[4:7]
+
+	// Create a node that has a full hash collision with one of the previous
+	// nodes that also has a short key collision with another distinct node.
+	//
+	// Since the security properties of the hash function dictate that it is
+	// computationally infeasible to find such a collision with a different
+	// preimage, just create a different node with the same data to fake it.
+	nodes[7] = newBlockNode(mutatedHeader(nodes[4], 0xe10a4cee, 0x01), nodes[4])
+	assertShortKeyCollision(nodes[6], nodes[7])
+	assertFullKeyCollision(nodes[6], nodes[7])
+	doubleCollisions := nodes[6:8]
+
+	// Similar to the previous, create nodes that have a full hash collision,
+	// however, this time for nodes do not have short key collisions with any
+	// other nodes aside from themselves.
+	nodes[8] = newBlockNode(mutatedHeader(genesis, 0xabcd, 0x00), genesis)
+	nodes[9] = newBlockNode(mutatedHeader(genesis, 0xabcd, 0x00), genesis)
+	assertShortKeyCollision(nodes[8], nodes[9])
+	assertFullKeyCollision(nodes[8], nodes[9])
+	fullCollisions := nodes[8:10]
+
+	// Ensure none of the nodes are returned when looked up before being added.
+	for _, node := range nodes {
+		assertLookupResult(node, nil)
+	}
+
+	// Add the nodes that do not have any collisions in the short or full key to
+	// the block index and ensure they are looked up as expected.  Each one is
+	// looked up as it's added and then all of them are looked up again once all
+	// nodes are added for extra assurance.
+	for _, node := range collisionFreeNodes {
+		bc.index.addNode(node)
+		assertLookupResult(node, node)
+	}
+	for _, node := range collisionFreeNodes {
+		assertLookupResult(node, node)
+	}
+
+	// Ensure nodes that have a short key collision with a node that is in the
+	// index but are not themselves in the index do not return the colliding
+	// node.
+	bc.index.addNode(collisions[0])
+	assertLookupResult(collisions[0], collisions[0])
+	assertLookupResult(collisions[1], nil)
+	assertLookupResult(collisions[2], nil)
+
+	// Add nodes with short key collisions and ensure looking up the nodes
+	// returns the expected ones instead of the colliding ones.
+	bc.index.addNode(collisions[1])
+	assertLookupResult(collisions[0], collisions[0])
+	assertLookupResult(collisions[1], collisions[1])
+	assertLookupResult(collisions[2], nil)
+	bc.index.addNode(collisions[2])
+	assertLookupResult(collisions[0], collisions[0])
+	assertLookupResult(collisions[1], collisions[1])
+	assertLookupResult(collisions[2], collisions[2])
+
+	// Ensure a node that has a full hash that collides with a node that also
+	// has a short key collision with another node with a distinct hash (in
+	// other words, the existing nodes have already been moved to the collisions
+	// map) is replaced with the new one.
+	assertLookupResult(doubleCollisions[0], doubleCollisions[0])
+	assertLookupResult(doubleCollisions[1], doubleCollisions[0])
+	bc.index.addNode(doubleCollisions[1])
+	assertLookupResult(doubleCollisions[0], doubleCollisions[1])
+	assertLookupResult(doubleCollisions[1], doubleCollisions[1])
+
+	// Ensure a node that has a full hash that collides with a node that does
+	// not have any other short key collisions (in other words, the existing
+	// node has NOT already been moved to the collisions map) is replaced with
+	// the new one.
+	assertLookupResult(fullCollisions[0], nil)
+	assertLookupResult(fullCollisions[1], nil)
+	bc.index.addNode(fullCollisions[0])
+	assertLookupResult(fullCollisions[0], fullCollisions[0])
+	assertLookupResult(fullCollisions[1], fullCollisions[0])
+	bc.index.addNode(fullCollisions[1])
+	assertLookupResult(fullCollisions[0], fullCollisions[1])
+	assertLookupResult(fullCollisions[1], fullCollisions[1])
 }
