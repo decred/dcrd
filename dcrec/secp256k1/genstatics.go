@@ -38,31 +38,30 @@ func SerializedBytePoints() []byte {
 
 	// Separate the bits into byte-sized windows.
 	curveByteSize := curveParams.BitSize / 8
-	serialized := make([]byte, curveByteSize*256*3*10*4)
+	serialized := make([]byte, curveByteSize*256*2*10*4)
 	offset := 0
 	for byteNum := 0; byteNum < curveByteSize; byteNum++ {
-		// Grab the 8 bits that make up this byte from doublingPoints.
+		// Grab the 8 bits that make up this byte from doubling points.
 		startingBit := 8 * (curveByteSize - byteNum - 1)
-		computingPoints := doublingPoints[startingBit : startingBit+8]
+		windowPoints := doublingPoints[startingBit : startingBit+8]
 
-		// Compute all points in this window and serialize them.
+		// Compute all points in this window, convert them to affine, and
+		// serialize them.
 		for i := 0; i < 256; i++ {
 			var point JacobianPoint
-			for j := 0; j < 8; j++ {
-				if i>>uint(j)&1 == 1 {
-					AddNonConst(&point, &computingPoints[j], &point)
+			for bit := 0; bit < 8; bit++ {
+				if i>>uint(bit)&1 == 1 {
+					AddNonConst(&point, &windowPoints[bit], &point)
 				}
 			}
-			for i := 0; i < 10; i++ {
+			point.ToAffine()
+
+			for i := 0; i < len(point.X.n); i++ {
 				binary.LittleEndian.PutUint32(serialized[offset:], point.X.n[i])
 				offset += 4
 			}
-			for i := 0; i < 10; i++ {
+			for i := 0; i < len(point.Y.n); i++ {
 				binary.LittleEndian.PutUint32(serialized[offset:], point.Y.n[i])
-				offset += 4
-			}
-			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.Z.n[i])
 				offset += 4
 			}
 		}

@@ -18,7 +18,7 @@ import (
 
 // bytePointTable describes a table used to house pre-computed values for
 // accelerating scalar base multiplication.
-type bytePointTable [32][256][3]FieldVal
+type bytePointTable [32][256][2]FieldVal
 
 // s256BytePoints houses pre-computed values used to accelerate scalar base
 // multiplication such that they are only loaded on first use.
@@ -64,17 +64,12 @@ var s256BytePoints = func() func() *bytePointTable {
 			for i := 0; i < len(bytePoints[byteNum]); i++ {
 				px := &bytePoints[byteNum][i][0]
 				py := &bytePoints[byteNum][i][1]
-				pz := &bytePoints[byteNum][i][2]
 				for i := 0; i < len(px.n); i++ {
 					px.n[i] = binary.LittleEndian.Uint32(serialized[offset:])
 					offset += 4
 				}
 				for i := 0; i < len(py.n); i++ {
 					py.n[i] = binary.LittleEndian.Uint32(serialized[offset:])
-					offset += 4
-				}
-				for i := 0; i < len(pz.n); i++ {
-					pz.n[i] = binary.LittleEndian.Uint32(serialized[offset:])
 					offset += 4
 				}
 			}

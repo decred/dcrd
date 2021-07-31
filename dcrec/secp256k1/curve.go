@@ -763,7 +763,7 @@ func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 		p := bytePoints[i][byteVal]
 		pt.X.Set(&p[0])
 		pt.Y.Set(&p[1])
-		pt.Z.Set(&p[2])
+		pt.Z.SetInt(1)
 		AddNonConst(&q, &pt, &q)
 	}
 
