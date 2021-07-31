@@ -14,7 +14,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"math/big"
-	"sync"
 )
 
 // CurveParams contains the parameters for the secp256k1 curve.
@@ -233,22 +232,10 @@ func fromHex(s string) *big.Int {
 	return r
 }
 
-var (
-	// initonce is used to initialize the global secp256k1 koblitz curve instance
-	// dynamically upon first access.
-	initonce sync.Once
-
-	// secp256k1 is a global instance of the KoblitzCurve implementation which
-	// in turn embeds and implements elliptic.CurveParams.
-	secp256k1 KoblitzCurve
-)
-
-// initS256 initializes the global secp256k1 instance that gets returned by the
-// S256 function which provides access to the fields and methods provided by
-// elliptic.CurveParms.
-func initS256() {
-	// Curve parameters taken from [SECG] section 2.4.1.
-	secp256k1.CurveParams = &elliptic.CurveParams{
+// secp256k1 is a global instance of the KoblitzCurve implementation which in
+// turn embeds and implements elliptic.CurveParams.
+var secp256k1 = &KoblitzCurve{
+	CurveParams: &elliptic.CurveParams{
 		P:       curveParams.P,
 		N:       curveParams.N,
 		B:       fromHex("0000000000000000000000000000000000000000000000000000000000000007"),
@@ -256,11 +243,10 @@ func initS256() {
 		Gy:      curveParams.Gy,
 		BitSize: curveParams.BitSize,
 		Name:    "secp256k1",
-	}
+	},
 }
 
 // S256 returns a Curve which implements secp256k1.
 func S256() *KoblitzCurve {
-	initonce.Do(initS256)
-	return &secp256k1
+	return secp256k1
 }
