@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Copyright 2013-2014 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -749,7 +749,7 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 //
 // NOTE: The resulting point will be normalized.
 func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
-	bytePoints := S256().bytePoints
+	bytePoints := s256BytePoints()
 
 	// Point Q = ∞ (point at infinity).
 	var q JacobianPoint

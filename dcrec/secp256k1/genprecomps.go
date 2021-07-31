@@ -1,5 +1,5 @@
 // Copyright 2015 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -29,7 +29,7 @@ func main() {
 	defer fi.Close()
 
 	// Compress the serialized byte points.
-	serialized := secp256k1.S256().SerializedBytePoints()
+	serialized := secp256k1.SerializedBytePoints()
 	var compressed bytes.Buffer
 	w := zlib.NewWriter(&compressed)
 	if _, err := w.Write(serialized); err != nil {
@@ -43,7 +43,7 @@ func main() {
 	base64.StdEncoding.Encode(encoded, compressed.Bytes())
 
 	fmt.Fprintln(fi, "// Copyright (c) 2015 The btcsuite developers")
-	fmt.Fprintln(fi, "// Copyright (c) 2015-2020 The Decred developers")
+	fmt.Fprintln(fi, "// Copyright (c) 2015-2021 The Decred developers")
 	fmt.Fprintln(fi, "// Use of this source code is governed by an ISC")
 	fmt.Fprintln(fi, "// license that can be found in the LICENSE file.")
 	fmt.Fprintln(fi)

@@ -21,31 +21,23 @@ import (
 // real values can compile.
 var compressedBytePoints = ""
 
-// getDoublingPoints returns all the possible G^(2^i) for i in
-// 0..n-1 where n is the curve's bit size (256 in the case of secp256k1)
-// the coordinates are recorded as Jacobian coordinates.
-func (curve *KoblitzCurve) getDoublingPoints() []JacobianPoint {
-	doublingPoints := make([]JacobianPoint, curve.BitSize)
-
-	// Initialize point to the Jacobian coordinates for the base point.
-	var point JacobianPoint
-	bigAffineToJacobian(curve.Gx, curve.Gy, &point)
-	for i := 0; i < curve.BitSize; i++ {
-		doublingPoints[i] = point
-		// P = 2*P
-		DoubleNonConst(&point, &point)
-	}
-	return doublingPoints
-}
-
 // SerializedBytePoints returns a serialized byte slice which contains all of
 // the possible points per 8-bit window.  This is used to when generating
-// secp256k1.go.
-func (curve *KoblitzCurve) SerializedBytePoints() []byte {
-	doublingPoints := curve.getDoublingPoints()
+// compressedbytepoints.go.
+func SerializedBytePoints() []byte {
+	// Calculate G^(2^i) for i in 0..255.  These are used to avoid recomputing
+	// them for each digit of the 8-bit windows.
+	doublingPoints := make([]JacobianPoint, curveParams.BitSize)
+	var q JacobianPoint
+	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &q)
+	for i := 0; i < curveParams.BitSize; i++ {
+		// Q = 2*Q.
+		doublingPoints[i] = q
+		DoubleNonConst(&q, &q)
+	}
 
-	// Segregate the bits into byte-sized windows
-	curveByteSize := curve.BitSize / 8
+	// Separate the bits into byte-sized windows.
+	curveByteSize := curveParams.BitSize / 8
 	serialized := make([]byte, curveByteSize*256*3*10*4)
 	offset := 0
 	for byteNum := 0; byteNum < curveByteSize; byteNum++ {

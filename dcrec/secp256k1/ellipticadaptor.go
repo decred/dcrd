@@ -1,4 +1,4 @@
-// Copyright 2020 The Decred developers
+// Copyright 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -59,9 +59,6 @@ func Params() *CurveParams {
 // interface from crypto/elliptic.
 type KoblitzCurve struct {
 	*elliptic.CurveParams
-
-	// bytePoints
-	bytePoints *[32][256][3]FieldVal
 }
 
 // bigAffineToJacobian takes an affine point (x, y) as big integers and converts
@@ -259,13 +256,6 @@ func initS256() {
 		Gy:      curveParams.Gy,
 		BitSize: curveParams.BitSize,
 		Name:    "secp256k1",
-	}
-
-	// Deserialize and set the pre-computed table used to accelerate scalar
-	// base multiplication.  This is hard-coded data, so any errors are
-	// panics because it means something is wrong in the source code.
-	if err := loadBytePoints(); err != nil {
-		panic(err)
 	}
 }
 
