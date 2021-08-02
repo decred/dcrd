@@ -2449,7 +2449,7 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 	// Trim off hashtype from the signature string and check if the
 	// signature and pubkey conform to the strict encoding requirements.
 	//
-	// NOTE:The strict encoding requirements cause any errors in the
+	// NOTE: The strict encoding requirements cause any errors in the
 	// signature or public encoding to result in an immediate script error
 	// (and thus no result bool is pushed to the data stack).  This differs
 	// from the logic below where any errors in parsing the signature is
@@ -2777,7 +2777,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// Check the public key lengths. Only 33-byte compressed secp256k1 keys
-	// are allowed for secp256k1 Schnorr signatures, which 32 byte keys
+	// are allowed for secp256k1 Schnorr signatures, while 32 byte keys
 	// are used for Curve25519.
 	switch sigType {
 	case dcrec.STEd25519:
