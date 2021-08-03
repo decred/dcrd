@@ -93,11 +93,16 @@ func BenchmarkScalarMult(b *testing.B) {
 	}
 }
 
-// BenchmarkNAF benchmarks the NAF function.
+// BenchmarkNAF benchmarks conversion of a positive integer into its
+// non-adjacent form representation.
 func BenchmarkNAF(b *testing.B) {
 	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	kBytes := k.Bytes()
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		naf(k.Bytes())
+		naf(kBytes)
 	}
 }
 
