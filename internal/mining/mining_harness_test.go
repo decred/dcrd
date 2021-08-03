@@ -69,6 +69,8 @@ type fakeChain struct {
 	isHeaderCommitmentsAgendaActiveErr error
 	isTreasuryAgendaActive             bool
 	isTreasuryAgendaActiveErr          error
+	isAutoRevocationsAgendaActive      bool
+	isAutoRevocationsAgendaActiveErr   error
 	maxTreasuryExpenditure             int64
 	maxTreasuryExpenditureErr          error
 	parentUtxos                        *blockchain.UtxoViewpoint
@@ -192,6 +194,13 @@ func (c *fakeChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (b
 // treasury agenda is active or not for the block AFTER the given block.
 func (c *fakeChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	return c.isTreasuryAgendaActive, c.isTreasuryAgendaActiveErr
+}
+
+// IsAutoRevocationsAgendaActive returns a mocked bool representing whether the
+// automatic ticket revocations agenda is active or not for the block AFTER the
+// given block.
+func (c *fakeChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	return c.isAutoRevocationsAgendaActive, c.isAutoRevocationsAgendaActiveErr
 }
 
 // MaxTreasuryExpenditure returns a mocked maximum amount of funds that can be
@@ -635,6 +644,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	height := p.chain.BestSnapshot().Height
 	nextHeight := height + 1
 	isTreasuryEnabled := p.chain.isTreasuryAgendaActive
+	isAutoRevocationsEnabled := p.chain.isAutoRevocationsAgendaActive
 
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
@@ -698,7 +708,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	}
 
 	txFee, err := blockchain.CheckTransactionInputs(p.subsidyCache, tx, nextHeight,
-		utxoView, false, p.chainParams, isTreasuryEnabled)
+		utxoView, false, p.chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1388,11 +1398,12 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			CheckConnectBlockTemplate:  chain.CheckConnectBlockTemplate,
 			CheckTicketExhaustion:      chain.CheckTicketExhaustion,
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
-				view *blockchain.UtxoViewpoint, checkFraudProof bool,
-				isTreasuryEnabled bool) (int64, error) {
+				view *blockchain.UtxoViewpoint, checkFraudProof, isTreasuryEnabled,
+				isAutoRevocationsEnabled bool) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(subsidyCache, tx, txHeight,
-					view, checkFraudProof, chainParams, isTreasuryEnabled)
+					view, checkFraudProof, chainParams, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
 			CountSigOps:                     blockchain.CountSigOps,
@@ -1403,6 +1414,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			IsFinalizedTransaction:          blockchain.IsFinalizedTransaction,
 			IsHeaderCommitmentsAgendaActive: chain.IsHeaderCommitmentsAgendaActive,
 			IsTreasuryAgendaActive:          chain.IsTreasuryAgendaActive,
+			IsAutoRevocationsAgendaActive:   chain.IsAutoRevocationsAgendaActive,
 			MaxTreasuryExpenditure:          chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint:                chain.NewUtxoViewpoint,
 			TipGeneration:                   chain.TipGeneration,
