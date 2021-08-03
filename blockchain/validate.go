@@ -2245,7 +2245,10 @@ func checkTicketSubmissionInput(ticketUtxo *UtxoEntry) error {
 //
 // NOTE: This is only intended to be a helper to refactor out common code from
 // checkVoteInputs and checkRevocationInputs.
-func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*stake.MinimalOutput, msgTx *wire.MsgTx, isVote bool, voteSubsidy int64, isTreasuryEnabled bool) error {
+func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
+	ticketOuts []*stake.MinimalOutput, msgTx *wire.MsgTx, isVote bool,
+	voteSubsidy int64, isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
 	// Make an initial pass over the ticket commitments to calculate the overall
 	// contribution sum.  This is necessary because the output amounts are
 	// required to be scaled to maintain the same proportions as the original
@@ -2414,7 +2417,10 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 //
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a vote.
-func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params, isTreasuryEnabled bool) error {
+func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
+	txHeight int64, view *UtxoViewpoint, params *chaincfg.Params,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
 	ticketMaturity := int64(params.TicketMaturity)
 	voteHash := tx.Hash()
 	msgTx := tx.MsgTx()
@@ -2523,7 +2529,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 
 	// Ensure the outputs adhere to the ticket commitments.
 	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
-		true, voteSubsidy, isTreasuryEnabled)
+		true, voteSubsidy, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
 // checkRevocationInputs performs a series of checks on the inputs to a
@@ -2533,7 +2539,10 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 //
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a revocation.
-func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params, isTreasuryEnabled bool) error {
+func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
+	params *chaincfg.Params, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) error {
+
 	ticketMaturity := int64(params.TicketMaturity)
 	revokeHash := tx.Hash()
 	msgTx := tx.MsgTx()
@@ -2615,7 +2624,7 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 	// Ensure the outputs adhere to the ticket commitments.  Zero is passed for
 	// the vote subsidy since revocations do not produce any subsidy.
 	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
-		false, 0, isTreasuryEnabled)
+		false, 0, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
 // CheckTransactionInputs performs a series of checks on the inputs to a
@@ -2630,7 +2639,11 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 //
 // NOTE: The transaction MUST have already been sanity checked with the
 // CheckTransactionSanity function prior to calling this function.
-func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params, isTreasuryEnabled bool) (int64, error) {
+func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
+	tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool,
+	chainParams *chaincfg.Params, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) (int64, error) {
+
 	// Coinbase transactions have no inputs.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
@@ -2666,7 +2679,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
 	if isVote {
 		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
-			chainParams, isTreasuryEnabled)
+			chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -2681,7 +2694,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	isRevocation := stake.IsSSRtx(msgTx)
 	if isRevocation {
 		err := checkRevocationInputs(tx, txHeight, view, chainParams,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -3257,6 +3270,13 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		return err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// block being checked.
+	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.  This could technically be combined with
 	// the loop above instead of running another loop over the
@@ -3280,7 +3300,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// spent, so be aware of this.
 		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
 			node.height, view, true, /* check fraud proofs */
-			b.chainParams, isTreasuryEnabled)
+			b.chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error "+
 				"returned: %v", err)

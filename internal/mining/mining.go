@@ -104,7 +104,9 @@ type Config struct {
 
 	// CheckTransactionInputs defines the function to use to perform a series of
 	// checks on the inputs to a transaction to ensure they are valid.
-	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64, view *blockchain.UtxoViewpoint, checkFraudProof bool, isTreasuryEnabled bool) (int64, error)
+	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64,
+		view *blockchain.UtxoViewpoint, checkFraudProof, isTreasuryEnabled,
+		isAutoRevocationsEnabled bool) (int64, error)
 
 	// CheckTSpendHasVotes defines the function to use to check whether the given
 	// tspend has enough votes to be included in a block AFTER the specified block.
@@ -162,6 +164,11 @@ type Config struct {
 	// IsTreasuryAgendaActive defines the function to use to determine if the
 	// treasury agenda is active or not for the block AFTER the given block.
 	IsTreasuryAgendaActive func(prevHash *chainhash.Hash) (bool, error)
+
+	// IsAutoRevocationsAgendaActive defines the function to use to determine if
+	// the automatic ticket revocations agenda is active or not for the block
+	// AFTER the given block.
+	IsAutoRevocationsAgendaActive func(prevHash *chainhash.Hash) (bool, error)
 
 	// MaxTreasuryExpenditure defines the function to use to get the maximum amount
 	// of funds that can be spent from the treasury by a set of TSpends for a block
@@ -1062,6 +1069,11 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 		return nil, err
 	}
 
+	isAutoRevocationsEnabled, err := g.cfg.IsAutoRevocationsAgendaActive(&prevHash)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		isTVI            bool
 		maxTreasurySpend int64
@@ -1551,7 +1563,7 @@ nextPriorityQueueItem:
 			// The fraud proof is not checked because it will be filled in
 			// by the miner.
 			_, err = g.cfg.CheckTransactionInputs(bundledTx.Tx, nextBlockHeight,
-				blockUtxos, false, isTreasuryEnabled)
+				blockUtxos, false, isTreasuryEnabled, isAutoRevocationsEnabled)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)

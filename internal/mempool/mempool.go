@@ -1244,6 +1244,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 
 	// Determine active agendas based on flags.
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
+	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 
 	// A standalone transaction must not be a coinbase transaction.
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
@@ -1490,7 +1491,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// filled in by the miner.
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
 		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams,
-		isTreasuryEnabled)
+		isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
