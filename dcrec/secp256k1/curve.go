@@ -15,6 +15,9 @@ import (
 //     https://www.secg.org/sec2-v2.pdf
 //
 //   [GECC]: Guide to Elliptic Curve Cryptography (Hankerson, Menezes, Vanstone)
+//
+//   [BRID]: On Binary Representations of Integers with Digits -1, 0, 1
+//           (Prodinger, Helmut)
 
 // All group operations are performed using Jacobian coordinates.  For a given
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
@@ -636,6 +639,142 @@ func splitK(k []byte) ([]byte, []byte, int, int) {
 	return k1.Bytes(), k2.Bytes(), k1.Sign(), k2.Sign()
 }
 
+// nafScalar represents a positive integer up to a maximum value of 2^256 - 1
+// encoded in non-adjacent form.
+//
+// NAF is a signed-digit representation where each digit can be +1, 0, or -1.
+//
+// In order to efficiently encode that information, this type uses two arrays, a
+// "positive" array where set bits represent the +1 signed digits and a
+// "negative" array where set bits represent the -1 signed digits.  0 is
+// represented by neither array having a bit set in that position.
+//
+// The Pos and Neg methods return the aforementioned positive and negative
+// arrays, respectively.
+type nafScalar struct {
+	// pos houses the positive portion of the representation.  An additional
+	// byte is required for the positive portion because the NAF encoding can be
+	// up to 1 bit longer than the normal binary encoding of the value.
+	//
+	// neg houses the negative portion of the representation.  Even though the
+	// additional byte is not required for the negative portion, since it can
+	// never exceed the length of the normal binary encoding of the value,
+	// keeping the same length for positive and negative portions simplifies
+	// working with the representation and allows extra conditional branches to
+	// be avoided.
+	//
+	// start and end specify the starting and ending index to use within the pos
+	// and neg arrays, respectively.  This allows fixed size arrays to be used
+	// versus needing to dynamically allocate space on the heap.
+	//
+	// NOTE: The fields are defined in the order that they are to minimize the
+	// padding on 32-bit and 64-bit platforms.
+	pos        [33]byte
+	start, end uint8
+	neg        [33]byte
+}
+
+// Pos returns the bytes of the encoded value with bits set in the positions
+// that represent a signed digit of +1.
+func (s *nafScalar) Pos() []byte {
+	return s.pos[s.start:s.end]
+}
+
+// Neg returns the bytes of the encoded value with bits set in the positions
+// that represent a signed digit of -1.
+func (s *nafScalar) Neg() []byte {
+	return s.neg[s.start:s.end]
+}
+
+// naf takes a positive integer up to a maximum value of 2^256 - 1 and returns
+// its non-adjacent form (NAF), which is a unique signed-digit representation
+// such that no two consecutive digits are nonzero.  See the documentation for
+// the returned type for details on how the representation is encoded
+// efficiently and how to interpret it
+//
+// NAF is useful in that it has the fewest nonzero digits of any signed digit
+// representation, only 1/3rd of its digits are nonzero on average, and at least
+// half of the digits will be 0.
+//
+// The aforementioned properties are particularly beneficial for optimizing
+// elliptic curve point multiplication because they effectively minimize the
+// number of required point additions in exchange for needing to perform a mix
+// of fewer point additions and subtractions and possibly one additional point
+// doubling.  This is an excellent tradeoff because subtraction of points has
+// the same computational complexity as addition of points and point doubling is
+// faster than both.
+func naf(k []byte) nafScalar {
+	// Strip leading zero bytes.
+	for len(k) > 0 && k[0] == 0x00 {
+		k = k[1:]
+	}
+
+	// The non-adjacent form (NAF) of a positive integer k is an expression
+	// k = ∑_(i=0, l-1) k_i * 2^i where k_i ∈ {0,±1}, k_(l-1) != 0, and no two
+	// consecutive digits k_i are nonzero.
+	//
+	// The traditional method of computing the NAF of a positive integer is
+	// given by algorithm 3.30 in [GECC].  It consists of repeatedly dividing k
+	// by 2 and choosing the remainder so that the quotient (k−r)/2 is even
+	// which ensures the next NAF digit is 0.  This requires log_2(k) steps.
+	//
+	// However, in [BRID], Prodinger notes that a closed form expression for the
+	// NAF representation is the bitwise difference 3k/2 - k/2.  This is more
+	// efficient as it can be computed in O(1) versus the O(log(n)) of the
+	// traditional approach.
+	//
+	// The following code makes use of that formula to compute the NAF more
+	// efficiently.
+	//
+	// To understand the logic here, observe that the only way the NAF has a
+	// nonzero digit at a given bit is when either 3k/2 or k/2 has a bit set in
+	// that position, but not both.  In other words, the result of a bitwise
+	// xor.  This can be seen simply by considering that when the bits are the
+	// same, the subtraction is either 0-0 or 1-1, both of which are 0.
+	//
+	// Further, observe that the "+1" digits in the result are contributed by
+	// 3k/2 while the "-1" digits are from k/2.  So, they can be determined by
+	// taking the bitwise and of each respective value with the result of the
+	// xor which identifies which bits are nonzero.
+	//
+	// Using that information, this loops backwards from the least significant
+	// byte to the most significant byte while performing the aforementioned
+	// calculations by propagating the potential carry and high order bit from
+	// the next word during the right shift.
+	kLen := len(k)
+	var result nafScalar
+	var carry uint8
+	for byteNum := kLen - 1; byteNum >= 0; byteNum-- {
+		// Calculate k/2.  Notice the carry from the previous word is added and
+		// the low order bit from the next word is shifted in accordingly.
+		kc := uint16(k[byteNum]) + uint16(carry)
+		var nextWord uint8
+		if byteNum > 0 {
+			nextWord = k[byteNum-1]
+		}
+		halfK := kc>>1 | uint16(nextWord<<7)
+
+		// Calculate 3k/2 and determine the non-zero digits in the result.
+		threeHalfK := kc + halfK
+		nonZeroResultDigits := threeHalfK ^ halfK
+
+		// Determine the signed digits {0, ±1}.
+		result.pos[byteNum+1] = uint8(threeHalfK & nonZeroResultDigits)
+		result.neg[byteNum+1] = uint8(halfK & nonZeroResultDigits)
+
+		// Propagate the potential carry from the 3k/2 calculation.
+		carry = uint8(threeHalfK >> 8)
+	}
+	result.pos[0] = carry
+
+	// Set the starting and ending positions within the fixed size arrays to
+	// identify the bytes that are actually used.  This is important since the
+	// encoding is big endian and thus trailing zero bytes changes its value.
+	result.start = 1 - carry
+	result.end = uint8(kLen + 1)
+	return result
+}
+
 // ScalarMultNonConst multiplies k*P where k is a big endian integer modulo the
 // curve order and P is a point in Jacobian projective coordinates and stores
 // the result in the provided Jacobian point.
@@ -683,8 +822,9 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	//
 	// The Pos version of the bytes contain the +1s and the Neg versions
 	// contain the -1s.
-	k1PosNAF, k1NegNAF := naf(k1)
-	k2PosNAF, k2NegNAF := naf(k2)
+	k1NAF, k2NAF := naf(k1), naf(k2)
+	k1PosNAF, k1NegNAF := k1NAF.Pos(), k1NAF.Neg()
+	k2PosNAF, k2NegNAF := k2NAF.Pos(), k2NAF.Neg()
 	k1Len, k2Len := len(k1PosNAF), len(k2PosNAF)
 
 	m := k1Len
@@ -768,88 +908,6 @@ func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 	}
 
 	result.Set(&q)
-}
-
-// naf takes a positive integer k and returns the Non-Adjacent Form (NAF) as two
-// byte slices.  The first is where 1s will be.  The second is where -1s will
-// be.  NAF is convenient in that on average, only 1/3rd of its values are
-// non-zero.  This is algorithm 3.30 from [GECC].
-//
-// Essentially, this makes it possible to minimize the number of operations
-// since the resulting ints returned will be at least 50% 0s.
-func naf(k []byte) ([]byte, []byte) {
-	// Strip leading zero bytes.
-	for len(k) > 0 && k[0] == 0x00 {
-		k = k[1:]
-	}
-
-	// The essence of this algorithm is that whenever we have consecutive 1s
-	// in the binary, we want to put a -1 in the lowest bit and get a bunch
-	// of 0s up to the highest bit of consecutive 1s.  This is due to this
-	// identity:
-	// 2^n + 2^(n-1) + 2^(n-2) + ... + 2^(n-k) = 2^(n+1) - 2^(n-k)
-	//
-	// The algorithm thus may need to go 1 more bit than the length of the
-	// bits we actually have, hence bits being 1 bit longer than was
-	// necessary.  Since we need to know whether adding will cause a carry,
-	// we go from right-to-left in this addition.
-	var carry, curIsOne, nextIsOne bool
-	// these default to zero
-	retPos := make([]byte, len(k)+1)
-	retNeg := make([]byte, len(k)+1)
-	for i := len(k) - 1; i >= 0; i-- {
-		curByte := k[i]
-		for j := uint(0); j < 8; j++ {
-			curIsOne = curByte&1 == 1
-			if j == 7 {
-				if i == 0 {
-					nextIsOne = false
-				} else {
-					nextIsOne = k[i-1]&1 == 1
-				}
-			} else {
-				nextIsOne = curByte&2 == 2
-			}
-			if carry {
-				if curIsOne {
-					// This bit is 1, so continue to carry
-					// and don't need to do anything.
-				} else {
-					// We've hit a 0 after some number of
-					// 1s.
-					if nextIsOne {
-						// Start carrying again since
-						// a new sequence of 1s is
-						// starting.
-						retNeg[i+1] += 1 << j
-					} else {
-						// Stop carrying since 1s have
-						// stopped.
-						carry = false
-						retPos[i+1] += 1 << j
-					}
-				}
-			} else if curIsOne {
-				if nextIsOne {
-					// If this is the start of at least 2
-					// consecutive 1s, set the current one
-					// to -1 and start carrying.
-					retNeg[i+1] += 1 << j
-					carry = true
-				} else {
-					// This is a singleton, not consecutive
-					// 1s.
-					retPos[i+1] += 1 << j
-				}
-			}
-			curByte >>= 1
-		}
-	}
-	if carry {
-		retPos[0] = 1
-		return retPos, retNeg
-	}
-	return retPos[1:], retNeg[1:]
 }
 
 // isOnCurve returns whether or not the affine point (x,y) is on the curve.

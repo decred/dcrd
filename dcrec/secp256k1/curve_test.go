@@ -611,7 +611,8 @@ func TestNAF(t *testing.T) {
 		// Ensure the resulting positive and negative portions of the overall
 		// NAF representation adhere to the requirements of NAF encoding and
 		// they sum back to the original value.
-		pos, neg := naf(hexToBytes(test.in))
+		result := naf(hexToBytes(test.in))
+		pos, neg := result.Pos(), result.Neg()
 		if err := checkNAFEncoding(pos, neg, fromHex(test.in)); err != nil {
 			t.Errorf("%q: %v", test.name, err)
 		}
@@ -636,7 +637,8 @@ func TestNAFRandom(t *testing.T) {
 		// they sum back to the original value.
 		bigIntVal, modNVal := randIntAndModNScalar(t, rng)
 		valBytes := modNVal.Bytes()
-		pos, neg := naf(valBytes[:])
+		result := naf(valBytes[:])
+		pos, neg := result.Pos(), result.Neg()
 		if err := checkNAFEncoding(pos, neg, bigIntVal); err != nil {
 			t.Fatalf("encoding err: %v\nin: %x\npos: %x\nneg: %x", err,
 				bigIntVal, pos, neg)
