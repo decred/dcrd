@@ -685,8 +685,7 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// contain the -1s.
 	k1PosNAF, k1NegNAF := naf(k1)
 	k2PosNAF, k2NegNAF := naf(k2)
-	k1Len := len(k1PosNAF)
-	k2Len := len(k2PosNAF)
+	k1Len, k2Len := len(k1PosNAF), len(k2PosNAF)
 
 	m := k1Len
 	if m < k2Len {
@@ -700,43 +699,44 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// from [GECC].  This should be faster overall since there will be a lot
 	// more instances of 0, hence reducing the number of Jacobian additions
 	// at the cost of 1 possible extra doubling.
-	var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
 	for i := 0; i < m; i++ {
-		// Since we're going left-to-right, pad the front with 0s.
-		if i < m-k1Len {
-			k1BytePos = 0
-			k1ByteNeg = 0
-		} else {
-			k1BytePos = k1PosNAF[i-(m-k1Len)]
-			k1ByteNeg = k1NegNAF[i-(m-k1Len)]
+		// Since k1 and k2 are potentially different lengths and the calculation
+		// is being done left to right, pad the front of the shorter one with
+		// 0s.
+		var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
+		if i >= m-k1Len {
+			k1BytePos, k1ByteNeg = k1PosNAF[i-(m-k1Len)], k1NegNAF[i-(m-k1Len)]
 		}
-		if i < m-k2Len {
-			k2BytePos = 0
-			k2ByteNeg = 0
-		} else {
-			k2BytePos = k2PosNAF[i-(m-k2Len)]
-			k2ByteNeg = k2NegNAF[i-(m-k2Len)]
+		if i >= m-k2Len {
+			k2BytePos, k2ByteNeg = k2PosNAF[i-(m-k2Len)], k2NegNAF[i-(m-k2Len)]
 		}
-
-		for j := 7; j >= 0; j-- {
+		for bit, mask := 7, uint8(1<<7); bit >= 0; bit, mask = bit-1, mask>>1 {
 			// Q = 2 * Q
 			DoubleNonConst(&q, &q)
 
-			if k1BytePos&0x80 == 0x80 {
+			// Add or subtract the first point based on the signed digit of the
+			// NAF representation of k1 at this bit position.
+			//
+			// +1: Q = Q + p1
+			// -1: Q = Q - p1
+			//  0: Q = Q (no change)
+			if k1BytePos&mask == mask {
 				AddNonConst(&q, p1, &q)
-			} else if k1ByteNeg&0x80 == 0x80 {
+			} else if k1ByteNeg&mask == mask {
 				AddNonConst(&q, p1Neg, &q)
 			}
 
-			if k2BytePos&0x80 == 0x80 {
+			// Add or subtract the second point based on the signed digit of the
+			// NAF representation of k2 at this bit position.
+			//
+			// +1: Q = Q + p2
+			// -1: Q = Q - p2
+			//  0: Q = Q (no change)
+			if k2BytePos&mask == mask {
 				AddNonConst(&q, p2, &q)
-			} else if k2ByteNeg&0x80 == 0x80 {
+			} else if k2ByteNeg&mask == mask {
 				AddNonConst(&q, p2Neg, &q)
 			}
-			k1BytePos <<= 1
-			k1ByteNeg <<= 1
-			k2BytePos <<= 1
-			k2ByteNeg <<= 1
 		}
 	}
 
