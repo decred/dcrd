@@ -716,9 +716,13 @@ out:
 				if scaledDuration > time.Minute {
 					scaledDuration = time.Minute
 				}
-				log.Infof("Retrying connection to %s in "+
-					"%s", c.config.Host, scaledDuration)
-				time.Sleep(scaledDuration)
+				log.Infof("Retrying connection to %s in %s",
+					c.config.Host, scaledDuration)
+				select {
+				case <-c.shutdown:
+					break out
+				case <-time.After(scaledDuration):
+				}
 				continue reconnect
 			}
 
