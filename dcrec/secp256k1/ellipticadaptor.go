@@ -225,6 +225,9 @@ func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
 // constants so errors in the source code can bet detected. It will only (and
 // must only) be called for initialization purposes.
 func fromHex(s string) *big.Int {
+	if s == "" {
+		return big.NewInt(0)
+	}
 	r, ok := new(big.Int).SetString(s, 16)
 	if !ok {
 		panic("invalid hex in source file: " + s)

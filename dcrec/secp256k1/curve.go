@@ -778,6 +778,11 @@ func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 // Essentially, this makes it possible to minimize the number of operations
 // since the resulting ints returned will be at least 50% 0s.
 func naf(k []byte) ([]byte, []byte) {
+	// Strip leading zero bytes.
+	for len(k) > 0 && k[0] == 0x00 {
+		k = k[1:]
+	}
+
 	// The essence of this algorithm is that whenever we have consecutive 1s
 	// in the binary, we want to put a -1 in the lowest bit and get a bunch
 	// of 0s up to the highest bit of consecutive 1s.  This is due to this

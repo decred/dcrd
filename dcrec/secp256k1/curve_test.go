@@ -527,6 +527,123 @@ func TestDoubleAffine(t *testing.T) {
 	}
 }
 
+// checkNAFEncoding returns an error if the provided positive and negative
+// portions of an overall NAF encoding do not adhere to the requirements or they
+// do not sum back to the provided original value.
+func checkNAFEncoding(pos, neg []byte, origValue *big.Int) error {
+	// NAF must not have a leading zero byte and the number of negative
+	// bytes must not exceed the positive portion.
+	if len(pos) > 0 && pos[0] == 0 {
+		return fmt.Errorf("positive has leading zero -- got %x", pos)
+	}
+	if len(neg) > len(pos) {
+		return fmt.Errorf("negative has len %d > pos len %d", len(neg),
+			len(pos))
+	}
+
+	// Ensure the result doesn't have any adjacent non-zero digits.
+	gotPos := new(big.Int).SetBytes(pos)
+	gotNeg := new(big.Int).SetBytes(neg)
+	posOrNeg := new(big.Int).Or(gotPos, gotNeg)
+	prevBit := posOrNeg.Bit(0)
+	for bit := 1; bit < posOrNeg.BitLen(); bit++ {
+		thisBit := posOrNeg.Bit(bit)
+		if prevBit == 1 && thisBit == 1 {
+			return fmt.Errorf("adjacent non-zero digits found at bit pos %d",
+				bit-1)
+		}
+		prevBit = thisBit
+	}
+
+	// Ensure the resulting positive and negative portions of the overall
+	// NAF representation sum back to the original value.
+	gotValue := new(big.Int).Sub(gotPos, gotNeg)
+	if origValue.Cmp(gotValue) != 0 {
+		return fmt.Errorf("pos-neg is not original value: got %x, want %x",
+			gotValue, origValue)
+	}
+
+	return nil
+}
+
+// TestNAF ensures encoding various edge cases and values to non-adjacent form
+// produces valid results.
+func TestNAF(t *testing.T) {
+	tests := []struct {
+		name string // test description
+		in   string // hex encoded test value
+	}{{
+		name: "empty is zero",
+		in:   "",
+	}, {
+		name: "zero",
+		in:   "00",
+	}, {
+		name: "just before first carry",
+		in:   "aa",
+	}, {
+		name: "first carry",
+		in:   "ab",
+	}, {
+		name: "leading zeroes",
+		in:   "002f20569b90697ad471c1be6107814f53f47446be298a3a2a6b686b97d35cf9",
+	}, {
+		name: "257 bits when NAF encoded",
+		in:   "c000000000000000000000000000000000000000000000000000000000000001",
+	}, {
+		name: "32-byte scalar",
+		in:   "6df2b5d30854069ccdec40ae022f5c948936324a4e9ebed8eb82cfd5a6b6d766",
+	}, {
+		name: "first term of balanced length-two representation #1",
+		in:   "b776e53fb55f6b006a270d42d64ec2b1",
+	}, {
+		name: "second term balanced length-two representation #1",
+		in:   "d6cc32c857f1174b604eefc544f0c7f7",
+	}, {
+		name: "first term of balanced length-two representation #2",
+		in:   "45c53aa1bb56fcd68c011e2dad6758e4",
+	}, {
+		name: "second term of balanced length-two representation #2",
+		in:   "a2e79d200f27f2360fba57619936159b",
+	}}
+
+	for _, test := range tests {
+		// Ensure the resulting positive and negative portions of the overall
+		// NAF representation adhere to the requirements of NAF encoding and
+		// they sum back to the original value.
+		pos, neg := naf(hexToBytes(test.in))
+		if err := checkNAFEncoding(pos, neg, fromHex(test.in)); err != nil {
+			t.Errorf("%q: %v", test.name, err)
+		}
+	}
+}
+
+// TestNAFRandom ensures that encoding randomly-generated values to non-adjacent
+// form produces valid results.
+func TestNAFRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := mrand.New(mrand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Ensure the resulting positive and negative portions of the overall
+		// NAF representation adhere to the requirements of NAF encoding and
+		// they sum back to the original value.
+		bigIntVal, modNVal := randIntAndModNScalar(t, rng)
+		valBytes := modNVal.Bytes()
+		pos, neg := naf(valBytes[:])
+		if err := checkNAFEncoding(pos, neg, bigIntVal); err != nil {
+			t.Fatalf("encoding err: %v\nin: %x\npos: %x\nneg: %x", err,
+				bigIntVal, pos, neg)
+		}
+	}
+}
+
 func TestBaseMultVerify(t *testing.T) {
 	s256 := S256()
 	for bytes := 1; bytes < 40; bytes++ {
@@ -750,77 +867,6 @@ func testKeyGeneration(t *testing.T, tag string) {
 
 func TestKeyGeneration(t *testing.T) {
 	testKeyGeneration(t, "S256")
-}
-
-func TestNAF(t *testing.T) {
-	tests := []string{
-		"6df2b5d30854069ccdec40ae022f5c948936324a4e9ebed8eb82cfd5a6b6d766",
-		"b776e53fb55f6b006a270d42d64ec2b1",
-		"d6cc32c857f1174b604eefc544f0c7f7",
-		"45c53aa1bb56fcd68c011e2dad6758e4",
-		"a2e79d200f27f2360fba57619936159b",
-	}
-	negOne := big.NewInt(-1)
-	one := big.NewInt(1)
-	two := big.NewInt(2)
-	for i, test := range tests {
-		want, _ := new(big.Int).SetString(test, 16)
-		nafPos, nafNeg := naf(want.Bytes())
-		got := big.NewInt(0)
-		// Check that the NAF representation comes up with the right number
-		for i := 0; i < len(nafPos); i++ {
-			bytePos := nafPos[i]
-			byteNeg := nafNeg[i]
-			for j := 7; j >= 0; j-- {
-				got.Mul(got, two)
-				if bytePos&0x80 == 0x80 {
-					got.Add(got, one)
-				} else if byteNeg&0x80 == 0x80 {
-					got.Add(got, negOne)
-				}
-				bytePos <<= 1
-				byteNeg <<= 1
-			}
-		}
-		if got.Cmp(want) != 0 {
-			t.Errorf("%d: Failed NAF got %X want %X", i, got, want)
-		}
-	}
-}
-
-func TestNAFRand(t *testing.T) {
-	negOne := big.NewInt(-1)
-	one := big.NewInt(1)
-	two := big.NewInt(2)
-	for i := 0; i < 1024; i++ {
-		data := make([]byte, 32)
-		_, err := rand.Read(data)
-		if err != nil {
-			t.Fatalf("failed to read random data at %d", i)
-			break
-		}
-		nafPos, nafNeg := naf(data)
-		want := new(big.Int).SetBytes(data)
-		got := big.NewInt(0)
-		// Check that the NAF representation comes up with the right number
-		for i := 0; i < len(nafPos); i++ {
-			bytePos := nafPos[i]
-			byteNeg := nafNeg[i]
-			for j := 7; j >= 0; j-- {
-				got.Mul(got, two)
-				if bytePos&0x80 == 0x80 {
-					got.Add(got, one)
-				} else if byteNeg&0x80 == 0x80 {
-					got.Add(got, negOne)
-				}
-				bytePos <<= 1
-				byteNeg <<= 1
-			}
-		}
-		if got.Cmp(want) != 0 {
-			t.Errorf("%d: Failed NAF got %X want %X", i, got, want)
-		}
-	}
 }
 
 // TestDecompressY ensures that decompressY works as expected for some edge
