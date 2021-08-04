@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 )
@@ -28,15 +28,15 @@ func ExampleSign() {
 
 	// Sign a message using the private key.
 	message := "test message"
-	messageHash := chainhash.HashB([]byte(message))
-	signature := ecdsa.Sign(privKey, messageHash)
+	messageHash := blake256.Sum256([]byte(message))
+	signature := ecdsa.Sign(privKey, messageHash[:])
 
 	// Serialize and display the signature.
 	fmt.Printf("Serialized Signature: %x\n", signature.Serialize())
 
 	// Verify the signature for the message using the public key.
 	pubKey := privKey.PubKey()
-	verified := signature.Verify(messageHash, pubKey)
+	verified := signature.Verify(messageHash[:], pubKey)
 	fmt.Printf("Signature Verified? %v\n", verified)
 
 	// Output:
@@ -77,8 +77,8 @@ func ExampleSignature_Verify() {
 
 	// Verify the signature for the message using the public key.
 	message := "test message"
-	messageHash := chainhash.HashB([]byte(message))
-	verified := signature.Verify(messageHash, pubKey)
+	messageHash := blake256.Sum256([]byte(message))
+	verified := signature.Verify(messageHash[:], pubKey)
 	fmt.Println("Signature Verified?", verified)
 
 	// Output:
