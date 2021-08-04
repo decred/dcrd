@@ -3686,9 +3686,13 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	if template == nil {
 		var err error
 		template, err = bt.CurrentTemplate()
-		if err != nil || template == nil {
+		if err != nil {
 			context := "Unable to retrieve work due to invalid template"
 			return nil, rpcInternalError(err.Error(), context)
+		}
+		if template == nil {
+			return nil, rpcMiscError("no work is available during a chain " +
+				"reorganization")
 		}
 	}
 

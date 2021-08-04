@@ -6160,6 +6160,25 @@ func TestHandleGetWork(t *testing.T) {
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
+		name:    "handleGetWork: no work during chain reorg",
+		handler: handleGetWork,
+		cmd:     &types.GetWorkCmd{},
+		mockMiningState: func() *testMiningState {
+			mockChain := defaultMockRPCChain()
+			ms := defaultMockMiningState()
+			ms.miningAddrs = []stdaddr.Address{miningaddr}
+			ms.workState.prevHash = &mockChain.bestSnapshot.Hash
+			return ms
+		}(),
+		mockBlockTemplater: func() *testBlockTemplater {
+			templater := defaultMockBlockTemplater()
+			templater.currTemplate = nil
+			templater.currTemplateErr = nil
+			return templater
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}, {
 		name:            "handleGetWork: unable to update block time",
 		handler:         handleGetWork,
 		cmd:             &types.GetWorkCmd{},
