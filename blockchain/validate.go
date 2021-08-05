@@ -1330,11 +1330,14 @@ func checkTreasurybaseUniqueHeight(blockHeight int64, block *dcrutil.Block) erro
 	return nil
 }
 
-// checkAllowedVotes performs validation of all votes in the block to ensure
-// they spend tickets that are actually allowed to vote per the lottery.
+// checkTicketRedeemers performs validation of all votes and revocations in the
+// block.  The validation rules include:
+//   - Votes MUST spend tickets that are actually allowed to vote per the
+//     lottery
+//   - Revocations MUST spend tickets that were missed or have expired
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) checkAllowedVotes(prevNode *blockNode, parentStakeNode *stake.Node, block *wire.MsgBlock) error {
+func (b *BlockChain) checkTicketRedeemers(prevNode *blockNode, parentStakeNode *stake.Node, block *wire.MsgBlock) error {
 	// Determine if the treasury agenda is active as of the block being checked.
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
 	if err != nil {
@@ -1349,45 +1352,31 @@ func (b *BlockChain) checkAllowedVotes(prevNode *blockNode, parentStakeNode *sta
 	}
 
 	for _, stx := range block.STransactions {
-		// Ignore non-vote stake transactions.
-		if !stake.IsSSGen(stx, isTreasuryEnabled) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
+			// Ensure the ticket being spent is actually eligible to vote in
+			// this block.
+			ticketHash := stx.TxIn[1].PreviousOutPoint.Hash
+			if _, ok := winningHashes[ticketHash]; !ok {
+				errStr := fmt.Sprintf("block contains vote for "+
+					"ineligible ticket %s (eligible tickets: %s)",
+					ticketHash, winningHashes)
+				return ruleError(ErrTicketUnavailable, errStr)
+			}
+
 			continue
 		}
 
-		// Ensure the ticket being spent is actually eligible to vote in
-		// this block.
-		ticketHash := stx.TxIn[1].PreviousOutPoint.Hash
-		if _, ok := winningHashes[ticketHash]; !ok {
-			errStr := fmt.Sprintf("block contains vote for "+
-				"ineligible ticket %s (eligible tickets: %s)",
-				ticketHash, winningHashes)
-			return ruleError(ErrTicketUnavailable, errStr)
-		}
-	}
+		if stake.IsSSRtx(stx) {
+			// Ensure the ticket being spent is actually eligible to be
+			// revoked in this block.
+			ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
+			if !parentStakeNode.ExistsMissedTicket(ticketHash) {
+				errStr := fmt.Sprintf("block contains revocation of "+
+					"ineligible ticket %s", ticketHash)
+				return ruleError(ErrInvalidSSRtx, errStr)
+			}
 
-	return nil
-}
-
-// checkAllowedRevocations performs validation of all revocations in the block
-// to ensure they spend tickets that are actually allowed to be revoked per the
-// lottery.  Tickets are only eligible to be revoked if they were missed or have
-// expired.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) checkAllowedRevocations(parentStakeNode *stake.Node, block *wire.MsgBlock) error {
-	for _, stx := range block.STransactions {
-		// Ignore non-revocation stake transactions.
-		if !stake.IsSSRtx(stx) {
 			continue
-		}
-
-		// Ensure the ticket being spent is actually eligible to be
-		// revoked in this block.
-		ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
-		if !parentStakeNode.ExistsMissedTicket(ticketHash) {
-			errStr := fmt.Sprintf("block contains revocation of "+
-				"ineligible ticket %s", ticketHash)
-			return ruleError(ErrInvalidSSRtx, errStr)
 		}
 	}
 
@@ -1795,12 +1784,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			if err != nil {
 				return err
 			}
-			err = b.checkAllowedVotes(prevNode, parentStakeNode, block.MsgBlock())
-			if err != nil {
-				return err
-			}
-
-			err = b.checkAllowedRevocations(parentStakeNode, block.MsgBlock())
+			err = b.checkTicketRedeemers(prevNode, parentStakeNode, block.MsgBlock())
 			if err != nil {
 				return err
 			}
