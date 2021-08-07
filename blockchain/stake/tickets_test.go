@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -288,6 +288,7 @@ func TestTicketDBLongChain(t *testing.T) {
 	bestNode := genesisNode(params)
 	nodesForward := make([]*Node, testBCHeight+1)
 	nodesForward[0] = bestNode
+	var expiringNextBlock []chainhash.Hash
 	for i := int64(1); i <= testBCHeight; i++ {
 		block := testBlockchain[i]
 		ticketsToAdd := make([]chainhash.Hash, 0)
@@ -343,6 +344,25 @@ func TestTicketDBLongChain(t *testing.T) {
 			}
 			if exists := bestNode.ExistsMissedTicket(expired[ie]); !exists {
 				t.Errorf("expired ticket in undo data not in missed treap")
+			}
+		}
+
+		// Check that the tickets returned by the expiring next block function for
+		// the previous block are now expired.
+		for _, ticketHash := range expiringNextBlock {
+			if exists := bestNode.ExistsExpiredTicket(ticketHash); !exists {
+				t.Errorf("ticket was indicated to expire this block but does not "+
+					"exist in the expired ticket treap: %v", ticketHash)
+			}
+		}
+
+		// Determine the tickets that are expiring in the next block and check that
+		// they exist in the live ticket treap.
+		expiringNextBlock = bestNode.ExpiringNextBlock()
+		for _, ticketHash := range expiringNextBlock {
+			if bestNode.liveTickets.Get(tickettreap.Key(ticketHash)) == nil {
+				t.Errorf("expiring ticket %v does not exist in the live ticket treap",
+					ticketHash)
 			}
 		}
 
