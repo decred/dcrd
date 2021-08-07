@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -136,6 +136,51 @@ func (sn *Node) ExpiredByBlock() []chainhash.Hash {
 	}
 
 	return expired
+}
+
+// ExpiringNextBlock returns the tickets that will expire in the next block.
+func (sn *Node) ExpiringNextBlock() []chainhash.Hash {
+	// Determine the height of tickets that will expire in the next block.
+	nextBlockHeight := sn.height + 1
+	toExpireHeight := uint32(0)
+	if nextBlockHeight > sn.params.TicketExpiryBlocks() {
+		toExpireHeight = nextBlockHeight - sn.params.TicketExpiryBlocks()
+	}
+
+	// Create a map of the winning ticket hashes.
+	winners := sn.Winners()
+	winningHashes := make(map[chainhash.Hash]struct{}, sn.params.VotesPerBlock())
+	for _, ticketHash := range winners {
+		winningHashes[ticketHash] = struct{}{}
+	}
+
+	// Find all tickets in the live ticket treap that are set to expire next
+	// block.
+	var expiringNextBlockHashes []chainhash.Hash
+	sn.liveTickets.ForEachByHeight(toExpireHeight+1, func(k tickettreap.Key, v *tickettreap.Value) bool {
+		// Since ForEachByHeight iterates all elements in the tree _less_ than a
+		// given height, continue if the height is not equal to the height that is
+		// set to expire next block.
+		//
+		// Note that this should never get hit since any height less than the height
+		// that is set to expire next block should have already expired and been
+		// moved out of the live ticket treap.
+		if v.Height != toExpireHeight {
+			return true
+		}
+
+		// Don't include winning tickets since they will either vote or be missed in
+		// the next block rather than become expired.
+		ticketHash := chainhash.Hash(k)
+		if _, ok := winningHashes[ticketHash]; ok {
+			return true
+		}
+
+		expiringNextBlockHashes = append(expiringNextBlockHashes, ticketHash)
+		return true
+	})
+
+	return expiringNextBlockHashes
 }
 
 // ExistsLiveTicket returns whether or not a ticket exists in the live ticket
