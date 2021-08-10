@@ -285,3 +285,40 @@ func (c *Client) GetNetTotalsAsync(ctx context.Context) *FutureGetNetTotalsResul
 func (c *Client) GetNetTotals(ctx context.Context) (*chainjson.GetNetTotalsResult, error) {
 	return c.GetNetTotalsAsync(ctx).Receive()
 }
+
+// FutureGetNetworkInfoResult is a future promise to deliver the result of a
+// GetNetworkInfo RPC invocation (or an applicable error).
+type FutureGetNetworkInfoResult cmdRes
+
+// Receive waits for the response promised by the future and returns data
+// related to network of the underlying node instance.
+func (r *FutureGetNetworkInfoResult) Receive() (*chainjson.GetNetworkInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a getnetworkinfo result object.
+	var networkInfo chainjson.GetNetworkInfoResult
+	err = json.Unmarshal(res, &networkInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &networkInfo, nil
+}
+
+// GetNetworkInfoAsync returns an instance of a type that can be used to get
+// the result of the RPC at some future time by invoking the Receive function
+// on the returned instance.
+//
+// See GetNetworkInfo for the blocking version and more details.
+func (c *Client) GetNetworkInfoAsync(ctx context.Context) *FutureGetNetworkInfoResult {
+	cmd := chainjson.NewGetNetworkInfoCmd()
+	return (*FutureGetNetworkInfoResult)(c.sendCmd(ctx, cmd))
+}
+
+// GetNetworkInfo returns network-related data about the underlying node.
+func (c *Client) GetNetworkInfo(ctx context.Context) (*chainjson.GetNetworkInfoResult, error) {
+	return c.GetNetworkInfoAsync(ctx).Receive()
+}
