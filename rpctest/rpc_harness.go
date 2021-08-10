@@ -419,6 +419,16 @@ func (h *Harness) RPCConfig() rpcclient.ConnConfig {
 	return h.node.config.rpcConnConfig()
 }
 
+// P2PAddress returns the harness node's configured listening address for P2P
+// connections.
+//
+// Note that to connect two different harnesses, it's preferable to use the
+// ConnectNode() function, which handles cases like already connected peers and
+// ensures the connection actually takes place.
+func (h *Harness) P2PAddress() string {
+	return h.node.config.listen
+}
+
 // generateListeningAddresses returns two strings representing listening
 // addresses designated for the current rpc test. If there haven't been any
 // test instances created, the default ports are used. Otherwise, in order to
