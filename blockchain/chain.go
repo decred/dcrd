@@ -81,46 +81,48 @@ type BlockLocator []*chainhash.Hash
 // However, the returned snapshot must be treated as immutable since it is
 // shared by all callers.
 type BestState struct {
-	Hash               chainhash.Hash   // The hash of the block.
-	PrevHash           chainhash.Hash   // The previous block hash.
-	Height             int64            // The height of the block.
-	Bits               uint32           // The difficulty bits of the block.
-	NextPoolSize       uint32           // The ticket pool size.
-	NextStakeDiff      int64            // The next stake difficulty.
-	BlockSize          uint64           // The size of the block.
-	NumTxns            uint64           // The number of txns in the block.
-	TotalTxns          uint64           // The total number of txns in the chain.
-	MedianTime         time.Time        // Median time as per CalcPastMedianTime.
-	TotalSubsidy       int64            // The total subsidy for the chain.
-	NextWinningTickets []chainhash.Hash // The eligible tickets to vote on the next block.
-	MissedTickets      []chainhash.Hash // The missed tickets set to be revoked.
-	NextFinalState     [6]byte          // The calculated state of the lottery for the next block.
+	Hash                chainhash.Hash   // The hash of the block.
+	PrevHash            chainhash.Hash   // The previous block hash.
+	Height              int64            // The height of the block.
+	Bits                uint32           // The difficulty bits of the block.
+	NextPoolSize        uint32           // The ticket pool size.
+	NextStakeDiff       int64            // The next stake difficulty.
+	BlockSize           uint64           // The size of the block.
+	NumTxns             uint64           // The number of txns in the block.
+	TotalTxns           uint64           // The total number of txns in the chain.
+	MedianTime          time.Time        // Median time as per CalcPastMedianTime.
+	TotalSubsidy        int64            // The total subsidy for the chain.
+	NextExpiringTickets []chainhash.Hash // The tickets set to expire next block.
+	NextWinningTickets  []chainhash.Hash // The eligible tickets to vote on the next block.
+	MissedTickets       []chainhash.Hash // The missed tickets set to be revoked.
+	NextFinalState      [6]byte          // The calculated state of the lottery for the next block.
 }
 
 // newBestState returns a new best stats instance for the given parameters.
 func newBestState(node *blockNode, blockSize, numTxns, totalTxns uint64,
 	medianTime time.Time, totalSubsidy int64, nextPoolSize uint32,
-	nextStakeDiff int64, nextWinners, missed []chainhash.Hash,
+	nextStakeDiff int64, nextExpiring, nextWinners, missed []chainhash.Hash,
 	nextFinalState [6]byte) *BestState {
 	prevHash := *zeroHash
 	if node.parent != nil {
 		prevHash = node.parent.hash
 	}
 	return &BestState{
-		Hash:               node.hash,
-		PrevHash:           prevHash,
-		Height:             node.height,
-		Bits:               node.bits,
-		NextPoolSize:       nextPoolSize,
-		NextStakeDiff:      nextStakeDiff,
-		BlockSize:          blockSize,
-		NumTxns:            numTxns,
-		TotalTxns:          totalTxns,
-		MedianTime:         medianTime,
-		TotalSubsidy:       totalSubsidy,
-		NextWinningTickets: nextWinners,
-		MissedTickets:      missed,
-		NextFinalState:     nextFinalState,
+		Hash:                node.hash,
+		PrevHash:            prevHash,
+		Height:              node.height,
+		Bits:                node.bits,
+		NextPoolSize:        nextPoolSize,
+		NextStakeDiff:       nextStakeDiff,
+		BlockSize:           blockSize,
+		NumTxns:             numTxns,
+		TotalTxns:           totalTxns,
+		MedianTime:          medianTime,
+		TotalSubsidy:        totalSubsidy,
+		NextExpiringTickets: nextExpiring,
+		NextWinningTickets:  nextWinners,
+		MissedTickets:       missed,
+		NextFinalState:      nextFinalState,
 	}
 }
 
@@ -612,8 +614,8 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
 		node.CalcPastMedianTime(), curTotalSubsidy+subsidy,
 		uint32(node.stakeNode.PoolSize()), nextStakeDiff,
-		node.stakeNode.Winners(), node.stakeNode.MissedTickets(),
-		node.stakeNode.FinalState())
+		node.stakeNode.ExpiringNextBlock(), node.stakeNode.Winners(),
+		node.stakeNode.MissedTickets(), node.stakeNode.FinalState())
 
 	// Atomically insert info into the database.
 	err = b.db.Update(func(dbTx database.Tx) error {
@@ -824,8 +826,8 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	state := newBestState(prevNode, parentBlockSize, numParentTxns,
 		newTotalTxns, prevNode.CalcPastMedianTime(), newTotalSubsidy,
 		uint32(prevNode.stakeNode.PoolSize()), node.sbits,
-		prevNode.stakeNode.Winners(), prevNode.stakeNode.MissedTickets(),
-		prevNode.stakeNode.FinalState())
+		prevNode.stakeNode.ExpiringNextBlock(), prevNode.stakeNode.Winners(),
+		prevNode.stakeNode.MissedTickets(), prevNode.stakeNode.FinalState())
 
 	err = b.db.Update(func(dbTx database.Tx) error {
 		// Update best block state.
