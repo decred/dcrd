@@ -6,12 +6,14 @@ package stake
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"math/rand"
 	"reflect"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -29,6 +31,31 @@ const (
 	// the tests.
 	withTreasury = true
 )
+
+// hexToBytes converts the passed hex string into bytes and will panic if there
+// is an error.  This is only provided for the hard-coded constants so errors in
+// the source code can be detected. It will only (and must only) be called with
+// hard-coded values.
+func hexToBytes(s string) []byte {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	return b
+}
+
+// mustParseHash converts the passed big-endian hex string into a
+// chainhash.Hash and will panic if there is an error.  It only differs from the
+// one available in chainhash in that it will panic so errors in the source code
+// be detected.  It will only (and must only) be called with hard-coded, and
+// therefore known good, hashes.
+func mustParseHash(s string) *chainhash.Hash {
+	hash, err := chainhash.NewHashFromStr(s)
+	if err != nil {
+		panic("invalid hash in source file: " + s)
+	}
+	return hash
+}
 
 // SSTX TESTING -------------------------------------------------------------------
 
@@ -1322,6 +1349,202 @@ func TestIsNullDataScript(t *testing.T) {
 		if result != test.expected {
 			t.Fatalf("%s: expected %v, got %v", test.name,
 				test.expected, result)
+		}
+	}
+}
+
+// TestCreateRevocationFromTicket validates that revocation transactions are
+// created correctly under a variety of conditions.
+func TestCreateRevocationFromTicket(t *testing.T) {
+	t.Parallel()
+
+	// Default network parameters to use for tests.
+	params := chaincfg.RegNetParams()
+
+	// The following variables are derived from a mainnet ticket that was
+	// purchased in block 135375 and revoked in block 140709.
+	ticketHash := mustParseHash("dad48ac8c59ee97d1a6fd04ad4f1c8392357a6ee78d39f" +
+		"fc00fb467a0cdba695")
+	ticketOut1 := &MinimalOutput{
+		PkScript: hexToBytes("ba76a914097e847d49c6806f6933e806a350f43b97ac70d088a" +
+			"c"),
+		Value:   4126629682,
+		Version: 0,
+	}
+	ticketOut2 := &MinimalOutput{
+		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbb51c66d0" +
+			"0000000800058"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketOut3 := &MinimalOutput{
+		PkScript: hexToBytes("bd76a914000000000000000000000000000000000000000088a" +
+			"c"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketOut4 := &MinimalOutput{
+		PkScript: hexToBytes("6a1e7e8efe653b374ba7ad950c873e483fc53c5bafa9c1c439f" +
+			"8000000000058"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketOut5 := &MinimalOutput{
+		PkScript: hexToBytes("bd76a914000000000000000000000000000000000000000088a" +
+			"c"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketMinOuts := []*MinimalOutput{
+		ticketOut1,
+		ticketOut2,
+		ticketOut3,
+		ticketOut4,
+		ticketOut5,
+	}
+	revocationHash := mustParseHash("46ae5f78174c6c6e3675d0bbfec27e25c40f3a119e" +
+		"df9183b96261db5cda7a4f")
+	revocationTxFee := dcrutil.Amount(285000)
+	revocationTxVersion := uint16(1)
+
+	// Invalid script version.
+	ticketOutInvalidScriptVersion := &MinimalOutput{
+		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbb51c66d0" +
+			"0000000800058"),
+		Value:   0,
+		Version: 1,
+	}
+	ticketMinOutsInvalidScriptVersion := []*MinimalOutput{
+		ticketOut1,
+		ticketOutInvalidScriptVersion,
+		ticketOut3,
+		ticketOut4,
+		ticketOut5,
+	}
+
+	// Invalid ticket commitment amount.
+	ticketOutInvalidCommitmentAmt := &MinimalOutput{
+		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbbfffffff" +
+			"fffffffff0058"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketMinOutsInvalidCommitmentAmt := []*MinimalOutput{
+		ticketOut1,
+		ticketOutInvalidCommitmentAmt,
+		ticketOut3,
+		ticketOut4,
+		ticketOut5,
+	}
+
+	// No fee limit.
+	ticketOut2NoFeeLimit := &MinimalOutput{
+		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbb51c66d0" +
+			"0000000800000"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketMinOutsNoFeeLimit := []*MinimalOutput{
+		ticketOut1,
+		ticketOut2NoFeeLimit,
+		ticketOut3,
+		ticketOut4,
+		ticketOut5,
+	}
+
+	tests := []struct {
+		name                string
+		ticketHash          *chainhash.Hash
+		ticketMinOuts       []*MinimalOutput
+		revocationTxFee     dcrutil.Amount
+		revocationTxVersion uint16
+		wantTxHash          chainhash.Hash
+		wantErr             error
+	}{{
+		name:                "valid with P2SH and P2PKH outputs",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOuts,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		wantTxHash:          *revocationHash,
+	}, {
+		name:                "invalid ticket minimal outputs",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       nil,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		wantErr:             ErrSStxNoOutputs,
+	}, {
+		name:                "invalid script version",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOutsInvalidScriptVersion,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		wantErr:             ErrSStxInvalidOutputs,
+	}, {
+		name:                "invalid ticket commitment amount",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOutsInvalidCommitmentAmt,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		wantErr:             ErrSStxBadCommitAmount,
+	}, {
+		name:                "invalid fee",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOuts,
+		revocationTxFee:     16777217,
+		revocationTxVersion: revocationTxVersion,
+		wantErr:             ErrSSRtxInvalidFee,
+	}, {
+		name:                "invalid fee (no fee limit)",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOutsNoFeeLimit,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		wantErr:             ErrSSRtxInvalidFee,
+	}}
+
+	for _, test := range tests {
+		// Create a revocation transaction with the given test parameters.
+		revocationTx, err := CreateRevocationFromTicket(test.ticketHash,
+			test.ticketMinOuts, test.revocationTxFee, test.revocationTxVersion,
+			params)
+
+		// Validate that the expected error was returned for negative tests.
+		if test.wantErr != nil {
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("%q: mismatched error -- got %T, want %T", test.name, err,
+					test.wantErr)
+			}
+			continue
+		}
+
+		// Validate that an unexpected error was not returned.
+		if err != nil {
+			t.Fatalf("%q: unexpected error creating revocation: %v", test.name, err)
+		}
+
+		// Validate that the revocation transaction was created correctly.
+		err = CheckSSRtx(revocationTx)
+		if err != nil {
+			t.Errorf("%q: unexpected error checking revocation: %v", test.name, err)
+			continue
+		}
+
+		// Validate the revocation transaction version.
+		if revocationTx.Version != test.revocationTxVersion {
+			t.Errorf("%q: mismatched tx version -- got %d, want %d", test.name,
+				revocationTx.Version, test.revocationTxVersion)
+			continue
+		}
+
+		// Validate that the resulting revocation transaction hash matches what is
+		// expected.
+		revocationTxHash := revocationTx.TxHash()
+		if revocationTxHash != test.wantTxHash {
+			t.Errorf("%q: mismatched tx hash -- got %v, want %v", test.name,
+				revocationTxHash, test.wantTxHash)
+			continue
 		}
 	}
 }

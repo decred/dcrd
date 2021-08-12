@@ -1,5 +1,5 @@
 // Copyright (c) 2014 Conformal Systems LLC.
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -49,6 +49,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrSSRtxNoOutputs, "ErrSSRtxNoOutputs"},
 		{ErrSSRtxWrongTxTree, "ErrSSRtxWrongTxTree"},
 		{ErrSSRtxBadOuts, "ErrSSRtxBadOuts"},
+		{ErrSSRtxInvalidFee, "ErrSSRtxInvalidFee"},
 		{ErrVerSStxAmts, "ErrVerSStxAmts"},
 		{ErrVerifyInput, "ErrVerifyInput"},
 		{ErrVerifyOutType, "ErrVerifyOutType"},
