@@ -2138,13 +2138,14 @@ func TestHandleCreateRawSStx(t *testing.T) {
 func TestHandleCreateRawSSRtx(t *testing.T) {
 	t.Parallel()
 
+	defaultTxId := "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39"
 	defaultCmdInputs := []types.TransactionInput{{
-		Amount: 100,
-		Txid:   "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+		Amount: 1,
+		Txid:   defaultTxId,
 		Vout:   0,
 		Tree:   1,
 	}}
-	defaultFee := dcrjson.Float64(1)
+	defaultFee := dcrjson.Float64(0.1)
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleCreateRawSSRtx: ok",
 		handler: handleCreateRawSSRtx,
@@ -2153,9 +2154,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Fee:    defaultFee,
 		},
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff0100e1f5050000000000001abc76a914355c96" +
-			"f48612d57509140e9a049981d5f9970f9488ac00000000000000000100e40b540" +
-			"200000000000000ffffffff00",
+			"6e6cb89110000000001ffffffff01804a5d050000000000001abc76a914355c96" +
+			"f48612d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050" +
+			"000000000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSSRtx: ok P2SH",
 		handler: handleCreateRawSSRtx,
@@ -2201,8 +2202,8 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			return chain
 		}(),
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
-			"6e6cb89110000000001ffffffff0100e1f50500000000000018bca914355c96f4" +
-			"8612d57509140e9a049981d5f9970f948700000000000000000100e40b5402000" +
+			"6e6cb89110000000001ffffffff01804a5d0500000000000018bca914355c96f4" +
+			"8612d57509140e9a049981d5f9970f948700000000000000000100e1f50500000" +
 			"00000000000ffffffff00",
 	}, {
 		name:    "handleCreateRawSSRtx: invalid number of inputs",
@@ -2210,6 +2211,35 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{},
 			Fee:    defaultFee,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleCreateRawSSRtx: invalid output index",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: []types.TransactionInput{{
+				Amount: 1,
+				Txid:   defaultTxId,
+				Vout:   1,
+				Tree:   1,
+			}},
+			Fee: defaultFee,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name: "handleCreateRawSSRtx: input amount not equal to ticket submission " +
+			"amount",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: []types.TransactionInput{{
+				Amount: 100,
+				Txid:   defaultTxId,
+				Vout:   0,
+				Tree:   1,
+			}},
+			Fee: defaultFee,
 		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
@@ -2276,7 +2306,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: 100,
-				Txid:   "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+				Txid:   defaultTxId,
 				Vout:   0,
 				Tree:   0,
 			}},
@@ -2290,7 +2320,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: math.Inf(1),
-				Txid:   "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+				Txid:   defaultTxId,
 				Vout:   0,
 				Tree:   1,
 			}},

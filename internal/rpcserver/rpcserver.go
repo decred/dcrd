@@ -949,22 +949,23 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		return nil, rpcInvalidError("SSRtx invalid number of inputs")
 	}
 
-	// Decode the fee as coins.
-	var feeAmt dcrutil.Amount
-	if c.Fee != nil {
-		var err error
-		feeAmt, err = dcrutil.NewAmount(*c.Fee)
-		if err != nil {
-			return nil, rpcInvalidError("Invalid fee amount: %v",
-				err)
-		}
+	// The input must be in the stake tree.
+	input := c.Inputs[0]
+	if input.Tree != wire.TxTreeStake {
+		return nil, rpcInvalidError("Input tree is not TxTreeStake type")
+	}
+
+	// The input must be a ticket submission output.
+	const ticketSubmissionOutput = 0
+	if input.Vout != ticketSubmissionOutput {
+		return nil, rpcInvalidError("Input is not a ticket submission output " +
+			"(output index 0)")
 	}
 
 	// 1. Fetch the SStx, then calculate all the values we'll need later
 	// for the generation of the SSRtx tx outputs.
 	//
 	// Convert the provided transaction hash hex to a chainhash.Hash.
-	input := c.Inputs[0]
 	txHash, err := chainhash.NewHashFromStr(input.Txid)
 	if err != nil {
 		return nil, rpcDecodeHexError(input.Txid)
@@ -987,77 +988,33 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		return nil, rpcInternalError("Missing ticket minimal outputs", "")
 	}
 
-	ssrtxPayTypes, ssrtxPkhs, sstxAmts, _, _, _ :=
-		stake.SStxStakeOutputInfo(minimalOutputs)
-
-	// 2. Add all transaction inputs to a new transaction after performing
-	// some validity checks; the only input for an SSRtx is an OP_SSTX tagged
-	// output.
-	mtx := wire.NewMsgTx()
-
-	if !(input.Tree == wire.TxTreeStake) {
-		return nil, rpcInvalidError("Input tree is not TxTreeStake type")
+	// The input amount must be the ticket submission amount.
+	ticketSubmission := minimalOutputs[ticketSubmissionOutput]
+	ticketSubmissionAmount := dcrutil.Amount(ticketSubmission.Value)
+	inputAmount, err := dcrutil.NewAmount(input.Amount)
+	if err != nil {
+		return nil, rpcInvalidError(err.Error())
+	}
+	if inputAmount != ticketSubmissionAmount {
+		return nil, rpcInvalidError("Input amount %v is not equal to ticket "+
+			"submission amount %v", inputAmount, ticketSubmissionAmount)
 	}
 
-	prevOutV := wire.NullValueIn
-	if input.Amount > 0 {
-		amt, err := dcrutil.NewAmount(input.Amount)
+	// Decode the fee as coins.
+	var feeAmt dcrutil.Amount
+	if c.Fee != nil {
+		var err error
+		feeAmt, err = dcrutil.NewAmount(*c.Fee)
 		if err != nil {
-			return nil, rpcInvalidError(err.Error())
+			return nil, rpcInvalidError("Invalid fee amount: %v", err)
 		}
-		prevOutV = int64(amt)
 	}
 
-	prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-	txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
-	mtx.AddTxIn(txIn)
-
-	// 3. Add all the OP_SSRTX tagged outputs.
-
-	// Calculate the output values from this data.
-	ssrtxCalcAmts := stake.CalculateRewards(sstxAmts,
-		minimalOutputs[0].Value, 0) // No subsidy for a revocation
-
-	// Add all the SSRtx-tagged transaction outputs to the transaction after
-	// performing some validity checks.
-	feeApplied := false
-	for i, ssrtxPkh := range ssrtxPkhs {
-		// Ensure amount is in the valid range for monetary amounts.
-		if sstxAmts[i] <= 0 || sstxAmts[i] > dcrutil.MaxAmount {
-			return nil, rpcInvalidError("Invalid SSTx amount: 0 >="+
-				" %v > %v", sstxAmts[i] <= 0, dcrutil.MaxAmount)
-		}
-
-		// Create a new script which pays to the provided address specified in
-		// the original ticket tx.
-		var ssrtxOutScript []byte
-		switch ssrtxPayTypes[i] {
-		case false: // P2PKH
-			addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(ssrtxPkh,
-				s.cfg.ChainParams)
-			if err != nil {
-				return nil, rpcInvalidError("Could not "+
-					"generate P2PKH script: %v", err)
-			}
-			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
-		case true: // P2SH
-			addr, err := stdaddr.NewAddressScriptHashV0FromHash(ssrtxPkh,
-				s.cfg.ChainParams)
-			if err != nil {
-				return nil, rpcInvalidError("Could not "+
-					"generate P2SH script: %v", err)
-			}
-			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
-		}
-
-		// Add the txout to our SSRtx tx.
-		amt := ssrtxCalcAmts[i]
-		if !feeApplied && int64(feeAmt) < amt {
-			amt -= int64(feeAmt)
-			feeApplied = true
-		}
-		txOut := wire.NewTxOut(amt, ssrtxOutScript)
-		mtx.AddTxOut(txOut)
+	const revocationTxVersion = 1
+	mtx, err := stake.CreateRevocationFromTicket(txHash, minimalOutputs, feeAmt,
+		revocationTxVersion, s.cfg.ChainParams)
+	if err != nil {
+		return nil, rpcInvalidError(err.Error(), "Invalid SSRtx")
 	}
 
 	// Check to make sure our SSRtx was created correctly.
