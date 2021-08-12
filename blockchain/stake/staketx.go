@@ -15,6 +15,7 @@ import (
 	"math/big"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -1220,4 +1221,123 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 		Votes:          votes,
 		RevokedTickets: revocations,
 	}
+}
+
+// CreateRevocationFromTicket creates a revocation transaction for the provided
+// ticket.  The provided fee is applied to the first output of the created
+// revocation unless it does not adhere to the fee limit imposed by the ticket,
+// in which case an error is returned.
+func CreateRevocationFromTicket(ticketHash *chainhash.Hash,
+	ticketMinOuts []*MinimalOutput, revocationTxFee dcrutil.Amount,
+	revocationTxVersion uint16, params *chaincfg.Params) (*wire.MsgTx, error) {
+
+	// Validate that the provided ticket minimal outputs have a non-zero length.
+	if len(ticketMinOuts) == 0 {
+		return nil, stakeRuleError(ErrSStxNoOutputs, "no minimal outputs")
+	}
+
+	// Create the revocation transaction and add the input.  The only input for a
+	// revocation transaction is a ticket submission (OP_SSTX tagged) output.
+	revocationTx := wire.NewMsgTx()
+	const ticketSubmissionOutput = 0
+	const tree = wire.TxTreeStake
+	ticketSubmissionAmount := ticketMinOuts[ticketSubmissionOutput].Value
+	prevOut := wire.NewOutPoint(ticketHash, ticketSubmissionOutput, tree)
+	txIn := wire.NewTxIn(prevOut, ticketSubmissionAmount, nil)
+	revocationTx.AddTxIn(txIn)
+
+	// Check to make sure that all scripts are the consensus version.
+	for i, ticketMinOut := range ticketMinOuts {
+		if ticketMinOut.Version != consensusVersion {
+			str := fmt.Sprintf("invalid script version found in ticket minimal "+
+				"outputs idx %d", i)
+			return nil, stakeRuleError(ErrSStxInvalidOutputs, str)
+		}
+	}
+
+	// Get the ticket commitment output details.
+	isP2SH, payToHashes, amounts, _, hasFeeLimit, feeLimits :=
+		SStxStakeOutputInfo(ticketMinOuts)
+
+	// In the returned ticket stake output values, vote fee limit info is in index
+	// 0 and revocation fee limit info is in index 1.
+	const revocationFeeLimitIndex = 1
+
+	// Calculate the revocation output values from this data.
+	const revocationSubsidy = 0
+	revocationOutputAmounts := CalculateRewards(amounts, ticketSubmissionAmount,
+		revocationSubsidy)
+
+	// Add all the SSRtx-tagged transaction outputs to the transaction after
+	// performing some validity checks.
+	feeApplied := false
+	for i, payToHash := range payToHashes {
+		// Ensure amount is in the valid range for monetary amounts.
+		if amounts[i] <= 0 || amounts[i] > dcrutil.MaxAmount {
+			str := fmt.Sprintf("invalid output amount: %v (min: 0, max: %v)",
+				amounts[i], dcrutil.MaxAmount)
+			return nil, stakeRuleError(ErrSStxBadCommitAmount, str)
+		}
+
+		// Create a new script which pays to the provided address specified in
+		// the original ticket tx.
+		var ssrtxOutScript []byte
+		switch isP2SH[i] {
+		case false: // P2PKH
+			addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(payToHash,
+				params)
+			if err != nil {
+				return nil, err
+			}
+			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
+		case true: // P2SH
+			addr, err := stdaddr.NewAddressScriptHashV0FromHash(payToHash, params)
+			if err != nil {
+				return nil, err
+			}
+			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
+		}
+
+		// Validate that the provided fee adheres to the fee limit imposed by the
+		// ticket commitment.
+		hasFeeLimit := hasFeeLimit[i][revocationFeeLimitIndex]
+		feeLimitLog2 := feeLimits[i][revocationFeeLimitIndex]
+		if hasFeeLimit {
+			// Notice that, since the fee limit is in terms of a log2 value, and
+			// amounts are int64, anything greater than or equal to 63 is interpreted
+			// to mean allow spending the entire amount as a fee.  This allows fast
+			// left shifts to be used to calculate the fee limit while preventing
+			// degenerate cases such as negative numbers for 63.
+			if feeLimitLog2 < 63 {
+				feeLimit := int64(1 << uint64(feeLimitLog2))
+				if !feeApplied && int64(revocationTxFee) > feeLimit {
+					str := fmt.Sprintf("fee %v is higher than the imposed fee limit %v",
+						int64(revocationTxFee), feeLimit)
+					return nil, stakeRuleError(ErrSSRtxInvalidFee, str)
+				}
+			}
+		}
+
+		// The fee must be zero when not encumbered with a fee limit.
+		if !hasFeeLimit && revocationTxFee != 0 {
+			str := "fee must be zero when not encumbered with a fee limit"
+			return nil, stakeRuleError(ErrSSRtxInvalidFee, str)
+		}
+
+		// Apply the fee to the output if the fee has not already been applied.
+		amt := revocationOutputAmounts[i]
+		if !feeApplied && int64(revocationTxFee) < amt {
+			amt -= int64(revocationTxFee)
+			feeApplied = true
+		}
+
+		// Add the txout to our SSRtx tx.
+		txOut := wire.NewTxOut(amt, ssrtxOutScript)
+		revocationTx.AddTxOut(txOut)
+	}
+
+	// Set the version of the revocation transaction.
+	revocationTx.Version = revocationTxVersion
+
+	return revocationTx, nil
 }

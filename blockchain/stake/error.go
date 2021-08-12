@@ -1,5 +1,5 @@
 // Copyright (c) 2014 Conformal Systems LLC.
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -139,9 +139,12 @@ const (
 	// the stake tx tree.
 	ErrSSRtxWrongTxTree = ErrorKind("ErrSSRtxWrongTxTree")
 
-	// ErrSSRtxBadGenOuts indicates that there was a non-SSRtx tagged output
+	// ErrSSRtxBadOuts indicates that there was a non-SSRtx tagged output
 	// present in an SSRtx.
 	ErrSSRtxBadOuts = ErrorKind("ErrSSRtxBadOuts")
+
+	// ErrSSRtxInvalidFee indicates that a given SSRtx contains an invalid fee.
+	ErrSSRtxInvalidFee = ErrorKind("ErrSSRtxInvalidFee")
 
 	// ErrVerSStxAmts indicates there was an error verifying the calculated
 	// SStx out amounts and the actual SStx out amounts.
