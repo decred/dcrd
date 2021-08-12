@@ -22,7 +22,7 @@ ROOTPATHPATTERN=$(echo $ROOTPATH | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
 MODPATHS=$(go list -m all | grep "^$ROOTPATHPATTERN" | cut -d' ' -f1)
 for module in $MODPATHS; do
   echo "==> ${module}"
-  env CC=gcc go test -short -tags rpctest ${module}/...
+  go test -short -tags rpctest ${module}/...
 
   # check linters
   MODNAME=$(echo $module | sed -E -e "s/^$ROOTPATHPATTERN//" \
