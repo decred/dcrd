@@ -121,9 +121,7 @@ func TestNewBlockTemplate(t *testing.T) {
 	// Add the ticket outputs as utxos to fake their existence.  Use one after
 	// the stake enabled height for the height of the fake utxos to ensure they
 	// are mature for the votes cast at stake validation height below.
-	harness.chain.bestState = blockchain.BestState{
-		Height: harness.chainParams.StakeEnabledHeight + 1,
-	}
+	harness.chain.bestState.Height = harness.chainParams.StakeEnabledHeight + 1
 	for i, ticket := range tickets {
 		harness.AddFakeUTXO(ticket, harness.chain.bestState.Height, uint32(i+1),
 			harness.chain.isTreasuryAgendaActive)
@@ -131,13 +129,8 @@ func TestNewBlockTemplate(t *testing.T) {
 
 	// Create votes on a block at stake validation height using the previously
 	// created tickets.
-	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
-	harness.chain.tipGeneration = []chainhash.Hash{hash}
-	harness.chain.bestState = blockchain.BestState{
-		Hash:               hash,
-		Height:             harness.chainParams.StakeValidationHeight,
-		NextWinningTickets: ticketHashes,
-	}
+	harness.chain.bestState.Height = harness.chainParams.StakeValidationHeight
+	harness.chain.bestState.NextWinningTickets = ticketHashes
 	votes := make([]*dcrutil.Tx, numVotes)
 	for i, ticket := range tickets {
 		vote, err := harness.CreateVote(ticket)

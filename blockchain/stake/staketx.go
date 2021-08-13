@@ -40,6 +40,10 @@ const (
 	// consensusVersion = txscript.consensusVersion
 	consensusVersion = 0
 
+	// TxVersionAutoRevocations is the revocation transaction version that enables
+	// automatic ticket revocations.
+	TxVersionAutoRevocations uint16 = 2
+
 	// MaxInputsPerSStx is the maximum number of inputs allowed in an SStx.
 	MaxInputsPerSStx = 64
 
@@ -537,9 +541,9 @@ func SStxNullOutputAmounts(amounts []int64,
 	return fees, contribAmounts, nil
 }
 
-// CalculateRewards calculates the required amounts to return from a ticket for
-// the given original contribution amounts, the price the ticket was purchased
-// for, and the vote subsidy (if any) to include.
+// calculateTicketReturnAmounts calculates the required amounts to return from a
+// ticket for the given original contribution amounts, the price the ticket was
+// purchased for, and the vote subsidy (if any) to include.
 //
 // Since multiple inputs can be used to purchase a ticket, each one contributes
 // a portion of the overall ticket purchase, including the transaction fee.
@@ -549,7 +553,11 @@ func SStxNullOutputAmounts(amounts []int64,
 //
 // The vote subsidy must be 0 for revocations since, unlike votes, they do not
 // produce any additional subsidy.
-func CalculateRewards(contribAmounts []int64, ticketPurchaseAmount,
+//
+// Note: This function is intended to only be a helper function, and when
+// calculating rewards CalculateRewards or CalculateRevocationRewards should be
+// used.
+func calculateTicketReturnAmounts(contribAmounts []int64, ticketPurchaseAmount,
 	voteSubsidy int64) []int64 {
 
 	// Get the sum of the amounts contributed between both fees
@@ -591,6 +599,80 @@ func CalculateRewards(contribAmounts []int64, ticketPurchaseAmount,
 		returnAmtBig.Div(returnAmtBig, totalContribBig)
 		returnAmtBig.Rsh(returnAmtBig, 32)
 		returnAmounts[i] = returnAmtBig.Int64()
+	}
+
+	return returnAmounts
+}
+
+// CalculateRewards calculates the required amounts to return for a vote given
+// the original contribution amounts for the ticket, the price the ticket was
+// purchased for, and the vote subsidy to include.
+//
+// Since multiple inputs can be used to purchase a ticket, each one contributes
+// a portion of the overall ticket purchase, including the transaction fee.
+// Thus, when claiming the ticket, each output must receive the same proportion
+// of the total amount returned.
+//
+// After the original contribution amounts are evenly distributed to each
+// output, there may be a remainder left over of 1 to numOutputs - 1 atoms.
+// This remainder ends up as part of the transaction fee.
+//
+// Note: If calculating rewards for a revocation, CalculateRevocationRewards
+// should be used instead.
+func CalculateRewards(contribAmounts []int64, ticketPurchaseAmount,
+	voteSubsidy int64) []int64 {
+
+	return calculateTicketReturnAmounts(contribAmounts, ticketPurchaseAmount,
+		voteSubsidy)
+}
+
+// CalculateRevocationRewards calculates the required amounts to return for a
+// revocation given the original contribution amounts for the ticket and the
+// price the ticket was purchased for.
+//
+// Since multiple inputs can be used to purchase a ticket, each one contributes
+// a portion of the overall ticket purchase, including the transaction fee.
+// Thus, when claiming the ticket, each output must receive the same proportion
+// of the total amount returned.
+//
+// After the original contribution amounts are evenly distributed to each
+// output, there may be a remainder left over of 1 to numOutputs - 1 atoms.
+// If the automatic ticket revocations agenda is not active, this remainder ends
+// up as part of the transaction fee.  If the agenda is active, each atom in the
+// remainder is added to an output index that is selected in a uniformly random
+// manner, where Hash256PRNG seeded with the previous header bytes is used for
+// the deterministic pseudorandom selection.
+func CalculateRevocationRewards(contribAmounts []int64, ticketPurchaseAmount int64,
+	prevHeaderBytes []byte, isAutoRevocationsEnabled bool) []int64 {
+
+	// Calculate the evenly distributed return amounts from the original
+	// contribution amounts.
+	returnAmounts := calculateTicketReturnAmounts(contribAmounts,
+		ticketPurchaseAmount, 0)
+
+	// Return now if the automatic ticket revocations agenda is not active, and
+	// any remainder will end up as part of the transaction fee.
+	if !isAutoRevocationsEnabled {
+		return returnAmounts
+	}
+
+	// Calculate the total return amount.
+	totalReturnAmount := int64(0)
+	for _, amount := range returnAmounts {
+		totalReturnAmount += amount
+	}
+
+	// If the automatic ticket revocations agenda is active, and there is a
+	// remainder after distributing the returns, then select a uniformly
+	// pseudorandom output index to receive each remaining atom.
+	if totalReturnAmount < ticketPurchaseAmount {
+		numReturnAmounts := uint32(len(returnAmounts))
+		remainder := ticketPurchaseAmount - totalReturnAmount
+		prng := NewHash256PRNG(prevHeaderBytes)
+		for i := int64(0); i < remainder; i++ {
+			returnIndex := prng.UniformRandom(numReturnAmounts)
+			returnAmounts[returnIndex] += 1
+		}
 	}
 
 	return returnAmounts
@@ -1146,6 +1228,25 @@ func CheckSSRtx(tx *wire.MsgTx, isAutoRevocationsEnabled bool) error {
 		}
 	}
 
+	// Additional checks if the automatic ticket revocations agenda is active.
+	if isAutoRevocationsEnabled {
+		// The input must have an empty signature script.
+		if len(tx.TxIn[0].SignatureScript) != 0 {
+			return stakeRuleError(ErrSSRtxInputHasSigScript, "SSRtx input 0 "+
+				"contains a non-empty signature script")
+		}
+
+		// The fee must be zero.
+		outputAmt := int64(0)
+		for _, txOut := range tx.TxOut {
+			outputAmt += txOut.Value
+		}
+		inputAmt := tx.TxIn[0].ValueIn
+		if outputAmt < inputAmt {
+			return stakeRuleError(ErrSSRtxInvalidFee, "SSRtx has a non-zero fee")
+		}
+	}
+
 	return nil
 }
 
@@ -1245,11 +1346,27 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 // in which case an error is returned.
 func CreateRevocationFromTicket(ticketHash *chainhash.Hash,
 	ticketMinOuts []*MinimalOutput, revocationTxFee dcrutil.Amount,
-	revocationTxVersion uint16, params *chaincfg.Params) (*wire.MsgTx, error) {
+	revocationTxVersion uint16, params *chaincfg.Params,
+	prevHeaderBytes []byte, isAutoRevocationsEnabled bool) (*wire.MsgTx, error) {
 
 	// Validate that the provided ticket minimal outputs have a non-zero length.
 	if len(ticketMinOuts) == 0 {
 		return nil, stakeRuleError(ErrSStxNoOutputs, "no minimal outputs")
+	}
+
+	// If the automatic ticket revocations agenda is active, then the fee must be
+	// 0 and the version must be 2.
+	if isAutoRevocationsEnabled {
+		if revocationTxFee != 0 {
+			str := "fee must be zero when auto revocations is active"
+			return nil, stakeRuleError(ErrSSRtxInvalidFee, str)
+		}
+
+		if revocationTxVersion != TxVersionAutoRevocations {
+			str := fmt.Sprintf("version must be %d when auto revocations is active",
+				TxVersionAutoRevocations)
+			return nil, stakeRuleError(ErrSSRtxInvalidTxVersion, str)
+		}
 	}
 
 	// Create the revocation transaction and add the input.  The only input for a
@@ -1280,9 +1397,8 @@ func CreateRevocationFromTicket(ticketHash *chainhash.Hash,
 	const revocationFeeLimitIndex = 1
 
 	// Calculate the revocation output values from this data.
-	const revocationSubsidy = 0
-	revocationOutputAmounts := CalculateRewards(amounts, ticketSubmissionAmount,
-		revocationSubsidy)
+	revocationOutputAmounts := CalculateRevocationRewards(amounts,
+		ticketSubmissionAmount, prevHeaderBytes, isAutoRevocationsEnabled)
 
 	// Add all the SSRtx-tagged transaction outputs to the transaction after
 	// performing some validity checks.

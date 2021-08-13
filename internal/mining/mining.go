@@ -105,7 +105,8 @@ type Config struct {
 	// CheckTransactionInputs defines the function to use to perform a series of
 	// checks on the inputs to a transaction to ensure they are valid.
 	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64,
-		view *blockchain.UtxoViewpoint, checkFraudProof, isTreasuryEnabled,
+		view *blockchain.UtxoViewpoint, checkFraudProof bool,
+		prevHeader *wire.BlockHeader, isTreasuryEnabled,
 		isAutoRevocationsEnabled bool) (int64, error)
 
 	// CheckTSpendHasVotes defines the function to use to check whether the given
@@ -191,7 +192,9 @@ type Config struct {
 
 	// ValidateTransactionScripts defines the function to use to validate the
 	// scripts for the passed transaction.
-	ValidateTransactionScripts func(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error
+	ValidateTransactionScripts func(tx *dcrutil.Tx,
+		utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags,
+		isAutoRevocationsEnabled bool) error
 }
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -927,6 +930,132 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress st
 	return nil, nil
 }
 
+// createRevocationFromTicket creates a revocation transaction from the provided
+// ticket hash.  It also adds any utxos used to create the transaction to the
+// provided block utxos viewpoint so that they are available for lookup.
+//
+// Note: This should only be used if the automatic ticket revocations agenda is
+// active.
+func (g *BlkTmplGenerator) createRevocationFromTicket(ticketHash *chainhash.Hash,
+	blockUtxos *blockchain.UtxoViewpoint, prevHeaderBytes []byte,
+	isTreasuryEnabled bool) (*TxDesc, error) {
+
+	// Fetch the utxo for the ticket submission to be revoked.
+	const ticketSubmissionOutput = 0
+	ticketSubmission := wire.OutPoint{
+		Hash:  *ticketHash,
+		Index: ticketSubmissionOutput,
+		Tree:  wire.TxTreeStake,
+	}
+	ticketUtxo, err := g.cfg.FetchUtxoEntry(ticketSubmission)
+	if err != nil {
+		return nil, makeError(ErrGetTicketInfo, err.Error())
+	}
+	if ticketUtxo == nil || ticketUtxo.IsSpent() {
+		str := fmt.Sprintf("ticket %v does not exist or is spent", ticketHash)
+		return nil, makeError(ErrGetTicketInfo, str)
+	}
+
+	// Add the ticket submission utxo to the block utxos view so that it is
+	// available for lookup later.
+	blockUtxos.Entries()[ticketSubmission] = ticketUtxo
+
+	// Get the minimal outputs for the ticket.
+	ticketMinOuts := ticketUtxo.TicketMinimalOutputs()
+	if ticketMinOuts == nil {
+		str := fmt.Sprintf("ticket %v missing minimal outputs", ticketHash)
+		return nil, makeError(ErrGetTicketInfo, str)
+	}
+
+	// Create a revocation transaction for the ticket.
+	const isAutoRevocationsEnabled = true
+	const revocationTxFee = dcrutil.Amount(0)
+	revocationMsgTx, err := stake.CreateRevocationFromTicket(ticketHash,
+		ticketMinOuts, revocationTxFee, stake.TxVersionAutoRevocations,
+		g.cfg.ChainParams, prevHeaderBytes, isAutoRevocationsEnabled)
+	if err != nil {
+		return nil, err
+	}
+	revocationTx := dcrutil.NewTx(revocationMsgTx)
+	revocationTx.SetTree(wire.TxTreeStake)
+	txDesc := &TxDesc{
+		Tx:   revocationTx,
+		Type: stake.TxTypeSSRtx,
+		TotalSigOps: g.cfg.CountSigOps(revocationTx, false, false,
+			isTreasuryEnabled),
+		TxSize: int64(revocationMsgTx.SerializeSize()),
+	}
+
+	return txDesc, nil
+}
+
+// addAutoRevocationsToQueue is a helper function that creates revocations for
+// all tickets that will become missed or expired as of the block being created.
+// It inserts the created revocations into the provided priority queue and maps.
+//
+// Note: This should only be used if the automatic ticket revocations agenda is
+// active.
+func (g *BlkTmplGenerator) addAutoRevocationsToQueue(winningTickets map[chainhash.Hash]bool,
+	blockUtxos *blockchain.UtxoViewpoint, prevHeaderBytes []byte, numSSGen int,
+	isTreasuryEnabled bool, priorityQueue *txPriorityQueue,
+	prioritizedTxns map[chainhash.Hash]struct{},
+	prioItemMap map[chainhash.Hash]*txPrioItem) error {
+
+	// Return now if there are no tickets to revoke.
+	best := g.cfg.BestSnapshot()
+	missedCount := len(best.NextWinningTickets) - numSSGen
+	expiredCount := len(best.NextExpiringTickets)
+	if missedCount+expiredCount == 0 {
+		return nil
+	}
+
+	// Create a slice of the ticket hashes that must be revoked due to
+	// becoming missed or expired this block.
+	revokeTickets := make([]chainhash.Hash, 0, missedCount+expiredCount)
+
+	// Add tickets that will be missed to the slice of ticket hashes to
+	// revoke.
+	for ticketHash, hasVote := range winningTickets {
+		// If a winning ticket does not have a vote in this block, it will be
+		// missed.
+		if !hasVote {
+			revokeTickets = append(revokeTickets, ticketHash)
+		}
+	}
+
+	// Add tickets that will be expired to the slice of ticket hashes to
+	// revoke.
+	revokeTickets = append(revokeTickets, best.NextExpiringTickets...)
+
+	// Create revocation transactions for all tickets that will become missed
+	// or expired as of this block.
+	for _, ticketHash := range revokeTickets {
+		// Create the revocation transaction.
+		txDesc, err := g.createRevocationFromTicket(&ticketHash, blockUtxos,
+			prevHeaderBytes, isTreasuryEnabled)
+		if err != nil {
+			return err
+		}
+
+		// Add the revocation transaction to the priority queue.
+		prioItem := &txPrioItem{
+			txDesc:         txDesc,
+			txType:         txDesc.Type,
+			autoRevocation: true,
+		}
+		revocationTxHash := txDesc.Tx.Hash()
+		prioritizedTxns[*revocationTxHash] = struct{}{}
+		heap.Push(priorityQueue, prioItem)
+		prioItemMap[*revocationTxHash] = prioItem
+	}
+
+	log.Debugf("Generated %d automatic revocations for the new block (num "+
+		"missed this block: %d, num expired this block: %d)", len(revokeTickets),
+		missedCount, expiredCount)
+
+	return nil
+}
+
 // BlkTmplGenerator generates block templates based on a given mining policy
 // and a transactions source. It also houses additional state required in
 // order to ensure the templates adhere to the consensus rules and are built
@@ -1313,6 +1442,7 @@ mempoolLoop:
 	totalFees := int64(0)
 
 	numSStx := 0
+	numSSGen := 0
 	numTAdds := 0
 
 	foundWinningTickets := make(map[chainhash.Hash]bool, len(best.NextWinningTickets))
@@ -1320,9 +1450,32 @@ mempoolLoop:
 		foundWinningTickets[ticketHash] = false
 	}
 
+	// Create a map of the ticket hashes that will become expired as of the block.
+	numExpiring := len(best.NextExpiringTickets)
+	expiringTicketHashes := make(map[chainhash.Hash]struct{}, numExpiring)
+	for _, ticketHash := range best.NextExpiringTickets {
+		expiringTicketHashes[ticketHash] = struct{}{}
+	}
+
 	// Maintain lookup of transactions that have been included in the block
 	// template.
 	templateTxnMap := make(map[chainhash.Hash]struct{})
+
+	// Track if auto revocations have been added to the priority queue.
+	addedAutoRevocations := false
+
+	// Get the best block and header.
+	bestHeader, err := g.cfg.HeaderByHash(&best.Hash)
+	if err != nil {
+		str := fmt.Sprintf("unable to get tip block header %v", best.Hash)
+		return nil, makeError(ErrGetTopBlock, str)
+	}
+	bestHeaderBytes, err := bestHeader.Bytes()
+	if err != nil {
+		str := fmt.Sprintf("failed to serialize header for block %v: %v",
+			bestHeader.BlockHash(), err)
+		return nil, makeError(ErrSerializeHeader, str)
+	}
 
 	// Choose which transactions make it into the block.
 nextPriorityQueueItem:
@@ -1353,6 +1506,39 @@ nextPriorityQueueItem:
 
 			// Store if this is a TAdd or not
 			isTAdd = prioItem.txType == stake.TxTypeTAdd
+		}
+
+		// If the transaction is not a vote, then we are done adding votes since
+		// votes are the highest priority in the queue.
+		doneAddingVotes := !isSSGen
+
+		// If the automatic ticket revocations agenda is active, then the block MUST
+		// contain version 2 revocation transactions for all tickets that will
+		// become missed or expired as of this block.
+		//
+		// Create and insert these revocations into the priority queue AFTER votes
+		// are done being added to ensure that revocations are added for votes that
+		// fail validation checks or are otherwise not included into the block.
+		if isAutoRevocationsEnabled && !addedAutoRevocations && doneAddingVotes {
+			// Create revocations for all tickets that will become missed or expired
+			// as of the block being created and add them to the priority queue and
+			// maps.
+			err = g.addAutoRevocationsToQueue(foundWinningTickets, blockUtxos,
+				bestHeaderBytes, numSSGen, isTreasuryEnabled, priorityQueue,
+				prioritizedTxns, prioItemMap)
+			if err != nil {
+				return nil, err
+			}
+
+			// Set the flag that auto revocations have been added so that they are
+			// only added once.
+			addedAutoRevocations = true
+
+			// Requeue the current item now that the revocations have been added and
+			// continue.
+			heap.Push(priorityQueue, prioItem)
+			prioritizedTxns[*tx.Hash()] = struct{}{}
+			continue
 		}
 
 		// Grab the list of transactions which depend on this one (if any).
@@ -1431,11 +1617,26 @@ nextPriorityQueueItem:
 			continue
 		}
 
-		// Skip all missed tickets that we've never heard of.
+		// Skip revocation transactions if they are spending tickets that are not
+		// eligible to be revoked.
 		if isSSRtx {
 			ticketHash := &tx.MsgTx().TxIn[0].PreviousOutPoint.Hash
 
-			if !hashInSlice(*ticketHash, best.MissedTickets) {
+			// Determine if the ticket being revoked will become missed or expired as
+			// of this block.
+			voted, winning := foundWinningTickets[*ticketHash]
+			missedThisBlock := !voted && winning
+			_, expiringThisBlock := expiringTicketHashes[*ticketHash]
+			missedOrExpiredThisBlock := missedThisBlock || expiringThisBlock
+
+			// Ensure the ticket being spent is actually eligible to be revoked in
+			// this block.  If the automatic ticket revocations agenda is active, then
+			// revocations are allowed if the ticket will become missed or expired as
+			// of this block.
+			eligible := (isAutoRevocationsEnabled && missedOrExpiredThisBlock) ||
+				hashInSlice(*ticketHash, best.MissedTickets)
+
+			if !eligible {
 				continue
 			}
 		}
@@ -1571,7 +1772,8 @@ nextPriorityQueueItem:
 			// The fraud proof is not checked because it will be filled in
 			// by the miner.
 			_, err = g.cfg.CheckTransactionInputs(bundledTx.Tx, nextBlockHeight,
-				blockUtxos, false, isTreasuryEnabled, isAutoRevocationsEnabled)
+				blockUtxos, false, &bestHeader, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
@@ -1579,7 +1781,8 @@ nextPriorityQueueItem:
 				miningView.reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
-			err = g.cfg.ValidateTransactionScripts(bundledTx.Tx, blockUtxos, scriptFlags)
+			err = g.cfg.ValidateTransactionScripts(bundledTx.Tx, blockUtxos,
+				scriptFlags, isAutoRevocationsEnabled)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
@@ -1615,6 +1818,7 @@ nextPriorityQueueItem:
 			}
 			if bundledTxDesc.Type == stake.TxTypeSSGen {
 				foundWinningTickets[bundledTx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
+				numSSGen++
 			}
 			if isTreasuryEnabled && bundledTxDesc.Type == stake.TxTypeTAdd {
 				numTAdds++
@@ -1655,6 +1859,29 @@ nextPriorityQueueItem:
 				}
 			}
 		}
+	}
+
+	// If we did not already add auto revocations above, attempt to add them now.
+	// This case will be hit if the priority queue contained only vote
+	// transactions.
+	if isAutoRevocationsEnabled && !addedAutoRevocations {
+		// Create revocations for all tickets that will become missed or expired
+		// as of the block being created and add them to the priority queue and
+		// maps.
+		err = g.addAutoRevocationsToQueue(foundWinningTickets, blockUtxos,
+			bestHeaderBytes, numSSGen, isTreasuryEnabled, priorityQueue,
+			prioritizedTxns, prioItemMap)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the flag that auto revocations have been added so that they are
+		// only added once.
+		addedAutoRevocations = true
+
+		// Continue to dequeue from the priority queue now that the revocations have
+		// been added.
+		goto nextPriorityQueueItem
 	}
 
 	// Build tx list for stake tx.

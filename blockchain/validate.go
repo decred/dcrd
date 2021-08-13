@@ -479,6 +479,17 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 			return ruleError(ErrBadTxInput, str)
 		}
 
+	case isRevocation:
+		// Revocation transactions MUST be version 2 if the automatic ticket
+		// revocations agenda is active.
+		if isAutoRevocationsEnabled &&
+			tx.Version != stake.TxVersionAutoRevocations {
+
+			str := fmt.Sprintf("revocation transaction version is %d instead of %d",
+				tx.Version, stake.TxVersionAutoRevocations)
+			return ruleError(ErrInvalidRevocationTxVersion, str)
+		}
+
 	case isCoinBase:
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
@@ -1422,55 +1433,109 @@ func checkTreasurybaseUniqueHeight(blockHeight int64, block *dcrutil.Block) erro
 //   - Votes MUST spend tickets that are actually allowed to vote per the
 //     lottery
 //   - Revocations MUST spend tickets that were missed or have expired
+//   - If the automatic ticket revocations agenda is active, then the block MUST
+//     contain revocation transactions for all tickets that will become missed
+//     or expired as of that block
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) checkTicketRedeemers(prevNode *blockNode, parentStakeNode *stake.Node, block *wire.MsgBlock) error {
-	// Determine if the treasury agenda is active as of the block being checked.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-	if err != nil {
-		return err
+func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
+	expiringNextBlock []chainhash.Hash,
+	existsMissedTicket func(ticket chainhash.Hash) bool, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) error {
+
+	// Determine the winning ticket hashes and create a map that tracks whether
+	// a vote exists in the block for each winning hash.
+	winningHashes := make(map[chainhash.Hash]bool, len(winners))
+	for _, ticketHash := range winners {
+		winningHashes[ticketHash] = false
 	}
 
-	// Determine if the automatic ticket revocations agenda is active as of the
-	// block being checked.
-	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-
-	// Determine the winning ticket hashes and create a map for faster lookup.
-	ticketsPerBlock := int(b.chainParams.TicketsPerBlock)
-	winningHashes := make(map[chainhash.Hash]struct{}, ticketsPerBlock)
-	for _, ticketHash := range parentStakeNode.Winners() {
-		winningHashes[ticketHash] = struct{}{}
-	}
-
-	for _, stx := range block.STransactions {
-		if stake.IsSSGen(stx, isTreasuryEnabled) {
-			// Ensure the ticket being spent is actually eligible to vote in
-			// this block.
-			ticketHash := stx.TxIn[1].PreviousOutPoint.Hash
-			if _, ok := winningHashes[ticketHash]; !ok {
-				errStr := fmt.Sprintf("block contains vote for "+
-					"ineligible ticket %s (eligible tickets: %s)",
-					ticketHash, winningHashes)
-				return ruleError(ErrTicketUnavailable, errStr)
-			}
-
-			continue
+	// Iterate through all votes in the block, validate that they are spending
+	// tickets that are eligible to vote, and mark the corresponding winning hash
+	// as voted in the winning hashes map.
+	for _, voteTicketHash := range voteTicketHashes {
+		// Ensure the ticket being spent is actually eligible to vote in this block.
+		if _, ok := winningHashes[voteTicketHash]; !ok {
+			errStr := fmt.Sprintf("block contains vote for "+
+				"ineligible ticket %s (eligible tickets: %s)",
+				voteTicketHash, winners)
+			return ruleError(ErrTicketUnavailable, errStr)
 		}
 
-		if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
-			// Ensure the ticket being spent is actually eligible to be
-			// revoked in this block.
-			ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
-			if !parentStakeNode.ExistsMissedTicket(ticketHash) {
-				errStr := fmt.Sprintf("block contains revocation of "+
-					"ineligible ticket %s", ticketHash)
-				return ruleError(ErrInvalidSSRtx, errStr)
-			}
+		// Mark that a vote exists for the ticket hash.
+		winningHashes[voteTicketHash] = true
+	}
 
-			continue
+	// Create a map of the ticket hashes that will become missed as of the block.
+	missedTicketHashes := make(map[chainhash.Hash]struct{}, len(winningHashes))
+	for ticketHash, hasVote := range winningHashes {
+		// If a winning ticket does not have a vote in this block, it will be
+		// missed.
+		if !hasVote {
+			missedTicketHashes[ticketHash] = struct{}{}
+		}
+	}
+	numMissed := len(missedTicketHashes)
+
+	// Create a map of the ticket hashes that will become expired as of the block.
+	numExpiring := len(expiringNextBlock)
+	expiringTicketHashes := make(map[chainhash.Hash]struct{}, numExpiring)
+	for _, ticketHash := range expiringNextBlock {
+		expiringTicketHashes[ticketHash] = struct{}{}
+	}
+
+	// Create a map of the ticket hashes that are being revoked in the block.
+	revokedTicketHashes := make(map[chainhash.Hash]struct{},
+		numMissed+numExpiring)
+
+	// Iterate through all revocations in the block, validate that they are
+	// spending tickets that are eligible to be revoked, and add the revocation
+	// to the revocations map.
+	for _, revocationTicketHash := range revocationTicketHashes {
+		// Determine if the ticket being revoked will become missed or expired as of
+		// this block.
+		_, missedInBlock := missedTicketHashes[revocationTicketHash]
+		_, expiringInBlock := expiringTicketHashes[revocationTicketHash]
+		missedOrExpiredInBlock := missedInBlock || expiringInBlock
+
+		// Ensure the ticket being spent is actually eligible to be revoked in this
+		// block.  If the automatic ticket revocations agenda is active, then
+		// revocations are allowed if the ticket will become missed or expired as of
+		// this block.
+		eligible := (isAutoRevocationsEnabled && missedOrExpiredInBlock) ||
+			existsMissedTicket(revocationTicketHash)
+		if !eligible {
+			errStr := fmt.Sprintf("block contains revocation of ineligible ticket %s",
+				revocationTicketHash)
+			return ruleError(ErrInvalidSSRtx, errStr)
+		}
+
+		// Add the ticket hash to the revoked hashes map.
+		revokedTicketHashes[revocationTicketHash] = struct{}{}
+	}
+
+	// If the automatic ticket revocations agenda is active, then the block MUST
+	// contain revocation transactions for all tickets that will become missed or
+	// expired as of this block.
+	if isAutoRevocationsEnabled {
+		// Check that the block contains revocations for the tickets that will
+		// become missed as of this block.
+		for ticketHash := range missedTicketHashes {
+			if _, ok := revokedTicketHashes[ticketHash]; !ok {
+				errStr := fmt.Sprintf("block does not contain a revocation for ticket "+
+					"that is becoming missed as of this block: %s", ticketHash)
+				return ruleError(ErrNoMissedTicketRevocation, errStr)
+			}
+		}
+
+		// Check that the block contains revocations for the tickets that will
+		// become expired as of this block.
+		for ticketHash := range expiringTicketHashes {
+			if _, ok := revokedTicketHashes[ticketHash]; !ok {
+				errStr := fmt.Sprintf("block does not contain a revocation for ticket "+
+					"that is becoming expired as of this block: %s", ticketHash)
+				return ruleError(ErrNoExpiredTicketRevocation, errStr)
+			}
 		}
 	}
 
@@ -1894,7 +1959,36 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			if err != nil {
 				return err
 			}
-			err = b.checkTicketRedeemers(prevNode, parentStakeNode, block.MsgBlock())
+
+			// Create slices of the ticket hashes that votes and revocations are
+			// spending in the block.
+			ticketsPerBlock := b.chainParams.TicketsPerBlock
+			voteTicketHashes := make([]chainhash.Hash, 0, ticketsPerBlock)
+			revocationTicketHashes := make([]chainhash.Hash, 0, ticketsPerBlock)
+			for _, stx := range block.MsgBlock().STransactions {
+				// Append vote ticket hashes.
+				if stake.IsSSGen(stx, isTreasuryEnabled) {
+					ticketHash := stx.TxIn[1].PreviousOutPoint.Hash
+					voteTicketHashes = append(voteTicketHashes, ticketHash)
+
+					continue
+				}
+
+				// Append revocation ticket hashes.
+				if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
+					ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
+					revocationTicketHashes = append(revocationTicketHashes, ticketHash)
+
+					continue
+				}
+			}
+
+			// Validate that all votes and revocations in the block are redeeming
+			// tickets according to consensus rules.
+			err = checkTicketRedeemers(voteTicketHashes, revocationTicketHashes,
+				parentStakeNode.Winners(), parentStakeNode.ExpiringNextBlock(),
+				parentStakeNode.ExistsMissedTicket, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 			if err != nil {
 				return err
 			}
@@ -2165,10 +2259,9 @@ func isTicketCommitP2SH(script []byte) bool {
 	return script[commitAmountEndIdx-1]&0x80 != 0
 }
 
-// calcTicketReturnAmount calculates the required amount to return from a ticket
-// for a given original contribution amount, the price the ticket was purchased
-// for, the vote subsidy (if any) to include, and the sum of all contributions
-// used to purchase the ticket.
+// calcTicketReturnAmounts calculates the required amounts to return from a
+// ticket for the given original contribution amounts, the price the ticket was
+// purchased for, and the vote subsidy (if any) to include.
 //
 // Since multiple inputs can be used to purchase a ticket, each one contributes
 // a portion of the overall ticket purchase, including the transaction fee.
@@ -2176,33 +2269,96 @@ func isTicketCommitP2SH(script []byte) bool {
 // being revoked, each output must receive the same proportion of the total
 // amount returned.
 //
+// After the original contribution amounts are evenly distributed to each
+// output, there may be a remainder left over of 1 to numOutputs - 1 atoms.  For
+// votes, this remainder ends up as part of the transaction fee.  If the
+// automatic ticket revocations agenda is NOT active, then this is the same for
+// revocations and the remainder ends up as part of the transaction fee.  If the
+// automatic ticket revocations agenda IS active, then for revocations each atom
+// in the remainder is added to an output index that is selected in a uniformly
+// random manner, where Hash256PRNG seeded with the previous header bytes is
+// used for the deterministic pseudorandom selection.
+//
 // The vote subsidy must be 0 for revocations since, unlike votes, they do not
 // produce any additional subsidy.
-func calcTicketReturnAmount(contribAmount, ticketPurchaseAmount, voteSubsidy int64, contributionSumBig *big.Int) int64 {
-	// This is effectively equivalent to:
+func calcTicketReturnAmounts(ticketOuts []*stake.MinimalOutput,
+	ticketPurchaseAmount, voteSubsidy int64, prevHeaderBytes []byte, isVote,
+	isAutoRevocationsEnabled bool) []int64 {
+
+	// Make an initial pass over the ticket commitments to calculate the overall
+	// contribution sum.  This is necessary because the output amounts are
+	// required to be scaled to maintain the same proportions as the original
+	// contributions to the ticket, and the overall contribution sum is needed
+	// to calculate those proportions.
 	//
-	//                  total output amount
-	// return amount =  ------------------- * contribution amount
-	//                  total contributions
+	// The calculations also require more than 64-bits, so convert it to a big
+	// integer here to avoid multiple conversions later.
+	var contributionSum int64
+	for i := 1; i < len(ticketOuts); i += 2 {
+		contributionSum += extractTicketCommitAmount(ticketOuts[i].PkScript)
+	}
+	contributionSumBig := big.NewInt(contributionSum)
+
+	// Create a slice for the return amounts.
+	numReturnAmounts := uint32((len(ticketOuts) - 1) / 2)
+	returnAmounts := make([]int64, numReturnAmounts)
+
+	// Calculate the return amounts and track the total return amount.
+	totalOutputAmt := ticketPurchaseAmount + voteSubsidy
+	totalOutputAmtBig := big.NewInt(totalOutputAmt)
+	totalReturnAmount := int64(0)
+	for i := 0; i < len(returnAmounts); i++ {
+		// This is effectively equivalent to:
+		//
+		//                  total output amount
+		// return amount =  ------------------- * contribution amount
+		//                  total contributions
+		//
+		// However, in order to avoid floating point math, it uses 64.32 fixed point
+		// integer division to perform:
+		//
+		//                   --                                              --
+		//                  | total output amount * contribution amount * 2^32 |
+		//                  | ------------------------------------------------ |
+		// return amount =  |                total contributions               |
+		//                   --                                              --
+		//                  ----------------------------------------------------
+		//                                        2^32
+		//
+		ticketOut := ticketOuts[i*2+1]
+		returnAmtBig := big.NewInt(extractTicketCommitAmount(ticketOut.PkScript))
+		returnAmtBig.Mul(returnAmtBig, totalOutputAmtBig)
+		returnAmtBig.Lsh(returnAmtBig, 32)
+		returnAmtBig.Div(returnAmtBig, contributionSumBig)
+		returnAmtBig.Rsh(returnAmtBig, 32)
+		returnAmounts[i] = returnAmtBig.Int64()
+
+		// Add to the total return amount.
+		totalReturnAmount += returnAmounts[i]
+	}
+
+	// At this point, the original contribution amounts have been evenly
+	// distributed to each output.
 	//
-	// However, in order to avoid floating point math, it uses 64.32 fixed point
-	// integer division to perform:
-	//
-	//                   --                                              --
-	//                  | total output amount * contribution amount * 2^32 |
-	//                  | ------------------------------------------------ |
-	// return amount =  |                total contributions               |
-	//                   --                                              --
-	//                  ----------------------------------------------------
-	//                                        2^32
-	//
-	totalOutputAmtBig := big.NewInt(ticketPurchaseAmount + voteSubsidy)
-	returnAmtBig := big.NewInt(contribAmount)
-	returnAmtBig.Mul(returnAmtBig, totalOutputAmtBig)
-	returnAmtBig.Lsh(returnAmtBig, 32)
-	returnAmtBig.Div(returnAmtBig, contributionSumBig)
-	returnAmtBig.Rsh(returnAmtBig, 32)
-	return returnAmtBig.Int64()
+	// For votes, return now and any remainder left over will become part of the
+	// transaction fee.
+	if isVote {
+		return returnAmounts
+	}
+
+	// For revocations, if the automatic ticket revocations agenda is active, and
+	// there is a remainder after distributing the returns, then select a
+	// uniformly pseudorandom output index to receive each remaining atom.
+	if isAutoRevocationsEnabled && totalReturnAmount < totalOutputAmt {
+		remainder := totalOutputAmt - totalReturnAmount
+		prng := stake.NewHash256PRNG(prevHeaderBytes)
+		for i := int64(0); i < remainder; i++ {
+			returnIndex := prng.UniformRandom(numReturnAmounts)
+			returnAmounts[returnIndex] += 1
+		}
+	}
+
+	return returnAmounts
 }
 
 // extractTicketCommitFeeLimits extracts the encoded fee limits from a ticket
@@ -2252,21 +2408,8 @@ func checkTicketSubmissionInput(ticketUtxo *UtxoEntry) error {
 // checkVoteInputs and checkRevocationInputs.
 func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 	ticketOuts []*stake.MinimalOutput, msgTx *wire.MsgTx, isVote bool,
-	voteSubsidy int64, isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
-
-	// Make an initial pass over the ticket commitments to calculate the overall
-	// contribution sum.  This is necessary because the output amounts are
-	// required to be scaled to maintain the same proportions as the original
-	// contributions to the ticket, and the overall contribution sum is needed
-	// to calculate those proportions.
-	//
-	// The calculations also require more than 64-bits, so convert it to a big
-	// integer here to avoid multiple conversions later.
-	var contributionSum int64
-	for i := 1; i < len(ticketOuts); i += 2 {
-		contributionSum += extractTicketCommitAmount(ticketOuts[i].PkScript)
-	}
-	contributionSumBig := big.NewInt(contributionSum)
+	voteSubsidy int64, prevHeader *wire.BlockHeader, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) error {
 
 	// The outputs that satisfy the commitments of the ticket start at offset
 	// 2 for votes while they start at 0 for revocations.  Also, the payments
@@ -2285,6 +2428,18 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 		feeLimitMask = stake.SStxRevReturnFractionMask
 	}
 	ticketPaidAmt := ticketOuts[submissionOutputIdx].Value
+
+	// Get the previous header bytes.
+	prevHeaderBytes, err := prevHeader.Bytes()
+	if err != nil {
+		str := fmt.Sprintf("failed to serialize header for block %v",
+			prevHeader.BlockHash())
+		return ruleError(ErrSerializeHeader, str)
+	}
+
+	// Calculate the expected output amounts.
+	expectedOutAmts := calcTicketReturnAmounts(ticketOuts, ticketPaidAmt,
+		voteSubsidy, prevHeaderBytes, isVote, isAutoRevocationsEnabled)
 
 	// If treasury is enabled and we have a vote then we need to subtract
 	// one from the length of TxOut slice.
@@ -2341,18 +2496,19 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 			return ruleError(ErrMismatchedPayeeHash, str)
 		}
 
-		// Calculate the required payment amount for the output based on the
-		// relative percentage of the associated contribution to the original
-		// ticket and any additional subsidy produced by the vote (must be 0 for
-		// revocations).
-		//
-		// It should be noted that, due to the scaling, the sum of the generated
-		// amounts for multi-participant votes might be a few atoms less than
-		// the full amount and the difference is treated as a standard
-		// transaction fee.
-		commitmentAmt := extractTicketCommitAmount(commitmentScript)
-		expectedOutAmt := calcTicketReturnAmount(commitmentAmt, ticketPaidAmt,
-			voteSubsidy, contributionSumBig)
+		// Determine the fee limit that is imposed.  If the transaction is a
+		// revocation, the version is greater than or equal to 2, and the automatic
+		// ticket revocation agenda is active, then the fee MUST be zero.
+		// Otherwise, the encoded fee limit from the ticket output commitment script
+		// should be used.
+		var feeLimitsEncoded uint16
+		var hasFeeLimit bool
+		if isVote || !isAutoRevocationsEnabled ||
+			msgTx.Version < stake.TxVersionAutoRevocations {
+
+			feeLimitsEncoded = extractTicketCommitFeeLimits(commitmentScript)
+			hasFeeLimit = feeLimitsEncoded&hasFeeLimitFlag != 0
+		}
 
 		// Ensure the amount paid adheres to the commitment while taking into
 		// account any fee limits that might be imposed.  The output amount must
@@ -2360,8 +2516,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 		// fee limit.  On the other hand, when it is encumbered, it must be
 		// between the minimum amount imposed by the fee limit and the
 		// calculated amount.
-		feeLimitsEncoded := extractTicketCommitFeeLimits(commitmentScript)
-		hasFeeLimit := feeLimitsEncoded&hasFeeLimitFlag != 0
+		expectedOutAmt := expectedOutAmts[txOutIdx-startIdx]
 		if !hasFeeLimit {
 			// The output amount must exactly match the calculated amount when
 			// not encumbered with a fee limit.
@@ -2424,7 +2579,8 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 // is a vote.
 func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	txHeight int64, view *UtxoViewpoint, params *chaincfg.Params,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+	prevHeader *wire.BlockHeader, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) error {
 
 	ticketMaturity := int64(params.TicketMaturity)
 	voteHash := tx.Hash()
@@ -2534,7 +2690,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 
 	// Ensure the outputs adhere to the ticket commitments.
 	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
-		true, voteSubsidy, isTreasuryEnabled, isAutoRevocationsEnabled)
+		true, voteSubsidy, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
 // checkRevocationInputs performs a series of checks on the inputs to a
@@ -2545,7 +2701,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a revocation.
 func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
-	params *chaincfg.Params, isTreasuryEnabled,
+	params *chaincfg.Params, prevHeader *wire.BlockHeader, isTreasuryEnabled,
 	isAutoRevocationsEnabled bool) error {
 
 	ticketMaturity := int64(params.TicketMaturity)
@@ -2591,14 +2747,22 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 	// NOTE: A ticket stake submission (OP_SSTX tagged output) can only be spent
 	// in the block AFTER the entire ticket maturity has passed, and, in order
 	// to be revoked, the ticket must have been missed which can't possibly
-	// happen for another block after that, hence the +2.
+	// happen for another block after that, hence the +2.  However, if the
+	// automatic ticket revocations agenda is active, +1 is used since revocations
+	// are allowed (and in fact, are required) in the block in which the ticket is
+	// missed or expired.
 	originHeight := ticketUtxo.BlockHeight()
 	blocksSincePrev := txHeight - originHeight
-	if blocksSincePrev < ticketMaturity+2 {
+	revocationAdditionalMaturity := int64(2)
+	if isAutoRevocationsEnabled {
+		revocationAdditionalMaturity = 1
+	}
+
+	if blocksSincePrev < ticketMaturity+revocationAdditionalMaturity {
 		str := fmt.Sprintf("tried to spend ticket output from transaction "+
 			"%v from height %d at height %d before required ticket maturity "+
-			"of %d+2 blocks", ticketHash, originHeight, txHeight,
-			ticketMaturity)
+			"of %d+%d blocks", ticketHash, originHeight, txHeight,
+			ticketMaturity, revocationAdditionalMaturity)
 		return ruleError(ErrImmatureTicketSpend, str)
 	}
 
@@ -2629,7 +2793,7 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 	// Ensure the outputs adhere to the ticket commitments.  Zero is passed for
 	// the vote subsidy since revocations do not produce any subsidy.
 	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
-		false, 0, isTreasuryEnabled, isAutoRevocationsEnabled)
+		false, 0, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
 // CheckTransactionInputs performs a series of checks on the inputs to a
@@ -2646,8 +2810,8 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 // CheckTransactionSanity function prior to calling this function.
 func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool,
-	chainParams *chaincfg.Params, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) (int64, error) {
+	chainParams *chaincfg.Params, prevHeader *wire.BlockHeader,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) (int64, error) {
 
 	// Coinbase transactions have no inputs.
 	msgTx := tx.MsgTx()
@@ -2684,7 +2848,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
 	if isVote {
 		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
-			chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
+			chainParams, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -2698,7 +2862,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// need to be skipped later.
 	isRevocation := stake.IsSSRtx(msgTx, isAutoRevocationsEnabled)
 	if isRevocation {
-		err := checkRevocationInputs(tx, txHeight, view, chainParams,
+		err := checkRevocationInputs(tx, txHeight, view, chainParams, prevHeader,
 			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
@@ -3290,6 +3454,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 	// scripts) checks against all the inputs when the signature operations
 	// are out of bounds.
 	totalFees := int64(inputFees) // Stake tx tree carry forward
+	prevHeader := node.parent.Header()
 	var cumulativeSigOps int
 	for idx, tx := range txs {
 		// Ensure that the number of signature operations is not beyond
@@ -3305,7 +3470,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// spent, so be aware of this.
 		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
 			node.height, view, true, /* check fraud proofs */
-			b.chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
+			b.chainParams, &prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error "+
 				"returned: %v", err)
@@ -3741,7 +3906,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 
 	if runScripts {
 		err = checkBlockScripts(block, view, false, scriptFlags,
-			b.sigCache)
+			b.sigCache, isAutoRevocationsEnabled)
 		if err != nil {
 			log.Tracef("checkBlockScripts failed; error returned "+
 				"on txtreestake of cur block: %v", err)
@@ -3830,7 +3995,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 
 	if runScripts {
 		err = checkBlockScripts(block, view, true, scriptFlags,
-			b.sigCache)
+			b.sigCache, isAutoRevocationsEnabled)
 		if err != nil {
 			log.Tracef("checkBlockScripts failed; error returned "+
 				"on txtreeregular of cur block: %v", err)
