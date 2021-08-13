@@ -1016,9 +1016,31 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		return nil, err
 	}
 
-	const revocationTxVersion = 1
+	// If the automatic ticket revocations agenda is active, validate that the fee
+	// amount is zero and set the transaction version to 2.
+	revocationTxVersion := uint16(1)
+	if isAutoRevocationsEnabled {
+		if feeAmt != 0 {
+			return nil, rpcInvalidError("Fee amount must be 0 when the automatic " +
+				"ticket revocations agenda is active")
+		}
+		revocationTxVersion = stake.TxVersionAutoRevocations
+	}
+
+	// Get the previous header bytes.
+	prevHeader, err := s.cfg.Chain.HeaderByHash(&prevBlkHash)
+	if err != nil {
+		return nil, rpcBlockNotFoundError(prevBlkHash)
+	}
+	prevHeaderBytes, err := prevHeader.Bytes()
+	if err != nil {
+		str := fmt.Sprintf("Failed to serialize header for block %v", prevBlkHash)
+		return nil, rpcInternalError(err.Error(), str)
+	}
+
 	mtx, err := stake.CreateRevocationFromTicket(txHash, minimalOutputs, feeAmt,
-		revocationTxVersion, s.cfg.ChainParams)
+		revocationTxVersion, s.cfg.ChainParams, prevHeaderBytes,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, rpcInvalidError(err.Error(), "Invalid SSRtx")
 	}

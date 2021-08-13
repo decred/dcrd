@@ -930,6 +930,14 @@ func TestCheckSSRtx(t *testing.T) {
 		name: "ok",
 		tx:   ssrtxMsgTx,
 	}, {
+		name: "ok (auto revocations enabled)",
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.TxIn[0].SignatureScript = nil
+			return tx
+		}(),
+		isAutoRevocationsEnabled: true,
+	}, {
 		name:    "too many inputs",
 		tx:      ssrtxMsgTxTooManyInputs,
 		wantErr: ErrSSRtxWrongNumInputs,
@@ -965,6 +973,26 @@ func TestCheckSSRtx(t *testing.T) {
 			return tx
 		}(),
 		wantErr: ErrSSRtxBadOuts,
+	}, {
+		name: "input contains a non-empty signature script (auto revocations " +
+			"enabled)",
+		tx:                       ssrtxMsgTx,
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrSSRtxInputHasSigScript,
+	}, {
+		name: "non-zero fee (auto revocations enabled)",
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.TxIn[0].SignatureScript = nil
+			outputAmt := int64(0)
+			for _, txOut := range tx.TxOut {
+				outputAmt += txOut.Value
+			}
+			tx.TxIn[0].ValueIn = outputAmt + 1
+			return tx
+		}(),
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrSSRtxInvalidFee,
 	}}
 
 	for _, test := range tests {
@@ -1198,7 +1226,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 }
 
 // TestCalculateRewards ensures that ticket output amounts are calculated
-// correctly under a variety of conditions.
+// correctly for votes under a variety of conditions.
 func TestCalculateRewards(t *testing.T) {
 	t.Parallel()
 
@@ -1225,22 +1253,6 @@ func TestCalculateRewards(t *testing.T) {
 			10050000000,
 		},
 	}, {
-		name: "revocation rewards - evenly divisible over all outputs",
-		contribAmounts: []int64{
-			2500000000,
-			2500000000,
-			5000000000,
-			10000000000,
-		},
-		ticketPurchaseAmount: 20000000000,
-		voteSubsidy:          0,
-		want: []int64{
-			2500000000,
-			2500000000,
-			5000000000,
-			10000000000,
-		},
-	}, {
 		name: "vote rewards - remainder of 2",
 		contribAmounts: []int64{
 			100000000,
@@ -1254,8 +1266,56 @@ func TestCalculateRewards(t *testing.T) {
 			100100000,
 			100100000,
 		},
+	}}
+
+	for _, test := range tests {
+		got := CalculateRewards(test.contribAmounts, test.ticketPurchaseAmount,
+			test.voteSubsidy)
+		if !reflect.DeepEqual(got, test.want) {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
+				test.want)
+		}
+	}
+}
+
+// TestCalculateRevocationRewards ensures that ticket output amounts are
+// calculated correctly for revocations under a variety of conditions.
+func TestCalculateRevocationRewards(t *testing.T) {
+	t.Parallel()
+
+	// Default header bytes for tests.
+	prevHeaderBytes := hexToBytes("07000000dc02335daa073d293e1b150648f0444a60b9" +
+		"c97604abd01e00000000000000003c449b2321c4bd0d1fa76ed59f80ebaf46f16cfb2d17" +
+		"ba46948f09f21861095566482410a463ed49473c27278cd7a2a3712a3b19ff1f6225717d" +
+		"3eb71cc2b5590100012c7312a3c30500050095a100000cf42418f1820a870300000020a1" +
+		"0700091600005b32a55f5bcce31078832100007469943958002e00000000000000000000" +
+		"0000000000000000000007000000")
+
+	tests := []struct {
+		name                     string
+		contribAmounts           []int64
+		ticketPurchaseAmount     int64
+		prevHeaderBytes          []byte
+		isAutoRevocationsEnabled bool
+		want                     []int64
+	}{{
+		name: "revocation rewards - evenly divisible over all outputs (auto " +
+			"revocations disabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount: 20000000000,
+		want: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
 	}, {
-		name: "revocation rewards - remainder of 4",
+		name: "revocation rewards - remainder of 4 (auto revocations disabled)",
 		contribAmounts: []int64{
 			100000000,
 			100000000,
@@ -1267,7 +1327,6 @@ func TestCalculateRewards(t *testing.T) {
 			100000000,
 		},
 		ticketPurchaseAmount: 799999996,
-		voteSubsidy:          0,
 		want: []int64{
 			99999999,
 			99999999,
@@ -1278,11 +1337,55 @@ func TestCalculateRewards(t *testing.T) {
 			99999999,
 			99999999,
 		},
+	}, {
+		name: "revocation rewards - evenly divisible over all outputs (auto " +
+			"revocations enabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount:     20000000000,
+		prevHeaderBytes:          prevHeaderBytes,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+	}, {
+		name: "revocation rewards - remainder of 4 (auto revocations enabled)",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount:     799999996,
+		prevHeaderBytes:          prevHeaderBytes,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			99999999,
+			100000000,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			100000001,
+			100000000,
+		},
 	}}
 
 	for _, test := range tests {
-		got := CalculateRewards(test.contribAmounts, test.ticketPurchaseAmount,
-			test.voteSubsidy)
+		got := CalculateRevocationRewards(test.contribAmounts,
+			test.ticketPurchaseAmount, test.prevHeaderBytes,
+			test.isAutoRevocationsEnabled)
 		if !reflect.DeepEqual(got, test.want) {
 			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
 				test.want)
@@ -1365,6 +1468,14 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 	// Default network parameters to use for tests.
 	params := chaincfg.RegNetParams()
 
+	// Default header bytes for tests.
+	prevHeaderBytes := hexToBytes("07000000dc02335daa073d293e1b150648f0444a60b9" +
+		"c97604abd01e00000000000000003c449b2321c4bd0d1fa76ed59f80ebaf46f16cfb2d17" +
+		"ba46948f09f21861095566482410a463ed49473c27278cd7a2a3712a3b19ff1f6225717d" +
+		"3eb71cc2b5590100012c7312a3c30500050095a100000cf42418f1820a870300000020a1" +
+		"0700091600005b32a55f5bcce31078832100007469943958002e00000000000000000000" +
+		"0000000000000000000007000000")
+
 	// The following variables are derived from a mainnet ticket that was
 	// purchased in block 135375 and revoked in block 140709.
 	ticketHash := mustParseHash("dad48ac8c59ee97d1a6fd04ad4f1c8392357a6ee78d39f" +
@@ -1410,6 +1521,12 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		"df9183b96261db5cda7a4f")
 	revocationTxFee := dcrutil.Amount(285000)
 	revocationTxVersion := uint16(1)
+
+	// With auto revocations enabled.
+	autoRevocationsTxHash := mustParseHash("c8999b6e2544f339419cc5416f15e9b942c" +
+		"fd6481246012d2da82f4594310e65")
+	autoRevocationsTxFee := dcrutil.Amount(0)
+	autoRevocationsTxVersion := TxVersionAutoRevocations
 
 	// Invalid script version.
 	ticketOutInvalidScriptVersion := &MinimalOutput{
@@ -1462,6 +1579,7 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		ticketMinOuts            []*MinimalOutput
 		revocationTxFee          dcrutil.Amount
 		revocationTxVersion      uint16
+		prevHeaderBytes          []byte
 		isAutoRevocationsEnabled bool
 		wantTxHash               chainhash.Hash
 		wantErr                  error
@@ -1471,7 +1589,18 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		ticketMinOuts:       ticketMinOuts,
 		revocationTxFee:     revocationTxFee,
 		revocationTxVersion: revocationTxVersion,
+		prevHeaderBytes:     prevHeaderBytes,
 		wantTxHash:          *revocationHash,
+	}, {
+		name: "valid with P2SH and P2PKH outputs (auto revocations " +
+			"enabled",
+		ticketHash:               ticketHash,
+		ticketMinOuts:            ticketMinOuts,
+		revocationTxFee:          autoRevocationsTxFee,
+		revocationTxVersion:      autoRevocationsTxVersion,
+		prevHeaderBytes:          prevHeaderBytes,
+		isAutoRevocationsEnabled: true,
+		wantTxHash:               *autoRevocationsTxHash,
 	}, {
 		name:                "invalid ticket minimal outputs",
 		ticketHash:          ticketHash,
@@ -1485,6 +1614,7 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		ticketMinOuts:       ticketMinOutsInvalidScriptVersion,
 		revocationTxFee:     revocationTxFee,
 		revocationTxVersion: revocationTxVersion,
+		prevHeaderBytes:     prevHeaderBytes,
 		wantErr:             ErrSStxInvalidOutputs,
 	}, {
 		name:                "invalid ticket commitment amount",
@@ -1492,6 +1622,7 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		ticketMinOuts:       ticketMinOutsInvalidCommitmentAmt,
 		revocationTxFee:     revocationTxFee,
 		revocationTxVersion: revocationTxVersion,
+		prevHeaderBytes:     prevHeaderBytes,
 		wantErr:             ErrSStxBadCommitAmount,
 	}, {
 		name:                "invalid fee",
@@ -1507,13 +1638,29 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		revocationTxFee:     revocationTxFee,
 		revocationTxVersion: revocationTxVersion,
 		wantErr:             ErrSSRtxInvalidFee,
+	}, {
+		name:                     "invalid fee (auto revocations enabled)",
+		ticketHash:               ticketHash,
+		ticketMinOuts:            ticketMinOuts,
+		revocationTxFee:          revocationTxFee,
+		revocationTxVersion:      revocationTxVersion,
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrSSRtxInvalidFee,
+	}, {
+		name:                     "invalid tx version (auto revocations enabled)",
+		ticketHash:               ticketHash,
+		ticketMinOuts:            ticketMinOuts,
+		revocationTxFee:          autoRevocationsTxFee,
+		revocationTxVersion:      revocationTxVersion,
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrSSRtxInvalidTxVersion,
 	}}
 
 	for _, test := range tests {
 		// Create a revocation transaction with the given test parameters.
 		revocationTx, err := CreateRevocationFromTicket(test.ticketHash,
 			test.ticketMinOuts, test.revocationTxFee, test.revocationTxVersion,
-			params)
+			params, test.prevHeaderBytes, test.isAutoRevocationsEnabled)
 
 		// Validate that the expected error was returned for negative tests.
 		if test.wantErr != nil {

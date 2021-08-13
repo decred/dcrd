@@ -2160,6 +2160,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		Tree:   1,
 	}}
 	defaultFee := dcrjson.Float64(0.1)
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleCreateRawSSRtx: ok",
 		handler: handleCreateRawSSRtx,
@@ -2219,6 +2220,64 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			"6e6cb89110000000001ffffffff01804a5d0500000000000018bca914355c96f4" +
 			"8612d57509140e9a049981d5f9970f948700000000000000000100e1f50500000" +
 			"00000000000ffffffff00",
+	}, {
+		name:    "handleCreateRawSSRtx: ok with auto revocations enabled",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: defaultCmdInputs,
+			Fee:    dcrjson.Float64(0),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.autoRevocationsActive = true
+			return chain
+		}(),
+		result: "0200000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc2" +
+			"56e6cb89110000000001ffffffff0100e1f5050000000000001abc76a914355c96f486" +
+			"12d57509140e9a049981d5f9970f9488ac00000000000000000100e1f5050000000000" +
+			"000000ffffffff00",
+	}, {
+		name:    "handleCreateRawSSRtx: could not obtain auto revocations status",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: defaultCmdInputs,
+			Fee:    defaultFee,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.autoRevocationsActiveErr = errors.New("error getting agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleCreateRawSSRtx: invalid fee with auto revocations enabled",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: defaultCmdInputs,
+			Fee:    defaultFee,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.autoRevocationsActive = true
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleCreateRawSSRtx: block not found",
+		handler: handleCreateRawSSRtx,
+		cmd: &types.CreateRawSSRtxCmd{
+			Inputs: defaultCmdInputs,
+			Fee:    defaultFee,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = errors.New("block not found")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
 	}, {
 		name:    "handleCreateRawSSRtx: invalid number of inputs",
 		handler: handleCreateRawSSRtx,

@@ -3655,11 +3655,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			CheckConnectBlockTemplate:  s.chain.CheckConnectBlockTemplate,
 			CheckTicketExhaustion:      s.chain.CheckTicketExhaustion,
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
-				view *blockchain.UtxoViewpoint, checkFraudProof, isTreasuryEnabled,
+				view *blockchain.UtxoViewpoint, checkFraudProof bool,
+				prevHeader *wire.BlockHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled bool) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(s.subsidyCache, tx, txHeight,
-					view, checkFraudProof, s.chainParams, isTreasuryEnabled,
+					view, checkFraudProof, s.chainParams, prevHeader, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
 			},
 			CheckTSpendHasVotes:             s.chain.CheckTSpendHasVotes,
@@ -3679,10 +3680,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			},
 			TipGeneration: s.chain.TipGeneration,
 			ValidateTransactionScripts: func(tx *dcrutil.Tx,
-				utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error {
+				utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags,
+				isAutoRevocationsEnabled bool) error {
 
 				return blockchain.ValidateTransactionScripts(tx, utxoView, flags,
-					s.sigCache)
+					s.sigCache, isAutoRevocationsEnabled)
 			},
 		})
 

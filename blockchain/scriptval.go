@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,6 +11,7 @@ import (
 	"math"
 	"runtime"
 
+	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
@@ -181,10 +182,25 @@ func newTxValidator(utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCach
 
 // ValidateTransactionScripts validates the scripts for the passed transaction
 // using multiple goroutines.
-func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCache *txscript.SigCache) error {
+func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint,
+	flags txscript.ScriptFlags, sigCache *txscript.SigCache,
+	isAutoRevocationsEnabled bool) error {
+
+	// Skip revocations if the automatic ticket revocations agenda is active and
+	// the transaction version is greater than or equal to 2.  This is allowed
+	// since consensus rules enforce that revocations MUST pay to the addresses
+	// specified by the original commitments in the ticket.
+	msgTx := tx.MsgTx()
+	if isAutoRevocationsEnabled &&
+		msgTx.Version >= stake.TxVersionAutoRevocations &&
+		stake.IsSSRtx(msgTx, isAutoRevocationsEnabled) {
+
+		return nil
+	}
+
 	// Collect all of the transaction inputs and required information for
 	// validation.
-	txIns := tx.MsgTx().TxIn
+	txIns := msgTx.TxIn
 	txValItems := make([]*txValidateItem, 0, len(txIns))
 	for txInIdx, txIn := range txIns {
 		// Skip coinbases.
@@ -208,7 +224,8 @@ func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags t
 // the passed block using multiple goroutines.
 // txTree = true is TxTreeRegular, txTree = false is TxTreeStake.
 func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree bool,
-	scriptFlags txscript.ScriptFlags, sigCache *txscript.SigCache) error {
+	scriptFlags txscript.ScriptFlags, sigCache *txscript.SigCache,
+	isAutoRevocationsEnabled bool) error {
 
 	// Collect all of the transaction inputs and required information for
 	// validation for all transactions in the block into a single slice.
@@ -227,7 +244,19 @@ func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree boo
 	}
 	txValItems := make([]*txValidateItem, 0, numInputs)
 	for _, tx := range txs {
-		for txInIdx, txIn := range tx.MsgTx().TxIn {
+		// Skip revocations if the automatic ticket revocations agenda is active and
+		// the transaction version is greater than or equal to 2.  This is allowed
+		// since consensus rules enforce that revocations MUST pay to the addresses
+		// specified by the original commitments in the ticket.
+		msgTx := tx.MsgTx()
+		if isAutoRevocationsEnabled && !txTree &&
+			msgTx.Version >= stake.TxVersionAutoRevocations &&
+			stake.IsSSRtx(msgTx, isAutoRevocationsEnabled) {
+
+			continue
+		}
+
+		for txInIdx, txIn := range msgTx.TxIn {
 			// Skip coinbases.
 			if txIn.PreviousOutPoint.Index == math.MaxUint32 {
 				continue

@@ -1526,9 +1526,15 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Also returns the fees associated with the transaction which will be
 	// used later.  The fraud proof is not checked because it will be
 	// filled in by the miner.
+
+	bestHash := mp.cfg.BestHash()
+	bestHeader, err := mp.cfg.HeaderByHash(bestHash)
+	if err != nil {
+		return nil, err
+	}
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
 		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams,
-		isTreasuryEnabled, isAutoRevocationsEnabled)
+		&bestHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1682,7 +1688,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		return nil, err
 	}
 	err = blockchain.ValidateTransactionScripts(tx, utxoView, flags,
-		mp.cfg.SigCache)
+		mp.cfg.SigCache, isAutoRevocationsEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1982,6 +1988,17 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 			txDesc.Height+int64(heightDiffToPruneVotes) < height {
 			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
 				isAutoRevocationsEnabled)
+			continue
+		}
+		if isAutoRevocationsEnabled && txType == stake.TxTypeSSRtx {
+			// When a new block is processed and the automatic ticket revocations
+			// agenda is active, any revocations that remain in the mempool are no
+			// longer valid and should be removed since they require using the header
+			// of the previous block in order to properly calculate the return
+			// amounts.
+			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
+			continue
 		}
 	}
 	for _, txDesc := range mp.staged {
@@ -1998,6 +2015,17 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 			log.Debugf("Pruning old ticket %v added at height %v "+
 				"from stage pool", txDesc.Tx.Hash(), txDesc.Height)
 			mp.removeStagedTransaction(txDesc.Tx)
+			continue
+		}
+		if isAutoRevocationsEnabled && txType == stake.TxTypeSSRtx {
+			// When a new block is processed and the automatic ticket revocations
+			// agenda is active, any revocations that remain in the mempool are no
+			// longer valid and should be removed since they require using the header
+			// of the previous block in order to properly calculate the return
+			// amounts.
+			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
+			continue
 		}
 	}
 }

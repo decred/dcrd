@@ -662,10 +662,18 @@ func (p *fakeTxSource) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
 func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*chainhash.Hash, error) {
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()
-	height := p.chain.BestSnapshot().Height
+	best := p.chain.BestSnapshot()
+	height := best.Height
 	nextHeight := height + 1
 	isTreasuryEnabled := p.chain.isTreasuryAgendaActive
 	isAutoRevocationsEnabled := p.chain.isAutoRevocationsAgendaActive
+
+	// Get the best block and header.
+	bestHeader, err := p.chain.HeaderByHash(&best.Hash)
+	if err != nil {
+		str := fmt.Sprintf("unable to get tip block header %v", best.Hash)
+		return nil, makeError(ErrGetTopBlock, str)
+	}
 
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
@@ -731,7 +739,8 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	}
 
 	txFee, err := blockchain.CheckTransactionInputs(p.subsidyCache, tx, nextHeight,
-		utxoView, false, p.chainParams, isTreasuryEnabled, isAutoRevocationsEnabled)
+		utxoView, false, p.chainParams, &bestHeader, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1429,11 +1438,12 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			CheckConnectBlockTemplate:  chain.CheckConnectBlockTemplate,
 			CheckTicketExhaustion:      chain.CheckTicketExhaustion,
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
-				view *blockchain.UtxoViewpoint, checkFraudProof, isTreasuryEnabled,
+				view *blockchain.UtxoViewpoint, checkFraudProof bool,
+				prevHeader *wire.BlockHeader, isTreasuryEnabled,
 				isAutoRevocationsEnabled bool) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(subsidyCache, tx, txHeight,
-					view, checkFraudProof, chainParams, isTreasuryEnabled,
+					view, checkFraudProof, chainParams, prevHeader, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
@@ -1442,6 +1452,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			FetchUtxoView:                   chain.FetchUtxoView,
 			FetchUtxoViewParentTemplate:     chain.FetchUtxoViewParentTemplate,
 			ForceHeadReorganization:         chain.ForceHeadReorganization,
+			HeaderByHash:                    chain.HeaderByHash,
 			IsFinalizedTransaction:          blockchain.IsFinalizedTransaction,
 			IsHeaderCommitmentsAgendaActive: chain.IsHeaderCommitmentsAgendaActive,
 			IsTreasuryAgendaActive:          chain.IsTreasuryAgendaActive,
@@ -1450,9 +1461,11 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			NewUtxoViewpoint:                chain.NewUtxoViewpoint,
 			TipGeneration:                   chain.TipGeneration,
 			ValidateTransactionScripts: func(tx *dcrutil.Tx,
-				utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error {
+				utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags,
+				isAutoRevocationsEnabled bool) error {
 
-				return blockchain.ValidateTransactionScripts(tx, utxoView, flags, sigCache)
+				return blockchain.ValidateTransactionScripts(tx, utxoView, flags,
+					sigCache, isAutoRevocationsEnabled)
 			},
 		}),
 	}
@@ -1475,9 +1488,15 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 		outputs = append(outputs, txOutToSpendableOut(coinbase, i,
 			wire.TxTreeRegular))
 	}
+
+	// Mock the chain best block and state.
+	mockBestBlock := *dcrutil.NewBlock(&wire.MsgBlock{})
+	mockBestHash := mockBestBlock.Hash()
+	chain.tipGeneration = []chainhash.Hash{*mockBestHash}
+	chain.blocks[*mockBestHash] = &mockBestBlock
 	chain.bestState = blockchain.BestState{
-		Height:     int64(chainParams.CoinbaseMaturity) + curHeight,
-		MedianTime: time.Now(),
+		Hash:   *mockBestHash,
+		Height: int64(chainParams.CoinbaseMaturity) + curHeight,
 	}
 
 	return harness, outputs, nil

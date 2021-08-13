@@ -868,6 +868,12 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	harness.chain.SetHeight(int64(chainParams.CoinbaseMaturity) + curHeight)
 	harness.chain.SetPastMedianTime(time.Now())
 
+	// Mock the chain best block and state.
+	mockBestBlock := *dcrutil.NewBlock(&wire.MsgBlock{})
+	mockBestHash := mockBestBlock.Hash()
+	harness.chain.blocks[*mockBestHash] = &mockBestBlock
+	harness.chain.SetBestHash(mockBestHash)
+
 	return harness, outputs, nil
 }
 
@@ -1913,8 +1919,10 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	for i := 0; i < maxVoteDoubleSpends*2; i++ {
 		// Ensure each vote is voting on a different block.
 		var hash chainhash.Hash
+		mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
 		binary.LittleEndian.PutUint32(hash[:4], uint32(i))
 		harness.chain.SetBestHash(&hash)
+		harness.chain.blocks[hash] = mockBlock
 
 		vote, err := harness.CreateVote(ticket)
 		if err != nil {
@@ -2031,8 +2039,11 @@ func TestDuplicateVoteRejection(t *testing.T) {
 		noTreasury, noAutoRevocations)
 
 	// Create a vote that votes on a block at stake validation height.
-	harness.chain.SetBestHash(&chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e})
+	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
+	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
+	harness.chain.SetBestHash(&hash)
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
+	harness.chain.blocks[hash] = mockBlock
 	vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)

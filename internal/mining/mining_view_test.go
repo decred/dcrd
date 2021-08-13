@@ -7,7 +7,6 @@ package mining
 import (
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -482,9 +481,7 @@ func TestAncestorTrackingLimits(t *testing.T) {
 		newBlockHeight := harness.chain.bestState.Height + 1
 		harness.AddFakeUTXO(tx, newBlockHeight, wire.NullBlockIndex,
 			harness.chain.isTreasuryAgendaActive)
-		harness.chain.bestState = blockchain.BestState{
-			Height: newBlockHeight,
-		}
+		harness.chain.bestState.Height = newBlockHeight
 
 		harness.RemoveTransactionFromTxSource(tx, false)
 		harness.txSource.MaybeAcceptDependents(tx,
