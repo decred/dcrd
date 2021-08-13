@@ -61,6 +61,7 @@ type fakeChain struct {
 	checkConnectBlockTemplateErr       error
 	checkTicketExhaustionErr           error
 	checkTSpendHasVotesErr             error
+	fetchUtxoEntryErr                  error
 	fetchUtxoViewErr                   error
 	fetchUtxoViewParentTemplateErr     error
 	forceHeadReorganizationErr         error
@@ -131,6 +132,12 @@ func (c *fakeChain) CheckTicketExhaustion(hash *chainhash.Hash, ticketPurchases 
 // prevHash block.
 func (c *fakeChain) CheckTSpendHasVotes(prevHash chainhash.Hash, tspend *dcrutil.Tx) error {
 	return c.checkTSpendHasVotesErr
+}
+
+// FetchUtxoEntry returns the requested unspent transaction output from the
+// mocked utxos.
+func (c *fakeChain) FetchUtxoEntry(outpoint wire.OutPoint) (*blockchain.UtxoEntry, error) {
+	return c.utxos.LookupEntry(outpoint), c.fetchUtxoEntryErr
 }
 
 // FetchUtxoView loads unspent transaction outputs for the inputs referenced by
@@ -1389,6 +1396,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
 			CountSigOps:                     blockchain.CountSigOps,
+			FetchUtxoEntry:                  chain.FetchUtxoEntry,
 			FetchUtxoView:                   chain.FetchUtxoView,
 			FetchUtxoViewParentTemplate:     chain.FetchUtxoViewParentTemplate,
 			ForceHeadReorganization:         chain.ForceHeadReorganization,

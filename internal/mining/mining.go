@@ -115,6 +115,19 @@ type Config struct {
 	// transaction.
 	CountSigOps func(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int
 
+	// FetchUtxoEntry defines the function to use to load and return the requested
+	// unspent transaction output from the point of view of the main chain tip.
+	//
+	// NOTE: Requesting an output for which there is no data will NOT return an
+	// error.  Instead both the entry and the error will be nil.  This is done to
+	// allow pruning of spent transaction outputs.  In practice this means the
+	// caller must check if the returned entry is nil before invoking methods on
+	// it.
+	//
+	// This function is safe for concurrent access however the returned entry (if
+	// any) is NOT.
+	FetchUtxoEntry func(outpoint wire.OutPoint) (*blockchain.UtxoEntry, error)
+
 	// FetchUtxoView defines the function to use to fetch unspent transaction
 	// output information.  The returned instance should be treated as immutable.
 	FetchUtxoView func(tx *dcrutil.Tx, includeRegularTxns bool) (*blockchain.UtxoViewpoint, error)
