@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -167,7 +167,7 @@ func findTicketIdxs(size int, n uint16, prng *Hash256PRNG) ([]int, error) {
 	}
 	sz := uint32(size)
 
-	var list []int
+	list := make([]int, 0, n)
 	var listLen uint16
 	for listLen < n {
 		r := int(prng.uniformRandom(sz))
