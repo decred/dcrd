@@ -537,54 +537,63 @@ func SStxNullOutputAmounts(amounts []int64,
 	return fees, contribAmounts, nil
 }
 
-// CalculateRewards takes a list of SStx adjusted output amounts, the amount used
-// to purchase that ticket, and the reward for an SSGen tx and subsequently
-// generates what the outputs should be in the SSGen tx.  If used for calculating
-// the outputs for an SSRtx, pass 0 for subsidy.
-func CalculateRewards(amounts []int64, amountTicket int64,
-	subsidy int64) []int64 {
-	outputsAmounts := make([]int64, len(amounts))
-
-	// SSGen handling
-	amountWithStakebase := amountTicket + subsidy
+// CalculateRewards calculates the required amounts to return from a ticket for
+// the given original contribution amounts, the price the ticket was purchased
+// for, and the vote subsidy (if any) to include.
+//
+// Since multiple inputs can be used to purchase a ticket, each one contributes
+// a portion of the overall ticket purchase, including the transaction fee.
+// Thus, when claiming the ticket, either due to it being selected to vote, or
+// being revoked, each output must receive the same proportion of the total
+// amount returned.
+//
+// The vote subsidy must be 0 for revocations since, unlike votes, they do not
+// produce any additional subsidy.
+func CalculateRewards(contribAmounts []int64, ticketPurchaseAmount,
+	voteSubsidy int64) []int64 {
 
 	// Get the sum of the amounts contributed between both fees
 	// and contributions to the ticket.
 	totalContrib := int64(0)
-	for _, amount := range amounts {
+	for _, amount := range contribAmounts {
 		totalContrib += amount
 	}
-
-	// Now we want to get the adjusted amounts including the reward.
-	// The algorithm is like this:
-	// 1 foreach amount
-	// 2     amount *= 2^32
-	// 3     amount /= amountTicket
-	// 4     amount *= amountWithStakebase
-	// 5     amount /= 2^32
-	amountWithStakebaseBig := big.NewInt(amountWithStakebase)
 	totalContribBig := big.NewInt(totalContrib)
 
-	for idx, amount := range amounts {
-		amountBig := big.NewInt(amount) // We need > 64 bits
+	// Create a slice for the return amounts.
+	numReturnAmounts := uint32(len(contribAmounts))
+	returnAmounts := make([]int64, numReturnAmounts)
 
-		// mul amountWithStakebase
-		amountBig.Mul(amountBig, amountWithStakebaseBig)
-
-		// mul 2^32
-		amountBig.Lsh(amountBig, 32)
-
-		// div totalContrib
-		amountBig.Div(amountBig, totalContribBig)
-
-		// div 2^32
-		amountBig.Rsh(amountBig, 32)
-
-		// make int64
-		outputsAmounts[idx] = amountBig.Int64()
+	// Calculate the return amounts.
+	totalOutputAmt := ticketPurchaseAmount + voteSubsidy
+	totalOutputAmtBig := big.NewInt(totalOutputAmt)
+	for i, contribAmount := range contribAmounts {
+		// This is effectively equivalent to:
+		//
+		//                  total output amount
+		// return amount =  ------------------- * contribution amount
+		//                  total contributions
+		//
+		// However, in order to avoid floating point math, it uses 64.32 fixed point
+		// integer division to perform:
+		//
+		//                   --                                              --
+		//                  | total output amount * contribution amount * 2^32 |
+		//                  | ------------------------------------------------ |
+		// return amount =  |                total contributions               |
+		//                   --                                              --
+		//                  ----------------------------------------------------
+		//                                        2^32
+		//
+		returnAmtBig := big.NewInt(contribAmount)
+		returnAmtBig.Mul(returnAmtBig, totalOutputAmtBig)
+		returnAmtBig.Lsh(returnAmtBig, 32)
+		returnAmtBig.Div(returnAmtBig, totalContribBig)
+		returnAmtBig.Rsh(returnAmtBig, 32)
+		returnAmounts[i] = returnAmtBig.Int64()
 	}
 
-	return outputsAmounts
+	return returnAmounts
 }
 
 // --------------------------------------------------------------------------------
