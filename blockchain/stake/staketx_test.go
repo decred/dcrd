@@ -1261,28 +1261,96 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	}
 }
 
-func TestGetStakeRewards(t *testing.T) {
-	// SSGen example with >0 subsidy
-	amounts := []int64{
-		21000000,
-		11000000,
-		10000000,
-	}
-	amountTicket := int64(42000000)
-	subsidy := int64(400000)
+// TestCalculateRewards ensures that ticket output amounts are calculated
+// correctly under a variety of conditions.
+func TestCalculateRewards(t *testing.T) {
+	t.Parallel()
 
-	outAmts := CalculateRewards(amounts, amountTicket, subsidy)
+	tests := []struct {
+		name                 string
+		contribAmounts       []int64
+		ticketPurchaseAmount int64
+		voteSubsidy          int64
+		want                 []int64
+	}{{
+		name: "vote rewards - evenly divisible over all outputs",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount: 20000000000,
+		voteSubsidy:          100000000,
+		want: []int64{
+			2512500000,
+			2512500000,
+			5025000000,
+			10050000000,
+		},
+	}, {
+		name: "revocation rewards - evenly divisible over all outputs",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount: 20000000000,
+		voteSubsidy:          0,
+		want: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+	}, {
+		name: "vote rewards - remainder of 2",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount: 300000000,
+		voteSubsidy:          300002,
+		want: []int64{
+			100100000,
+			100100000,
+			100100000,
+		},
+	}, {
+		name: "revocation rewards - remainder of 4",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount: 799999996,
+		voteSubsidy:          0,
+		want: []int64{
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+		},
+	}}
 
-	// SSRtx example with 0 subsidy
-	expectedAmts := []int64{
-		21200000,
-		11104761,
-		10095238,
-	}
-
-	if !reflect.DeepEqual(expectedAmts, outAmts) {
-		t.Errorf("TestGetStakeRewards error, wanted %v, "+
-			"but got %v", expectedAmts, outAmts)
+	for _, test := range tests {
+		got := CalculateRewards(test.contribAmounts, test.ticketPurchaseAmount,
+			test.voteSubsidy)
+		if !reflect.DeepEqual(got, test.want) {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
+				test.want)
+		}
 	}
 }
 
