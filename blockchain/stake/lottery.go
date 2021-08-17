@@ -112,12 +112,12 @@ func (hp *Hash256PRNG) Hash256Rand() uint32 {
 	return r
 }
 
-// uniformRandom returns a random in the range [0 ... upperBound) while avoiding
+// UniformRandom returns a random in the range [0 ... upperBound) while avoiding
 // modulo bias, thus giving a normal distribution within the specified range.
 //
 // Ported from
 // https://github.com/conformal/clens/blob/master/src/arc4random_uniform.c
-func (hp *Hash256PRNG) uniformRandom(upperBound uint32) uint32 {
+func (hp *Hash256PRNG) UniformRandom(upperBound uint32) uint32 {
 	var r, min uint32
 	if upperBound < 2 {
 		return 0
@@ -170,7 +170,7 @@ func findTicketIdxs(size int, n uint16, prng *Hash256PRNG) ([]int, error) {
 	list := make([]int, 0, n)
 	var listLen uint16
 	for listLen < n {
-		r := int(prng.uniformRandom(sz))
+		r := int(prng.UniformRandom(sz))
 		if !intInSlice(r, list) {
 			list = append(list, r)
 			listLen++
