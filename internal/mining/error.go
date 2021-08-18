@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -51,6 +51,13 @@ const (
 	// calculating the associated commitment root for a newly created block
 	// template failed.
 	ErrCalcCommitmentRoot = ErrorKind("ErrCalcCommitmentRoot")
+
+	// ErrGetTicketInfo indicates that ticket information could not be retreived
+	// in order to connect a transaction.
+	ErrGetTicketInfo = ErrorKind("ErrGetTicketInfo")
+
+	// ErrSerializeHeader indicates an attempt to serialize a block header failed.
+	ErrSerializeHeader = ErrorKind("ErrSerializeHeader")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
