@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -34,6 +34,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 		{feePerKB: 1234, txType: stake.TxTypeRegular, priority: 2},
 		{feePerKB: 10000, txType: stake.TxTypeRegular, priority: 0}, // Higher fee, lower prio
 		{feePerKB: 0, txType: stake.TxTypeRegular, priority: 10000}, // Higher prio, lower fee
+		{txType: stake.TxTypeSSRtx, autoRevocation: true},
 	}
 
 	// Add random data in addition to the edge conditions already manually
@@ -92,8 +93,8 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 		txpi, ok := prioItem.(*txPrioItem)
 		if ok {
 			bothAreLowStakePriority :=
-				txStakePriority(txpi.txType) == regOrRevocPriority &&
-					txStakePriority(last.txType) == regOrRevocPriority
+				txStakePriority(txpi.txType, txpi.autoRevocation) == regOrRevocPriority &&
+					txStakePriority(last.txType, last.autoRevocation) == regOrRevocPriority
 			if !bothAreLowStakePriority {
 				if txpi.feePerKB > last.feePerKB &&
 					compareStakePriority(txpi, last) >= 0 {
