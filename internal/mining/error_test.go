@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -26,6 +26,8 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrFraudProofIndex, "ErrFraudProofIndex"},
 		{ErrFetchTxStore, "ErrFetchTxStore"},
 		{ErrCalcCommitmentRoot, "ErrCalcCommitmentRoot"},
+		{ErrGetTicketInfo, "ErrGetTicketInfo"},
+		{ErrSerializeHeader, "ErrSerializeHeader"},
 	}
 
 	for i, test := range tests {
