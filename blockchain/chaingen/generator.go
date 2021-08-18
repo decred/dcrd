@@ -1716,6 +1716,72 @@ func ReplaceVotes(voteBits uint16, newVersion uint32) func(*wire.MsgBlock) {
 	}
 }
 
+// ReplaceRevocationVersions returns a function that itself takes a block and
+// modifies it by replacing the transaction version of all revocations contained
+// in the block.
+func ReplaceRevocationVersions(newVersion uint16) func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		for _, stx := range b.STransactions {
+			if isRevocationTx(stx) {
+				stx.Version = newVersion
+			}
+		}
+	}
+}
+
+// CreateRevocationsForMissedTickets returns a function that itself takes a
+// block and modifies it by creating revocations for all tickets that would
+// otherwise become missed as of that block.
+//
+// Note: This is intended to be used when the automatic ticket revocations
+// agenda is active.  If the agenda is not active, revocations are not valid
+// until the block AFTER they become missed or expired.
+func (g *Generator) CreateRevocationsForMissedTickets() func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		// Attempt to prevent misuse of this function by ensuring the provided block
+		// connects to the current tip.
+		if b.Header.PrevBlock != g.tip.BlockHash() {
+			panic(fmt.Sprintf("attempted to create revocations for missed tickets "+
+				"for block %s with parent %s that is not the current tip %s",
+				b.BlockHash(), b.Header.PrevBlock, g.tip.BlockHash()))
+		}
+
+		// Create a map of the ticket hashes of votes in the block for faster
+		// lookup.
+		const ticketInIdx = 1
+		ticketsPerBlock := g.params.TicketsPerBlock
+		voteTicketHashes := make(map[chainhash.Hash]struct{}, ticketsPerBlock)
+		for _, stx := range b.STransactions {
+			if isVoteTx(stx) {
+				ticketHash := stx.TxIn[ticketInIdx].PreviousOutPoint.Hash
+				voteTicketHashes[ticketHash] = struct{}{}
+			}
+		}
+
+		// Get the winning tickets for the block.
+		prevBlock := g.blocks[b.Header.PrevBlock]
+		winners, _, err := winningTickets(prevBlock, g.liveTickets, ticketsPerBlock)
+		if err != nil {
+			panic(err)
+		}
+
+		// Create revocation transactions for all tickets that would become missed
+		// as of this block due to not having corresponding vote transaction.
+		for _, winningStakeTx := range winners {
+			if _, ok := voteTicketHashes[winningStakeTx.tx.TxHash()]; !ok {
+				// Create a revocation from the ticket and set the signature script to
+				// nil since a non-empty signature script is not allowed when the
+				// automatic ticket revocations agenda is active.
+				revocationTx := g.createRevocationTxFromTicket(winningStakeTx)
+				revocationTx.TxIn[0].SignatureScript = nil
+
+				b.STransactions = append(b.STransactions, revocationTx)
+				b.Header.Revocations++
+			}
+		}
+	}
+}
+
 // CreateSpendTx creates a transaction that spends from the provided spendable
 // output and includes an additional unique OP_RETURN output to ensure the
 // transaction ends up with a unique hash.  The public key script is a simple
