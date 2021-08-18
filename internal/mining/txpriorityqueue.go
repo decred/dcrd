@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,11 +15,12 @@ import (
 // transaction to be prioritized and track dependencies on other transactions
 // which have not been mined into a block yet.
 type txPrioItem struct {
-	txDesc   *TxDesc
-	txType   stake.TxType
-	fee      int64
-	priority float64
-	feePerKB float64
+	txDesc         *TxDesc
+	txType         stake.TxType
+	autoRevocation bool
+	fee            int64
+	priority       float64
+	feePerKB       float64
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
@@ -77,24 +78,30 @@ func (pq *txPriorityQueue) SetLessFunc(lessFunc txPriorityQueueLessFunc) {
 }
 
 // stakePriority is an integer that is used to sort stake transactions
-// by importance when they enter the min heap for block construction.
-// 2 is for votes (highest), followed by 1 for tickets (2nd highest),
-// followed by 0 for regular transactions and revocations (lowest).
+// by importance when they enter the min heap for block construction.  The
+// priority is:
+//   - 3 is for votes (highest)
+//   - 2 for automatic revocations
+//   - 1 for tickets
+//   - 0 for regular transactions and revocations (lowest)
 type stakePriority int
 
 const (
 	regOrRevocPriority stakePriority = iota
 	ticketPriority
+	autoRevocPriority
 	votePriority
 )
 
 // stakePriority assigns a stake priority based on a transaction type.
-func txStakePriority(txType stake.TxType) stakePriority {
+func txStakePriority(txType stake.TxType, autoRevocation bool) stakePriority {
 	prio := regOrRevocPriority
-	switch txType {
-	case stake.TxTypeSSGen:
+	switch {
+	case txType == stake.TxTypeSSGen:
 		prio = votePriority
-	case stake.TxTypeSStx:
+	case txType == stake.TxTypeSSRtx && autoRevocation:
+		prio = autoRevocPriority
+	case txType == stake.TxTypeSStx:
 		prio = ticketPriority
 	}
 
@@ -106,8 +113,8 @@ func txStakePriority(txType stake.TxType) stakePriority {
 // returns 1 if i > j, 0 if i == j, and -1 if i < j in terms of stake
 // priority.
 func compareStakePriority(i, j *txPrioItem) int {
-	iStakePriority := txStakePriority(i.txType)
-	jStakePriority := txStakePriority(j.txType)
+	iStakePriority := txStakePriority(i.txType, i.autoRevocation)
+	jStakePriority := txStakePriority(j.txType, j.autoRevocation)
 
 	if iStakePriority > jStakePriority {
 		return 1
@@ -154,9 +161,10 @@ func txPQByStakeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
 		return false
 	}
 
-	bothAreLowStakePriority :=
-		txStakePriority(pq.items[i].txType) == regOrRevocPriority &&
-			txStakePriority(pq.items[j].txType) == regOrRevocPriority
+	iPrio := txStakePriority(pq.items[i].txType, pq.items[i].autoRevocation)
+	jPrio := txStakePriority(pq.items[j].txType, pq.items[j].autoRevocation)
+	bothAreLowStakePriority := iPrio == regOrRevocPriority &&
+		jPrio == regOrRevocPriority
 
 	// Use fees per KB on high stake priority transactions.
 	if !bothAreLowStakePriority {
