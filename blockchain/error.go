@@ -607,6 +607,9 @@ const (
 	// block which is not allowed.
 	ErrInvalidateGenesisBlock = ErrorKind("ErrInvalidateGenesisBlock")
 
+	// ErrSerializeHeader indicates an attempt to serialize a block header failed.
+	ErrSerializeHeader = ErrorKind("ErrSerializeHeader")
+
 	// ------------------------------------------
 	// Errors related to the UTXO backend.
 	// ------------------------------------------
@@ -627,6 +630,22 @@ const (
 	// a UTXO backend transaction that has already had one of those operations
 	// performed.
 	ErrUtxoBackendTxClosed = ErrorKind("ErrUtxoBackendTxClosed")
+
+	// -----------------------------------------------------------------
+	// Errors related to the automatic ticket revocations agenda.
+	// -----------------------------------------------------------------
+
+	// ErrInvalidRevocationTxVersion indicates that the revocation is the wrong
+	// transaction version.
+	ErrInvalidRevocationTxVersion = ErrorKind("ErrInvalidRevocationTxVersion")
+
+	// ErrNoExpiredTicketRevocation indicates that the block does not contain a
+	// revocation for a ticket that is becoming expired as of that block.
+	ErrNoExpiredTicketRevocation = ErrorKind("ErrNoExpiredTicketRevocation")
+
+	// ErrNoMissedTicketRevocation indicates that the block does not contain a
+	// revocation for a ticket that is becoming missed as of that block.
+	ErrNoMissedTicketRevocation = ErrorKind("ErrNoMissedTicketRevocation")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
