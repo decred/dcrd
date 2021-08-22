@@ -1566,3 +1566,199 @@ func TestCalcTicketReturnAmounts(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckTicketRedeemers ensures that all ticket redeemer consensus rule
+// checks work as expected.
+func TestCheckTicketRedeemers(t *testing.T) {
+	t.Parallel()
+
+	// Generate a slice of ticket hashes to use for tests.
+	const numTicketHashes = 9
+	testTicketHashes := make([]chainhash.Hash, numTicketHashes)
+	for i := 0; i < numTicketHashes; i++ {
+		var randHash chainhash.Hash
+		if _, err := mrand.Read(randHash[:]); err != nil {
+			t.Fatalf("error reading random hash: %v", err)
+		}
+		testTicketHashes[i] = randHash
+	}
+
+	// Create a default exists missed ticket function.
+	defaultExistsMissedTicket := func(ticket chainhash.Hash) bool {
+		return false
+	}
+
+	tests := []struct {
+		name                     string
+		voteTicketHashes         []chainhash.Hash
+		revocationTicketHashes   []chainhash.Hash
+		winners                  []chainhash.Hash
+		expiringNextBlock        []chainhash.Hash
+		existsMissedTicket       func(ticket chainhash.Hash) bool
+		isTreasuryEnabled        bool
+		isAutoRevocationsEnabled bool
+		wantErr                  error
+	}{{
+		name:             "ok with no revocations (auto revocations disabled)",
+		voteTicketHashes: testTicketHashes[:5],
+		winners:          testTicketHashes[:5],
+	}, {
+		name: "ok with revocations for previously missed tickets (auto " +
+			"revocations disabled)",
+		voteTicketHashes:       testTicketHashes[:5],
+		revocationTicketHashes: testTicketHashes[5:6],
+		winners:                testTicketHashes[:5],
+		existsMissedTicket: func(ticket chainhash.Hash) bool {
+			return ticket == testTicketHashes[5]
+		},
+	}, {
+		name: "ok block does not contain a revocation for ticket that is " +
+			"becoming missed as of this block (auto revocations disabled)",
+		voteTicketHashes: testTicketHashes[:4],
+		winners:          testTicketHashes[:5],
+	}, {
+		name: "ok block does not contain a revocation for ticket that is " +
+			"becoming expired as of this block (auto revocations disabled)",
+		voteTicketHashes:  testTicketHashes[:5],
+		winners:           testTicketHashes[:5],
+		expiringNextBlock: testTicketHashes[5:6],
+	}, {
+		name: "revocations not allowed for tickets missed this block (auto " +
+			"revocations disabled)",
+		voteTicketHashes:       testTicketHashes[:4],
+		revocationTicketHashes: testTicketHashes[4:5],
+		winners:                testTicketHashes[:5],
+		wantErr:                ErrInvalidSSRtx,
+	}, {
+		name: "revocations not allowed for tickets expired this block (auto " +
+			"revocations disabled)",
+		voteTicketHashes:       testTicketHashes[:5],
+		revocationTicketHashes: testTicketHashes[5:6],
+		winners:                testTicketHashes[:5],
+		expiringNextBlock:      testTicketHashes[5:6],
+		wantErr:                ErrInvalidSSRtx,
+	}, {
+		name: "block contains vote for ineligible ticket (auto revocations " +
+			"disabled)",
+		voteTicketHashes: testTicketHashes[:5],
+		winners:          testTicketHashes[1:6],
+		wantErr:          ErrTicketUnavailable,
+	}, {
+		name: "block contains revocation of ineligible ticket (auto revocations " +
+			"disabled)",
+		voteTicketHashes:       testTicketHashes[:5],
+		revocationTicketHashes: testTicketHashes[5:6],
+		winners:                testTicketHashes[:5],
+		wantErr:                ErrInvalidSSRtx,
+	}, {
+		name: "ok with no revocations (auto revocations " +
+			"enabled)",
+		voteTicketHashes:         testTicketHashes[:5],
+		winners:                  testTicketHashes[:5],
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "ok with revocations for previously missed tickets (auto " +
+			"revocations enabled)",
+		voteTicketHashes:       testTicketHashes[:5],
+		revocationTicketHashes: testTicketHashes[5:6],
+		winners:                testTicketHashes[:5],
+		existsMissedTicket: func(ticket chainhash.Hash) bool {
+			return ticket == testTicketHashes[5]
+		},
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "ok with revocations for tickets missed this block (auto " +
+			"revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:4],
+		revocationTicketHashes:   testTicketHashes[4:5],
+		winners:                  testTicketHashes[:5],
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "ok with revocations for tickets expired this block (auto " +
+			"revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:5],
+		revocationTicketHashes:   testTicketHashes[5:6],
+		winners:                  testTicketHashes[:5],
+		expiringNextBlock:        testTicketHashes[5:6],
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "ok with revocations for tickets missed this block and tickets " +
+			"expired this block (auto revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:4],
+		revocationTicketHashes:   testTicketHashes[4:6],
+		winners:                  testTicketHashes[:5],
+		expiringNextBlock:        testTicketHashes[5:6],
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "ok with revocations for previously missed tickets, tickets " +
+			"missed this block, and tickets expired this block (auto revocations " +
+			"enabled)",
+		voteTicketHashes:       testTicketHashes[:3],
+		revocationTicketHashes: testTicketHashes[3:9],
+		winners:                testTicketHashes[:5],
+		expiringNextBlock:      testTicketHashes[5:7],
+		existsMissedTicket: func(ticket chainhash.Hash) bool {
+			return ticket == testTicketHashes[7] || ticket == testTicketHashes[8]
+		},
+		isAutoRevocationsEnabled: true,
+	}, {
+		name: "block contains vote for ineligible ticket (auto revocations " +
+			"enabled)",
+		voteTicketHashes:         testTicketHashes[:5],
+		winners:                  testTicketHashes[1:6],
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrTicketUnavailable,
+	}, {
+		name: "block contains revocation of ineligible ticket (auto " +
+			"revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:5],
+		revocationTicketHashes:   testTicketHashes[5:6],
+		winners:                  testTicketHashes[:5],
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrInvalidSSRtx,
+	}, {
+		name: "block does not contain a revocation for ticket that is becoming " +
+			"missed as of this block (auto revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:4],
+		winners:                  testTicketHashes[:5],
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrNoMissedTicketRevocation,
+	}, {
+		name: "block does not contain a revocation for ticket that is becoming " +
+			"expired as of this block (auto revocations enabled)",
+		voteTicketHashes:         testTicketHashes[:5],
+		winners:                  testTicketHashes[:5],
+		expiringNextBlock:        testTicketHashes[5:6],
+		isAutoRevocationsEnabled: true,
+		wantErr:                  ErrNoExpiredTicketRevocation,
+	}}
+
+	for _, test := range tests {
+		// Use the default exists missed ticket function unless its overridden by
+		// the test.
+		existsMissedTicketFunc := defaultExistsMissedTicket
+		if test.existsMissedTicket != nil {
+			existsMissedTicketFunc = test.existsMissedTicket
+		}
+
+		// Run ticket redeemer validation rules.
+		err := checkTicketRedeemers(test.voteTicketHashes,
+			test.revocationTicketHashes, test.winners, test.expiringNextBlock,
+			existsMissedTicketFunc, test.isTreasuryEnabled,
+			test.isAutoRevocationsEnabled)
+
+		// Validate that the expected error was returned for negative tests.
+		if test.wantErr != nil {
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("%q: mismatched error -- got %T, want %T", test.name, err,
+					test.wantErr)
+			}
+			continue
+		}
+
+		// Validate that an unexpected error was not returned.
+		if err != nil {
+			t.Fatalf("%q: unexpected error: %v", test.name, err)
+		}
+	}
+}
