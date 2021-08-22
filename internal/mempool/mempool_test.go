@@ -693,49 +693,50 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 }
 
 // CreateRevocation creates a revocation using the provided ticket.
-func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) {
-	ticketPurchase := ticket.MsgTx()
-	ticketHash := ticketPurchase.TxHash()
+func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx,
+	revocationTxFee dcrutil.Amount) (*dcrutil.Tx, error) {
 
-	// Parse the ticket purchase transaction and generate the revocation value.
-	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
-		stake.TxSStxStakeOutputInfo(ticketPurchase)
-	revocationValues := stake.CalculateRewards(ticketValues,
-		ticketPurchase.TxOut[0].Value, 0)
+	ticketMsgTx := ticket.MsgTx()
+	ticketHash := ticketMsgTx.TxHash()
 
-	// Add the ticket input.
-	revocation := wire.NewMsgTx()
-	ticketOutPoint := wire.NewOutPoint(&ticketHash, 0, wire.TxTreeStake)
-	ticketInput := wire.NewTxIn(ticketOutPoint,
-		ticketPurchase.TxOut[ticketOutPoint.Index].Value, nil)
-	revocation.AddTxIn(ticketInput)
-
-	// All remaining outputs pay to the output destinations and amounts tagged
-	// by the ticket purchase.
-	params := p.chainParams
-	for i, h160 := range ticketHash160s {
-		var addr stdaddr.StakeAddress
-		if ticketPayKinds[i] { // P2SH
-			addr, _ = stdaddr.NewAddressScriptHashV0FromHash(h160, params)
-		} else {
-			addr, _ = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160, params)
-		}
-
-		_, script := addr.PayRevokeCommitmentScript()
-		revocation.AddTxOut(wire.NewTxOut(revocationValues[i], script))
+	// Set the transaction version based on whether the automatic ticket
+	// revocations agenda is active or not.
+	revocationTxVersion := uint16(1)
+	if p.autoRevocationsActive {
+		revocationTxVersion = stake.TxVersionAutoRevocations
 	}
 
-	// Sign the input.
-	inputToSign := 0
-	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := sign.SignTxOutput(p.chainParams, revocation,
-		inputToSign, redeemTicketScript, txscript.SigHashAll, p, p,
-		revocation.TxIn[inputToSign].SignatureScript, noTreasury)
+	// Get the best header bytes.
+	bestHeader, err := p.chain.HeaderByHash(p.chain.BestHash())
+	if err != nil {
+		return nil, err
+	}
+	bestHeaderBytes, err := bestHeader.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
-	revocation.TxIn[0].SignatureScript = signedScript
+	// Create the revocation transaction.
+	ticketMinOuts := stake.ConvertToMinimalOutputs(ticketMsgTx)
+	revocation, err := stake.CreateRevocationFromTicket(&ticketHash,
+		ticketMinOuts, revocationTxFee, revocationTxVersion, p.chainParams,
+		bestHeaderBytes, p.autoRevocationsActive)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sign the input unless the automatic ticket revocations agenda is active.
+	if !p.autoRevocationsActive {
+		inputToSign := 0
+		redeemTicketScript := ticketMsgTx.TxOut[0].PkScript
+		signedScript, err := sign.SignTxOutput(p.chainParams, revocation,
+			inputToSign, redeemTicketScript, txscript.SigHashAll, p, p,
+			revocation.TxIn[inputToSign].SignatureScript, noTreasury)
+		if err != nil {
+			return nil, err
+		}
+		revocation.TxIn[0].SignatureScript = signedScript
+	}
 
 	return dcrutil.NewTx(revocation), nil
 }
@@ -1158,7 +1159,7 @@ func TestRevocationOrphan(t *testing.T) {
 
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight + 1)
 
-	revocation, err := harness.CreateRevocation(ticket)
+	revocation, err := harness.CreateRevocation(ticket, 0)
 	if err != nil {
 		t.Fatalf("unable to create revocation: %v", err)
 	}
@@ -2898,4 +2899,105 @@ func TestExplicitVersionSemantics(t *testing.T) {
 
 	// NOTE: No attempt to spend a stake output with a script version too high
 	// is made because those have never been permitted by consensus.
+}
+
+// TestRevocationsWithAutoRevocationsEnabled validates that revocations are
+// accepted and rejected by the mempool as expected with the automatic
+// ticket revocations agenda enabled.
+func TestRevocationsWithAutoRevocationsEnabled(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Enable automatic ticket revocations.
+	harness.autoRevocationsActive = true
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the prior
+	// regular transaction.
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction: %v", err)
+	}
+
+	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight + 1)
+
+	// Ensure the regular tx whose output will be spent by the ticket is accepted.
+	_, err = harness.txPool.ProcessTransaction(tx, false, false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
+			err)
+	}
+	testPoolMembership(tc, tx, false, true)
+
+	// Ensure the ticket is accepted.
+	_, err = harness.txPool.ProcessTransaction(ticket, false, false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
+			err)
+	}
+	testPoolMembership(tc, ticket, false, false)
+
+	// Add a fake UTXO for the ticket.
+	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+
+	// Create a revocation from the ticket with a non-zero fee.
+	zeroFee := dcrutil.Amount(0)
+	revocation, err := harness.CreateRevocation(ticket, zeroFee)
+	revocation.MsgTx().TxOut[0].Value--
+	if err != nil {
+		t.Fatalf("unable to create revocation: %v", err)
+	}
+
+	// The revocation should be rejected if the transaction does not have zero
+	// fee.
+	_, err = harness.txPool.ProcessTransaction(revocation, false, false, true,
+		0)
+	if !errors.Is(err, blockchain.ErrRegTxCreateStakeOut) {
+		t.Fatalf("mismatched err -- got %T, want %T", err,
+			blockchain.ErrRegTxCreateStakeOut)
+	}
+
+	// Create a revocation from the ticket with zero-fee.
+	revocation, err = harness.CreateRevocation(ticket, zeroFee)
+	if err != nil {
+		t.Fatalf("unable to create revocation: %v", err)
+	}
+
+	// The revocation should be rejected if the transaction is not version 2.
+	revocation.SetVersion(1)
+	_, err = harness.txPool.ProcessTransaction(revocation, false, false, true,
+		0)
+	if !errors.Is(err, blockchain.ErrInvalidRevocationTxVersion) {
+		t.Fatalf("mismatched err -- got %T, want %T", err,
+			blockchain.ErrInvalidRevocationTxVersion)
+	}
+
+	// The revocation should be accepted when it is version 2 with zero fee.
+	revocation.SetVersion(stake.TxVersionAutoRevocations)
+	_, err = harness.txPool.ProcessTransaction(revocation, false, false, true,
+		0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept orphan transaction %v",
+			err)
+	}
+	testPoolMembership(tc, revocation, false, true)
+
+	// The revocation should be removed when a new block is processed.
+	nextStakeDiff, err := harness.chain.NextStakeDifficulty()
+	if err != nil {
+		t.Fatalf("unable to retrieve next stake difficulty: %v", err)
+	}
+	harness.txPool.PruneStakeTx(nextStakeDiff, harness.chain.BestHeight()+1)
+	testPoolMembership(tc, revocation, false, false)
 }
