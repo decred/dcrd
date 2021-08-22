@@ -9,15 +9,19 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"context"
+	"encoding/binary"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	mrand "math/rand"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -1350,4 +1354,215 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
+}
+
+// TestCalcTicketReturnAmounts ensures that ticket return amounts are calculated
+// correctly under a variety of conditions.
+func TestCalcTicketReturnAmounts(t *testing.T) {
+	t.Parallel()
+
+	// Default header bytes for tests.
+	prevHeaderBytes, _ := hex.DecodeString("07000000dc02335daa073d293e1b150648f" +
+		"0444a60b9c97604abd01e00000000000000003c449b2321c4bd0d1fa76ed59f80ebaf46f" +
+		"16cfb2d17ba46948f09f21861095566482410a463ed49473c27278cd7a2a3712a3b19ff1" +
+		"f6225717d3eb71cc2b5590100012c7312a3c30500050095a100000cf42418f1820a87030" +
+		"0000020a10700091600005b32a55f5bcce31078832100007469943958002e00000000000" +
+		"0000000000000000000000000000007000000")
+
+	// Default ticket commitment script hex for tests.
+	p2pkhCommitScriptHex := "ba76a914097e847d49c6806f6933e806a350f43b97ac70d088ac"
+
+	// createTestTicketOuts is a helper function that creates mock minimal outputs
+	// for a ticket with the given contribution amounts.  Note that this only
+	// populates the ticket commitment outputs since those are the only outputs
+	// used to calculate ticket return amounts.
+	createTestTicketOuts := func(contribAmounts []int64) []*stake.MinimalOutput {
+		ticketOuts := make([]*stake.MinimalOutput, len(contribAmounts)*2+1)
+		for i := 0; i < len(contribAmounts); i++ {
+			commitScript := hexToBytes(p2pkhCommitScriptHex)
+			amtBytes := commitScript[commitAmountStartIdx:commitAmountEndIdx]
+			binary.LittleEndian.PutUint64(amtBytes, uint64(contribAmounts[i]))
+			ticketOuts[i*2+1] = &stake.MinimalOutput{PkScript: commitScript}
+		}
+		return ticketOuts
+	}
+
+	tests := []struct {
+		name                     string
+		contribAmounts           []int64
+		ticketPurchaseAmount     int64
+		voteSubsidy              int64
+		prevHeaderBytes          []byte
+		isVote                   bool
+		isAutoRevocationsEnabled bool
+		want                     []int64
+	}{{
+		name: "vote rewards - evenly divisible over all outputs (auto " +
+			"revocations disabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount: 20000000000,
+		voteSubsidy:          100000000,
+		isVote:               true,
+		want: []int64{
+			2512500000,
+			2512500000,
+			5025000000,
+			10050000000,
+		},
+	}, {
+		name: "revocation rewards - evenly divisible over all outputs (auto " +
+			"revocations disabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount: 20000000000,
+		voteSubsidy:          0,
+		want: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+	}, {
+		name: "vote rewards - remainder of 2 (auto revocations disabled)",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount: 300000000,
+		voteSubsidy:          300002,
+		isVote:               true,
+		want: []int64{
+			100100000,
+			100100000,
+			100100000,
+		},
+	}, {
+		name: "revocation rewards - remainder of 4 (auto revocations disabled)",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount: 799999996,
+		voteSubsidy:          0,
+		want: []int64{
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+		},
+	}, {
+		name: "vote rewards - evenly divisible over all outputs (auto " +
+			"revocations enabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount:     20000000000,
+		voteSubsidy:              100000000,
+		prevHeaderBytes:          prevHeaderBytes,
+		isVote:                   true,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			2512500000,
+			2512500000,
+			5025000000,
+			10050000000,
+		},
+	}, {
+		name: "revocation rewards - evenly divisible over all outputs (auto " +
+			"revocations enabled)",
+		contribAmounts: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+		ticketPurchaseAmount:     20000000000,
+		voteSubsidy:              0,
+		prevHeaderBytes:          prevHeaderBytes,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			2500000000,
+			2500000000,
+			5000000000,
+			10000000000,
+		},
+	}, {
+		name: "vote rewards - remainder of 2 (auto revocations enabled)",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount:     400000000,
+		voteSubsidy:              400002,
+		prevHeaderBytes:          prevHeaderBytes,
+		isVote:                   true,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			100100000,
+			100100000,
+			100100000,
+			100100000,
+		},
+	}, {
+		name: "revocation rewards - remainder of 4 (auto revocations enabled)",
+		contribAmounts: []int64{
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+			100000000,
+		},
+		ticketPurchaseAmount:     799999996,
+		voteSubsidy:              0,
+		prevHeaderBytes:          prevHeaderBytes,
+		isAutoRevocationsEnabled: true,
+		want: []int64{
+			99999999,
+			100000000,
+			99999999,
+			99999999,
+			99999999,
+			99999999,
+			100000001,
+			100000000,
+		},
+	}}
+
+	for _, test := range tests {
+		got := calcTicketReturnAmounts(createTestTicketOuts(test.contribAmounts),
+			test.ticketPurchaseAmount, test.voteSubsidy, test.prevHeaderBytes,
+			test.isVote, test.isAutoRevocationsEnabled)
+		if !reflect.DeepEqual(got, test.want) {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
+				test.want)
+		}
+	}
 }
