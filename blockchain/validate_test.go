@@ -1762,3 +1762,154 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		}
 	}
 }
+
+// TestAutoRevocations ensures that all of the validation rules associated with
+// the automatic ticket revocations agenda work as expected.
+func TestAutoRevocations(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote activation
+	// as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct
+	// deployment for the automatic ticket revocations agenda, and, finally,
+	// ensure it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
+	const autoRevocationsEnabled = true
+	const voteID = chaincfg.VoteIDAutoRevocations
+	params = cloneParams(params)
+	version, deployment, err := findDeployment(params, voteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Shorter versions of useful params for convenience.
+	coinbaseMaturity := params.CoinbaseMaturity
+	stakeValidationHeight := params.StakeValidationHeight
+	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "testautorevocations")
+	defer teardownFunc()
+
+	// replaceAutoRevocationsVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, vote, and revocation
+	// transaction versions with the versions associated with the automatic ticket
+	// revocations deployment.
+	replaceAutoRevocationsVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(version))(b)
+		chaingen.ReplaceStakeVersion(version)(b)
+		chaingen.ReplaceVoteVersions(version)(b)
+		chaingen.ReplaceRevocationVersions(stake.TxVersionAutoRevocations)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set to
+	// reach one block prior to the automatic ticket revocations agenda becoming
+	// active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgendas(voteID)
+	activeAgendaHeight := uint32(stakeValidationHeight + ruleChangeInterval*3 - 1)
+	g.AssertTipHeight(activeAgendaHeight)
+
+	// Ensure the automatic ticket revocations agenda is active.
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsAutoRevocationsAgendaActive(tipHash)
+	if err != nil {
+		t.Fatalf("error checking auto revocations agenda status: %v", err)
+	}
+	if !gotActive {
+		t.Fatal("expected auto revocations agenda to be active")
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to have a known distance to the first mature
+	// coinbase outputs for all tests that follow.  These blocks continue to
+	// purchase tickets to avoid running out of votes.
+	//
+	//   ... -> bsv# -> bbm0 -> bbm1 -> ... -> bbm#
+	// ---------------------------------------------------------------------
+
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bbm%d", i)
+		g.NextBlock(blockName, nil, outs[1:], replaceAutoRevocationsVersions)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+	g.AssertTipHeight(activeAgendaHeight + uint32(coinbaseMaturity))
+
+	// Collect spendable outputs into two different slices.  The outs slice is
+	// intended to be used for regular transactions that spend from the output,
+	// while the ticketOuts slice is intended to be used for stake ticket
+	// purchases.
+	var outs []*chaingen.SpendableOut
+	var ticketOuts [][]chaingen.SpendableOut
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		coinbaseOuts := g.OldestCoinbaseOuts()
+		outs = append(outs, &coinbaseOuts[0])
+		ticketOuts = append(ticketOuts, coinbaseOuts[1:])
+	}
+
+	// Create a block that misses a vote and does not contain a revocation for
+	// that missed vote.
+	//
+	//   ...
+	//      \-> b1(0)
+	startTip := g.TipName()
+	g.NextBlock("b1", outs[0], ticketOuts[0], g.ReplaceWithNVotes(4),
+		replaceAutoRevocationsVersions)
+	g.AssertTipNumRevocations(0)
+	g.RejectTipBlock(ErrNoMissedTicketRevocation)
+
+	// Create a block that misses a vote and contains a version 1 revocation
+	// transaction.
+	//
+	//   ...
+	//      \-> b2(0)
+	g.SetTip(startTip)
+	g.NextBlock("b2", outs[0], ticketOuts[0], g.ReplaceWithNVotes(4),
+		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions,
+		chaingen.ReplaceRevocationVersions(1))
+	g.AssertTipNumRevocations(1)
+	g.RejectTipBlock(ErrInvalidRevocationTxVersion)
+
+	// Create a block that misses a vote and contains a revocation with a non-zero
+	// fee.
+	//
+	//   ...
+	//      \-> b3(0)
+	g.SetTip(startTip)
+	g.NextBlock("b3", outs[0], ticketOuts[0], g.ReplaceWithNVotes(4),
+		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions,
+		func(b *wire.MsgBlock) {
+			for _, stx := range b.STransactions {
+				if !stake.IsSSRtx(stx, autoRevocationsEnabled) {
+					continue
+				}
+
+				// Decrement the first output value to create a non-zero fee and return
+				// so that only a single revocation transaction is modified.
+				stx.TxOut[0].Value--
+				return
+			}
+		})
+	g.AssertTipNumRevocations(1)
+	// Note that this will fail with ErrRegTxCreateStakeOut rather than hitting
+	// the later error case of ErrBadPayeeValue since a revocation with a non-zero
+	// fee will not be identified as a revocation if the automatic ticket
+	// revocations agenda is active.
+	g.RejectTipBlock(ErrRegTxCreateStakeOut)
+
+	// Create a valid block that misses multiple votes and contains revocation
+	// transactions for those votes.
+	//
+	//   ... -> b4(0)
+	g.SetTip(startTip)
+	g.NextBlock("b4", outs[0], ticketOuts[0], g.ReplaceWithNVotes(3),
+		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions)
+	g.AssertTipNumRevocations(2)
+	g.AcceptTipBlock()
+}
