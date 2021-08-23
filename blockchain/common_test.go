@@ -1361,8 +1361,8 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgendas(voteIDs ...string) {
 
 	// Only allow this to be called on a harness at SVH.
 	if g.Tip().Header.Height != uint32(stakeValidationHeight) {
-		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
-			"to advance to stake validation height")
+		g.t.Fatalf("chaingen harness instance must be at stake validation " +
+			"height to advance to active agendas")
 	}
 
 	// ---------------------------------------------------------------------
