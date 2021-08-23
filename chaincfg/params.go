@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -150,6 +150,11 @@ const (
 	// reverts the maximum expenditure policy of the treasury account as
 	// defined by DCP0007.
 	VoteIDRevertTreasuryPolicy = "reverttreasurypolicy"
+
+	// VoteIDExplicitVersionUpgrades is the vote ID for the agenda that enables
+	// rejection of new transaction and script versions until they are
+	// explicitly enabled via a consensus vote as defined by DCP0008.
+	VoteIDExplicitVersionUpgrades = "explicitverupgrades"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule

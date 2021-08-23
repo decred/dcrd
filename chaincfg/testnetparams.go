@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -238,6 +238,33 @@ func TestNet3Params() *Params {
 						Id:          "yes",
 						Description: "change to the new consensus rules",
 						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1631750400, // Sep 16th, 2021
+				ExpireTime: 1694822400, // Sep 16th, 2023
+			}, {
+				Vote: Vote{
+					Id:          VoteIDExplicitVersionUpgrades,
+					Description: "Enable explicit version upgrades as defined in DCP0008",
+					Mask:        0x0018, // Bits 3 and 4
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0008, // Bit 3
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0010, // Bit 4
 						IsAbstain:   false,
 						IsNo:        false,
 					}},
