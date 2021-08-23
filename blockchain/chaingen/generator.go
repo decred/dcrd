@@ -155,6 +155,13 @@ func (t stakeTicketSorter) Less(i, j int) bool {
 	return bytes.Compare(iHash, jHash) < 0
 }
 
+// spendableOutsSnap houses a snapshot of the spendable outputs state.  It is
+// useful to allow callers to reset back to known good points.
+type spendableOutsSnap struct {
+	spendableOuts     [][]SpendableOut
+	prevCollectedHash chainhash.Hash
+}
+
 // Generator houses state used to ease the process of generating test blocks
 // that build from one another along with housing other useful things such as
 // available spendable outputs and generic payment scripts used throughout the
@@ -174,6 +181,7 @@ type Generator struct {
 	// Used for tracking spendable coinbase outputs.
 	spendableOuts     [][]SpendableOut
 	prevCollectedHash chainhash.Hash
+	spendableOutSnaps map[string]spendableOutsSnap
 
 	// Used for tracking the live ticket pool and revocations.
 	originalParents map[chainhash.Hash]chainhash.Hash
@@ -207,6 +215,7 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 		blockHeights:        map[chainhash.Hash]uint32{genesisHash: 0},
 		blocksByName:        map[string]*wire.MsgBlock{"genesis": genesis},
 		blockNames:          map[chainhash.Hash]string{genesisHash: "genesis"},
+		spendableOutSnaps:   make(map[string]spendableOutsSnap),
 		p2shOpTrueAddr:      p2shOpTrueAddr,
 		p2shOpTrueScriptVer: p2shOpTrueScriptVer,
 		p2shOpTrueScript:    p2shOpTrueScript,
@@ -2504,6 +2513,49 @@ func (g *Generator) SaveSpendableCoinbaseOuts() {
 	for i := range collectBlocks {
 		g.saveCoinbaseOuts(collectBlocks[len(collectBlocks)-1-i])
 	}
+}
+
+// dupSpendableOuts returns a deep copy of the passed spendable outputs.
+func dupSpendableOuts(spendableOuts [][]SpendableOut) [][]SpendableOut {
+	result := make([][]SpendableOut, 0, len(spendableOuts))
+	for _, outs := range spendableOuts {
+		outsCopy := make([]SpendableOut, len(outs))
+		copy(outsCopy, outs)
+		result = append(result, outsCopy)
+	}
+	return result
+}
+
+// SnapshotCoinbaseOuts saves the current state of the spendable coinbase
+// outputs with the given snapshot name so that it can be restored later by
+// name.  This is primarily useful for tests that want to be able to undo a
+// bunch of blocks via invalidation and reset the spendable outputs back to a
+// matching known good state.
+//
+// This will panic if the specified snapshot name already exists.
+func (g *Generator) SnapshotCoinbaseOuts(snapName string) {
+	if _, ok := g.spendableOutSnaps[snapName]; ok {
+		panic(fmt.Sprintf("snapshot name %s already exists", snapName))
+	}
+	g.spendableOutSnaps[snapName] = spendableOutsSnap{
+		spendableOuts:     dupSpendableOuts(g.spendableOuts),
+		prevCollectedHash: g.prevCollectedHash,
+	}
+}
+
+// RestoreCoinbaseOutsSnapshot restores the state of the spendable coinbase
+// outputs saved with the given snapshot name.  This is primarily useful for
+// tests that want to be able to undo a bunch of blocks via invalidation and
+// reset the spendable outputs back to a matching known good state.
+//
+// This will panic if the specified snapshot name does not exist.
+func (g *Generator) RestoreCoinbaseOutsSnapshot(snapName string) {
+	snap, ok := g.spendableOutSnaps[snapName]
+	if !ok {
+		panic(fmt.Sprintf("snapshot name %s does not exist", snapName))
+	}
+	g.spendableOuts = dupSpendableOuts(snap.spendableOuts)
+	g.prevCollectedHash = snap.prevCollectedHash
 }
 
 // AssertTipHeight panics if the current tip block associated with the generator
