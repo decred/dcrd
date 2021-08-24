@@ -355,6 +355,14 @@ func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 		rateLimit, allowHighFees, tag)
 }
 
+// RecentlyConfirmedTxn returns with high degree of confidence whether a
+// transaction has been recently confirmed in a block.
+//
+// This method may report a false positive, but never a false negative.
+func (b *rpcSyncMgr) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
+	return b.server.recentlyConfirmedTxns.Contains(hash[:])
+}
+
 // rpcUtxoEntry represents a utxo entry for use with the RPC server and
 // implements the rpcserver.UtxoEntry interface.
 type rpcUtxoEntry struct {

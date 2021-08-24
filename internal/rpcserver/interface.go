@@ -161,6 +161,12 @@ type SyncManager interface {
 	// insertion into the memory pool.
 	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool,
 		allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error)
+
+	// RecentlyConfirmedTxn returns with high degree of confidence whether a
+	// transaction has been recently confirmed in a block.
+	//
+	// This method may report a false positive, but never a false negative.
+	RecentlyConfirmedTxn(hash *chainhash.Hash) bool
 }
 
 // UtxoEntry represents a utxo entry for use with the RPC server.
