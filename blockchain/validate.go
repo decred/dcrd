@@ -898,31 +898,16 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// Do some preliminary checks on stake transactions that do not require
 	// additional context to determine their type to ensure they are sane while
 	// tallying each type before continuing.
-	var totalTickets, totalRevocations int64
+	var totalTickets int64
 	for _, stx := range msgBlock.STransactions {
 		err := checkTransactionSanity(stx, chainParams)
 		if err != nil {
 			return err
 		}
 
-		isTicket := stake.IsSStx(stx)
-		isRevocation := !isTicket && stake.IsSSRtx(stx)
-		switch {
-		case isTicket:
+		if stake.IsSStx(stx) {
 			totalTickets++
-
-		case isRevocation:
-			totalRevocations++
 		}
-	}
-
-	// A block must not contain more than the maximum allowed number of
-	// revocations.
-	if totalRevocations > maxRevocationsPerBlock {
-		str := fmt.Sprintf("block contains %d revocations which exceeds the "+
-			"maximum allowed amount of %d", totalRevocations,
-			maxRevocationsPerBlock)
-		return ruleError(ErrTooManyRevocations, str)
 	}
 
 	// A block header must commit to the actual number of tickets purchases that
@@ -932,15 +917,6 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 			"does not match %d contained in the block", header.FreshStake,
 			totalTickets)
 		return ruleError(ErrFreshStakeMismatch, str)
-	}
-
-	// A block header must commit to the actual number of revocations that
-	// are in the block.
-	if int64(header.Revocations) != totalRevocations {
-		str := fmt.Sprintf("block header commitment to %d revocations does "+
-			"not match %d contained in the block", header.Revocations,
-			totalRevocations)
-		return ruleError(ErrRevocationsMismatch, str)
 	}
 
 	// Check for duplicate transactions.
@@ -1804,6 +1780,24 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				stakeValidationHeight, len(msgBlock.STransactions), numExpected)
 			return ruleError(ErrInvalidEarlyStakeTx, str)
 		}
+	}
+
+	// A block must not contain more than the maximum allowed number of
+	// revocations.
+	if totalRevocations > maxRevocationsPerBlock {
+		str := fmt.Sprintf("block contains %d revocations which exceeds the "+
+			"maximum allowed amount of %d", totalRevocations,
+			maxRevocationsPerBlock)
+		return ruleError(ErrTooManyRevocations, str)
+	}
+
+	// A block header must commit to the actual number of revocations that
+	// are in the block.
+	if int64(header.Revocations) != totalRevocations {
+		str := fmt.Sprintf("block header commitment to %d revocations does "+
+			"not match %d contained in the block", header.Revocations,
+			totalRevocations)
+		return ruleError(ErrRevocationsMismatch, str)
 	}
 
 	// The number of signature operations must be less than the maximum allowed
