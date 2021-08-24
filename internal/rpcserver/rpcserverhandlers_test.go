@@ -514,6 +514,7 @@ type testSyncManager struct {
 	syncHeight            int64
 	processTransaction    []*dcrutil.Tx
 	processTransactionErr error
+	recentlyConfirmedTxn  bool
 }
 
 // IsCurrent returns a mocked bool representing whether or not the sync manager
@@ -543,6 +544,12 @@ func (s *testSyncManager) SyncHeight() int64 {
 func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 	return s.processTransaction, s.processTransactionErr
+}
+
+// RecentlyConfirmedTxn provides a mock implementation for checking if a
+// transaction has been confirmed by a recent block.
+func (s *testSyncManager) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
+	return s.recentlyConfirmedTxn
 }
 
 // testExistsAddresser provides a mock exists addresser by implementing the
@@ -7185,6 +7192,45 @@ func TestHandleSendRawTransaction(t *testing.T) {
 					Description: "duplicate tx",
 				},
 			}
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDuplicateTx,
+	}, {
+		name:    "handleSendRawTransaction: duplicate unspent mined transaction",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr = mempool.RuleError{
+				Err: mempool.RuleError{
+					Err:         mempool.ErrAlreadyExists,
+					Description: "transaction already exists",
+				},
+			}
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDuplicateTx,
+	}, {
+		name:    "handleSendRawTransaction: recently mined transaction",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr = mempool.RuleError{
+				Err: mempool.RuleError{
+					Err:         mempool.ErrInvalid,
+					Description: "invalid tx",
+				},
+			}
+			syncManager.recentlyConfirmedTxn = true
 			return syncManager
 		}(),
 		wantErr: true,

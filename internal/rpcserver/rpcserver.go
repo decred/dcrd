@@ -4669,12 +4669,21 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 		// deserialization error code (to match bitcoind behavior).
 		var rErr mempool.RuleError
 		if errors.As(err, &rErr) {
-			err = fmt.Errorf("rejected transaction %v: %w", tx.Hash(),
+			hash := tx.Hash()
+			err = fmt.Errorf("rejected transaction %v: %w", hash,
 				err)
 			log.Debugf("%v", err)
-			if errors.Is(rErr, mempool.ErrDuplicate) {
-				// This is an actual exact duplicate tx, so
-				// return the specific duplicate tx error.
+
+			// Use the duplicate tx error code when the transaction
+			// is known to already be submitted to the mempool, as
+			// well as whenever there is a high certainty that the
+			// transaction has been confirmed in a recent block.
+			switch {
+			case errors.Is(rErr, mempool.ErrDuplicate):
+				fallthrough
+			case errors.Is(rErr, mempool.ErrAlreadyExists):
+				fallthrough
+			case s.cfg.SyncMgr.RecentlyConfirmedTxn(hash):
 				return nil, rpcDuplicateTxError("%v", err)
 			}
 
