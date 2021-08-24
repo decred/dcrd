@@ -911,143 +911,73 @@ func TestSSGenTreasuryVotes(t *testing.T) {
 
 // SSRTX TESTING ------------------------------------------------------------------
 
-// TestSSRtx ensures the CheckSSRtx and IsSSRtx functions correctly recognize
-// stake submission revocation transactions.
-func TestSSRtx(t *testing.T) {
-	var ssrtx = dcrutil.NewTx(ssrtxMsgTx)
-	ssrtx.SetTree(wire.TxTreeStake)
-	ssrtx.SetIndex(0)
+// TestCheckSSRtx validates that checking a revocation transaction works as
+// expected under a variety of conditions.
+func TestCheckSSRtx(t *testing.T) {
+	t.Parallel()
 
-	err := CheckSSRtx(ssrtx.MsgTx())
-	if err != nil {
-		t.Errorf("IsSSRtx: unexpected err: %v", err)
-	}
-	if !IsSSRtx(ssrtx.MsgTx()) {
-		t.Errorf("IsSSRtx claimed a valid ssrtx is invalid")
-	}
-}
+	tests := []struct {
+		name    string
+		tx      *wire.MsgTx
+		wantErr error
+	}{{
+		name: "ok",
+		tx:   ssrtxMsgTx,
+	}, {
+		name:    "too many inputs",
+		tx:      ssrtxMsgTxTooManyInputs,
+		wantErr: ErrSSRtxWrongNumInputs,
+	}, {
+		name:    "too many outputs",
+		tx:      ssrtxMsgTxTooManyOutputs,
+		wantErr: ErrSSRtxTooManyOutputs,
+	}, {
+		name: "no outputs",
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.TxOut = nil
+			return tx
+		}(),
+		wantErr: ErrSSRtxNoOutputs,
+	}, {
+		name:    "invalid script version",
+		tx:      ssrtxMsgTxBadVerOut,
+		wantErr: ErrSSRtxBadOuts,
+	}, {
+		name: "input from incorrect tree",
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.TxIn[0].PreviousOutPoint.Tree = wire.TxTreeRegular
+			return tx
+		}(),
+		wantErr: ErrSSRtxWrongTxTree,
+	}, {
+		name: "output not OP_SSRTX tagged",
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.TxOut[0].PkScript[0] = txscript.OP_SSGEN
+			return tx
+		}(),
+		wantErr: ErrSSRtxBadOuts,
+	}}
 
-// TestSSRtxErrors ensures the CheckSSRtx and IsSSRtx functions correctly
-// identify errors in stake submission revocation transactions and does not
-// report them as valid.
-func TestIsSSRtxErrors(t *testing.T) {
-	// Initialize the buffer for later manipulation
-	var buf bytes.Buffer
-	buf.Grow(ssrtxMsgTx.SerializeSize())
-	err := ssrtxMsgTx.Serialize(&buf)
-	if err != nil {
-		t.Errorf("Error serializing the reference sstx: %v", err)
-	}
-	bufBytes := buf.Bytes()
+	for _, test := range tests {
+		// Check if the test transaction is a revocation.
+		err := CheckSSRtx(test.tx)
 
-	// ---------------------------------------------------------------------------
-	// Test too many inputs with ssrtxMsgTxTooManyInputs
+		// Validate that the expected error was returned for negative tests.
+		if test.wantErr != nil {
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("%q: mismatched error -- got %T, want %T", test.name, err,
+					test.wantErr)
+			}
+			continue
+		}
 
-	var ssrtxTooManyInputs = dcrutil.NewTx(ssrtxMsgTxTooManyInputs)
-	ssrtxTooManyInputs.SetTree(wire.TxTreeStake)
-	ssrtxTooManyInputs.SetIndex(0)
-
-	err = CheckSSRtx(ssrtxTooManyInputs.MsgTx())
-	if !errors.Is(err, ErrSSRtxWrongNumInputs) {
-		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			ErrSSRtxWrongNumInputs, err)
-	}
-	if IsSSRtx(ssrtxTooManyInputs.MsgTx()) {
-		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
-	}
-
-	// ---------------------------------------------------------------------------
-	// Test too many outputs with ssrtxMsgTxTooManyOutputs
-
-	var ssrtxTooManyOutputs = dcrutil.NewTx(ssrtxMsgTxTooManyOutputs)
-	ssrtxTooManyOutputs.SetTree(wire.TxTreeStake)
-	ssrtxTooManyOutputs.SetIndex(0)
-
-	err = CheckSSRtx(ssrtxTooManyOutputs.MsgTx())
-	if !errors.Is(err, ErrSSRtxTooManyOutputs) {
-		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			ErrSSRtxTooManyOutputs, err)
-	}
-	if IsSSRtx(ssrtxTooManyOutputs.MsgTx()) {
-		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
-	}
-
-	// ---------------------------------------------------------------------------
-	// Test for bad version of output.
-	var ssrtxTxBadVerOut = dcrutil.NewTx(ssrtxMsgTxBadVerOut)
-	ssrtxTxBadVerOut.SetTree(wire.TxTreeStake)
-	ssrtxTxBadVerOut.SetIndex(0)
-
-	err = CheckSSRtx(ssrtxTxBadVerOut.MsgTx())
-	if !errors.Is(err, ErrSSRtxBadOuts) {
-		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			ErrSSRtxBadOuts, err)
-	}
-	if IsSSRtx(ssrtxTxBadVerOut.MsgTx()) {
-		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
-	}
-
-	// ---------------------------------------------------------------------------
-	// Test for an index 0+ output being not OP_SSRTX tagged
-	testRevocOutputUntagged := bytes.Replace(bufBytes,
-		[]byte{
-			0x1a, 0xbc, 0x76, 0xa9, 0x14, 0xc3, 0x98,
-		},
-		[]byte{
-			0x19, 0x76, 0xa9, 0x14, 0xc3, 0x98,
-		},
-		1)
-
-	// Deserialize the manipulated tx
-	var tx wire.MsgTx
-	rbuf := bytes.NewReader(testRevocOutputUntagged)
-	err = tx.Deserialize(rbuf)
-	if err != nil {
-		t.Errorf("Deserialize error %v", err)
-	}
-
-	var ssrtxTestRevocOutputUntagged = dcrutil.NewTx(&tx)
-	ssrtxTestRevocOutputUntagged.SetTree(wire.TxTreeStake)
-	ssrtxTestRevocOutputUntagged.SetIndex(0)
-
-	err = CheckSSRtx(ssrtxTestRevocOutputUntagged.MsgTx())
-	if !errors.Is(err, ErrSSRtxBadOuts) {
-		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			ErrSSRtxBadOuts, err)
-	}
-	if IsSSRtx(ssrtxTestRevocOutputUntagged.MsgTx()) {
-		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
-	}
-
-	// ---------------------------------------------------------------------------
-	// Wrong tree for inputs test
-
-	// Replace TxTreeStake with TxTreeRegular
-	testWrongTreeInputs := bytes.Replace(bufBytes,
-		[]byte{0x79, 0xac, 0x88, 0xfd, 0xf3, 0x57, 0xa1, 0x87, 0x00,
-			0x00, 0x00, 0x00, 0x01},
-		[]byte{0x79, 0xac, 0x88, 0xfd, 0xf3, 0x57, 0xa1, 0x87, 0x00,
-			0x00, 0x00, 0x00, 0x00},
-		1)
-
-	// Deserialize the manipulated tx
-	rbuf = bytes.NewReader(testWrongTreeInputs)
-	err = tx.Deserialize(rbuf)
-	if err != nil {
-		t.Errorf("Deserialize error %v", err)
-	}
-
-	var ssrtxWrongTreeIns = dcrutil.NewTx(&tx)
-	ssrtxWrongTreeIns.SetTree(wire.TxTreeStake)
-	ssrtxWrongTreeIns.SetIndex(0)
-
-	err = CheckSSRtx(ssrtxWrongTreeIns.MsgTx())
-	if !errors.Is(err, ErrSSRtxWrongTxTree) {
-		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			ErrSSGenWrongTxTree, err)
-	}
-	if IsSSRtx(ssrtxWrongTreeIns.MsgTx()) {
-		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
+		// Validate that an unexpected error was not returned.
+		if err != nil {
+			t.Fatalf("%q: unexpected error checking transaction: %v", test.name, err)
+		}
 	}
 }
 
