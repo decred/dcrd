@@ -334,7 +334,13 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 		// on consensus to make sure treasury opcodes never make it
 		// here. Setting it to true also will automatically enable the
 		// opcodes once the treasury agenda is voted in.
-		switch stake.DetermineTxType(tx, true) {
+		//
+		// Pass false for whether the automatic ticket revocations agenda is active.
+		// This is okay since the auto revocations flag just adds additional rules
+		// that revocations must have an empty signature script for its input and
+		// must have zero fee.  Revocations that don't follow those rules will still
+		// be rejected by consensus.
+		switch stake.DetermineTxType(tx, true, false) {
 		case stake.TxTypeSStx:
 			for txInIdx, txIn := range tx.TxIn {
 				prevOut := &txIn.PreviousOutPoint

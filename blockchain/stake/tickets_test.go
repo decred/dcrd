@@ -126,7 +126,7 @@ func copyNode(n *Node) *Node {
 func ticketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSStx {
+		if IsSStx(stx.MsgTx()) {
 			h := stx.Hash()
 			tickets = append(tickets, *h)
 		}
@@ -139,7 +139,7 @@ func ticketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Voters)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSSGen {
+		if IsSSGen(stx.MsgTx(), noTreasury) {
 			tickets = append(tickets, stx.MsgTx().TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
@@ -151,7 +151,7 @@ func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func revokedTicketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Revocations)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSSRtx {
+		if IsSSRtx(stx.MsgTx(), noAutoRevocations) {
 			tickets = append(tickets, stx.MsgTx().TxIn[0].PreviousOutPoint.Hash)
 		}
 	}

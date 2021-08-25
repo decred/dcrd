@@ -353,7 +353,8 @@ func (p *fakeTxSource) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 func (p *fakeTxSource) CountTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int, error) {
 	isVote := txType == stake.TxTypeSSGen
 	isStakeBase := txType == stake.TxTypeSSGen
-	utxoView, err := p.fetchInputUtxos(tx, p.chain.isTreasuryAgendaActive)
+	utxoView, err := p.fetchInputUtxos(tx, p.chain.isTreasuryAgendaActive,
+		p.chain.isAutoRevocationsAgendaActive)
 	if err != nil {
 		return 0, err
 	}
@@ -372,8 +373,11 @@ func (p *fakeTxSource) CountTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (in
 // fetchRedeemers returns all transactions that reference an outpoint for the
 // provided regular transaction `tx`.  Returns nil if a non-regular transaction
 // is provided.
-func (p *fakeTxSource) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, tx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
-	txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled)
+func (p *fakeTxSource) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx,
+	tx *dcrutil.Tx, isTreasuryEnabled, isAutoRevocationsEnabled bool) []*dcrutil.Tx {
+
+	txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if txType != stake.TxTypeRegular {
 		return nil
 	}
@@ -539,11 +543,14 @@ func (p *fakeTxSource) removeStagedTransaction(stagedTx *dcrutil.Tx) {
 }
 
 // removeTransaction removes the passed transaction from the fake tx source.
-func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
+func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+
 	txHash := tx.Hash()
 	if removeRedeemers {
 		// Remove any transactions which rely on this one.
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -554,7 +561,7 @@ func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool, i
 			prevOut.Index = i
 			if txRedeemer, exists := p.outpoints[prevOut]; exists {
 				p.RemoveTransaction(txRedeemer, true,
-					isTreasuryEnabled)
+					isTreasuryEnabled, isAutoRevocationsEnabled)
 				continue
 			}
 			if txRedeemer, exists := p.stagedOutpoints[prevOut]; exists {
@@ -605,12 +612,14 @@ func (p *fakeTxSource) hasPoolInput(tx *dcrutil.Tx) bool {
 //
 // It returns a slice of transactions added to the pool.  A nil slice means no
 // transactions were moved from the stage pool to the main pool.
-func (p *fakeTxSource) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
+func (p *fakeTxSource) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) []*dcrutil.Tx {
+
 	var acceptedTxns []*dcrutil.Tx
 	for _, redeemer := range p.fetchRedeemers(p.stagedOutpoints, tx,
-		isTreasuryEnabled) {
+		isTreasuryEnabled, isAutoRevocationsEnabled) {
 		redeemerTxType := stake.DetermineTxType(redeemer.MsgTx(),
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if redeemerTxType == stake.TxTypeSStx {
 			// Skip tickets with inputs in the main pool.
 			if p.hasPoolInput(redeemer) {
@@ -649,7 +658,8 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
+	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if txType == stake.TxTypeRegular {
 		tx.SetTree(wire.TxTreeRegular)
 	} else {
@@ -667,7 +677,8 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	// to this transaction.  This function also attempts to fetch the
 	// transaction itself to be used for detecting a duplicate transaction
 	// without needing to do a separate lookup.
-	utxoView, err := p.fetchInputUtxos(tx, isTreasuryEnabled)
+	utxoView, err := p.fetchInputUtxos(tx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -726,11 +737,12 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	// the pool that redeem it to leave the main pool and enter the stage pool.
 	if !isNew && txType == stake.TxTypeRegular {
 		for _, redeemer := range p.fetchRedeemers(p.outpoints, tx,
-			isTreasuryEnabled) {
+			isTreasuryEnabled, isAutoRevocationsEnabled) {
 
 			redeemerDesc, exists := p.pool[*redeemer.Hash()]
 			if exists && redeemerDesc.Type == stake.TxTypeSStx {
-				p.RemoveTransaction(redeemer, true, isTreasuryEnabled)
+				p.RemoveTransaction(redeemer, true, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
 				p.stageTransaction(redeemer)
 			}
 		}
@@ -752,7 +764,9 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 // processOrphans determines if there are any orphans which depend on the passed
 // transaction hash (it is possible that they are no longer orphans) and
 // potentially accepts them to the pool.
-func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
+func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) []*dcrutil.Tx {
+
 	var acceptedTxns []*dcrutil.Tx
 
 	// Start with processing at least the passed transaction.
@@ -764,7 +778,7 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled 
 		processList = processList[1:]
 
 		txType := stake.DetermineTxType(processItem.MsgTx(),
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -833,6 +847,7 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled 
 // fake tx source.
 func (p *fakeTxSource) ProcessTransaction(tx *dcrutil.Tx) ([]*dcrutil.Tx, error) {
 	isTreasuryEnabled := p.chain.isTreasuryAgendaActive
+	isAutoRevocationsEnabled := p.chain.isAutoRevocationsAgendaActive
 	missingParents, err := p.maybeAcceptTransaction(tx, true)
 	if err != nil {
 		return nil, err
@@ -843,7 +858,7 @@ func (p *fakeTxSource) ProcessTransaction(tx *dcrutil.Tx) ([]*dcrutil.Tx, error)
 		// Accept any orphan transactions that depend on this transaction (they may no
 		// longer be orphans if all inputs are now available) and repeat for those
 		// accepted transactions until there are no more.
-		newTxs := p.processOrphans(tx, isTreasuryEnabled)
+		newTxs := p.processOrphans(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
 		acceptedTxs := make([]*dcrutil.Tx, len(newTxs)+1)
 
 		// Add the parent transaction first so remote nodes do not add orphans.
@@ -887,7 +902,9 @@ func (p *fakeTxSource) MiningView() *TxMiningView {
 // the passed transaction.  First, it loads the details from the viewpoint of
 // the main chain, then it adjusts them based upon the contents of the
 // transaction pool.
-func (p *fakeTxSource) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*blockchain.UtxoViewpoint, error) {
+func (p *fakeTxSource) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool,
+	isAutoRevocationsAgendaActive bool) (*blockchain.UtxoViewpoint, error) {
+
 	knownDisapproved := p.IsRegTxTreeKnownDisapproved(&p.chain.BestSnapshot().Hash)
 	utxoView, err := p.chain.FetchUtxoView(tx, !knownDisapproved)
 	if err != nil {
@@ -906,14 +923,14 @@ func (p *fakeTxSource) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index, UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsAgendaActive)
 		}
 
 		if stagedTx, exists := p.staged[prevOut.Hash]; exists {
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(stagedTx, prevOut.Index, UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsAgendaActive)
 		}
 	}
 
@@ -1247,7 +1264,8 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 // CountTotalSigOps returns the total number of signature operations for the
 // given transaction.
 func (m *miningHarness) CountTotalSigOps(tx *dcrutil.Tx) (int, error) {
-	txType := stake.DetermineTxType(tx.MsgTx(), m.chain.isTreasuryAgendaActive)
+	txType := stake.DetermineTxType(tx.MsgTx(), m.chain.isTreasuryAgendaActive,
+		m.chain.isAutoRevocationsAgendaActive)
 	return m.txSource.CountTotalSigOps(tx, txType)
 }
 
@@ -1260,12 +1278,13 @@ func (m *miningHarness) AddTransactionToTxSource(tx *dcrutil.Tx) ([]*dcrutil.Tx,
 // source.
 func (m *miningHarness) RemoveTransactionFromTxSource(tx *dcrutil.Tx, removeRedeemers bool) {
 	m.txSource.RemoveTransaction(tx, removeRedeemers,
-		m.chain.isTreasuryAgendaActive)
+		m.chain.isTreasuryAgendaActive, m.chain.isAutoRevocationsAgendaActive)
 }
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
 func (m *miningHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, isTreasuryAgendaActive bool) {
-	m.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryAgendaActive)
+	m.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryAgendaActive,
+		m.chain.isAutoRevocationsAgendaActive)
 }
 
 // newMiningHarness returns a new instance of a mining harness initialized with a

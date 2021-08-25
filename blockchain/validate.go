@@ -408,6 +408,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	// Determine active agendas based on flags.
 	isTreasuryEnabled := flags.IsTreasuryEnabled()
 	explicitUpgradesActive := flags.IsExplicitVerUpgradesEnabled()
+	isAutoRevocationsEnabled := flags.IsAutoRevocationsEnabled()
 
 	// Reject transaction versions greater than the highest currently supported
 	// version.  Any future consensus changes that result in hard-forking
@@ -433,7 +434,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool
 	var isTreasuryBase, isTreasuryAdd, isTreasurySpend bool
-	switch stake.DetermineTxType(tx, isTreasuryEnabled) {
+	switch stake.DetermineTxType(tx, isTreasuryEnabled, isAutoRevocationsEnabled) {
 	case stake.TxTypeSSGen:
 		isVote = true
 	case stake.TxTypeSStx:
@@ -1430,6 +1431,13 @@ func (b *BlockChain) checkTicketRedeemers(prevNode *blockNode, parentStakeNode *
 		return err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// block being checked.
+	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+
 	// Determine the winning ticket hashes and create a map for faster lookup.
 	ticketsPerBlock := int(b.chainParams.TicketsPerBlock)
 	winningHashes := make(map[chainhash.Hash]struct{}, ticketsPerBlock)
@@ -1452,7 +1460,7 @@ func (b *BlockChain) checkTicketRedeemers(prevNode *blockNode, parentStakeNode *
 			continue
 		}
 
-		if stake.IsSSRtx(stx) {
+		if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
 			// Ensure the ticket being spent is actually eligible to be
 			// revoked in this block.
 			ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
@@ -1575,6 +1583,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return err
 	}
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
+	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	if !standalone.IsCoinBaseTx(msgBlock.Transactions[0], isTreasuryEnabled) {
@@ -1626,7 +1635,8 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 
 		// A block must not have stake transactions in the regular transaction
 		// tree.
-		txType := stake.DetermineTxType(tx, isTreasuryEnabled)
+		txType := stake.DetermineTxType(tx, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if txType != stake.TxTypeRegular {
 			str := fmt.Sprintf("block contains a stake transaction in the "+
 				"regular transaction tree at index %d", txIdx)
@@ -1665,7 +1675,8 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	for txIdx, stx := range msgBlock.STransactions {
 		// A block must not have regular transactions in the stake transaction
 		// tree.
-		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
+		txType := stake.DetermineTxType(stx, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if txType == stake.TxTypeRegular {
 			str := fmt.Sprintf("block contains regular transaction in stake "+
 				"transaction tree at index %d", txIdx)
@@ -2685,7 +2696,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	//
 	// Also keep track of whether or not it is a revocation since some inputs
 	// need to be skipped later.
-	isRevocation := stake.IsSSRtx(msgTx)
+	isRevocation := stake.IsSSRtx(msgTx, isAutoRevocationsEnabled)
 	if isRevocation {
 		err := checkRevocationInputs(tx, txHeight, view, chainParams,
 			isTreasuryEnabled, isAutoRevocationsEnabled)
@@ -2856,7 +2867,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 				utxoEntry.PkScript()) {
 				errSSGen := stake.CheckSSGen(msgTx,
 					isTreasuryEnabled)
-				errSSRtx := stake.CheckSSRtx(msgTx)
+				errSSRtx := stake.CheckSSRtx(msgTx, isAutoRevocationsEnabled)
 				errStr := fmt.Sprintf("Tx %v attempted to "+
 					"spend an OP_SSTX tagged output, "+
 					"however it was not an SSGen or SSRtx"+
@@ -3313,7 +3324,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// Connect the transaction to the UTXO viewpoint, so that in
 		// flight transactions may correctly validate.
 		err = view.connectTransaction(tx, node.height, uint32(idx),
-			stxos, isTreasuryEnabled)
+			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -3648,11 +3659,18 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		}
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// block being checked.
+	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
 		err = view.disconnectDisapprovedBlock(b.db, parent,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -3671,7 +3689,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(block, isTreasuryEnabled)
+	err = view.fetchInputUtxos(block, isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		return err
 	}
@@ -3940,10 +3958,18 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// block being checked.
+	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled)
+	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return err
 	}

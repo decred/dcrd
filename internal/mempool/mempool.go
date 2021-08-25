@@ -392,7 +392,9 @@ var _ mining.TxSource = (*TxPool)(nil)
 // RemoveOrphan.  See the comment for RemoveOrphan for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
+func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+
 	// Nothing to do if the passed tx does not exist in the orphan pool.
 	txHash := tx.Hash()
 	otx, exists := mp.orphans[*txHash]
@@ -418,7 +420,8 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryE
 
 	// Remove any orphans that redeem outputs from this one if requested.
 	if removeRedeemers {
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -428,7 +431,8 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryE
 		for txOutIdx := range tx.MsgTx().TxOut {
 			outpoint.Index = uint32(txOutIdx)
 			for _, orphan := range mp.orphansByPrev[outpoint] {
-				mp.removeOrphan(orphan, true, isTreasuryEnabled)
+				mp.removeOrphan(orphan, true, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
 			}
 		}
 	}
@@ -441,9 +445,11 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryE
 // previous orphan index.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx, isTreasuryEnabled bool) {
+func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) {
+
 	mp.mtx.Lock()
-	mp.removeOrphan(tx, false, isTreasuryEnabled)
+	mp.removeOrphan(tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
 	mp.mtx.Unlock()
 }
 
@@ -451,12 +457,14 @@ func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx, isTreasuryEnabled bool) {
 // identifier.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled bool) uint64 {
+func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) uint64 {
+
 	var numEvicted uint64
 	mp.mtx.Lock()
 	for _, otx := range mp.orphans {
 		if otx.tag == tag {
-			mp.removeOrphan(otx.tx, true, isTreasuryEnabled)
+			mp.removeOrphan(otx.tx, true, isTreasuryEnabled, isAutoRevocationsEnabled)
 			numEvicted++
 		}
 	}
@@ -468,7 +476,7 @@ func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled bool) uint64 {
 // orphan if adding a new one would cause it to overflow the max allowed.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) limitNumOrphans(isTreasuryEnabled bool) {
+func (mp *TxPool) limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled bool) {
 	// Scan through the orphan pool and remove any expired orphans when it's
 	// time.  This is done for efficiency so the scan only happens periodically
 	// instead of on every orphan added to the pool.
@@ -479,7 +487,8 @@ func (mp *TxPool) limitNumOrphans(isTreasuryEnabled bool) {
 				// Remove redeemers too because the missing parents are very
 				// unlikely to ever materialize since the orphan has already
 				// been around more than long enough for them to be delivered.
-				mp.removeOrphan(otx.tx, true, isTreasuryEnabled)
+				mp.removeOrphan(otx.tx, true, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
 			}
 		}
 
@@ -508,7 +517,7 @@ func (mp *TxPool) limitNumOrphans(isTreasuryEnabled bool) {
 	for _, otx := range mp.orphans {
 		// Don't remove redeemers in the case of a random eviction since
 		// it is quite possible it might be needed again shortly.
-		mp.removeOrphan(otx.tx, false, isTreasuryEnabled)
+		mp.removeOrphan(otx.tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
 		break
 	}
 }
@@ -516,7 +525,9 @@ func (mp *TxPool) limitNumOrphans(isTreasuryEnabled bool) {
 // addOrphan adds an orphan transaction to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool) {
+func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) {
+
 	// Nothing to do if no orphans are allowed.
 	if mp.cfg.Policy.MaxOrphanTxs <= 0 {
 		return
@@ -525,7 +536,7 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool) {
 	// Limit the number orphan transactions to prevent memory exhaustion.
 	// This will periodically remove any expired orphans and evict a random
 	// orphan if space is still needed.
-	mp.limitNumOrphans(isTreasuryEnabled)
+	mp.limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled)
 
 	mp.orphans[*tx.Hash()] = &orphanTx{
 		tx:         tx,
@@ -547,7 +558,9 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool) {
 // maybeAddOrphan potentially adds an orphan to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool) error {
+func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
 	// Ignore orphan transactions that are too large.  This helps avoid
 	// a memory exhaustion attack based on sending a lot of really large
 	// orphans.  In the case there is a valid transaction larger than this,
@@ -567,7 +580,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool
 	}
 
 	// Add the orphan if the none of the above disqualified it.
-	mp.addOrphan(tx, tag, isTreasuryEnabled)
+	mp.addOrphan(tx, tag, isTreasuryEnabled, isAutoRevocationsEnabled)
 
 	return nil
 }
@@ -579,11 +592,13 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled bool
 // that orphans also spend.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeOrphanDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled bool) {
+func (mp *TxPool) removeOrphanDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) {
+
 	msgTx := tx.MsgTx()
 	for _, txIn := range msgTx.TxIn {
 		for _, orphan := range mp.orphansByPrev[txIn.PreviousOutPoint] {
-			mp.removeOrphan(orphan, true, isTreasuryEnabled)
+			mp.removeOrphan(orphan, true, isTreasuryEnabled, isAutoRevocationsEnabled)
 		}
 	}
 }
@@ -801,11 +816,13 @@ func (mp *TxPool) HaveAllTransactions(hashes []chainhash.Hash) bool {
 // RemoveTransaction.  See the comment for RemoveTransaction for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
+func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
 	txHash := tx.Hash()
 	if removeRedeemers {
 		// Remove any transactions which rely on this one.
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -816,7 +833,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 			outpoint.Index = i
 			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
 				mp.removeTransaction(txRedeemer, true,
-					isTreasuryEnabled)
+					isTreasuryEnabled, isAutoRevocationsEnabled)
 				continue
 			}
 			if txRedeemer, exists := mp.stagedOutpoints[outpoint]; exists {
@@ -868,10 +885,13 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 // they would otherwise become orphans.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
+func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.removeTransaction(tx, removeRedeemers, isTreasuryEnabled)
+	mp.removeTransaction(tx, removeRedeemers, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	mp.mtx.Unlock()
 }
 
@@ -882,14 +902,16 @@ func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 // contain transactions which were previously unknown to the memory pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled bool) {
+func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) {
+
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	for _, txIn := range tx.MsgTx().TxIn {
 		if txRedeemer, ok := mp.outpoints[txIn.PreviousOutPoint]; ok {
 			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
 				mp.removeTransaction(txRedeemer, true,
-					isTreasuryEnabled)
+					isTreasuryEnabled, isAutoRevocationsEnabled)
 			}
 		}
 		if txRedeemer, ok := mp.stagedOutpoints[txIn.PreviousOutPoint]; ok {
@@ -1071,7 +1093,9 @@ func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 // transaction pool.
 //
 // This function MUST be called with the mempool lock held (for reads).
-func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*blockchain.UtxoViewpoint, error) {
+func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) (*blockchain.UtxoViewpoint, error) {
+
 	knownDisapproved := mp.IsRegTxTreeKnownDisapproved(mp.cfg.BestHash())
 	utxoView, err := mp.cfg.FetchUtxoView(tx, !knownDisapproved)
 	if err != nil {
@@ -1094,14 +1118,14 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*bloc
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsEnabled)
 		}
 
 		if stagedTxDesc, exists := mp.staged[prevOut.Hash]; exists {
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(stagedTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsEnabled)
 		}
 	}
 
@@ -1156,7 +1180,9 @@ func (mp *TxPool) newTxDesc(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
 // passed those checks prior to entering the stage pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool) error {
+func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) error {
+
 	tx := txDesc.Tx
 	if txDesc.Type == stake.TxTypeSStx && !mp.hasMempoolInput(tx) {
 		log.Tracef("Removing ticket %v with no mempool dependencies from "+
@@ -1166,7 +1192,8 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool
 		// main pool or back to the stage pool. In the event of an error, the
 		// transaction will be discarded.
 		mp.removeStagedTransaction(tx)
-		utxoView, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled)
+		utxoView, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -1182,7 +1209,9 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool
 // no transactions were moved from the stage pool to the main pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
+func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) []*dcrutil.Tx {
+
 	mp.mtx.Lock()
 	defer mp.mtx.Unlock()
 
@@ -1190,7 +1219,8 @@ func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) 
 	mp.forEachStagedRedeemer(tx, func(redeemerTxDesc *TxDesc) {
 		redeemerTx := redeemerTxDesc.Tx
 		redeemerTxHash := redeemerTx.Hash()
-		err := mp.maybeUnstageTransaction(redeemerTxDesc, isTreasuryEnabled)
+		err := mp.maybeUnstageTransaction(redeemerTxDesc, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			log.Debugf("Failed to add previously staged "+
 				"ticket %v to pool: %v", redeemerTxHash, err)
@@ -1269,7 +1299,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
+	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
@@ -1410,7 +1441,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// to this transaction.  This function also attempts to fetch the
 	// transaction itself to be used for detecting a duplicate transaction
 	// without needing to do a separate lookup.
-	utxoView, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
+	utxoView, err := mp.fetchInputUtxos(tx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1756,7 +1788,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		mp.forEachRedeemer(tx, func(redeemerTxDesc *TxDesc) {
 			redeemerTx := redeemerTxDesc.Tx
 			if redeemerTxDesc.Type == stake.TxTypeSStx {
-				mp.removeTransaction(redeemerTx, true, isTreasuryEnabled)
+				mp.removeTransaction(redeemerTx, true, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
 				mp.stageTransaction(redeemerTxDesc)
 				log.Debugf("Moved ticket %v dependent on %v into stage pool",
 					redeemerTx.Hash(), txHash)
@@ -1831,6 +1864,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 
 	// Determine active agendas based on flags.
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
+	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 
 	// Start with processing at least the passed transaction.
 	processList := []*dcrutil.Tx{acceptedTx}
@@ -1840,7 +1874,8 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 		processList[0] = nil
 		processList = processList[1:]
 
-		txType := stake.DetermineTxType(processItem.MsgTx(), isTreasuryEnabled)
+		txType := stake.DetermineTxType(processItem.MsgTx(), isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -1876,7 +1911,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 					// redeem any of its outputs can be
 					// accepted.  Remove them.
 					mp.removeOrphan(tx, true,
-						isTreasuryEnabled)
+						isTreasuryEnabled, isAutoRevocationsEnabled)
 					break
 				}
 
@@ -1894,7 +1929,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 				// transactions to process so any orphans that
 				// depend on it are handled too.
 				acceptedTxns = append(acceptedTxns, tx)
-				mp.removeOrphan(tx, false, isTreasuryEnabled)
+				mp.removeOrphan(tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
 				processList = append(processList, tx)
 
 				// Only one transaction for this outpoint can be
@@ -1908,9 +1943,10 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 	// Recursively remove any orphans that also redeem any outputs redeemed
 	// by the accepted transactions since those are now definitive double
 	// spends.
-	mp.removeOrphanDoubleSpends(acceptedTx, isTreasuryEnabled)
+	mp.removeOrphanDoubleSpends(acceptedTx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	for _, tx := range acceptedTxns {
-		mp.removeOrphanDoubleSpends(tx, isTreasuryEnabled)
+		mp.removeOrphanDoubleSpends(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
 	}
 
 	return acceptedTxns
@@ -1920,22 +1956,27 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 // PruneStakeTx.  See the comment for PruneStakeTx for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64, isTreasuryEnabled bool) {
+func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+
 	for _, txDesc := range mp.pool {
 		txType := txDesc.Type
 		if txType == stake.TxTypeSStx &&
 			txDesc.Height+int64(heightDiffToPruneTicket) < height {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled)
+			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 			continue
 		}
 		if txType == stake.TxTypeSStx &&
 			txDesc.Tx.MsgTx().TxOut[0].Value < requiredStakeDifficulty {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled)
+			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 			continue
 		}
 		if (txType == stake.TxTypeSSRtx || txType == stake.TxTypeSSGen) &&
 			txDesc.Height+int64(heightDiffToPruneVotes) < height {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled)
+			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 		}
 	}
 	for _, txDesc := range mp.staged {
@@ -1968,9 +2009,15 @@ func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 		return
 	}
 
+	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
+	if err != nil {
+		return
+	}
+
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.pruneStakeTx(requiredStakeDifficulty, height, isTreasuryEnabled)
+	mp.pruneStakeTx(requiredStakeDifficulty, height, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	mp.mtx.Unlock()
 }
 
@@ -1978,7 +2025,9 @@ func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 // longer able to be included into a block.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled bool) {
+func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) {
+
 	nextBlockHeight := mp.cfg.BestHeight() + 1
 
 	for _, txDesc := range mp.pool {
@@ -1986,7 +2035,8 @@ func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled bool) {
 		if blockchain.IsExpired(tx, nextBlockHeight) {
 			log.Debugf("Pruning expired transaction %v from the mempool",
 				tx.Hash())
-			mp.removeTransaction(tx, true, isTreasuryEnabled)
+			mp.removeTransaction(tx, true, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 		}
 	}
 
@@ -2010,9 +2060,14 @@ func (mp *TxPool) PruneExpiredTx() {
 		return
 	}
 
+	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
+	if err != nil {
+		return
+	}
+
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.pruneExpiredTx(isTreasuryEnabled)
+	mp.pruneExpiredTx(isTreasuryEnabled, isAutoRevocationsEnabled)
 	mp.mtx.Unlock()
 }
 
@@ -2120,7 +2175,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}
 
 	// Potentially add the orphan transaction to the orphan pool.
-	err = mp.maybeAddOrphan(tx, tag, isTreasuryEnabled)
+	err = mp.maybeAddOrphan(tx, tag, isTreasuryEnabled, isAutoRevocationsEnabled)
 	return nil, err
 }
 
@@ -2184,6 +2239,11 @@ func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
 		return nil
 	}
 
+	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
+	if err != nil {
+		return nil
+	}
+
 	mp.mtx.RLock()
 	defer mp.mtx.RUnlock()
 
@@ -2196,7 +2256,8 @@ func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
 		// some reason.
 		tx := desc.Tx
 		var currentPriority float64
-		utxos, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
+		utxos, err := mp.fetchInputUtxos(tx, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err == nil {
 			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
 				bestHeight+1)

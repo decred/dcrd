@@ -51,6 +51,11 @@ const (
 	// noTreasury signifies the treasury agenda should be treated as though it
 	// is inactive.  It is used to increase the readability of the tests.
 	noTreasury = false
+
+	// noAutoRevocations signifies the automatic ticket revocations agenda should
+	// be treated as though it is inactive.  It is used to increase the
+	// readability of the tests.
+	noAutoRevocations = false
 )
 
 // testDataPath is the path where all rpcserver test fixtures reside.
@@ -128,6 +133,8 @@ type tspendVotes struct {
 
 // testRPCChain provides a mock block chain by implementing the Chain interface.
 type testRPCChain struct {
+	autoRevocationsActive         bool
+	autoRevocationsActiveErr      error
 	bestSnapshot                  *blockchain.BestState
 	bestHeaderHash                chainhash.Hash
 	bestHeaderHeight              int64
@@ -415,8 +422,16 @@ func (c *testRPCChain) TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBal
 	return c.treasuryBalance, c.treasuryBalanceErr
 }
 
+// IsTreasuryAgendaActive returns a mocked bool representing whether or not the
+// treasury agenda is active.
 func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
 	return c.treasuryActive, c.treasuryActiveErr
+}
+
+// IsAutoRevocationsAgendaActive returns a mocked bool representing whether or
+// not the automated ticket revocations agenda is active.
+func (c *testRPCChain) IsAutoRevocationsAgendaActive(*chainhash.Hash) (bool, error) {
+	return c.autoRevocationsActive, c.autoRevocationsActiveErr
 }
 
 // FetchTSpend returns the blocks a given tspend was mined in.
@@ -3736,7 +3751,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range txns {
 		rawTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, noTreasury)
+			int64(blkHeader.Height), confirmations, noTreasury, noAutoRevocations)
 		if err != nil {
 			t.Fatalf("error creating tx raw result: %+v", err)
 		}
@@ -3747,7 +3762,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range stxns {
 		rawSTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, noTreasury)
+			int64(blkHeader.Height), confirmations, noTreasury, noAutoRevocations)
 		if err != nil {
 			t.Fatalf("error creating stx raw result: %+v", err)
 		}
@@ -5503,7 +5518,7 @@ func searchRawTransactionsResult(t *testing.T, s *Server, tx testTx,
 		Expiry:   msgTx.Expiry,
 		Vin:      vinList,
 		Vout: createVoutList(msgTx, defaultChainParams, filterAddr,
-			noTreasury),
+			noTreasury, noAutoRevocations),
 	}
 	if tx.indexEntry != nil {
 		result.BlockHash = tx.indexEntry.BlockRegion.Hash.String()

@@ -682,7 +682,9 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // spendTransaction updates the passed view by marking the inputs to the passed
 // transaction as spent.  It also adds all outputs in the passed transaction
 // which are not provably unspendable as available unspent transaction outputs.
-func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64, isTreasuryEnabled bool) {
+func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
+	height int64, isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+
 	for _, txIn := range tx.MsgTx().TxIn {
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry != nil {
@@ -690,7 +692,8 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height
 		}
 	}
 
-	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex, isTreasuryEnabled)
+	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 }
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
@@ -1274,7 +1277,7 @@ mempoolLoop:
 			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
 			blockUtxos.AddTxOuts(tx, nextBlockHeight, wire.NullBlockIndex,
-				isTreasuryEnabled)
+				isTreasuryEnabled, isAutoRevocationsEnabled)
 		}
 
 		if hasParents {
@@ -1590,7 +1593,7 @@ nextPriorityQueueItem:
 			// this one have it available as an input and can ensure they
 			// aren't double spending.
 			spendTransaction(blockUtxos, bundledTxDesc.Tx, nextBlockHeight,
-				isTreasuryEnabled)
+				isTreasuryEnabled, isAutoRevocationsEnabled)
 
 			// Add the transaction to the block, increment counters, and
 			// save the fees and signature operation counts to the block
@@ -1808,7 +1811,9 @@ nextPriorityQueueItem:
 		}
 
 		msgTx := tx.MsgTx()
-		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
+		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx,
+			isAutoRevocationsEnabled) {
+
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 			if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 				isTreasuryEnabled) {

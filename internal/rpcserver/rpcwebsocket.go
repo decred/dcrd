@@ -703,8 +703,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 				continue
 			}
 			if sc == txscript.NullDataTy && i&1 == 1 &&
-				(isTicket || stake.DetermineTxType(msgTx,
-					isTreasuryEnabled) == stake.TxTypeSStx) {
+				(isTicket || stake.IsSStx(msgTx)) {
 				isTicket = true
 				// OP_RETURN ticket commitments may contain relevant
 				// P2PKH or P2SH HASH160s.
@@ -1133,6 +1132,15 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// current best tip.
+	isAutoRevocationsEnabled, err :=
+		m.server.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
 	var verboseNtfn *types.TxAcceptedVerboseNtfn
 	var marshalledJSONVerbose []byte
 	for _, wsc := range clients {
@@ -1144,7 +1152,8 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 
 			net := m.server.cfg.ChainParams
 			rawTx, err := m.server.createTxRawResult(net, mtx, txHashStr,
-				wire.NullBlockIndex, nil, "", 0, 0, isTreasuryEnabled)
+				wire.NullBlockIndex, nil, "", 0, 0, isTreasuryEnabled,
+				isAutoRevocationsEnabled)
 			if err != nil {
 				return
 			}
@@ -2310,7 +2319,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 				goto LoopOutputs
 			}
 		} else {
-			if stake.DetermineTxType(tx, isTreasuryEnabled) == stake.TxTypeSSGen {
+			if stake.IsSSGen(tx, isTreasuryEnabled) {
 				// Skip the first stakebase input.  These do not
 				// reference a previous output.
 				inputs = inputs[1:]

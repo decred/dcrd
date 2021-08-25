@@ -1098,7 +1098,7 @@ func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 //   [index MaxOutputsPerSSRtx - 1] SSRtx-tagged output to the last payment
 //     commitment address from SStx-tagged output's tx index output (output
 //     index MaxInputsPerSStx - 1)
-func CheckSSRtx(tx *wire.MsgTx) error {
+func CheckSSRtx(tx *wire.MsgTx, isAutoRevocationsEnabled bool) error {
 	// Check to make sure there is the correct number of inputs.
 	if len(tx.TxIn) != NumInputsPerSSRtx {
 		str := "SSRtx has an invalid number of inputs"
@@ -1151,20 +1151,22 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 
 // IsSSRtx returns whether or not a transaction is a stake submission revocation
 // transaction.  These are also known as revocations.
-func IsSSRtx(tx *wire.MsgTx) bool {
-	return CheckSSRtx(tx) == nil
+func IsSSRtx(tx *wire.MsgTx, isAutoRevocationsEnabled bool) bool {
+	return CheckSSRtx(tx, isAutoRevocationsEnabled) == nil
 }
 
 // DetermineTxType determines the type of stake transaction a transaction is; if
 // none, it returns that it is an assumed regular tx.
-func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled bool) TxType {
+func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) TxType {
+
 	if IsSStx(tx) {
 		return TxTypeSStx
 	}
 	if IsSSGen(tx, isTreasuryEnabled) {
 		return TxTypeSSGen
 	}
-	if IsSSRtx(tx) {
+	if IsSSRtx(tx, isAutoRevocationsEnabled) {
 		return TxTypeSSRtx
 	}
 	if isTreasuryEnabled {
@@ -1220,7 +1222,12 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 			})
 			continue
 		}
-		if IsSSRtx(stx) {
+		// Pass false for whether the automatic ticket revocations agenda is active.
+		// This is okay since the auto revocations flag just adds additional rules
+		// that revocations must have an empty signature script for its input and
+		// must have zero fee.  Revocations that don't follow those rules will still
+		// be rejected by consensus.
+		if IsSSRtx(stx, false) {
 			revocations = append(revocations, stx.TxIn[0].PreviousOutPoint.Hash)
 			continue
 		}

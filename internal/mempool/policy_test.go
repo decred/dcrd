@@ -25,6 +25,11 @@ const (
 	// noTreasury signifies the treasury agenda should be treated as though it
 	// is inactive.  It is used to increase the readability of the tests.
 	noTreasury = false
+
+	// noAutoRevocations signifies the automatic ticket revocations agenda should
+	// be treated as though it is inactive.  It is used to increase the
+	// readability of the tests.
+	noAutoRevocations = false
 )
 
 // TestCalcMinRequiredTxRelayFee tests the calcMinRequiredTxRelayFee API.
@@ -516,7 +521,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 	medianTime := time.Now()
 	for _, test := range tests {
 		// Ensure standardness is as expected.
-		txType := stake.DetermineTxType(&test.tx, noTreasury)
+		txType := stake.DetermineTxType(&test.tx, noTreasury, noAutoRevocations)
 		tx := dcrutil.NewTx(&test.tx)
 		err := checkTransactionStandard(tx, txType, test.height, medianTime,
 			DefaultMinRelayTxFee, noTreasury)

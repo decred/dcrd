@@ -2204,9 +2204,16 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 			srvrLog.Errorf("Could not obtain treasury agenda status: %v", err)
 		}
 
+		isAutoRevocationsEnabled, err :=
+			s.chain.IsAutoRevocationsAgendaActive(tipHash)
+		if err != nil {
+			srvrLog.Errorf("Could not obtain automatic ticket revocations agenda "+
+				"status: %v", err)
+		}
+
 		// Evict any remaining orphans that were sent by the peer.
 		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if numEvicted > 0 {
 			srvrLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
 				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
@@ -2576,6 +2583,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		// Determine active agendas based on flags.
 		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
+		isAutoRevocationsEnabled := ntfn.CheckTxFlags.IsAutoRevocationsEnabled()
 
 		// Account for transactions mined in the newly connected block for fee
 		// estimation. This must be done before attempting to remove
@@ -2610,10 +2618,13 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		txMemPool := s.txMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled)
-				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
-				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
-				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
+				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
 				acceptedTxs := txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 				s.AnnounceNewTransactions(acceptedTxs)
 
@@ -2659,7 +2670,8 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range parentBlock.Transactions()[1:] {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled)
+					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled,
+						isAutoRevocationsEnabled)
 				}
 			}
 		}
@@ -2725,6 +2737,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		// Determine active agendas based on flags.
 		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
+		isAutoRevocationsEnabled := ntfn.CheckTxFlags.IsAutoRevocationsEnabled()
 
 		// In the case the regular tree of the previous block was disapproved,
 		// disconnecting the current block makes all of those transactions valid
@@ -2735,10 +2748,13 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		txMemPool := s.txMemPool
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled)
-				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
-				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
-				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
+				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
+					isAutoRevocationsEnabled)
+				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
 				txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 			}
 		}
@@ -2769,7 +2785,8 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range txns {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled)
+					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled,
+						isAutoRevocationsEnabled)
 				}
 			}
 		}
@@ -2861,6 +2878,13 @@ out:
 						err)
 					break
 				}
+				isAutoRevocationsEnabled, err :=
+					s.chain.IsAutoRevocationsAgendaActive(&best.Hash)
+				if err != nil {
+					srvrLog.Errorf("Could not obtain auto revocations agenda status: %v",
+						err)
+					break
+				}
 
 				for iv, data := range pendingInvs {
 					tx, ok := data.(*dcrutil.Tx)
@@ -2869,7 +2893,7 @@ out:
 					}
 
 					txType := stake.DetermineTxType(tx.MsgTx(),
-						isTreasuryEnabled)
+						isTreasuryEnabled, isAutoRevocationsEnabled)
 
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.

@@ -1009,6 +1009,13 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		}
 	}
 
+	// Determine if the automatic ticket revocations agenda is active.
+	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
+	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
 	const revocationTxVersion = 1
 	mtx, err := stake.CreateRevocationFromTicket(txHash, minimalOutputs, feeAmt,
 		revocationTxVersion, s.cfg.ChainParams)
@@ -1017,7 +1024,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	}
 
 	// Check to make sure our SSRtx was created correctly.
-	err = stake.CheckSSRtx(mtx)
+	err = stake.CheckSSRtx(mtx, isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Invalid SSRtx")
 	}
@@ -1132,8 +1139,12 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
-func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) []types.Vout {
-	txType := stake.DetermineTxType(mtx, isTreasuryEnabled)
+func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
+	filterAddrMap map[string]struct{}, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) []types.Vout {
+
+	txType := stake.DetermineTxType(mtx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	voutList := make([]types.Vout, 0, len(mtx.TxOut))
 	for i, v := range mtx.TxOut {
 		// The disassembled string will contain [error] inline if the
@@ -1224,8 +1235,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 // to a raw transaction JSON object.
 func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 	mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader,
-	blkHash string, blkHeight int64, confirmations int64,
-	isTreasuryEnabled bool) (*types.TxRawResult, error) {
+	blkHash string, blkHeight int64, confirmations int64, isTreasuryEnabled,
+	isAutoRevocationsEnabled bool) (*types.TxRawResult, error) {
 
 	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
@@ -1238,10 +1249,11 @@ func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 	}
 
 	txReply := &types.TxRawResult{
-		Hex:         mtxHex,
-		Txid:        txHash,
-		Vin:         createVinList(mtx, isTreasuryEnabled),
-		Vout:        createVoutList(mtx, chainParams, nil, isTreasuryEnabled),
+		Hex:  mtxHex,
+		Txid: txHash,
+		Vin:  createVinList(mtx, isTreasuryEnabled),
+		Vout: createVoutList(mtx, chainParams, nil, isTreasuryEnabled,
+			isAutoRevocationsEnabled),
 		Version:     int32(mtx.Version),
 		LockTime:    mtx.LockTime,
 		Expiry:      mtx.Expiry,
@@ -1287,6 +1299,12 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 		return nil, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active.
+	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create and return the result.
 	txReply := types.TxRawDecodeResult{
 		Txid:     mtx.TxHash().String(),
@@ -1294,7 +1312,8 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 		Locktime: mtx.LockTime,
 		Expiry:   mtx.Expiry,
 		Vin:      createVinList(&mtx, isTreasuryEnabled),
-		Vout:     createVoutList(&mtx, s.cfg.ChainParams, nil, isTreasuryEnabled),
+		Vout: createVoutList(&mtx, s.cfg.ChainParams, nil, isTreasuryEnabled,
+			isAutoRevocationsEnabled),
 	}
 	return txReply, nil
 }
@@ -1944,6 +1963,14 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		return nil, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active for the
+	// block.
+	isAutoRevocationsEnabled, err :=
+		s.isAutoRevocationsAgendaActive(&blockHeader.PrevBlock)
+	if err != nil {
+		return nil, err
+	}
+
 	if c.VerboseTx == nil || !*c.VerboseTx {
 		transactions := blk.Transactions()
 		txNames := make([]string, len(transactions))
@@ -1969,7 +1996,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations,
-				isTreasuryEnabled)
+				isTreasuryEnabled, isAutoRevocationsEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create transaction")
@@ -1985,7 +2012,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations,
-				isTreasuryEnabled)
+				isTreasuryEnabled, isAutoRevocationsEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create stake transaction")
@@ -2837,9 +2864,15 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		return nil, rpcInternalError(err.Error(), "Treasury Status")
 	}
 
+	// Determine if the automatic ticket revocations agenda is active.
+	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
 	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
 		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations,
-		isTreasuryEnabled)
+		isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -4505,6 +4538,14 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		return nil, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// current best tip for transactions in the mempool.
+	isAutoRevocationsEnabledMempool, err :=
+		s.isAutoRevocationsAgendaActive(&best.PrevHash)
+	if err != nil {
+		return nil, err
+	}
+
 	chainParams := s.cfg.ChainParams
 	srtList := make([]types.SearchRawTransactionsResult, len(addressTxns))
 	for i := range addressTxns {
@@ -4536,6 +4577,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		var blkHeight int64
 		var blkIndex uint32
 		isTreasuryEnabled := isTreasuryEnabledMempool
+		isAutoRevocationsEnabled := isAutoRevocationsEnabledMempool
 		if blkHash := rtx.blkHash; blkHash != nil {
 			// Fetch the header from chain.
 			header, err := s.cfg.Chain.HeaderByHash(blkHash)
@@ -4550,6 +4592,14 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			// contains the transaction.
 			prevBlkHash := header.PrevBlock
 			isTreasuryEnabled, err = s.isTreasuryAgendaActive(&prevBlkHash)
+			if err != nil {
+				return nil, err
+			}
+
+			// Determine if the automatic ticket revocations agenda is active for the
+			// block that contains the transaction.
+			isAutoRevocationsEnabled, err =
+				s.isAutoRevocationsAgendaActive(&prevBlkHash)
 			if err != nil {
 				return nil, err
 			}
@@ -4570,7 +4620,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			return nil, rpcInternalError(err.Error(), context)
 		}
 		result.Vout = createVoutList(mtx, chainParams, filterAddrMap,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		result.Version = int32(mtx.Version)
 		result.LockTime = mtx.LockTime
 		result.Expiry = mtx.Expiry
@@ -4667,12 +4717,20 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 		return nil, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active as of the
+	// current best tip.
+	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
 	// Keep track of all the regular sendrawtransaction request txns so that
 	// they can be rebroadcast if they don't make their way into a block.
 	//
 	// Note that votes are only valid for a specific block and are time
 	// sensitive, so they should not be added to the rebroadcast logic.
-	txType := stake.DetermineTxType(msgtx, isTreasuryEnabled)
+	txType := stake.DetermineTxType(msgtx, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if txType != stake.TxTypeSSGen {
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 		s.cfg.ConnMgr.AddRebroadcastInventory(iv, tx)
@@ -4883,6 +4941,13 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 		return nil, err
 	}
 
+	// Determine if the automatic ticket revocations agenda is active for the
+	// block.
+	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
 	txNum := 0
 	switch txType {
 	case stake.TxTypeRegular:
@@ -4910,7 +4975,7 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 	} else {
 		for _, stx := range bl.STransactions() {
 			thisTxType := stake.DetermineTxType(stx.MsgTx(),
-				isTreasuryEnabled)
+				isTreasuryEnabled, isAutoRevocationsEnabled)
 			if thisTxType == txType {
 				txFees[itr] = calcFeePerKb(stx)
 				itr++
@@ -4962,9 +5027,17 @@ func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxTyp
 				return nil, err
 			}
 
+			// Determine if the automatic ticket revocations agenda is active for the
+			// block.
+			isAutoRevocationsEnabled, err :=
+				s.isAutoRevocationsAgendaActive(&prevBlkHash)
+			if err != nil {
+				return nil, err
+			}
+
 			for _, stx := range bl.STransactions() {
 				thisTxType := stake.DetermineTxType(stx.MsgTx(),
-					isTreasuryEnabled)
+					isTreasuryEnabled, isAutoRevocationsEnabled)
 				if thisTxType == txType {
 					txFees = append(txFees, calcFeePerKb(stx))
 				}
@@ -5425,6 +5498,19 @@ func (s *Server) isTreasuryAgendaActive(prevBlkHash *chainhash.Hash) (bool, erro
 		return false, rpcInternalError(err.Error(), context)
 	}
 	return isTreasuryEnabled, nil
+}
+
+// isAutoRevocationsAgendaActive returns if the automatic ticket revocations
+// agenda is active or not for the block AFTER the provided block hash.
+func (s *Server) isAutoRevocationsAgendaActive(prevBlkHash *chainhash.Hash) (bool, error) {
+	chain := s.cfg.Chain
+	isAutoRevocationsEnabled, err := chain.IsAutoRevocationsAgendaActive(prevBlkHash)
+	if err != nil {
+		context := fmt.Sprintf("Could not obtain automatic ticket revocations "+
+			"agenda status for block %s", prevBlkHash)
+		return false, rpcInternalError(err.Error(), context)
+	}
+	return isAutoRevocationsEnabled, nil
 }
 
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the

@@ -26,6 +26,11 @@ const (
 	// tests.
 	noTreasury = false
 
+	// noAutoRevocations signifies the automatic ticket revocations agenda should
+	// be treated as though it is inactive.  It is used to increase the
+	// readability of the tests.
+	noAutoRevocations = false
+
 	// withTreasury signifies the treasury agenda should be treated as
 	// though it is active.  It is used to increase the readability of
 	// the tests.
@@ -917,9 +922,10 @@ func TestCheckSSRtx(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		tx      *wire.MsgTx
-		wantErr error
+		name                     string
+		tx                       *wire.MsgTx
+		isAutoRevocationsEnabled bool
+		wantErr                  error
 	}{{
 		name: "ok",
 		tx:   ssrtxMsgTx,
@@ -963,7 +969,7 @@ func TestCheckSSRtx(t *testing.T) {
 
 	for _, test := range tests {
 		// Check if the test transaction is a revocation.
-		err := CheckSSRtx(test.tx)
+		err := CheckSSRtx(test.tx, test.isAutoRevocationsEnabled)
 
 		// Validate that the expected error was returned for negative tests.
 		if test.wantErr != nil {
@@ -1451,13 +1457,14 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		ticketHash          *chainhash.Hash
-		ticketMinOuts       []*MinimalOutput
-		revocationTxFee     dcrutil.Amount
-		revocationTxVersion uint16
-		wantTxHash          chainhash.Hash
-		wantErr             error
+		name                     string
+		ticketHash               *chainhash.Hash
+		ticketMinOuts            []*MinimalOutput
+		revocationTxFee          dcrutil.Amount
+		revocationTxVersion      uint16
+		isAutoRevocationsEnabled bool
+		wantTxHash               chainhash.Hash
+		wantErr                  error
 	}{{
 		name:                "valid with P2SH and P2PKH outputs",
 		ticketHash:          ticketHash,
@@ -1523,7 +1530,7 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		}
 
 		// Validate that the revocation transaction was created correctly.
-		err = CheckSSRtx(revocationTx)
+		err = CheckSSRtx(revocationTx, test.isAutoRevocationsEnabled)
 		if err != nil {
 			t.Errorf("%q: unexpected error checking revocation: %v", test.name, err)
 			continue
