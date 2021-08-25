@@ -50,6 +50,8 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrSSRtxWrongTxTree, "ErrSSRtxWrongTxTree"},
 		{ErrSSRtxBadOuts, "ErrSSRtxBadOuts"},
 		{ErrSSRtxInvalidFee, "ErrSSRtxInvalidFee"},
+		{ErrSSRtxInputHasSigScript, "ErrSSRtxInputHasSigScript"},
+		{ErrSSRtxInvalidTxVersion, "ErrSSRtxInvalidTxVersion"},
 		{ErrVerSStxAmts, "ErrVerSStxAmts"},
 		{ErrVerifyInput, "ErrVerifyInput"},
 		{ErrVerifyOutType, "ErrVerifyOutType"},

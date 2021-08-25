@@ -146,6 +146,14 @@ const (
 	// ErrSSRtxInvalidFee indicates that a given SSRtx contains an invalid fee.
 	ErrSSRtxInvalidFee = ErrorKind("ErrSSRtxInvalidFee")
 
+	// ErrSSRtxInputHasSigScript indicates that a given SSRtx input has a
+	// non-empty signature script.
+	ErrSSRtxInputHasSigScript = ErrorKind("ErrSSRtxInputHasSigScript")
+
+	// ErrSSRtxInvalidTxVersion indicates that a given SSRtx has an invalid
+	// transaction version.
+	ErrSSRtxInvalidTxVersion = ErrorKind("ErrSSRtxInvalidTxVersion")
+
 	// ErrVerSStxAmts indicates there was an error verifying the calculated
 	// SStx out amounts and the actual SStx out amounts.
 	ErrVerSStxAmts = ErrorKind("ErrVerSStxAmts")
