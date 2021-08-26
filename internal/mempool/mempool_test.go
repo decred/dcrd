@@ -527,9 +527,9 @@ func (p *poolHarness) CreateTx(out spendableOutput) (*dcrutil.Tx, error) {
 	return txns[0], err
 }
 
-// CreateTicketPurchase creates a ticket purchase spending the first output of
-// the provided transaction.
-func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*dcrutil.Tx, error) {
+// CreateTicketPurchase creates a ticket purchase from the provided spendable
+// output.
+func (p *poolHarness) CreateTicketPurchase(input spendableOutput, cost int64, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	ticketFee := singleInputTicketSize
 	ticketPrice := cost
 
@@ -537,19 +537,19 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 	voteScriptVer, voteScript := p.payAddr.VotingRightsScript()
 	commitScriptVer, commitScript := p.payAddr.RewardCommitmentScript(
 		ticketPrice+ticketFee, 0, ticketPrice)
-	change := sourceTx.MsgTx().TxOut[0].Value - ticketPrice - ticketFee
+	change := int64(input.amount) - ticketPrice - ticketFee
 	changeScriptVer, changeScript := p.payAddr.StakeChangeScript()
 
 	// Generate the ticket purchase.
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: wire.OutPoint{
-			Hash:  *sourceTx.Hash(),
+			Hash:  input.outPoint.Hash,
 			Index: 0,
 			Tree:  wire.TxTreeRegular,
 		},
 		Sequence:    wire.MaxTxInSequenceNum,
-		ValueIn:     sourceTx.MsgTx().TxOut[0].Value,
+		ValueIn:     int64(input.amount),
 		BlockHeight: uint32(p.chain.BestHeight()),
 	})
 
@@ -557,16 +557,27 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 	tx.AddTxOut(newTxOut(0, commitScriptVer, commitScript))
 	tx.AddTxOut(newTxOut(change, changeScriptVer, changeScript))
 
+	// Perform any transaction munging just before signing.
+	for _, f := range mungers {
+		f(tx)
+	}
+
 	// Sign the ticket purchase.
-	sigScript, err := sign.SignatureScript(tx, 0,
-		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll, p.signKey,
-		dcrec.STEcdsaSecp256k1, true)
+	sigScript, err := sign.SignatureScript(tx, 0, p.payScript,
+		txscript.SigHashAll, p.signKey, dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		return nil, err
 	}
 	tx.TxIn[0].SignatureScript = sigScript
 
 	return dcrutil.NewTx(tx), nil
+}
+
+// CreateTicketPurchaseFromTx creates a ticket purchase spending the first
+// output of the provided transaction.
+func (p *poolHarness) CreateTicketPurchaseFromTx(sourceTx *dcrutil.Tx, cost int64) (*dcrutil.Tx, error) {
+	spend := txOutToSpendableOut(sourceTx, 0, wire.TxTreeRegular)
+	return p.CreateTicketPurchase(spend, cost)
 }
 
 // newVoteScript generates a voting script from the passed VoteBits, for
@@ -973,7 +984,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the
 	// prior regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction %v", err)
 	}
@@ -1047,7 +1058,7 @@ func TestVoteOrphan(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the
 	// prior regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
@@ -1117,7 +1128,7 @@ func TestRevocationOrphan(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the
 	// prior regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
@@ -1863,7 +1874,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the prior
 	// regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
@@ -1988,7 +1999,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the prior
 	// regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
@@ -2186,7 +2197,7 @@ func TestFetchTransaction(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the
 	// prior regular transaction.
-	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction %v", err)
 	}
@@ -2248,7 +2259,7 @@ func TestRemoveDoubleSpends(t *testing.T) {
 
 	// Create a ticket purchase transaction spending the outputs of the
 	// base regular transaction.
-	ticket, err := harness.CreateTicketPurchase(baseTx, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(baseTx, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction %v", err)
 	}
@@ -2683,7 +2694,7 @@ func TestStagedTransactionHeight(t *testing.T) {
 		spendableOuts[0],
 	}, 1)
 
-	ticket, err := harness.CreateTicketPurchase(txA, 40000)
+	ticket, err := harness.CreateTicketPurchaseFromTx(txA, 40000)
 	if err != nil {
 		t.Fatalf("unable to create ticket purchase transaction %v", err)
 	}
