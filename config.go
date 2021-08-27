@@ -43,6 +43,7 @@ const (
 	defaultDataDirname      = "data"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "dcrd.log"
+	defaultLogSize          = "10M"
 	defaultDbType           = "ffldb"
 	defaultLogLevel         = "info"
 	defaultSigCacheMaxSize  = 100000
@@ -127,6 +128,7 @@ type config struct {
 	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir          string `short:"b" long:"datadir" description:"Directory to store data"`
 	LogDir           string `long:"logdir" description:"Directory to log output"`
+	LogSize          string `long:"logsize" description:"Maximum size of log file before it is rotated"`
 	NoFileLogging    bool   `long:"nofilelogging" description:"Disable file logging"`
 	DbType           string `long:"dbtype" description:"Database backend to use for the block chain"`
 	Profile          string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
@@ -605,6 +607,7 @@ func loadConfig(appName string) (*config, []string, error) {
 		ConfigFile:       defaultConfigFile,
 		DataDir:          defaultDataDir,
 		LogDir:           defaultLogDir,
+		LogSize:          defaultLogSize,
 		DbType:           defaultDbType,
 		DebugLevel:       defaultLogLevel,
 		SigCacheMaxSize:  defaultSigCacheMaxSize,
@@ -863,9 +866,40 @@ func loadConfig(appName string) (*config, []string, error) {
 		cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
 		cfg.LogDir = filepath.Join(cfg.LogDir, cfg.params.Name)
 
+		var units int
+		for i, r := range cfg.LogSize {
+			if r < '0' || r > '9' {
+				units = i
+				break
+			}
+		}
+		invalidSize := func() (*config, []string, error) {
+			str := "%s: Invalid logsize: %v "
+			err := fmt.Errorf(str, funcName, cfg.LogSize)
+			return nil, nil, err
+		}
+		if units == 0 {
+			return invalidSize()
+		}
+		// Parsing a 32-bit number prevents 64-bit overflow after unit
+		// multiplication.
+		logsize, err := strconv.ParseInt(cfg.LogSize[:units], 10, 32)
+		if err != nil {
+			return invalidSize()
+		}
+		switch cfg.LogSize[units:] {
+		case "k", "K", "KiB":
+		case "m", "M", "MiB":
+			logsize <<= 10
+		case "g", "G", "GiB":
+			logsize <<= 20
+		default:
+			return invalidSize()
+		}
+
 		// Initialize log rotation.  After log rotation has been initialized, the
 		// logger variables may be used.
-		initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
+		initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename), logsize)
 	}
 
 	// Special show command to list supported subsystems and exit.
