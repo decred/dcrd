@@ -3432,7 +3432,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	txC := mempool.Config{
 		Policy: mempool.Policy{
 			EnableAncestorTracking: len(cfg.miningAddrs) > 0,
-			MaxTxVersion:           wire.TxVersionTreasury,
 			DisableRelayPriority:   cfg.NoRelayPriority,
 			AcceptNonStd:           cfg.AcceptNonStd,
 			FreeTxRelayLimit:       cfg.FreeTxRelayLimit,

@@ -306,10 +306,6 @@ func TestDust(t *testing.T) {
 
 // TestCheckTransactionStandard tests the checkTransactionStandard API.
 func TestCheckTransactionStandard(t *testing.T) {
-	// maxTxVersion is used as the maximum support transaction version for
-	// the policy in these tests.
-	const maxTxVersion = 1
-
 	// Create some dummy, but otherwise standard, data for transactions.
 	prevOutHash, err := chainhash.NewHashFromStr("01")
 	if err != nil {
@@ -362,19 +358,6 @@ func TestCheckTransactionStandard(t *testing.T) {
 			tx: wire.MsgTx{
 				SerType:  wire.TxSerializeNoWitness,
 				Version:  1,
-				TxIn:     []*wire.TxIn{&dummyTxIn},
-				TxOut:    []*wire.TxOut{&dummyTxOut},
-				LockTime: 0,
-			},
-			height:     300000,
-			isStandard: false,
-			err:        ErrNonStandard,
-		},
-		{
-			name: "Transaction version too high",
-			tx: wire.MsgTx{
-				SerType:  wire.TxSerializeFull,
-				Version:  maxTxVersion + 1,
 				TxIn:     []*wire.TxIn{&dummyTxIn},
 				TxOut:    []*wire.TxOut{&dummyTxOut},
 				LockTime: 0,
@@ -536,7 +519,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		txType := stake.DetermineTxType(&test.tx, noTreasury)
 		tx := dcrutil.NewTx(&test.tx)
 		err := checkTransactionStandard(tx, txType, test.height, medianTime,
-			DefaultMinRelayTxFee, maxTxVersion, noTreasury)
+			DefaultMinRelayTxFee, noTreasury)
 		if err == nil && test.isStandard {
 			// Test passes since function returned standard for a
 			// transaction which is intended to be standard.

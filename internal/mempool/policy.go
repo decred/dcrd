@@ -296,19 +296,15 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 //
 // Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
 // instance.
-func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64, medianTime time.Time, minRelayTxFee dcrutil.Amount, maxTxVersion uint16, isTreasuryEnabled bool) error {
+func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
+	medianTime time.Time, minRelayTxFee dcrutil.Amount,
+	isTreasuryEnabled bool) error {
 
-	// The transaction must be a currently supported version and serialize
-	// type.
+	// The transaction must be a currently supported serialize type.
 	msgTx := tx.MsgTx()
 	if msgTx.SerType != wire.TxSerializeFull {
 		str := fmt.Sprintf("transaction is not serialized with all "+
 			"required data -- type %v", msgTx.SerType)
-		return txRuleError(ErrNonStandard, str)
-	}
-	if msgTx.Version > maxTxVersion || msgTx.Version < 1 {
-		str := fmt.Sprintf("transaction version %d is not in the "+
-			"valid range of %d-%d", msgTx.Version, 1, maxTxVersion)
 		return txRuleError(ErrNonStandard, str)
 	}
 
