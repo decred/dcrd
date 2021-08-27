@@ -1231,9 +1231,6 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		return nil, txRuleError(ErrDuplicate, str)
 	}
 
-	// Determine active agendas based on flags.
-	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
-
 	// Perform preliminary validation checks on the transaction.  This makes use
 	// of blockchain which contains the invariant rules for what transactions
 	// are allowed into blocks.
@@ -1245,6 +1242,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		}
 		return nil, err
 	}
+
+	// Determine active agendas based on flags.
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// A standalone transaction must not be a coinbase transaction.
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
@@ -1798,8 +1798,10 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 	}
 
 	// Create agenda flags for checking transactions based on which ones are
-	// active.
-	checkTxFlags := blockchain.AFNone
+	// active or should otherwise always be enforced.
+	//
+	// Note that explicit version upgrades are always enforced by policy.
+	checkTxFlags := blockchain.AFExplicitVerUpgrades
 	if isTreasuryEnabled {
 		checkTxFlags |= blockchain.AFTreasuryEnabled
 	}
@@ -2042,8 +2044,10 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}
 
 	// Create agenda flags for checking transactions based on which ones are
-	// active.
-	checkTxFlags := blockchain.AFNone
+	// active or should otherwise always be enforced.
+	//
+	// Note that explicit version upgrades are always enforced by policy.
+	checkTxFlags := blockchain.AFExplicitVerUpgrades
 	if isTreasuryEnabled {
 		checkTxFlags |= blockchain.AFTreasuryEnabled
 	}

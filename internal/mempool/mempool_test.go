@@ -2747,3 +2747,124 @@ func TestStagedTransactionHeight(t *testing.T) {
 			initialBlockHeight, poolTransaction.Height)
 	}
 }
+
+// TestExplicitVersionSemantics ensures the mempool has the following semantics
+// in regards to transaction and script versions:
+//
+// - Rejects new regular and stake txns with an unsupported tx version
+// - Rejects new regular and stake txns with an output that has an unsupported
+//   script version
+// - Accepts new txns that spend an existing regular tx output that has a newer
+//   script version that is no longer allowed for new outputs (until/unless
+//   explicitly enabled via a future consensus vote)
+func TestExplicitVersionSemantics(t *testing.T) {
+	t.Parallel()
+
+	// Create a new harness that accepts non-standard transactions.
+	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	txPool := harness.txPool
+	txPool.cfg.Policy.AcceptNonStd = true
+	tc := &testContext{t, harness}
+
+	// Ensure a regular transaction with the version set to the max value is
+	// rejected.  Then verify it is not in the orphan pool, not in the
+	// transaction pool, and not reported as available.
+	maxVerTx, err := harness.CreateSignedTx([]spendableOutput{outputs[0]}, 1,
+		func(tx *wire.MsgTx) {
+			tx.Version = ^uint16(0)
+		})
+	if err != nil {
+		t.Fatalf("unable to create signed tx: %v", err)
+	}
+	_, err = txPool.ProcessTransaction(maxVerTx, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrTxVersionTooHigh) {
+		t.Fatalf("did not receive expected err -- got %[1]v (%[1]T)", err)
+	}
+	testPoolMembership(tc, maxVerTx, false, false)
+
+	// Ensure a stake transaction (ticket purchase) with the version set to the
+	// max value is rejected.  Then verify it is not in the orphan pool, not in
+	// the transaction pool, and not reported as available.
+	ticket, err := harness.CreateTicketPurchase(outputs[0], 40000,
+		func(tx *wire.MsgTx) {
+			tx.Version = ^uint16(0)
+		})
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction %v", err)
+	}
+	_, err = txPool.ProcessTransaction(ticket, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrTxVersionTooHigh) {
+		t.Fatalf("did not receive expected err -- got %[1]v (%[1]T)", err)
+	}
+	testPoolMembership(tc, ticket, false, false)
+
+	// Ensure a regular transaction with the script version for the first output
+	// set to the max value is rejected.  Then verify it is not in the orphan
+	// pool, not in the transaction pool, and not reported as available.
+	maxScrVerTx, err := harness.CreateSignedTx([]spendableOutput{outputs[0]},
+		1, func(tx *wire.MsgTx) {
+			tx.TxOut[0].Version = ^uint16(0)
+		})
+	if err != nil {
+		t.Fatalf("unable to create signed tx: %v", err)
+	}
+	_, err = txPool.ProcessTransaction(maxScrVerTx, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrScriptVersionTooHigh) {
+		t.Fatalf("did not receive expected err -- got %[1]v (%[1]T)", err)
+	}
+	testPoolMembership(tc, maxScrVerTx, false, false)
+
+	// Ensure a stake transaction (ticket purchase) with the script version of
+	// an output set to the max value is rejected.  Then verify it is not in the
+	// orphan pool, not in the transaction pool, and not reported as available.
+	//
+	// Note that newer script versions for stake transactions were already
+	// disallowed prior to the explicit version upgrades consensus vote, so this
+	// just asserts that behavior has not changed.
+	ticket2, err := harness.CreateTicketPurchase(outputs[0], 40000,
+		func(tx *wire.MsgTx) {
+			tx.TxOut[0].Version = ^uint16(0)
+		})
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction %v", err)
+	}
+	_, err = txPool.ProcessTransaction(ticket2, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrScriptVersionTooHigh) {
+		t.Fatalf("did not receive expected err -- got %[1]v (%[1]T)", err)
+	}
+	testPoolMembership(tc, ticket2, false, false)
+
+	// Create and add a mock regular tree utxo with a script version set to the
+	// max value so the code below can spend it to prove existing utxos created
+	// with script versions that are no longer valid for new outputs remain
+	// spendable.
+	mockInputMsgTx := wire.NewMsgTx()
+	mockInputMsgTx.AddTxOut(&wire.TxOut{
+		Value:    1000000000,
+		Version:  ^uint16(0),
+		PkScript: []byte{txscript.OP_FALSE},
+	})
+	mockInputTx := dcrutil.NewTx(mockInputMsgTx)
+	harness.AddFakeUTXO(mockInputTx, harness.chain.BestHeight())
+
+	// Ensure spending an existing regular transaction output that has a newer
+	// script version that is no longer valid for new outputs (until explicitly
+	// enabled in the future) is accepted.  Then verify it is not in the orphan
+	// pool, is in the transaction pool, and is reported as available.
+	spendableOut := txOutToSpendableOut(mockInputTx, 0, wire.TxTreeRegular)
+	spendMaxScrVerTx, err := harness.CreateTx(spendableOut)
+	if err != nil {
+		t.Fatalf("unable to create signed tx: %v", err)
+	}
+	_, err = txPool.ProcessTransaction(spendMaxScrVerTx, false, false, true, 0)
+	if err != nil {
+		t.Fatalf("unexpected err: %[1]v (%[1]T)", err)
+	}
+	testPoolMembership(tc, spendMaxScrVerTx, false, true)
+
+	// NOTE: No attempt to spend a stake output with a script version too high
+	// is made because those have never been permitted by consensus.
+}
