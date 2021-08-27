@@ -988,3 +988,280 @@ func TestCheckTicketExhaustion(t *testing.T) {
 		}
 	}
 }
+
+// TestExplicitVerUpgradesSemantics ensures that the various semantics enforced
+// by the explicit version upgrades agenda behave as intended.
+func TestExplicitVerUpgradesSemantics(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the explicit version upgrade and ensure it is always available to
+	// vote by removing the time constraints to prevent test failures when the
+	// real expiration time passes.
+	const voteID = chaincfg.VoteIDExplicitVersionUpgrades
+	params = cloneParams(params)
+	deploymentVer, deployment, err := findDeployment(params, voteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Shorter versions of useful params for convenience.
+	ticketsPerBlock := uint32(params.TicketsPerBlock)
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+	coinbaseMaturity := params.CoinbaseMaturity
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "explicitverupgradestest")
+	defer teardownFunc()
+
+	// The following funcs are convencience funcs for asserting the tests are
+	// actually testing what they intend to.
+	//
+	// assertRegularBlockTxVer is a helper to assert that the version of the
+	// transaction at the provided index of the regular transaction tree in the
+	// given block is the expected version.
+	//
+	// assertStakeBlockTxVer is a helper to assert that the version of the
+	// transaction at the provided index of the stake transaction tree in the
+	// given block is the expected version.
+	assertRegularBlockTxVer := func(blockName string, txIdx int, expected uint16) {
+		t.Helper()
+
+		tx := g.BlockByName(blockName).Transactions[txIdx]
+		if tx.Version != expected {
+			t.Fatalf("tx version for block %q tx idx %d is %d instead of "+
+				"expected %d", blockName, txIdx, tx.Version, expected)
+		}
+	}
+	assertStakeBlockTxVer := func(blockName string, txIdx int, expected uint16) {
+		t.Helper()
+
+		tx := g.BlockByName(blockName).STransactions[txIdx]
+		if tx.Version != expected {
+			t.Fatalf("tx version for block %q stake tx idx %d is %d instead "+
+				"of expected %d", blockName, txIdx, tx.Version, expected)
+		}
+	}
+
+	// splitRegSpendTx modifies the regular spend transaction created by the
+	// harness to create several outputs by evenly splitting the original output
+	// over multiple.
+	splitRegSpendTx := func(b *wire.MsgBlock) {
+		// Save the current outputs of the spend tx and clear them.
+		tx := b.Transactions[1]
+		origOut := tx.TxOut[0]
+		origOpReturnOut := tx.TxOut[1]
+		tx.TxOut = tx.TxOut[:0]
+
+		// Evenly split the original output amount over multiple outputs.
+		const numOutputs = 3
+		amount := origOut.Value / numOutputs
+		for i := 0; i < numOutputs; i++ {
+			if i == numOutputs-1 {
+				amount = origOut.Value - amount*(numOutputs-1)
+			}
+			tx.AddTxOut(wire.NewTxOut(amount, origOut.PkScript))
+		}
+
+		// Add the original op return back to the outputs.
+		tx.AddTxOut(origOpReturnOut)
+	}
+
+	// -------------------------------------------------------------------------
+	// Generate and accept enough blocks to reach one block prior to stake
+	// validation height.
+	// -------------------------------------------------------------------------
+
+	g.AdvanceToHeight(stakeValidationHeight-1, ticketsPerBlock)
+
+	// -------------------------------------------------------------------------
+	// Create block at stake validation height that has both a regular and stake
+	// transaction with a version allowed prior to the explicit version upgrades
+	// agenda but not after it activates.  The outputs are created now so they
+	// can be spent after the agenda activates to ensure they remain spendable.
+	//
+	// The block should be accepted because the agenda is not active yet.
+	//
+	//   ... -> bsvh
+	// -------------------------------------------------------------------------
+
+	lowFee := dcrutil.Amount(1)
+	outs := g.OldestCoinbaseOuts()
+	g.NextBlock("bsvh", &outs[0], outs[1:], splitRegSpendTx, func(b *wire.MsgBlock) {
+		// Create new transactions spending from the outputs of the regular
+		// spend transaction.
+		tx := b.Transactions[1]
+		numOutputs := uint32(len(tx.TxOut) - 2)
+		blkHeight := b.Header.Height
+		for txOutIdx := uint32(0); txOutIdx < numOutputs; txOutIdx++ {
+			spend := chaingen.MakeSpendableOutForTx(tx, blkHeight, 1, txOutIdx)
+			txNew := g.CreateSpendTx(&spend, lowFee)
+			b.AddTransaction(txNew)
+		}
+
+		// Set transaction versions to values that will no longer be valid for
+		// new outputs after the explicit version upgrades agenda activates.
+		b.Transactions[2].Version = ^uint16(0)
+		b.STransactions[3].Version = ^uint16(0)
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	g.SnapshotCoinbaseOuts("postSVH")
+
+	// -------------------------------------------------------------------------
+	// Create enough blocks to allow the stake output created at stake
+	// validation height to mature.
+	//
+	//   ... -> bsvh -> btmp0 -> ... -> btmp#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("btmp%d", i)
+		g.NextBlock(blockName, &outs[0], outs[1:])
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// -------------------------------------------------------------------------
+	// Create block that spends the regular and stake transactions created above
+	// with versions that will no longer be allowed for new transactions after
+	// the explicit version upgrades agend to ensure the utxos remain spendable
+	// prior to the activation of the agenda.
+	//
+	// Note that this block and the temp blocks above will be undone later so
+	// the same outputs can be spent after the explicit version upgrades agenda
+	// is active as well.
+	//
+	//   ... -> btmp# -> bspend0
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("bspend0", &outs[0], outs[1:], func(b *wire.MsgBlock) {
+		const regSpendTxIdx = 2
+		assertRegularBlockTxVer("bsvh", regSpendTxIdx, ^uint16(0))
+		bsvh := g.BlockByName("bsvh")
+		regSpend := chaingen.MakeSpendableOut(bsvh, regSpendTxIdx, 0)
+		regSpendTx := g.CreateSpendTx(&regSpend, lowFee)
+		b.AddTransaction(regSpendTx)
+
+		const stakeSpendTxIdx = 3
+		assertStakeBlockTxVer("bsvh", stakeSpendTxIdx, ^uint16(0))
+		stakeSpend := chaingen.MakeSpendableStakeOut(bsvh, stakeSpendTxIdx, 2)
+		stakeSpendTx := g.CreateSpendTx(&stakeSpend, lowFee)
+		b.AddTransaction(stakeSpendTx)
+	})
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Set the harness tip back to stake validation height, invalidate the
+	// blocks above so the underlying chain is also set back to that svh, and
+	// then activate the explicit version upgrades agenda.
+	// -------------------------------------------------------------------------
+
+	g.SetTip("bsvh")
+	g.InvalidateBlockAndExpectTip("btmp0", nil, "bsvh")
+	g.RestoreCoinbaseOutsSnapshot("postSVH")
+	g.AdvanceFromSVHToActiveAgendas(voteID)
+
+	// replaceVers is a munge function which modifies the provided block by
+	// replacing the block, stake, and vote versions with the explicit version
+	// deployment version.
+	replaceVers := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(deploymentVer))(b)
+		chaingen.ReplaceStakeVersion(deploymentVer)(b)
+		chaingen.ReplaceVoteVersions(deploymentVer)(b)
+	}
+
+	// -------------------------------------------------------------------------
+	// Assert the stake output at stake validation height has reached maturity
+	// and is therefore spendable as a result of advancing to activate the
+	// agenda.
+	// -------------------------------------------------------------------------
+
+	svhTxnsMaturityHeight := stakeValidationHeight + uint32(coinbaseMaturity)
+	if g.Tip().Header.Height < svhTxnsMaturityHeight {
+		t.Fatalf("stake output requires height %d to mature, but current tip "+
+			"is block %q (height %d)", svhTxnsMaturityHeight, g.TipName(),
+			g.Tip().Header.Height)
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a stable base for the remaining tests.
+	//
+	// ... -> bbase
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("bbase", &outs[0], outs[1:], replaceVers)
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Create block that has a regular transaction with a version that is no
+	// longer allowed for new transactions after the explicit version upgrades
+	// agenda is active.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	//   ... -> bbase
+	//                \-> b0bad
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b0bad", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		b.Transactions[1].Version = ^uint16(0)
+	})
+	g.RejectTipBlock(ErrTxVersionTooHigh)
+
+	// -------------------------------------------------------------------------
+	// Create block that has a stake transaction with a version that is no
+	// longer allowed for new transactions after the explicit version upgrades
+	// agenda is active.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	//   ... -> bbase
+	//                \-> b0bad2
+	// -------------------------------------------------------------------------
+
+	g.SetTip("bbase")
+	g.NextBlock("b0bad2", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		b.STransactions[3].Version = ^uint16(0)
+	})
+	g.RejectTipBlock(ErrTxVersionTooHigh)
+
+	// -------------------------------------------------------------------------
+	// Create block that spends both the regular and stake transactions created
+	// with a version that is no longer allowed for new transactions after the
+	// explicit version upgrades agenda is active but already existed prior to
+	// its activation.
+	//
+	// The block should be accepted because all existing utxos must remain
+	// spendable after the agenda activates.
+	//
+	//   ... -> bbase -> b0
+	// -------------------------------------------------------------------------
+
+	g.SetTip("bbase")
+	g.NextBlock("b0", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		const regSpendTxIdx = 2
+		assertRegularBlockTxVer("bsvh", regSpendTxIdx, ^uint16(0))
+		bsvh := g.BlockByName("bsvh")
+		regSpend := chaingen.MakeSpendableOut(bsvh, regSpendTxIdx, 0)
+		regSpendTx := g.CreateSpendTx(&regSpend, lowFee)
+		b.AddTransaction(regSpendTx)
+
+		const stakeSpendTxIdx = 3
+		assertStakeBlockTxVer("bsvh", stakeSpendTxIdx, ^uint16(0))
+		stakeSpend := chaingen.MakeSpendableStakeOut(bsvh, stakeSpendTxIdx, 2)
+		stakeSpendTx := g.CreateSpendTx(&stakeSpend, lowFee)
+		b.AddTransaction(stakeSpendTx)
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+}

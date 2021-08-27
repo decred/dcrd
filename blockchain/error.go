@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -142,6 +142,10 @@ const (
 	// ErrDuplicateTxInputs indicates a transaction references the same
 	// input more than once.
 	ErrDuplicateTxInputs = ErrorKind("ErrDuplicateTxInputs")
+
+	// ErrTxVersionTooHigh indicates a transaction version is higher than the
+	// maximum version allowed by the active consensus rules.
+	ErrTxVersionTooHigh = ErrorKind("ErrTxVersionTooHigh")
 
 	// ErrBadTxInput indicates a transaction input is invalid in some way
 	// such as referencing a previous transaction outpoint which is out of

@@ -324,6 +324,12 @@ const (
 	// additional checks which depend on the agenda being active are applied.
 	AFTreasuryEnabled AgendaFlags = 1 << iota
 
+	// AFExplicitVerUpgrades may be set to indicate that the explicit version
+	// upgrades agenda should be considered as active when checking a
+	// transaction so that any additional checks which depend on the agenda
+	// being active are applied.
+	AFExplicitVerUpgrades
+
 	// AFNone is a convenience value to specifically indicate no flags.
 	AFNone AgendaFlags = 0
 )
@@ -332,6 +338,12 @@ const (
 // is enabled.
 func (flags AgendaFlags) IsTreasuryEnabled() bool {
 	return flags&AFTreasuryEnabled == AFTreasuryEnabled
+}
+
+// IsExplicitVerUpgradesEnabled returns whether the flags indicate that the
+// explicit version upgrades agenda is enabled.
+func (flags AgendaFlags) IsExplicitVerUpgradesEnabled() bool {
+	return flags&AFExplicitVerUpgrades == AFExplicitVerUpgrades
 }
 
 // determineCheckTxFlags returns the flags to use when checking transactions
@@ -343,11 +355,21 @@ func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, er
 		return 0, err
 	}
 
+	// Determine if the explicit version upgrades agenda is active as of the
+	// block being checked.
+	explicitUpgradesActive, err := b.isExplicitVerUpgradesAgendaActive(prevNode)
+	if err != nil {
+		return 0, err
+	}
+
 	// Create and return agenda flags for checking transactions based on which
 	// ones are active as of the block being checked.
 	checkTxFlags := AFNone
 	if isTreasuryEnabled {
 		checkTxFlags |= AFTreasuryEnabled
+	}
+	if explicitUpgradesActive {
+		checkTxFlags |= AFExplicitVerUpgrades
 	}
 	return checkTxFlags, nil
 }
@@ -363,6 +385,28 @@ func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, er
 func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags) error {
 	// Determine active agendas based on flags.
 	isTreasuryEnabled := flags.IsTreasuryEnabled()
+	explicitUpgradesActive := flags.IsExplicitVerUpgradesEnabled()
+
+	// Reject transaction versions greater than the highest currently supported
+	// version.  Any future consensus changes that result in hard-forking
+	// changes to transactions (aka those that are not backwards compatible) are
+	// expected to only be applied to a new transaction version and to update
+	// this code accordingly so that the newer transaction version can be used
+	// as a guaranteed proxy for an agenda having passed and become active.
+	//
+	// Note that prior to the explicit version upgrades agenda, transaction
+	// versions are allowed to go up to a max uint16, so fall back to that value
+	// accordingly.
+	maxAllowedTxVer := ^uint16(0)
+	switch {
+	case explicitUpgradesActive:
+		maxAllowedTxVer = 3
+	}
+	if tx.Version > maxAllowedTxVer {
+		str := fmt.Sprintf("transaction version %d is greater than the max "+
+			"allowed version %d)", tx.Version, maxAllowedTxVer)
+		return ruleError(ErrTxVersionTooHigh, str)
+	}
 
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool

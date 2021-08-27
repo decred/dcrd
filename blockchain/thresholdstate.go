@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -774,6 +774,56 @@ func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (boo
 
 	b.chainLock.Lock()
 	isActive, err := b.isRevertTreasuryPolicyActive(prevNode)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
+// isExplicitVerUpgradesAgendaActive returns whether or not the explicit version
+// upgrades agenda, as defined in DCP0008, has passed and is now active from the
+// point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (bool, error) {
+	const deploymentID = chaincfg.VoteIDExplicitVersionUpgrades
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
+		return true, nil
+	}
+
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	if err != nil {
+		return false, err
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	return state.State == ThresholdActive, nil
+}
+
+// IsExplicitVerUpgradesAgendaActive returns whether or not the explicit version
+// upgrades agenda, as defined in DCP0008, has passed and is now active for the
+// block AFTER the given block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	// The agenda is never active for the genesis block.
+	if *prevHash == *zeroHash {
+		return false, nil
+	}
+
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
+		return false, unknownBlockError(prevHash)
+	}
+
+	b.chainLock.Lock()
+	isActive, err := b.isExplicitVerUpgradesAgendaActive(prevNode)
 	b.chainLock.Unlock()
 	return isActive, err
 }
