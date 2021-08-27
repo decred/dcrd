@@ -35,7 +35,7 @@ FROM golang:1.17
 WORKDIR /go/src/github.com/decred/dcrd
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go install . ./cmd/...
+RUN CGO_ENABLED=0 GOOS=linux go install . ./cmd/...
 
 # Production image
 FROM alpine:3.14.0
