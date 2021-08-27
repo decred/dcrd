@@ -34,7 +34,7 @@ FROM golang:1.17
 WORKDIR /go/src/github.com/decred/dcrd
 COPY . .
 
-RUN env GO111MODULE=on go install . ./cmd/...
+RUN go install . ./cmd/...
 
 # mainnet
 EXPOSE 9108 9109
