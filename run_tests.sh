@@ -35,17 +35,6 @@ for module in $MODPATHS; do
   (
     cd $MODNAME
 
-    # run `go mod download` and `go mod tidy` and fail if the git status of
-    # go.mod and/or go.sum changes
-    MOD_STATUS=$(git status --porcelain go.mod go.sum)
-    go mod download
-    go mod tidy
-    UPDATED_MOD_STATUS=$(git status --porcelain go.mod go.sum)
-    if [ "$UPDATED_MOD_STATUS" != "$MOD_STATUS" ]; then
-      echo 'Running `go mod tidy` modified go.mod and/or go.sum'
-      exit 1
-    fi
-
     # run linters
     golangci-lint run --build-tags=rpctest --disable-all --deadline=10m \
       --enable=gofmt \
