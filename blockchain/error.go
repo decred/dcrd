@@ -152,6 +152,10 @@ const (
 	// range or not referencing one at all.
 	ErrBadTxInput = ErrorKind("ErrBadTxInput")
 
+	// ErrScriptVersionTooHigh indicates a transaction script version is higher
+	// than the maximum version allowed by the active consensus rules.
+	ErrScriptVersionTooHigh = ErrorKind("ErrScriptVersionTooHigh")
+
 	// ErrMissingTxOut indicates a transaction output referenced by an input
 	// either does not exist or has already been spent.
 	ErrMissingTxOut = ErrorKind("ErrMissingTxOut")

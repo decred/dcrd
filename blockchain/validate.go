@@ -542,12 +542,38 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		}
 	}
 
-	// Ensure that non-stake transactions have no outputs with opcodes that are
-	// not allowed outside of the stake transactions.
+	// Enforce additional rules on regular (non-stake) transactions.
 	isStakeTx := isVote || isTicket || isRevocation || isTreasuryAdd ||
 		isTreasurySpend || isTreasuryBase
 	if !isStakeTx {
+		// Note that prior to the explicit version upgrades agenda, transaction
+		// script versions are allowed to go up to a max uint16, so fall back to
+		// that value accordingly.
+		maxAllowedScriptVer := ^uint16(0)
+		switch {
+		case explicitUpgradesActive:
+			maxAllowedScriptVer = 0
+		}
+
 		for txOutIdx, txOut := range tx.TxOut {
+			// Reject transaction script versions greater than the highest
+			// currently supported version.  Any future consensus changes that
+			// result in introduction of a new script version are expected to
+			// update this code accordingly so that the newer transaction script
+			// version can be used as a guaranteed proxy for an agenda having
+			// passed and become active.
+			//
+			// It is also worth noting that this check only applies to regular
+			// transactions because stake transactions are individually and
+			// separately enforced to be a specific script version.
+			if txOut.Version > maxAllowedScriptVer {
+				str := fmt.Sprintf("script version %d is greater than the max "+
+					"allowed version %d)", txOut.Version, maxAllowedScriptVer)
+				return ruleError(ErrScriptVersionTooHigh, str)
+			}
+
+			// Ensure that non-stake transactions have no outputs with opcodes
+			// that are not allowed outside of the stake transactions.
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript,
 				isTreasuryEnabled)
 			if err != nil {

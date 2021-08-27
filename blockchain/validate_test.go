@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1080,8 +1081,12 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	// -------------------------------------------------------------------------
 	// Create block at stake validation height that has both a regular and stake
 	// transaction with a version allowed prior to the explicit version upgrades
-	// agenda but not after it activates.  The outputs are created now so they
-	// can be spent after the agenda activates to ensure they remain spendable.
+	// agenda but not after it activates.  Also, set one of the outputs of
+	// another regular transaction to a script version that is also allowed
+	// prior to the explicit version upgrades agenda but not after it activates.
+	//
+	// The outputs are created now so they can be spent after the agenda
+	// activates to ensure they remain spendable.
 	//
 	// The block should be accepted because the agenda is not active yet.
 	//
@@ -1103,13 +1108,40 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 		}
 
 		// Set transaction versions to values that will no longer be valid for
-		// new outputs after the explicit version upgrades agenda activates.
+		// new transactions after the explicit version upgrades agenda
+		// activates.
 		b.Transactions[2].Version = ^uint16(0)
 		b.STransactions[3].Version = ^uint16(0)
+
+		// Set output script version of a regular transaction output to a value
+		// that will no longer be valid for new outputs after the explicit
+		// version upgrades agenda activates.  Also, set the script to false
+		// which ordinarily would make the output unspendable if the script
+		// version were 0.
+		b.Transactions[3].TxOut[0].Version = 1
+		b.Transactions[3].TxOut[0].PkScript = []byte{txscript.OP_FALSE}
 	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	g.SnapshotCoinbaseOuts("postSVH")
+
+	// -------------------------------------------------------------------------
+	// Create block that has a stake transaction with a script version that is
+	// not allowed regardless of the explicit version upgrades agenda.
+	//
+	// The block should be rejected because stake transaction script versions
+	// are separately enforced and are required to be a specific version
+	// independently of the consensus change.
+	//
+	//   ... -> bsvh
+	//              \-> bbadvote
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("bbadvote", &outs[0], outs[1:], func(b *wire.MsgBlock) {
+		b.STransactions[4].TxOut[2].Version = 12345
+	})
+	g.RejectTipBlock(ErrBadTxInput)
 
 	// -------------------------------------------------------------------------
 	// Create enough blocks to allow the stake output created at stake
@@ -1118,7 +1150,7 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	//   ... -> bsvh -> btmp0 -> ... -> btmp#
 	// -------------------------------------------------------------------------
 
-	outs = g.OldestCoinbaseOuts()
+	g.SetTip("bsvh")
 	for i := uint16(0); i < coinbaseMaturity; i++ {
 		blockName := fmt.Sprintf("btmp%d", i)
 		g.NextBlock(blockName, &outs[0], outs[1:])
@@ -1154,6 +1186,15 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 		stakeSpend := chaingen.MakeSpendableStakeOut(bsvh, stakeSpendTxIdx, 2)
 		stakeSpendTx := g.CreateSpendTx(&stakeSpend, lowFee)
 		b.AddTransaction(stakeSpendTx)
+
+		// Notice the signature script is nil because the version is unsupported
+		// which means the scripts are never executed.
+		const secondRegSpendTxIdx = 3
+		regSpend = chaingen.MakeSpendableOut(bsvh, secondRegSpendTxIdx, 0)
+		regSpendTx = g.CreateSpendTx(&regSpend, lowFee)
+		regSpendTx.TxIn[0].SignatureScript = nil
+		b.AddTransaction(regSpendTx)
+
 	})
 	g.AcceptTipBlock()
 
@@ -1236,6 +1277,23 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	g.RejectTipBlock(ErrTxVersionTooHigh)
 
 	// -------------------------------------------------------------------------
+	// Create block that has a regular transaction with an output that has a
+	// script version that is no longer allowed for new transactions after the
+	// explicit version upgrades agenda is active.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	//   ... -> bbase
+	//                \-> b0bad3
+	// -------------------------------------------------------------------------
+
+	g.SetTip("bbase")
+	g.NextBlock("b0bad3", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		b.Transactions[1].TxOut[0].Version = ^uint16(0)
+	})
+	g.RejectTipBlock(ErrScriptVersionTooHigh)
+
+	// -------------------------------------------------------------------------
 	// Create block that spends both the regular and stake transactions created
 	// with a version that is no longer allowed for new transactions after the
 	// explicit version upgrades agenda is active but already existed prior to
@@ -1264,4 +1322,32 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Create block that spends the regular transaction output created with a
+	// script version that is no longer allowed for new outputs after the
+	// explicit version upgrades agenda is active but already existed prior to
+	// its activation.
+	//
+	// The block should be accepted because all existing utxos must remain
+	// spendable after the agenda activates.
+	//
+	//   ... -> bbase -> b0 -> b1
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b1", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		// Notice the output is still spendable even though the signature script
+		// is nil because the version is unsupported which means the scripts are
+		// never executed.
+		const regSpendTxIdx = 3
+		bsvh := g.BlockByName("bsvh")
+		regSpend := chaingen.MakeSpendableOut(bsvh, regSpendTxIdx, 0)
+		regSpendTx := g.CreateSpendTx(&regSpend, lowFee)
+		regSpendTx.TxIn[0].SignatureScript = nil
+		b.AddTransaction(regSpendTx)
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+
 }

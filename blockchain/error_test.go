@@ -45,6 +45,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrDuplicateTxInputs, "ErrDuplicateTxInputs"},
 		{ErrTxVersionTooHigh, "ErrTxVersionTooHigh"},
 		{ErrBadTxInput, "ErrBadTxInput"},
+		{ErrScriptVersionTooHigh, "ErrScriptVersionTooHigh"},
 		{ErrMissingTxOut, "ErrMissingTxOut"},
 		{ErrUnfinalizedTx, "ErrUnfinalizedTx"},
 		{ErrDuplicateTx, "ErrDuplicateTx"},
