@@ -1,4 +1,4 @@
-FROM golang:1.15
+FROM golang:1.17
 
 #
 # NOTE: The RPC server listens on localhost by default.
