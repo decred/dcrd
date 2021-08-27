@@ -334,6 +334,24 @@ func (flags AgendaFlags) IsTreasuryEnabled() bool {
 	return flags&AFTreasuryEnabled == AFTreasuryEnabled
 }
 
+// determineCheckTxFlags returns the flags to use when checking transactions
+// based on the agendas that are active as of the block AFTER the given node.
+func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, error) {
+	// Determine if the treasury agenda is active as of the block being checked.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return 0, err
+	}
+
+	// Create and return agenda flags for checking transactions based on which
+	// ones are active as of the block being checked.
+	checkTxFlags := AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= AFTreasuryEnabled
+	}
+	return checkTxFlags, nil
+}
+
 // checkTransactionContext performs several validation checks on the transaction
 // which depend on having the full block data for all of its ancestors
 // available, most likely because the checks depend on whether or not an agenda
@@ -1482,18 +1500,13 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return err
 	}
 
-	// Determine if the treasury agenda is active as of the block being checked.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	// Create agenda flags for checking transactions based on which ones are
+	// active as of the block being checked.
+	checkTxFlags, err := b.determineCheckTxFlags(prevNode)
 	if err != nil {
 		return err
 	}
-
-	// Create agenda flags for checking transactions based on which ones are
-	// active as of the block being checked.
-	checkTxFlags := AFNone
-	if isTreasuryEnabled {
-		checkTxFlags |= AFTreasuryEnabled
-	}
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	if !standalone.IsCoinBaseTx(msgBlock.Transactions[0], isTreasuryEnabled) {

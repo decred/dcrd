@@ -553,17 +553,13 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			node.height, prevHash, tip.hash, tip.height)
 	}
 
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	// Create agenda flags for checking transactions based on which ones are
+	// active as of the block being connected.
+	checkTxFlags, err := b.determineCheckTxFlags(node.parent)
 	if err != nil {
 		return err
 	}
-
-	// Create agenda flags for checking transactions based on which ones are
-	// active as of the block being connected.
-	checkTxFlags := AFNone
-	if isTreasuryEnabled {
-		checkTxFlags |= AFTreasuryEnabled
-	}
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
@@ -781,17 +777,13 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			tip.height)
 	}
 
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	// Create agenda flags for checking transactions based on which ones were
+	// active as of the block being disconnected.
+	checkTxFlags, err := b.determineCheckTxFlags(node.parent)
 	if err != nil {
 		return err
 	}
-
-	// Create agenda flags for checking transactions based on which ones were
-	// active as of the block being disconnected.
-	checkTxFlags := AFNone
-	if isTreasuryEnabled {
-		checkTxFlags |= AFTreasuryEnabled
-	}
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// Write any modified block index entries to the database before
 	// updating the best state.
