@@ -348,10 +348,20 @@ const fileContents = `[Application Options]
 ; allowunsyncedmining=0
 
 ; ------------------------------------------------------------------------------
-; Debug
+; Logging
 ; ------------------------------------------------------------------------------
 
-; Debug logging level.
+; Log directory.
+; logdir=~/.dcrd/logs
+
+; Size of log file before it is rotated and compressed.
+; logsize=10M
+
+; Disable application file logging entirely and log exclusively to standard
+; output.
+; nofilelogging=false
+
+; Log verbosity.
 ; Valid levels are {trace, debug, info, warn, error, critical}
 ; You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set
 ; log level for individual subsystems.  Use dcrd --debuglevel=show to list
