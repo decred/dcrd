@@ -138,7 +138,7 @@ Application Options:
                                the default settings for the active network
       --allowoldvotes          Enable the addition of very old votes to the
                                mempool
-      --generate               Generate (mine) bitcoins using the CPU
+      --generate               Generate (mine) coins using the CPU
       --miningaddr=            Add the specified payment address to the list of
                                addresses to use for generated blocks -- At least
                                one address is required if the generate option is
