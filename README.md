@@ -83,7 +83,9 @@ In terms of individual benefits, since dcrd fully validates every block and
 transaction, it provides the highest security and privacy possible when used in
 conjunction with a wallet that also supports directly connecting to it in full
 validation mode, such as [dcrwallet (CLI)](https://github.com/decred/dcrwallet)
-and [Decrediton (GUI)](https://github.com/decred/decrediton).
+and [Decrediton (GUI)](https://github.com/decred/decrediton).  It is also ideal
+for businesses and services that need the most reliable and accurate data about
+transactions.
 
 ## Minimum Recommended Specifications (dcrd only)
 
