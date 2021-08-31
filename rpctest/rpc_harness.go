@@ -8,7 +8,6 @@ package rpctest
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -154,7 +153,7 @@ func New(t *testing.T, activeNet *chaincfg.Params, handlers *rpcclient.Notificat
 	}
 
 	harnessID := strconv.Itoa(numTestInstances)
-	nodeTestData, err := ioutil.TempDir("", "rpctest-"+harnessID)
+	nodeTestData, err := os.MkdirTemp("", "rpctest-"+harnessID)
 	if err != nil {
 		return nil, err
 	}

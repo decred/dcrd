@@ -8,7 +8,6 @@ package addrmgr
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -138,7 +137,7 @@ func TestAddAddressByIP(t *testing.T) {
 		},
 	}
 
-	dir, err := ioutil.TempDir("", "testaddressbyip")
+	dir, err := os.MkdirTemp("", "testaddressbyip")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +536,7 @@ func TestNetAddressKey(t *testing.T) {
 }
 
 func TestCorruptPeersFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "testcorruptpeersfile")
+	dir, err := os.MkdirTemp("", "testcorruptpeersfile")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -467,7 +466,7 @@ func TestTicketDBLongChain(t *testing.T) {
 	/*
 		// Create a new database to store the accepted stake node data into.
 		dbName := "ffldb_staketest"
-		dbPath, err := ioutil.TempDir("", dbName)
+		dbPath, err := os.MkdirTemp("", dbName)
 		if err != nil {
 			t.Fatalf("unable to create test db path: %v", err)
 		}
@@ -686,7 +685,7 @@ func TestTicketDBGeneral(t *testing.T) {
 
 	// Create a new database to store the accepted stake node data into.
 	dbName := "ffldb_staketest"
-	dbPath, err := ioutil.TempDir("", dbName)
+	dbPath, err := os.MkdirTemp("", dbName)
 	if err != nil {
 		t.Fatalf("unable to create test db path: %v", err)
 	}

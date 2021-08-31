@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"math/big"
@@ -5782,7 +5781,7 @@ func (s *Server) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *htt
 
 	// Read and close the JSON-RPC request body from the caller.
 	bodyReader := io.LimitReader(r.Body, rpcReadLimitAuthenticated)
-	body, err := ioutil.ReadAll(bodyReader)
+	body, err := io.ReadAll(bodyReader)
 	r.Body.Close()
 	if err != nil {
 		errMsg := fmt.Sprintf("error reading JSON message: %v", err)

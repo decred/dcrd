@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"os"
@@ -153,10 +152,10 @@ func main() {
 		fatalf("key file %q already exists\n", keyname)
 	}
 
-	if err = ioutil.WriteFile(certname, cert.PEMBlock, 0644); err != nil {
+	if err = os.WriteFile(certname, cert.PEMBlock, 0644); err != nil {
 		fatalf("cannot write cert: %v\n", err)
 	}
-	if err = ioutil.WriteFile(keyname, keyBlock, 0600); err != nil {
+	if err = os.WriteFile(keyname, keyBlock, 0600); err != nil {
 		os.Remove(certname)
 		fatalf("cannot write key: %v\n", err)
 	}

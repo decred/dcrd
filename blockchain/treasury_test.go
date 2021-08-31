@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -212,7 +211,7 @@ func TestTreasuryStateSerialization(t *testing.T) {
 func TestTreasuryDatabase(t *testing.T) {
 	// Create a new database to store treasury state.
 	dbName := "ffldb_treasurydb_test"
-	dbPath, err := ioutil.TempDir("", dbName)
+	dbPath, err := os.MkdirTemp("", dbName)
 	if err != nil {
 		t.Fatalf("unable to create treasury db path: %v", err)
 	}
@@ -294,7 +293,7 @@ func TestTreasuryDatabase(t *testing.T) {
 func TestTSpendDatabase(t *testing.T) {
 	// Create a new database to store treasury state.
 	dbName := "ffldb_tspenddb_test"
-	dbPath, err := ioutil.TempDir("", dbName)
+	dbPath, err := os.MkdirTemp("", dbName)
 	if err != nil {
 		t.Fatalf("unable to create tspend db path: %v", err)
 	}

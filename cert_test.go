@@ -8,7 +8,6 @@ import (
 	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/pem"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -16,14 +15,14 @@ import (
 // TestCertCreationWithHosts creates a certificate pair with extra hosts and
 // ensures the extra hosts are present in the generated files.
 func TestCertCreationWithHosts(t *testing.T) {
-	certFile, err := ioutil.TempFile("", "certfile")
+	certFile, err := os.CreateTemp("", "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
 	defer os.Remove(certFile.Name())
 
-	keyFile, err := ioutil.TempFile("", "keyfile")
+	keyFile, err := os.CreateTemp("", "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
@@ -36,7 +35,7 @@ func TestCertCreationWithHosts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Certificate was not created correctly: %s", err)
 	}
-	certBytes, err := ioutil.ReadFile(certFile.Name())
+	certBytes, err := os.ReadFile(certFile.Name())
 	if err != nil {
 		t.Fatalf("Unable to read the certfile: %s", err)
 	}
@@ -58,14 +57,14 @@ func TestCertCreationWithHosts(t *testing.T) {
 // TestCertCreationWithOutHosts ensures the creating a certificate pair without
 // any hosts works as intended.
 func TestCertCreationWithOutHosts(t *testing.T) {
-	certFile, err := ioutil.TempFile("", "certfile")
+	certFile, err := os.CreateTemp("", "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
 	defer os.Remove(certFile.Name())
 
-	keyFile, err := ioutil.TempFile("", "keyfile")
+	keyFile, err := os.CreateTemp("", "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}

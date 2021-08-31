@@ -12,7 +12,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"net"
@@ -1306,7 +1305,7 @@ var block432100 = func() wire.MsgBlock {
 // error.  This is provided for test files that contain hard-coded data.
 func hexFromFile(filename string) string {
 	filePath := filepath.Join(testDataPath, filename)
-	hex, err := ioutil.ReadFile(filePath)
+	hex, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}

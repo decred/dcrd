@@ -7,8 +7,8 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -32,7 +32,7 @@ func main() {
 
 	// Connect to local dcrd RPC server using websockets.
 	dcrdHomeDir := dcrutil.AppDataDir("dcrd", false)
-	certs, err := ioutil.ReadFile(filepath.Join(dcrdHomeDir, "rpc.cert"))
+	certs, err := os.ReadFile(filepath.Join(dcrdHomeDir, "rpc.cert"))
 	if err != nil {
 		log.Fatal(err)
 	}

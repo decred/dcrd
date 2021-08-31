@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/txscript/v4
 
-go 1.13
+go 1.16
 
 require (
 	github.com/dchest/siphash v1.2.2

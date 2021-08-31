@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,7 +72,7 @@ func newConfig(prefix, certFile, keyFile string, extra []string) (*nodeConfig, e
 func (n *nodeConfig) setDefaults() error {
 	n.dataDir = filepath.Join(n.prefix, "data")
 	n.logDir = filepath.Join(n.prefix, "logs")
-	cert, err := ioutil.ReadFile(n.certFile)
+	cert, err := os.ReadFile(n.certFile)
 	if err != nil {
 		return err
 	}
@@ -205,7 +204,7 @@ func (n *node) debugf(format string, args ...interface{}) {
 // to a package level variable where it is used for all tests. pathToDCRDMtx
 // must be held for writes.
 func buildNode(t *testing.T) error {
-	testNodeDir, err := ioutil.TempDir("", "rpctestdcrdnode")
+	testNodeDir, err := os.MkdirTemp("", "rpctestdcrdnode")
 	if err != nil {
 		return err
 	}
@@ -405,10 +404,10 @@ func genCertPair(certFile, keyFile string) error {
 	}
 
 	// Write cert and key files.
-	if err = ioutil.WriteFile(certFile, cert, 0644); err != nil {
+	if err = os.WriteFile(certFile, cert, 0644); err != nil {
 		return err
 	}
-	if err = ioutil.WriteFile(keyFile, key, 0600); err != nil {
+	if err = os.WriteFile(keyFile, key, 0600); err != nil {
 		os.Remove(certFile)
 		return err
 	}

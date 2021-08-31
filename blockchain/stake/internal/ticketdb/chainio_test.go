@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -390,7 +389,7 @@ func TestTicketHashesDeserializingErrors(t *testing.T) {
 func TestLiveDatabase(t *testing.T) {
 	// Create a new database to store the accepted stake node data into.
 	dbName := "ffldb_ticketdb_test"
-	dbPath, err := ioutil.TempDir("", dbName)
+	dbPath, err := os.MkdirTemp("", dbName)
 	if err != nil {
 		t.Fatalf("unable to create test db path: %v", err)
 	}
