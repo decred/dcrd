@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/blockchain/v4
 
-go 1.14
+go 1.16
 
 require (
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210409183916-7f402345f0a6

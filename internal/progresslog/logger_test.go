@@ -5,7 +5,7 @@
 package progresslog
 
 import (
-	"io/ioutil"
+	"io"
 	"reflect"
 	"testing"
 	"time"
@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	backendLog = slog.NewBackend(ioutil.Discard)
+	backendLog = slog.NewBackend(io.Discard)
 	testLog    = backendLog.Logger("TEST")
 )
 

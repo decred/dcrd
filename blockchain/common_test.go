@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	mrand "math/rand"
 	"os"
@@ -78,7 +77,7 @@ func createTestDatabase(dbName string, dbType string, net wire.CurrencyNet) (dat
 		}
 	} else {
 		// Create the directory for the test database.
-		dbPath, err := ioutil.TempDir("", dbName)
+		dbPath, err := os.MkdirTemp("", dbName)
 		if err != nil {
 			err := fmt.Errorf("unable to create test db path: %w",
 				err)

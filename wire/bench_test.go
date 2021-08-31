@@ -8,7 +8,7 @@ package wire
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -125,7 +125,7 @@ var blockOne = MsgBlock{
 // a single byte variable length integer.
 func BenchmarkWriteVarInt1(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarInt(ioutil.Discard, 0, 1)
+		WriteVarInt(io.Discard, 0, 1)
 	}
 }
 
@@ -133,7 +133,7 @@ func BenchmarkWriteVarInt1(b *testing.B) {
 // a three byte variable length integer.
 func BenchmarkWriteVarInt3(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarInt(ioutil.Discard, 0, 65535)
+		WriteVarInt(io.Discard, 0, 65535)
 	}
 }
 
@@ -141,7 +141,7 @@ func BenchmarkWriteVarInt3(b *testing.B) {
 // a five byte variable length integer.
 func BenchmarkWriteVarInt5(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarInt(ioutil.Discard, 0, 4294967295)
+		WriteVarInt(io.Discard, 0, 4294967295)
 	}
 }
 
@@ -149,7 +149,7 @@ func BenchmarkWriteVarInt5(b *testing.B) {
 // a nine byte variable length integer.
 func BenchmarkWriteVarInt9(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarInt(ioutil.Discard, 0, 18446744073709551615)
+		WriteVarInt(io.Discard, 0, 18446744073709551615)
 	}
 }
 
@@ -223,7 +223,7 @@ func BenchmarkReadVarStr10(b *testing.B) {
 // four byte variable length string.
 func BenchmarkWriteVarStr4(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarString(ioutil.Discard, 0, "test")
+		WriteVarString(io.Discard, 0, "test")
 	}
 }
 
@@ -231,7 +231,7 @@ func BenchmarkWriteVarStr4(b *testing.B) {
 // ten byte variable length string.
 func BenchmarkWriteVarStr10(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		WriteVarString(ioutil.Discard, 0, "test012345")
+		WriteVarString(io.Discard, 0, "test012345")
 	}
 }
 
@@ -261,7 +261,7 @@ func BenchmarkWriteOutPoint(b *testing.B) {
 		Index: 0,
 	}
 	for i := 0; i < b.N; i++ {
-		WriteOutPoint(ioutil.Discard, 0, 0, op)
+		WriteOutPoint(io.Discard, 0, 0, op)
 	}
 }
 
@@ -297,7 +297,7 @@ func BenchmarkReadTxOut(b *testing.B) {
 func BenchmarkWriteTxOut(b *testing.B) {
 	txOut := blockOne.Transactions[0].TxOut[0]
 	for i := 0; i < b.N; i++ {
-		writeTxOut(ioutil.Discard, 0, 0, txOut)
+		writeTxOut(io.Discard, 0, 0, txOut)
 	}
 }
 
@@ -328,7 +328,7 @@ func BenchmarkReadTxIn(b *testing.B) {
 func BenchmarkWriteTxIn(b *testing.B) {
 	txIn := blockOne.Transactions[0].TxIn[0]
 	for i := 0; i < b.N; i++ {
-		writeTxInPrefix(ioutil.Discard, 0, 0, txIn)
+		writeTxInPrefix(io.Discard, 0, 0, txIn)
 	}
 }
 
@@ -409,7 +409,7 @@ func BenchmarkDeserializeTxLarge(b *testing.B) {
 func BenchmarkSerializeTx(b *testing.B) {
 	tx := blockOne.Transactions[0]
 	for i := 0; i < b.N; i++ {
-		tx.Serialize(ioutil.Discard)
+		tx.Serialize(io.Discard)
 	}
 }
 
@@ -444,7 +444,7 @@ func BenchmarkReadBlockHeader(b *testing.B) {
 func BenchmarkWriteBlockHeader(b *testing.B) {
 	header := blockOne.Header
 	for i := 0; i < b.N; i++ {
-		writeBlockHeader(ioutil.Discard, 0, &header)
+		writeBlockHeader(io.Discard, 0, &header)
 	}
 }
 

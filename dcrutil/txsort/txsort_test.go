@@ -8,7 +8,7 @@ package txsort
 import (
 	"bytes"
 	"encoding/hex"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -94,7 +94,7 @@ func TestSort(t *testing.T) {
 	for _, test := range tests {
 		// Load and deserialize the test transaction.
 		filePath := filepath.Join("testdata", test.hexFile)
-		txHexBytes, err := ioutil.ReadFile(filePath)
+		txHexBytes, err := os.ReadFile(filePath)
 		if err != nil {
 			t.Errorf("ReadFile (%s): failed to read test file: %v",
 				test.name, err)

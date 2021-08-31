@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/blockchain/stake/v4
 
-go 1.13
+go 1.16
 
 require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
