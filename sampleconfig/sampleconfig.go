@@ -137,9 +137,9 @@ const fileContents = `[Application Options]
 ; whitelist=192.168.0.0/24
 ; whitelist=fd00::/16
 
-; Disable DNS seeding for peers.  By default, when dcrd starts, it will use
-; DNS to query for available peers to connect with.
-; nodnsseed=1
+; Disable seeding for peer discovery.  By default, when dcrd starts, it will use
+; HTTPS to query for available peers to connect with.
+; noseeders=1
 
 ; Specify the interfaces to listen on.  One listen address per line.
 ; NOTE: The default port is modified by some options such as 'testnet', so it is
