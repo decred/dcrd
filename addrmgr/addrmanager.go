@@ -1048,15 +1048,6 @@ func (a *AddrManager) LocalAddresses() []LocalAddr {
 	return addrs
 }
 
-// FetchLocalAddresses fetches a summary of local addresses information for
-// the getnetworkinfo rpc.
-//
-// Deprecated: This will be removed in the next major version bump.
-// Use LocalAddresses instead.
-func (a *AddrManager) FetchLocalAddresses() []LocalAddr {
-	return a.LocalAddresses()
-}
-
 const (
 	// Unreachable represents a publicly unreachable connection state
 	// between two addresses.
@@ -1199,16 +1190,6 @@ func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *wire.NetAddress) (bo
 	valid := (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
 		(reach == Ipv6Weak || reach == Ipv6Strong || reach == Teredo))
 	return valid, reach
-}
-
-// IsPeerNaValid asserts if the provided local address is routable
-// and reachabile from the peer that suggested it.
-//
-// Deprecated: This will be removed in the next major version bump.
-// Use ValidatePeerNa instead.
-func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
-	valid, _ := a.ValidatePeerNa(localAddr, remoteAddr)
-	return valid
 }
 
 // New returns a new Decred address manager.
