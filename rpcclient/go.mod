@@ -3,7 +3,7 @@ module github.com/decred/dcrd/rpcclient/v7
 go 1.16
 
 require (
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/dcrjson/v4 v4.0.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28
 	github.com/decred/dcrd/gcs/v3 v3.0.0-20210129195202-a4265d63b619
