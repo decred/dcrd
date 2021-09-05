@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/dcrjson/v3
+module github.com/decred/dcrd/dcrjson/v4
 
 go 1.11
 
