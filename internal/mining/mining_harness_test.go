@@ -183,6 +183,18 @@ func (c *fakeChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest c
 	return c.forceHeadReorganizationErr
 }
 
+// HeaderByHash returns the header for the block with the given hash from the
+// fake chain instance.  Blocks can be added to the instance with the AddBlock
+// function.
+func (c *fakeChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
+	block, ok := c.blocks[*hash]
+	if !ok {
+		return wire.BlockHeader{}, fmt.Errorf("unable to find block %v in fake "+
+			"chain", hash)
+	}
+	return block.MsgBlock().Header, nil
+}
+
 // IsHeaderCommitmentsAgendaActive returns a mocked bool representing whether
 // the header commitments agenda is active or not for the block AFTER the given
 // block.
