@@ -152,6 +152,11 @@ type Config struct {
 	// it matches up with the current organization of the best chain.
 	ForceHeadReorganization func(formerBest chainhash.Hash, newBest chainhash.Hash) error
 
+	// HeaderByHash returns the block header identified by the given hash or an
+	// error if it doesn't exist.  Note that this will return headers from both
+	// the main chain and any side chains.
+	HeaderByHash func(hash *chainhash.Hash) (wire.BlockHeader, error)
+
 	// IsFinalizedTransaction defines the function to use to determine whether or
 	// not a transaction is finalized.
 	IsFinalizedTransaction func(tx *dcrutil.Tx, blockHeight int64, blockTime time.Time) bool
