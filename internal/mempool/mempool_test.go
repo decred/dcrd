@@ -157,6 +157,18 @@ func (s *fakeChain) SetHeight(height int64) {
 	s.Unlock()
 }
 
+// HeaderByHash returns the header for the block with the given hash from the
+// fake chain instance.  Blocks can be added to the instance with the AddBlock
+// function.
+func (s *fakeChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
+	block, ok := s.blocks[*hash]
+	if !ok {
+		return wire.BlockHeader{}, fmt.Errorf("unable to find block %v in fake "+
+			"chain", hash)
+	}
+	return block.MsgBlock().Header, nil
+}
+
 // PastMedianTime returns the current median time associated with the fake chain
 // instance.
 func (s *fakeChain) PastMedianTime() time.Time {
@@ -818,6 +830,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			BlockByHash:           chain.BlockByHash,
 			BestHash:              chain.BestHash,
 			BestHeight:            chain.BestHeight,
+			HeaderByHash:          chain.HeaderByHash,
 			PastMedianTime:        chain.PastMedianTime,
 			CalcSequenceLock:      chain.CalcSequenceLock,
 			TSpendMinedOnAncestor: chain.TSpendMinedOnAncestor,

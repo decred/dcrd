@@ -106,6 +106,11 @@ type Config struct {
 	// the current best chain.
 	BestHeight func() int64
 
+	// HeaderByHash returns the block header identified by the given hash or an
+	// error if it doesn't exist.  Note that this will return headers from both
+	// the main chain and any side chains.
+	HeaderByHash func(hash *chainhash.Hash) (wire.BlockHeader, error)
+
 	// PastMedianTime defines the function to use in order to access the
 	// median time calculated from the point-of-view of the current chain
 	// tip within the best chain.
