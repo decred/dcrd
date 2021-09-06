@@ -1,5 +1,6 @@
+# alpine:3.14.0
 # Build image
-FROM golang:1.17
+FROM golang@sha256:7dbfeb9d51c049e8bfe36cf1a4217c7b1ba304bf0eb72d57d0c04f405589f122
 
 #
 # NOTE: The RPC server listens on localhost by default.
@@ -38,7 +39,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go install . ./cmd/...
 
 # Production image
-FROM alpine:3.14.0
+FROM alpine@sha256:adab3844f497ab9171f070d4cae4114b5aec565ac772e2f2579405b78be67c96
 
 RUN apk add --no-cache ca-certificates
 COPY --from=0 /go/bin/* /bin/

@@ -1,4 +1,6 @@
-FROM golang:1.17
+# golang:1.17.0
+# SHA using crane digest golang:1.17.0
+FROM golang@sha256:7dbfeb9d51c049e8bfe36cf1a4217c7b1ba304bf0eb72d57d0c04f405589f122
 
 #
 # NOTE: The RPC server listens on localhost by default.
