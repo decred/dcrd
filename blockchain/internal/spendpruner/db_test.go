@@ -10,12 +10,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/decred/dcrd/database/v2"
-	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/wire"
 )
 
-// TestSerializeConsumerDeps ensures consumer dependencies serialize as intended.
+// TestSerializeConsumerDeps ensures consumer dependencies serialize as
+// intended.
 func TestSerializeConsumerDeps(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -87,8 +88,8 @@ func TestDeserializeConsumerDeps(t *testing.T) {
 	}
 }
 
-// createdDB creates the test database. This is intended to be used
-// for testing purposes only.
+// createdDB creates the test database. This is intended to be used for testing
+// purposes only.
 func createDB() (database.DB, func(), error) {
 	dbPath := filepath.Join(os.TempDir(), "spdb")
 

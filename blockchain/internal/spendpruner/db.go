@@ -8,23 +8,23 @@ import (
 	"bytes"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 )
 
 const (
-	// depsSeparator is the character used in separating
-	// spend journal consumer dependencies when serializing.
+	// depsSeparator is the character used in separating spend journal consumer
+	// dependencies when serializing.
 	depsSeparator = ','
 )
 
 var (
-	// spendConsumerDepsBucketName is the name of the bucket used in
-	// storing spend journal consumer dependencies.
+	// spendConsumerDepsBucketName is the name of the bucket used in storing
+	// spend journal consumer dependencies.
 	spendConsumerDepsBucketName = []byte("spendconsumerdeps")
 )
 
-// initConsumerDepsBucket creates the spend consumer dependencies bucket
-// if it does not exist.
+// initConsumerDepsBucket creates the spend consumer dependencies bucket if it
+// does not exist.
 func initConsumerDepsBucket(db database.DB) error {
 	// Create the spend consumer dependencies bucket if it does not exist yet.
 	return db.Update(func(dbTx database.Tx) error {
@@ -34,10 +34,10 @@ func initConsumerDepsBucket(db database.DB) error {
 	})
 }
 
-// serializeSpendConsumerDeps returns serialized bytes of
-// the provided spend journal consumer dependencies.
+// serializeSpendConsumerDeps returns serialized bytes of the provided spend
+// journal consumer dependencies.
 func serializeSpendConsumerDeps(deps []string) []byte {
-	buf := new(bytes.Buffer)
+	var buf bytes.Buffer
 	for idx := 0; idx < len(deps); idx++ {
 		buf.WriteString(deps[idx])
 		if idx < len(deps)-1 {
@@ -60,8 +60,8 @@ func deserializeSpendConsumerDeps(serializedBytes []byte) []string {
 	return deps
 }
 
-// dbUpdateSpendConsumerDeps uses an existing database transaction
-// to update the spend consumer dependency entry for the provided block hash.
+// dbUpdateSpendConsumerDeps uses an existing database transaction to update
+// the spend consumer dependency entry for the provided block hash.
 func dbUpdateSpendConsumerDeps(dbTx database.Tx, blockHash chainhash.Hash, consumerDeps []string) error {
 	depsBucket := dbTx.Metadata().Bucket(spendConsumerDepsBucketName)
 
@@ -76,8 +76,8 @@ func dbUpdateSpendConsumerDeps(dbTx database.Tx, blockHash chainhash.Hash, consu
 	return depsBucket.Put(blockHash[:], serialized)
 }
 
-// dbFetchSpendConsumerDeps uses an existing database transaction
-// to fetch all spend consumer dependency entries in the database.
+// dbFetchSpendConsumerDeps uses an existing database transaction to fetch all
+// spend consumer dependency entries in the database.
 func dbFetchSpendConsumerDeps(dbTx database.Tx) (map[chainhash.Hash][]string, error) {
 	depsBucket := dbTx.Metadata().Bucket(spendConsumerDepsBucketName)
 	consumerDeps := make(map[chainhash.Hash][]string)

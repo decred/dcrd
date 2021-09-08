@@ -21,7 +21,8 @@ const (
 	// ErrNeedSpendData indicates an error asserting a spend data dependency.
 	ErrNeedSpendData = ErrorKind("ErrNeedSpendData")
 
-	// ErrUpdateConsumerDeps indicates an error updating consumer spend dependencies.
+	// ErrUpdateConsumerDeps indicates an error updating consumer spend
+	// dependencies.
 	ErrUpdateConsumerDeps = ErrorKind("ErrUpdateConsumerDeps")
 )
 
@@ -30,9 +31,9 @@ func (e ErrorKind) Error() string {
 	return string(e)
 }
 
-// PruneError identifies a spend journal pruner error. It has full support
-// for errors.Is and errors.As, so the caller can ascertain the specific
-// reason for the error by checking the underlying error.
+// PruneError identifies a spend journal pruner error. It has full support for
+// errors.Is and errors.As, so the caller can ascertain the specific reason
+// for the error by checking the underlying error.
 type PruneError struct {
 	Description string
 	Err         error

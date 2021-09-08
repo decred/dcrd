@@ -883,7 +883,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 
 	// Prune the associated spend data for the provided block hash if there
 	// are no spend dependencies for it.
-	err = b.spendPruner.MaybePruneSpendData(block.Hash())
+	err = b.spendPruner.MaybePruneSpendData(block.Hash(), nil)
 	if err != nil {
 		return err
 	}
@@ -2132,29 +2132,31 @@ func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 	return prevScripts, nil
 }
 
-// SpendPrunerHandler processes incoming spending pruner signals.
-func (b *BlockChain) SpendPrunerHandler(ctx context.Context) {
-	b.spendPruner.HandleSignals(ctx)
-}
-
-// Ensure spendPurgerAdapter implements the spendpruner.SpendPurger interface.
-var _ spendpruner.SpendPurger = (*spendPurgerAdapter)(nil)
-
-// spendPurgerAdapter provides an adapter from a blockchain
-// instance to the spendpruner.SpendPurger interface.
-type spendPurgerAdapter struct {
-	*BlockChain
-}
-
 // RemoveSpendEntry purges the associated spend journal entry of the
-// provided block hash.
+// provided block hash if it is not part of the main chain.
 //
-// This function is safe for concurrent access and is part of the
-// spendpruner.SpendPurger interface.
-func (s *spendPurgerAdapter) RemoveSpendEntry(hash *chainhash.Hash) error {
-	return s.db.Update(func(dbTx database.Tx) error {
+// This function is safe for concurrent access.
+func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
+	b.processLock.Lock()
+	defer b.processLock.Unlock()
+
+	// Only purge the spend journal entry if it is not part of main chain.
+	if b.MainChainHasBlock(hash) {
+		return nil
+	}
+
+	err := b.db.Update(func(dbTx database.Tx) error {
 		return dbRemoveSpendJournalEntry(dbTx, hash)
 	})
+
+	return err
+}
+
+// SpendPrunerHandler processes incoming spending pruner signals.
+//
+// This must be run as a goroutine.
+func (b *BlockChain) SpendPrunerHandler(ctx context.Context) {
+	b.spendPruner.HandleSignals(ctx)
 }
 
 // Config is a descriptor which specifies the blockchain instance configuration.
@@ -2326,9 +2328,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		}
 	}
 
-	spendPrunerAdapter := &spendPurgerAdapter{BlockChain: &b}
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db,
-		spendPrunerAdapter)
+	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db, b.RemoveSpendEntry)
 	if err != nil {
 		return nil, err
 	}
