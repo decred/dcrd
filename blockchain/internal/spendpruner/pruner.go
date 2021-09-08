@@ -10,16 +10,35 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 )
 
-// SpendJournalPruner represents a spend journal pruner that ensures
-// spend journal entries needed by consumers are retained until
-// no longer needed.
+// spendPrunerEventType represents a spend pruner event message.
+type spendPrunerEventType int
+
+const (
+	// spBlockConnected indicates a new block was connected to the chain.
+	spBlockConnected spendPrunerEventType = iota
+
+	// spBlockDisconnected indicates there are no spend dependencies for the
+	// block disconnected from the chain.
+	spBlockDisconnected
+)
+
+// SpendJournalNotification represents the notification received by the pruner
+// on block connections and disconnections.
+type SpendJournalNotification struct {
+	BlockHash *chainhash.Hash
+	Event     spendPrunerEventType
+	Done      chan bool
+}
+
+// SpendJournalPruner represents a spend journal pruner that ensures spend
+// journal entries needed by consumers are retained until no longer needed.
 type SpendJournalPruner struct {
-	// This field represents the blockchain functionality exposed to the
-	// spend pruner.
-	purger SpendPurger
+	// This removes the spend journal entry of the provided block hash if it
+	// is not part of the main chain.
+	removeSpendEntry func(hash *chainhash.Hash) error
 
 	// These fields track spend consumers and their spend journal dependencies.
 	dependents    map[chainhash.Hash][]string
@@ -27,29 +46,27 @@ type SpendJournalPruner struct {
 	consumers     map[string]SpendConsumer
 	consumersMtx  sync.RWMutex
 
-	// These fields relay block connection and disconnection signals for
+	// This field relays block connection and disconnection signals for
 	// processing.
-	pruneCh     chan *chainhash.Hash
-	connectedCh chan *chainhash.Hash
+	ch chan SpendJournalNotification
 
 	// This field provides access to the database.
 	db database.DB
 }
 
 // NewSpendJournalPruner initializes a spend journal pruner.
-func NewSpendJournalPruner(db database.DB, purger SpendPurger) (*SpendJournalPruner, error) {
+func NewSpendJournalPruner(db database.DB, removeSpendEntry func(hash *chainhash.Hash) error) (*SpendJournalPruner, error) {
 	err := initConsumerDepsBucket(db)
 	if err != nil {
 		return nil, err
 	}
 
 	spendPruner := &SpendJournalPruner{
-		db:          db,
-		purger:      purger,
-		dependents:  make(map[chainhash.Hash][]string),
-		consumers:   make(map[string]SpendConsumer),
-		pruneCh:     make(chan *chainhash.Hash),
-		connectedCh: make(chan *chainhash.Hash),
+		db:               db,
+		removeSpendEntry: removeSpendEntry,
+		dependents:       make(map[chainhash.Hash][]string),
+		consumers:        make(map[string]SpendConsumer),
+		ch:               make(chan SpendJournalNotification),
 	}
 
 	err = spendPruner.loadSpendConsumerDeps()
@@ -94,7 +111,10 @@ func (s *SpendJournalPruner) DependencyExists(blockHash *chainhash.Hash) bool {
 // NotifyConnectedBlock signals the spend pruner of the provided
 // connected block hash.
 func (s *SpendJournalPruner) NotifyConnectedBlock(blockHash *chainhash.Hash) {
-	s.connectedCh <- blockHash
+	s.ch <- SpendJournalNotification{
+		BlockHash: blockHash,
+		Event:     spBlockConnected,
+	}
 }
 
 // dependencyExistsInternal determines whether a spend consumer depends on
@@ -199,7 +219,10 @@ func (s *SpendJournalPruner) RemoveSpendConsumerDependency(blockHash *chainhash.
 
 	if len(dependents) == 0 {
 		delete(s.dependents, *blockHash)
-		s.pruneCh <- blockHash
+		s.ch <- SpendJournalNotification{
+			BlockHash: blockHash,
+			Event:     spBlockDisconnected,
+		}
 	}
 
 	// Update the tracked spend journal entry for the provided
@@ -216,8 +239,9 @@ func (s *SpendJournalPruner) RemoveSpendConsumerDependency(blockHash *chainhash.
 	return nil
 }
 
-// removeSpendConsumerDeps removes the key/value pair of spend consumer deps and
-// the provided block hash from the the prune set as well as the database.
+// removeSpendConsumerDeps removes the key/value pair of spend consumer
+// dependencies and the provided block hash from the the prune set as well
+// as the database.
 func (s *SpendJournalPruner) removeSpendConsumerDeps(blockHash *chainhash.Hash) error {
 	s.dependentsMtx.Lock()
 	delete(s.dependents, *blockHash)
@@ -265,23 +289,47 @@ func (s *SpendJournalPruner) HandleSignals(ctx context.Context) {
 		case <-ctx.Done():
 			return
 
-		case blockHash := <-s.pruneCh:
-			err := s.purger.RemoveSpendEntry(blockHash)
-			if err != nil {
-				log.Errorf("unable to prune spend data for "+
-					"block hash (%s): %v", blockHash, err)
+		case ntfn := <-s.ch:
+			signalDone := func() {
+				if ntfn.Done != nil {
+					close(ntfn.Done)
+				}
 			}
 
-		case blockHash := <-s.connectedCh:
-			if !s.DependencyExists(blockHash) {
-				continue
-			}
+			switch ntfn.Event {
+			case spBlockDisconnected:
+				err := s.removeSpendEntry(ntfn.BlockHash)
+				if err != nil {
+					log.Errorf("unable to prune spend data for "+
+						"block hash (%s): %v", ntfn.BlockHash, err)
 
-			// Remove the key/value pair of persisted spend consumer deps and
-			// the provided connected block hash from the prune set.
-			err := s.removeSpendConsumerDeps(blockHash)
-			if err != nil {
-				log.Error(err)
+				}
+
+				signalDone()
+
+			case spBlockConnected:
+				if !s.DependencyExists(ntfn.BlockHash) {
+					// Do nothing if there are no spend journal dependencies
+					// for the the connected block.
+					signalDone()
+					continue
+				}
+
+				// Remove the key/value pair of persisted spend consumer
+				// dependencies and the provided connected block hash from
+				// the prune set.
+				err := s.removeSpendConsumerDeps(ntfn.BlockHash)
+				if err != nil {
+					log.Error(err)
+				}
+
+				signalDone()
+
+			default:
+				log.Errorf("unknown spend journal notification type: %d",
+					ntfn.Event)
+
+				signalDone()
 			}
 		}
 	}
@@ -290,17 +338,25 @@ func (s *SpendJournalPruner) HandleSignals(ctx context.Context) {
 // MaybePruneSpendData firsts adds consumer spend dependencies for the provided
 // blockhash if any. If there are no dependencies the spend journal entry
 // associated with the provided block hash is pruned.
-func (s *SpendJournalPruner) MaybePruneSpendData(blockHash *chainhash.Hash) error {
+func (s *SpendJournalPruner) MaybePruneSpendData(blockHash *chainhash.Hash, done chan bool) error {
 	err := s.addSpendConsumerDeps(blockHash)
 	if err != nil {
 		return err
 	}
 
 	if s.DependencyExists(blockHash) {
-		// Do nothing if there are spend dependencies
-		// for the provided block hash.
+		// Do nothing if there are spend dependencies for the provided block
+		// hash.
 		return nil
 	}
 
-	return s.purger.RemoveSpendEntry(blockHash)
+	go func() {
+		s.ch <- SpendJournalNotification{
+			BlockHash: blockHash,
+			Event:     spBlockDisconnected,
+			Done:      done,
+		}
+	}()
+
+	return nil
 }

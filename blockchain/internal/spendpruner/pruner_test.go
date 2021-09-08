@@ -18,7 +18,7 @@ import (
 // testSpendConsumer represents a mock spend consumer for testing purposes only.
 type testSpendConsumer struct {
 	id               string
-	queryer          *testSpendPurger
+	queryer          *testChain
 	tip              *chainhash.Hash
 	needSpendData    bool
 	needSpendDataErr error
@@ -35,16 +35,16 @@ func (t *testSpendConsumer) NeedSpendData(hash *chainhash.Hash) (bool, error) {
 	return t.needSpendData, t.needSpendDataErr
 }
 
-// testSpendPurger represents a mock spend purger for testing purposes only.
-type testSpendPurger struct {
+// testChain represents a mock chain for testing purposes only.
+type testChain struct {
 	removedSpendEntries map[chainhash.Hash]struct{}
 	removeSpendEntryErr error
 	mtx                 sync.Mutex
 }
 
-// RemoveSpendEntry purges the associated spend journal entry of the
-// provided block hash.
-func (t *testSpendPurger) RemoveSpendEntry(hash *chainhash.Hash) error {
+// RemoveSpendEntry purges the associated spend journal entry of the provided
+// block hash.
+func (t *testChain) RemoveSpendEntry(hash *chainhash.Hash) error {
 	if t.removeSpendEntryErr != nil {
 		return t.removeSpendEntryErr
 	}
@@ -58,7 +58,7 @@ func (t *testSpendPurger) RemoveSpendEntry(hash *chainhash.Hash) error {
 
 // TestSpendPruner ensures the spend pruner works as intended.
 func TestSpendPruner(t *testing.T) {
-	chain := &testSpendPurger{
+	chain := &testChain{
 		removedSpendEntries: make(map[chainhash.Hash]struct{}),
 	}
 
@@ -85,7 +85,7 @@ func TestSpendPruner(t *testing.T) {
 	defer teardown()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	pruner, err := NewSpendJournalPruner(db, chain)
+	pruner, err := NewSpendJournalPruner(db, chain.RemoveSpendEntry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestSpendPruner(t *testing.T) {
 		return dependents, ok
 	}
 
-	isRemovedSpendEntry := func(chain *testSpendPurger, hash *chainhash.Hash) bool {
+	isRemovedSpendEntry := func(chain *testChain, hash *chainhash.Hash) bool {
 		chain.mtx.Lock()
 		_, ok := chain.removedSpendEntries[*hash]
 		chain.mtx.Unlock()
@@ -237,7 +237,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Ensure the spend pruner does not remove the spend entries if
 	// there are existing dependencies for it.
-	err = pruner.MaybePruneSpendData(hashA)
+	err = pruner.MaybePruneSpendData(hashA, nil)
 	if err != nil {
 		t.Fatalf("[MaybePruneSpendData] unexpected error: %v", err)
 	}
@@ -250,9 +250,17 @@ func TestSpendPruner(t *testing.T) {
 	// Ensure the spend pruner does remove spend entries for
 	// a hash if there are no existing spend dependencies for it.
 	hashX := &chainhash.Hash{'x'}
-	err = pruner.MaybePruneSpendData(hashX)
+	done := make(chan bool)
+	err = pruner.MaybePruneSpendData(hashX, done)
 	if err != nil {
 		t.Fatalf("[MaybePruneSpendData] unexpected error: %v", err)
+	}
+
+	select {
+	case <-done:
+		// Do nothing.
+	case <-time.After(time.Second * 3):
+		t.Fatal("timeout waiting for remove spend journal done signal")
 	}
 
 	ok = isRemovedSpendEntry(chain, hashX)
@@ -332,7 +340,7 @@ func TestSpendPruner(t *testing.T) {
 	cancel()
 
 	// Load the spend pruner from the database.
-	pruner, err = NewSpendJournalPruner(db, chain)
+	pruner, err = NewSpendJournalPruner(db, chain.RemoveSpendEntry)
 	if err != nil {
 		t.Fatal(err)
 	}
