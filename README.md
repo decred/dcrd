@@ -155,7 +155,6 @@ https://decred.org/downloads/
   ```sh
   $ git version
   ```
-
 </details>
 <details><summary><b>Windows Example</b></summary>
 
@@ -184,52 +183,28 @@ https://decred.org/downloads/
   Run the `dcrd` executable now installed in `$GOPATH/bin`.
 </details>
 
-## Docker
+## Building and Running OCI Containers (aka Docker/Podman)
 
-### Running dcrd
+The project does not officially provide container images.  However, all of the
+necessary files to build your own lightweight non-root container image based on
+`scratch` from the latest source code are available in
+[contrib/docker](./contrib/docker/README.md).
 
-You can run a decred node from inside a docker container.  To build the image
-yourself, use the following command:
+It is also worth noting that, to date, most users typically prefer to run `dcrd`
+directly, without using a container, for at least a few reasons:
 
-```
-docker build -t decred/dcrd .
-```
-
-Or you can create an alpine based image (requires Docker 17.05 or higher):
-
-```
-docker build -t decred/dcrd:alpine -f Dockerfile.alpine .
-```
-
-You can then run the image using:
-
-```
-docker run decred/dcrd
-```
-
-You may wish to use an external volume to customize your config and persist the
-data in an external volume:
-
-```
-docker run --rm -v /home/user/dcrdata:/root/.dcrd/data decred/dcrd
-```
-
-For a minimal image, you can use the decred/dcrd:alpine tag.  This is typically
-a more secure option while also being a much smaller image.
-
-You can run `dcrctl` from inside the image.  For example, run an image (mounting
-your data from externally) with:
-
-```
-docker run --rm -ti --name=dcrd-1 -v /home/user/.dcrd:/root/.dcrd \
-  decred/dcrd:alpine
-```
-
-And then run `dcrctl` commands against it.  For example:
-
-```
-docker exec -ti dcrd-1 dcrctl getbestblock
-```
+- `dcrd` is a static binary that does not require root privileges and therefore
+  does not suffer from the usual deployment issues that typically make
+  containers attractive
+- It is harder and more verbose to run `dcrd` from a container as compared to
+  normal:
+  - `dcrd` is designed to automatically create a working default configuration
+    which means it just works out of the box without the need for additional
+    configuration for almost all typical users
+  - The blockchain data and configuration files need to be persistent which
+    means configuring and managing a docker data volume
+  - Running non-root containers with `docker` requires special care in regards
+    to permissions
 
 ## Running Tests
 

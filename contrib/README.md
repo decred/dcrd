@@ -38,3 +38,10 @@ if desired.
 
 See the full [Simulation Network Reference](../docs/simnet_environment.mediawiki)
 for more details.
+
+### Building and Running OCI Containers (aka Docker/Podman)
+
+The project does not officially provide container images.  However, all of the
+necessary files to build your own lightweight non-root container image based on
+`scratch` from the latest source code are available in the docker directory.
+See [docker/README.md](./docker/README.md) for more details.
