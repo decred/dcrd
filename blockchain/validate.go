@@ -2368,7 +2368,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 			if txOut.Value != expectedOutAmt {
 				str := fmt.Sprintf("output %s:%d does not pay the expected "+
 					"amount per ticket output commitment %s:%d (expected %d, "+
-					"output pays %d)", msgTx.TxHash(), txOutIdx, ticketHash, // PROBLEM:  ticketHash...
+					"output pays %d)", msgTx.TxHash(), txOutIdx, ticketHash,
 					commitmentOutIdx, expectedOutAmt, txOut.Value)
 				return ruleError(ErrBadPayeeValue, str)
 			}
@@ -2395,7 +2395,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 				str := fmt.Sprintf("output %s:%d pays less than the expected "+
 					"expected amount per ticket output commitment %s:%d "+
 					"(lowest allowed %d, output pays %d)", msgTx.TxHash(),
-					txOutIdx, ticketHash, commitmentOutIdx, amtLimitLow, // PROBLEM:  ticketHash...
+					txOutIdx, ticketHash, commitmentOutIdx, amtLimitLow,
 					txOut.Value)
 				return ruleError(ErrBadPayeeValue, str)
 			}
