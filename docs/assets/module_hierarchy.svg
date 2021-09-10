@@ -33,7 +33,7 @@
 <!-- dcrjson -->
 <g id="node3" class="node"><title>dcrjson</title>
 <path fill="indianred" stroke="black" d="M151.5,-324C151.5,-324 99.5,-324 99.5,-324 93.5,-324 87.5,-318 87.5,-312 87.5,-312 87.5,-300 87.5,-300 87.5,-294 93.5,-288 99.5,-288 99.5,-288 151.5,-288 151.5,-288 157.5,-288 163.5,-294 163.5,-300 163.5,-300 163.5,-312 163.5,-312 163.5,-318 157.5,-324 151.5,-324"/>
-<text text-anchor="middle" x="125.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson/v3</text>
+<text text-anchor="middle" x="125.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson/v4</text>
 </g>
 <!-- chainhash&#45;&gt;dcrjson -->
 <g id="edge2" class="edge"><title>chainhash&#45;&gt;dcrjson</title>
