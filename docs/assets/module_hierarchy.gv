@@ -2,7 +2,10 @@ digraph {
 	graph [splines=ortho colorscheme=svg label=<<u>Module Hierarchy</u>> labelloc=t fontsize=18.0]
 	node [shape=box style="filled, rounded"]
 
+	blake256 [label="crypto/blake256" fillcolor=cornflowerblue]
+	ripemd160 [label="crypto/ripemd160" fillcolor=darkturquoise]
 	certgen [label="certgen" fillcolor=darkkhaki]
+	bech32 [label="bech32" fillcolor=antiquewhite3]
 	chainhash [label="chaincfg/chainhash" fillcolor=aquamarine]
 	dcrjson [label="dcrjson/v4" fillcolor=indianred]
 	types [label="rpc/jsonrpc/types" fillcolor=tomato]
@@ -21,14 +24,17 @@ digraph {
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain/v3" fillcolor=orchid]
-	lru  [label="lru" fillcolor=royalblue3]
+	lru [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
 	rpcclient [label="rpcclient/v6" fillcolor=mediumseagreen]
+	apbf [label="container/apbf" fillcolor=goldenrod]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same connmgr addrmgr hdkeychain peer blockchain rpcclient}
 
 	certgen
+	bech32
+	blake256 -> chainhash [dir=back color=cornflowerblue]
 	chaincfg -> txscript [dir=back color=cadetblue]
 	chainhash -> dcrjson [dir=back color=aquamarine]
 	chainhash -> wire [dir=back color=aquamarine]
@@ -36,13 +42,14 @@ digraph {
 	wire -> chaincfg [dir=back color=coral]
 	wire -> connmgr [dir=back color=coral]
 	wire -> standalone [dir=back color=coral]
+	ripemd160 -> dcrutil [dir=back color=darkturquoise]
 	dcrec -> dcrutil [dir=back color=mediumpurple]
-	edwards ->  dcrutil [dir=back color=lightseagreen]
-	secp256k1 ->  dcrutil [dir=back color=mediumvioletred]
+	edwards -> dcrutil [dir=back color=lightseagreen]
+	secp256k1 -> dcrutil [dir=back color=mediumvioletred]
 	dcrutil -> database [dir=back color=burlywood]
 	dcrutil -> hdkeychain [dir=back color=burlywood]
 	dcrutil -> txscript [dir=back color=burlywood]
-	database ->  stake [dir=back color=dodgerblue]
+	database -> stake [dir=back color=dodgerblue]
 	txscript -> stake [dir=back color=mediumspringgreen]
 	txscript -> peer [dir=back color=mediumspringgreen]
 	stake -> gcs [dir=back color=bisque]
@@ -56,9 +63,11 @@ digraph {
 
 	blockchain -> dcrd [dir=back color=orchid]
 	certgen -> dcrd [dir=back color=darkkhaki]
+	bech32 -> dcrd [dir=back color=antiquewhite3]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
 	hdkeychain -> dcrd [dir=back color=deepskyblue]
 	connmgr -> dcrd [dir=back color=mistyrose]
 	rpcclient -> dcrd [dir=back color=mediumseagreen]
 	peer -> dcrd [dir=back color=khaki]
+	apbf -> dcrd [dir=back color=goldenrod]
 }

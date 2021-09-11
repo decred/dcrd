@@ -223,6 +223,12 @@ The following versioned modules are provided by dcrd repository:
   SPV wallets
 * [lru](https://github.com/decred/dcrd/tree/master/lru) - Implements a generic
   concurrent safe least-recently-used cache with near O(1) perf
+* [container/apbf](https://github.com/decred/dcrd/tree/master/container/apbf) -
+  Implements an optimized Age-Partitioned Bloom Filter
+* [crypto/blake256](https://github.com/decred/dcrd/tree/master/crypto/blake256) -
+  Implements 14-round BLAKE-256 and BLAKE-224 hash functions (SHA-3 candidate)
+* [crypto/ripemd160](https://github.com/decred/dcrd/tree/master/crypto/ripemd160) -
+   Implements the RIPEMD-160 hash algorithm
 
 <a name="ModuleHierarchy" />
 
