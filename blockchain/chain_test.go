@@ -787,7 +787,7 @@ func TestLocateInventory(t *testing.T) {
 				&test.hashStop)
 		}
 		if !reflect.DeepEqual(headers, test.headers) {
-			t.Errorf("%s: unxpected headers -- got %v, want %v",
+			t.Errorf("%s: unexpected headers -- got %v, want %v",
 				test.name, headers, test.headers)
 			continue
 		}
@@ -800,7 +800,7 @@ func TestLocateInventory(t *testing.T) {
 		hashes := chain.LocateBlocks(test.locator, &test.hashStop,
 			maxAllowed)
 		if !reflect.DeepEqual(hashes, test.hashes) {
-			t.Errorf("%s: unxpected hashes -- got %v, want %v",
+			t.Errorf("%s: unexpected hashes -- got %v, want %v",
 				test.name, hashes, test.hashes)
 			continue
 		}

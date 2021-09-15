@@ -258,7 +258,7 @@ func TestAncestorSkipList(t *testing.T) {
 		}
 
 		if node.skipToAncestor != nodes[ancestorHeight] {
-			t.Fatalf("unxpected node for skip list pointer for height %d",
+			t.Fatalf("unexpected node for skip list pointer for height %d",
 				ancestorHeight)
 		}
 	}
@@ -278,14 +278,14 @@ func TestAncestorSkipList(t *testing.T) {
 		startHeight := rng.Int63n(int64(len(nodes) - 1))
 		startNode := nodes[startHeight]
 		if branchTip(nodes).Ancestor(startHeight) != startNode {
-			t.Fatalf("unxpected ancestor for height %d from tip",
+			t.Fatalf("unexpected ancestor for height %d from tip",
 				startHeight)
 		}
 
 		// Ensure obtaining the ancestor at height 0 starting from the node at
 		// the random starting height is the expected node.
 		if startNode.Ancestor(0) != nodes[0] {
-			t.Fatalf("unxpected ancestor for height 0 from start height %d",
+			t.Fatalf("unexpected ancestor for height 0 from start height %d",
 				startHeight)
 		}
 
@@ -293,7 +293,7 @@ func TestAncestorSkipList(t *testing.T) {
 		// from the node at the random starting height is the expected node.
 		endHeight := rng.Int63n(startHeight + 1)
 		if startNode.Ancestor(endHeight) != nodes[endHeight] {
-			t.Fatalf("unxpected ancestor for height %d from start height %d",
+			t.Fatalf("unexpected ancestor for height %d from start height %d",
 				endHeight, startHeight)
 		}
 	}

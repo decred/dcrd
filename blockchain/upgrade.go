@@ -2729,7 +2729,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 						// fields that were conditionally stored in V2, which includes flags
 						// and ticket minimal outputs.
 						//
-						// The serialzied format is:
+						// The serialized format is:
 						//   flags             VLQ            byte
 						//   ticketMinOuts     []byte         variable
 						//

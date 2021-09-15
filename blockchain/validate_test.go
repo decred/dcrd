@@ -1018,7 +1018,7 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	g, teardownFunc := newChaingenHarness(t, params, "explicitverupgradestest")
 	defer teardownFunc()
 
-	// The following funcs are convencience funcs for asserting the tests are
+	// The following funcs are convenience funcs for asserting the tests are
 	// actually testing what they intend to.
 	//
 	// assertRegularBlockTxVer is a helper to assert that the version of the
@@ -1162,7 +1162,7 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	// -------------------------------------------------------------------------
 	// Create block that spends the regular and stake transactions created above
 	// with versions that will no longer be allowed for new transactions after
-	// the explicit version upgrades agend to ensure the utxos remain spendable
+	// the explicit version upgrades agenda to ensure the utxos remain spendable
 	// prior to the activation of the agenda.
 	//
 	// Note that this block and the temp blocks above will be undone later so

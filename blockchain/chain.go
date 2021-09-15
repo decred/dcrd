@@ -2027,7 +2027,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEna
 	//
 	// Note that transactions in the stake tree are spent before transactions in
 	// the regular tree when originally creating the spend journal entry, thus
-	// the spent txous need to be processed in the same order.
+	// the spent txouts need to be processed in the same order.
 	var stxoIdx int
 	for i, tx := range msgBlock.STransactions {
 		// Ignore treasury base and tspends since they have no inputs.

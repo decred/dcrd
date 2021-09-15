@@ -565,7 +565,7 @@ func TestFetchEntry(t *testing.T) {
 }
 
 // TestFetchEntries validates that the provided view is populated with the
-// requested entries as expecetd.
+// requested entries as expected.
 func TestFetchEntries(t *testing.T) {
 	t.Parallel()
 
@@ -1019,7 +1019,7 @@ func TestMaybeFlush(t *testing.T) {
 				test.name, test.wantBackendEntries, backendEntries)
 		}
 
-		// Validate that the last flush hash and time have been updated as expexted.
+		// Validate that the last flush hash and time have been updated as expected.
 		if utxoCache.lastFlushHash != *test.wantLastFlushHash {
 			t.Fatalf("%q: unexpected last flush hash -- got %x, want %x", test.name,
 				utxoCache.lastFlushHash, *test.wantLastFlushHash)

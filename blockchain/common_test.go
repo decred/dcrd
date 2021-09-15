@@ -356,7 +356,7 @@ func newFakeCreateTSpend(privKey []byte, payouts []dcrutil.Amount, fee dcrutil.A
 
 	// OP_TGEN
 	for _, amount := range payouts {
-		// Generate valid script. This is a hex encdoded blob from
+		// Generate valid script. This is a hex encoded blob from
 		// generator.go.
 		p2shOpTrueScript, err := hex.DecodeString("a914f5a8302ee8695bf836258b8f2b57b38a0be14e4787")
 		if err != nil {

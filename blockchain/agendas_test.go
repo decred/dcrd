@@ -696,7 +696,7 @@ func TestTreasuryFeaturesDeployment(t *testing.T) {
 	testTreasuryFeaturesDeployment(t, chaincfg.RegNetParams())
 }
 
-// testExplicitVerUpgradesDeployment ensures the deployment of the explcit
+// testExplicitVerUpgradesDeployment ensures the deployment of the explicit
 // version upgrades agenda activates for the provided network parameters.
 func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 	// Clone the parameters so they can be mutated, find the correct deployment
@@ -806,9 +806,9 @@ func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 	}
 }
 
-// TestExplictVerUpgradesDeployment ensures the deployment of the explicit
+// TestExplicitVerUpgradesDeployment ensures the deployment of the explicit
 // version upgrades agenda activates as expected.
-func TestExplictVerUpgradesDeployment(t *testing.T) {
+func TestExplicitVerUpgradesDeployment(t *testing.T) {
 	testExplicitVerUpgradesDeployment(t, chaincfg.MainNetParams())
 	testExplicitVerUpgradesDeployment(t, chaincfg.RegNetParams())
 }
