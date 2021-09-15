@@ -88,6 +88,10 @@ type ChainQueryer interface {
 	// AddSpendConsumer adds the provided spend consumer.
 	AddSpendConsumer(consumer spendpruner.SpendConsumer)
 
+	// RemoveSpendConsumerDependency removes the provided spend consumer
+	// dependency associated with the provided block hash.
+	RemoveSpendConsumerDependency(dbTx database.Tx, blockHash *chainhash.Hash, consumerID string) error
+
 	// FetchSpendConsumer returns the spend journal consumer associated with
 	// the provided id.
 	FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error)
@@ -133,7 +137,7 @@ type Indexer interface {
 	// notification type.
 	ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) error
 
-	// IndexSubsciption returns the subscription for index updates.
+	// IndexSubscription returns the subscription for index updates.
 	IndexSubscription() *IndexSubscription
 
 	// WaitForSync subscribes clients for the next index sync update.
@@ -650,7 +654,7 @@ func createIndex(indexer Indexer, genesisHash *chainhash.Hash) error {
 }
 
 // upgradeIndex determines if the provided index needs to be upgraded.
-// If it does it is dropped and recreeated.
+// If it does it is dropped and recreated.
 func upgradeIndex(ctx context.Context, indexer Indexer, genesisHash *chainhash.Hash) error {
 	if err := finishDrop(ctx, indexer); err != nil {
 		return err

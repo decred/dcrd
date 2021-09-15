@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -26,23 +26,25 @@ import (
 // testChain represents a mock implementation of a block chain as
 // defined by the indexer.ChainQueryer interface.
 type testChain struct {
-	bestHeight     int64
-	bestHash       *chainhash.Hash
-	treasuryActive bool
-	keyedByHeight  map[int64]*dcrutil.Block
-	keyedByHash    map[string]*dcrutil.Block
-	orphans        map[string]*dcrutil.Block
-	consumers      map[string]spendpruner.SpendConsumer
-	mtx            sync.Mutex
+	bestHeight       int64
+	bestHash         *chainhash.Hash
+	treasuryActive   bool
+	keyedByHeight    map[int64]*dcrutil.Block
+	keyedByHash      map[string]*dcrutil.Block
+	orphans          map[string]*dcrutil.Block
+	consumers        map[string]spendpruner.SpendConsumer
+	removedSpendDeps map[string][]string
+	mtx              sync.Mutex
 }
 
 // newTestChain initializes a test chain.
 func newTestChain() (*testChain, error) {
 	tc := &testChain{
-		keyedByHeight: make(map[int64]*dcrutil.Block),
-		keyedByHash:   make(map[string]*dcrutil.Block),
-		orphans:       make(map[string]*dcrutil.Block),
-		consumers:     make(map[string]spendpruner.SpendConsumer),
+		keyedByHeight:    make(map[int64]*dcrutil.Block),
+		keyedByHash:      make(map[string]*dcrutil.Block),
+		orphans:          make(map[string]*dcrutil.Block),
+		consumers:        make(map[string]spendpruner.SpendConsumer),
+		removedSpendDeps: make(map[string][]string),
 	}
 	genesis := dcrutil.NewBlock(chaincfg.SimNetParams().GenesisBlock)
 	return tc, tc.AddBlock(genesis)
@@ -173,6 +175,43 @@ func (tc *testChain) AddSpendConsumer(consumer spendpruner.SpendConsumer) {
 	tc.mtx.Lock()
 	tc.consumers[consumer.ID()] = consumer
 	tc.mtx.Unlock()
+}
+
+// RemoveSpendConsumerDependency removes the provided spend consumer dependency
+// associated with the provided block hash.
+func (tc *testChain) RemoveSpendConsumerDependency(_ database.Tx, blockHash *chainhash.Hash, consumerID string) error {
+	tc.mtx.Lock()
+	defer tc.mtx.Unlock()
+
+	removedDeps, ok := tc.removedSpendDeps[blockHash.String()]
+	if !ok {
+		tc.removedSpendDeps[blockHash.String()] = []string{consumerID}
+
+		return nil
+	}
+	_ = append(removedDeps, consumerID)
+
+	return nil
+}
+
+// IsRemovedSpendConsumerDependency returns whether the provided consumer has
+// a spend journal dependency for the provided block hash.
+func (tc *testChain) IsRemovedSpendConsumerDependency(blockHash *chainhash.Hash, consumerID string) bool {
+	tc.mtx.Lock()
+	defer tc.mtx.Unlock()
+
+	ids, ok := tc.removedSpendDeps[blockHash.String()]
+	if !ok {
+		return false
+	}
+
+	for _, id := range ids {
+		if id == consumerID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // FetchSpendConsumer returns the spend journal consumer associated with

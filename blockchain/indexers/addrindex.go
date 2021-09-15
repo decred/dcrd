@@ -1205,6 +1205,15 @@ func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) err
 			log.Errorf("%s: unable to disconnect block: %v", idx.Name(), err)
 		}
 
+		// Remove the associated spend consumer dependency for the disconnected
+		// block.
+		err = idx.Queryer().RemoveSpendConsumerDependency(dbTx, ntfn.Block.Hash(),
+			idx.consumer.id)
+		if err != nil {
+			log.Errorf("%s: unable to remove spend consumer dependency "+
+				"for block %s: %v", idx.Name(), ntfn.Block.Hash(), err)
+		}
+
 		idx.consumer.UpdateTip(ntfn.Parent.Hash())
 
 	default:

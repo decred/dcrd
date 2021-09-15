@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/database/v3"
 )
 
 // testSpendConsumer represents a mock spend consumer for testing purposes only.
@@ -183,6 +184,12 @@ func TestSpendPruner(t *testing.T) {
 		consumerC.needSpendData = state
 	}
 
+	removeSpendConsumerDep := func(pruner *SpendJournalPruner, blockHash *chainhash.Hash, consumerID string) error {
+		return pruner.db.Update(func(tx database.Tx) error {
+			return pruner.RemoveSpendConsumerDependency(tx, blockHash, consumerID)
+		})
+	}
+
 	err = pruner.addSpendConsumerDeps(hashA)
 	if err != nil {
 		t.Fatalf("unexpected error adding spend data dependents "+
@@ -212,7 +219,7 @@ func TestSpendPruner(t *testing.T) {
 	}
 
 	// Ensure removing a non-existent dependency does nothing.
-	err = pruner.RemoveSpendConsumerDependency(hashA, "consumer_x")
+	err = removeSpendConsumerDep(pruner, hashA, "consumer_x")
 	if err != nil {
 		t.Fatalf("unexpected error removing non-existent spend "+
 			"consumer dependency %v", err)
@@ -220,7 +227,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Ensure removing dependencies for a non-existent block hash does nothing.
 	hashT := &chainhash.Hash{'T'}
-	err = pruner.RemoveSpendConsumerDependency(hashT, "consumer_x")
+	err = removeSpendConsumerDep(pruner, hashT, "consumer_x")
 	if err != nil {
 		t.Fatalf("unexpected error removing spend "+
 			"consumer dependency for non-existent block hash %v", err)
@@ -269,7 +276,7 @@ func TestSpendPruner(t *testing.T) {
 	}
 
 	// Remove the HashA dependency for consumerC.
-	pruner.RemoveSpendConsumerDependency(hashA, consumerC.ID())
+	removeSpendConsumerDep(pruner, hashA, consumerC.ID())
 
 	dependents, _ = fetchHashSpendDependents(pruner, hashA)
 	if len(dependents) != 1 {
@@ -279,7 +286,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Trigger a spend journal prune for HashA's entry by removing the
 	// last dependency for it.
-	pruner.RemoveSpendConsumerDependency(hashA, consumerA.ID())
+	removeSpendConsumerDep(pruner, hashA, consumerA.ID())
 
 	// Ensure the pruner no longer has a dependent entry for HashA.
 	_, ok = pruner.dependents[*hashA]

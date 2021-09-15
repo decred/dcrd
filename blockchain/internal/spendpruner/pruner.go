@@ -199,7 +199,7 @@ func (s *SpendJournalPruner) addSpendConsumerDeps(blockHash *chainhash.Hash) err
 // associated with the provided block hash from the spend pruner. The block
 // hash is removed as a key of the dependents map once all its dependency
 // entries are removed.
-func (s *SpendJournalPruner) RemoveSpendConsumerDependency(blockHash *chainhash.Hash, consumerID string) error {
+func (s *SpendJournalPruner) RemoveSpendConsumerDependency(dbTx database.Tx, blockHash *chainhash.Hash, consumerID string) error {
 	s.dependentsMtx.Lock()
 	dependents, ok := s.dependents[*blockHash]
 	if !ok {
@@ -218,18 +218,20 @@ func (s *SpendJournalPruner) RemoveSpendConsumerDependency(blockHash *chainhash.
 	s.dependentsMtx.Unlock()
 
 	if len(dependents) == 0 {
+		s.dependentsMtx.Lock()
 		delete(s.dependents, *blockHash)
-		s.ch <- SpendJournalNotification{
-			BlockHash: blockHash,
-			Event:     spBlockDisconnected,
-		}
+		s.dependentsMtx.Unlock()
+		go func() {
+			s.ch <- SpendJournalNotification{
+				BlockHash: blockHash,
+				Event:     spBlockDisconnected,
+			}
+		}()
 	}
 
 	// Update the tracked spend journal entry for the provided
 	// block hash.
-	err := s.db.Update(func(tx database.Tx) error {
-		return dbUpdateSpendConsumerDeps(tx, *blockHash, dependents)
-	})
+	err := dbUpdateSpendConsumerDeps(dbTx, *blockHash, dependents)
 	if err != nil {
 		msg := fmt.Sprintf("unable to update consumer dependencies "+
 			"entry for block hash %v: %v", blockHash, err)
