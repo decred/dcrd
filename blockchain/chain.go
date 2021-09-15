@@ -2244,6 +2244,12 @@ func (q *ChainQueryerAdapter) AddSpendConsumer(consumer spendpruner.SpendConsume
 	q.spendPruner.AddConsumer(consumer)
 }
 
+// RemoveSpendConsumerDependency removes the provided spend consumer dependency
+// associated with the provided block hash from the spend pruner.
+func (q *ChainQueryerAdapter) RemoveSpendConsumerDependency(dbTx database.Tx, blockHash *chainhash.Hash, consumerID string) error {
+	return q.spendPruner.RemoveSpendConsumerDependency(dbTx, blockHash, consumerID)
+}
+
 // FetchSpendConsumer returns the spend journal consumer associated with the
 // provided id.
 func (q *ChainQueryerAdapter) FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error) {
@@ -2415,11 +2421,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Initialize the UTXO state.  This entails running any database migrations as
 	// necessary as well as initializing the UTXO cache.
 	if err := b.utxoCache.Initialize(ctx, &b, b.bestChain.tip()); err != nil {
-		return nil, err
-	}
-
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db, b.RemoveSpendEntry)
-	if err != nil {
 		return nil, err
 	}
 

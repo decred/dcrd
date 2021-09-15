@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -528,10 +528,8 @@ func TestAddrIndexAsync(t *testing.T) {
 			bk5a.Hash().String(), tipHash.String())
 	}
 
-	// Ensure the addreses associated with bk5's coinbase transaction
+	// Ensure the address associated with bk5's coinbase transaction
 	// is no longer indexed by the address manager.
-	// Ensure the address index no longder has the first address paid to by
-	// bk5's coinbase indexed.
 	err = db.View(func(dbTx database.Tx) error {
 		entry, _, err := addrIdx.EntriesForAddress(dbTx, addrs[0], 0, 1, false)
 		if err != nil {
@@ -571,6 +569,13 @@ func TestAddrIndexAsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Ensure the address index spend journal dependency for block bk5a
+	// was removed.
+	if !chain.IsRemovedSpendConsumerDependency(bk5a.Hash(), addrIdx.consumer.id) {
+		t.Fatalf("expected removed spend journal dependency for blockhash %s",
+			bk3.Hash().String())
+	}
+
 	g.SetTip("bk3")
 
 	ntfn = &IndexNtfn{
@@ -581,6 +586,13 @@ func TestAddrIndexAsync(t *testing.T) {
 		IsTreasuryEnabled: false,
 	}
 	notifyAndWait(t, subber, ntfn)
+
+	// Ensure the address index spend journal dependency for block bk4
+	// was removed.
+	if !chain.IsRemovedSpendConsumerDependency(bk4.Hash(), addrIdx.consumer.id) {
+		t.Fatalf("expected removed spend journal dependency for blockhash %s",
+			bk4.Hash().String())
+	}
 
 	// Ensure the index tips are now bk3 after the disconnections.
 	txIdxTipHeight, txIdxTipHash, err = addrIdx.Tip()
