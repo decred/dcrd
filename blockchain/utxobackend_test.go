@@ -280,7 +280,7 @@ func TestPutUtxos(t *testing.T) {
 				test.name, test.wantBackendEntries, backendEntries)
 		}
 
-		// Validate that the state has been updated in the backend as expexted.
+		// Validate that the state has been updated in the backend as expected.
 		gotState, err := backend.FetchState()
 		if err != nil {
 			t.Fatalf("%q: error fetching utxo set state: %v", test.name, err)

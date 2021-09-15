@@ -320,7 +320,7 @@ func (b *BlockChain) maybeAcceptBlocks(curTip *blockNode, nodes []*blockNode, fl
 		// connection checks, because even though the block might still fail to
 		// connect and become the new main chain tip, that is quite rare in
 		// practice since a lot of work was expended to create a block that
-		// satisifies the proof of work requirement.
+		// satisfies the proof of work requirement.
 		//
 		// Notice that the chain lock is not released before sending the
 		// notification.  This is intentional and must not be changed without

@@ -11,7 +11,7 @@ import (
 
 // poissonConfidenceSecs returns the number of seconds it will take to produce
 // an event at the provided confidence level given a Poisson distribution with 1
-// event ocurring in the given target interval.
+// event occurring in the given target interval.
 func poissonConfidenceSecs(targetIntervalSecs int64, confidence float64) int64 {
 	// The waiting times between events in a Poisson distribution are
 	// exponentially distributed and the CDF for an exponential distribution is:

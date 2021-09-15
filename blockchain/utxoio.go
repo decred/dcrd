@@ -68,7 +68,7 @@ var maxUint32VLQSerializeSize = serializeSizeVLQ(1<<32 - 1)
 // serialize as a VLQ.
 var maxUint8VLQSerializeSize = serializeSizeVLQ(1<<8 - 1)
 
-// utxoSetDbPrefixSize is the number of bytes that the prefx for UTXO set
+// utxoSetDbPrefixSize is the number of bytes that the prefix for UTXO set
 // entries takes.
 var utxoSetDbPrefixSize = len(utxoPrefixUtxoSet)
 

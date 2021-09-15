@@ -18,7 +18,7 @@ import (
 // issue and should be treated as a critical and unrecoverable error.
 type AssertError string
 
-// Error returns the assertion error as a huma-readable string and satisfies
+// Error returns the assertion error as a human-readable string and satisfies
 // the error interface.
 func (e AssertError) Error() string {
 	return "assertion failed: " + string(e)
@@ -523,7 +523,7 @@ const (
 	// for a treasurybase transaction is not within the valid range.
 	ErrBadTreasurybaseScriptLen = ErrorKind("ErrBadTreasurybaseScriptLen")
 
-	// ErrTreasurybaseTxNotOpReturn indicates the second ouptut of a
+	// ErrTreasurybaseTxNotOpReturn indicates the second output of a
 	// treasury base transaction is not an OP_RETURN.
 	ErrTreasurybaseTxNotOpReturn = ErrorKind("ErrTreasurybaseTxNotOpReturn")
 

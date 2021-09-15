@@ -3798,7 +3798,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// performs to be able to create the filter.  Since the filter is is needed
 	// at this point to verify the header commitments, a good option is to
 	// simply create it here and allow the caller to request the filter be
-	// retuned to it.
+	// returned to it.
 	filter, err := blockcf2.Regular(block.MsgBlock(), view)
 	if err != nil {
 		return ruleError(ErrMissingTxOut, err.Error())

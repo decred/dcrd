@@ -236,7 +236,7 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 
 // totalSize returns the total size of the cache on a 64-bit platform, in bytes.
 // Note that this only takes the entries map into account, which represents the
-// vast majoirty of the memory that the cache uses, and does not include the
+// vast majority of the memory that the cache uses, and does not include the
 // memory usage of other fields in the utxo cache struct.
 //
 // This function MUST be called with the cache lock held.
