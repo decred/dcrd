@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28
-	github.com/decred/dcrd/gcs/v3 v3.0.0-20210129195202-a4265d63b619
+	github.com/decred/dcrd/gcs/v3 v3.0.0-20210916172859-ca03de05ecd0
 	github.com/decred/dcrd/lru v1.1.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210415215133-96b98390a9a9
 	github.com/decred/dcrd/wire v1.4.0
