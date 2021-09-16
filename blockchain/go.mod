@@ -3,10 +3,10 @@ module github.com/decred/dcrd/blockchain/v4
 go 1.16
 
 require (
-	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210409183916-7f402345f0a6
+	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210906140327-598bf66f24a6
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
-	github.com/decred/dcrd/chaincfg/v3 v3.0.0
+	github.com/decred/dcrd/chaincfg/v3 v3.0.1-0.20210906134819-8c0e8616ebda
 	github.com/decred/dcrd/database/v3 v3.0.0-20210802132946-9ede6ae83e0f
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
