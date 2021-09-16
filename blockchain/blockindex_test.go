@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -299,18 +299,17 @@ func TestAncestorSkipList(t *testing.T) {
 	}
 }
 
-// TestWorkSorterCompare ensures the work sorter less and hash comparison
-// functions work as intended including multiple keys.
-func TestWorkSorterCompare(t *testing.T) {
+// TestBetterCandidate ensures the best candidate and hash comparison functions
+// work as intended including multiple keys.
+func TestBetterCandidate(t *testing.T) {
 	lowerHash := mustParseHash("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba")
 	higherHash := mustParseHash("000000000000d41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba")
 	tests := []struct {
-		name     string     // test description
-		nodeA    *blockNode // first node to compare
-		nodeB    *blockNode // second node to compare
-		wantCmp  int        // expected result of the hash comparison
-		wantLess bool       // expected result of the less comparison
-
+		name       string     // test description
+		nodeA      *blockNode // first node to compare
+		nodeB      *blockNode // second node to compare
+		wantCmp    int        // expected result of the hash comparison
+		wantBetter bool       // expected result of the better comparison
 	}{{
 		name: "exactly equal, both data",
 		nodeA: &blockNode{
@@ -325,8 +324,8 @@ func TestWorkSorterCompare(t *testing.T) {
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  0,
-		wantLess: false,
+		wantCmp:    0,
+		wantBetter: false,
 	}, {
 		name: "exactly equal, no data",
 		nodeA: &blockNode{
@@ -339,68 +338,68 @@ func TestWorkSorterCompare(t *testing.T) {
 			workSum:         big.NewInt(2),
 			receivedOrderID: 0,
 		},
-		wantCmp:  0,
-		wantLess: false,
+		wantCmp:    0,
+		wantBetter: false,
 	}, {
-		name: "a has more cumulative work, same order, higher hash, a has data",
+		name: "a has more cumulative work, same order, higher hash, b has data",
 		nodeA: &blockNode{
 			hash:            *higherHash,
 			workSum:         big.NewInt(4),
-			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *lowerHash,
 			workSum:         big.NewInt(2),
+			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  1,
-		wantLess: false,
+		wantCmp:    1,
+		wantBetter: true,
 	}, {
-		name: "a has less cumulative work, same order, lower hash, b has data",
+		name: "a has less cumulative work, same order, lower hash, a has data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
 			workSum:         big.NewInt(2),
+			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
 			workSum:         big.NewInt(4),
-			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  -1,
-		wantLess: true,
+		wantCmp:    -1,
+		wantBetter: false,
 	}, {
-		name: "a has same cumulative work, same order, lower hash, a has data",
+		name: "a has same cumulative work, same order, lower hash, b has data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
 			workSum:         big.NewInt(2),
-			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
 			workSum:         big.NewInt(2),
+			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  -1,
-		wantLess: false,
+		wantCmp:    -1,
+		wantBetter: false,
 	}, {
-		name: "a has same cumulative work, same order, higher hash, b has data",
+		name: "a has same cumulative work, same order, higher hash, a has data",
 		nodeA: &blockNode{
 			hash:            *higherHash,
 			workSum:         big.NewInt(2),
+			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *lowerHash,
 			workSum:         big.NewInt(2),
-			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  1,
-		wantLess: true,
+		wantCmp:    1,
+		wantBetter: true,
 	}, {
 		name: "a has same cumulative work, higher order, lower hash, both data",
 		nodeA: &blockNode{
@@ -415,8 +414,8 @@ func TestWorkSorterCompare(t *testing.T) {
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  -1,
-		wantLess: true,
+		wantCmp:    -1,
+		wantBetter: false,
 	}, {
 		name: "a has same cumulative work, lower order, lower hash, both data",
 		nodeA: &blockNode{
@@ -431,8 +430,8 @@ func TestWorkSorterCompare(t *testing.T) {
 			status:          statusDataStored,
 			receivedOrderID: 2,
 		},
-		wantCmp:  -1,
-		wantLess: false,
+		wantCmp:    -1,
+		wantBetter: true,
 	}, {
 		name: "a has same cumulative work, same order, lower hash, no data",
 		nodeA: &blockNode{
@@ -445,8 +444,8 @@ func TestWorkSorterCompare(t *testing.T) {
 			workSum:         big.NewInt(2),
 			receivedOrderID: 0,
 		},
-		wantCmp:  -1,
-		wantLess: false,
+		wantCmp:    -1,
+		wantBetter: true,
 	}, {
 		name: "a has same cumulative work, same order, lower hash, both data",
 		nodeA: &blockNode{
@@ -461,8 +460,8 @@ func TestWorkSorterCompare(t *testing.T) {
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  -1,
-		wantLess: false,
+		wantCmp:    -1,
+		wantBetter: true,
 	}, {
 		name: "a has same cumulative work, same order, higher hash, both data",
 		nodeA: &blockNode{
@@ -477,21 +476,21 @@ func TestWorkSorterCompare(t *testing.T) {
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
-		wantCmp:  1,
-		wantLess: true,
+		wantCmp:    1,
+		wantBetter: false,
 	}}
 
 	for _, test := range tests {
-		gotLess := workSorterLess(test.nodeA, test.nodeB)
-		if gotLess != test.wantLess {
-			t.Fatalf("%q: unexpected result -- got %v, want %v", test.name,
-				gotLess, test.wantLess)
-		}
-
 		gotCmp := compareHashesAsUint256LE(&test.nodeA.hash, &test.nodeB.hash)
 		if gotCmp != test.wantCmp {
 			t.Fatalf("%q: unexpected result -- got %v, want %v", test.name,
 				gotCmp, test.wantCmp)
+		}
+
+		gotBetter := betterCandidate(test.nodeA, test.nodeB)
+		if gotBetter != test.wantBetter {
+			t.Fatalf("%q: unexpected result -- got %v, want %v", test.name,
+				gotBetter, test.wantBetter)
 		}
 	}
 }

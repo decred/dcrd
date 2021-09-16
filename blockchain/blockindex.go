@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -423,45 +423,45 @@ func compareHashesAsUint256LE(a, b *chainhash.Hash) int {
 	return -1
 }
 
-// workSorterLess returns whether node 'a' is a worse candidate than 'b' for the
-// purposes of best chain selection.
+// betterCandidate returns whether node 'a' is a better candidate than 'b' for
+// the purposes of best chain selection.
 //
-// The criteria for determining what constitutes a worse candidate, in order of
+// The criteria for determining what constitutes a better candidate, in order of
 // priority, is as follows:
 //
-// 1. Less total cumulative work
-// 2. Not having block data available
-// 3. Receiving data later
-// 4. Hash that represents less work (larger value as a little-endian uint256)
+// 1. More total cumulative work
+// 2. Having block data available
+// 3. Receiving data earlier
+// 4. Hash that represents more work (smaller value as a little-endian uint256)
 //
 // This function MUST be called with the block index lock held (for reads).
-func workSorterLess(a, b *blockNode) bool {
+func betterCandidate(a, b *blockNode) bool {
 	// First, sort by the total cumulative work.
 	//
-	// Blocks with less cumulative work are worse candidates for best chain
+	// Blocks with more cumulative work are better candidates for best chain
 	// selection.
 	if workCmp := a.workSum.Cmp(b.workSum); workCmp != 0 {
-		return workCmp < 0
+		return workCmp > 0
 	}
 
 	// Then sort according to block data availability.
 	//
-	// Blocks that do not have all of their data available yet are worse
-	// candidates than those that do.  They have the same priority if either
+	// Blocks that already have all of their data available are better
+	// candidates than those that do not.  They have the same priority if either
 	// both have their data available or neither do.
 	if aHasData := a.status.HaveData(); aHasData != b.status.HaveData() {
-		return !aHasData
+		return aHasData
 	}
 
 	// Then sort according to blocks that received their data first.  Note that
 	// the received order will be 0 for both in the case neither block has its
 	// data available.
 	//
-	// Blocks that receive their data later are worse candidates.
+	// Blocks that receive their data earlier are better candidates.
 	if a.receivedOrderID != b.receivedOrderID {
-		// Using greater than here because data that was received later will
-		// have a higher id.
-		return a.receivedOrderID > b.receivedOrderID
+		// Using less than here because data that was received earlier will have
+		// a lower id.
+		return a.receivedOrderID < b.receivedOrderID
 	}
 
 	// Finally, fall back to sorting based on the hash in the case the work,
@@ -472,9 +472,9 @@ func workSorterLess(a, b *blockNode) bool {
 	// as well.
 	//
 	// Note that it is more difficult to find hashes with more leading zeros
-	// when treated as a little-endian uint256, so larger values represent less
-	// work and are therefore worse candidates.
-	return compareHashesAsUint256LE(&a.hash, &b.hash) > 0
+	// when treated as a little-endian uint256, so smaller values represent more
+	// work and are therefore better candidates.
+	return compareHashesAsUint256LE(&a.hash, &b.hash) < 0
 }
 
 // chainTipEntry defines an entry used to track the chain tips and is structured
@@ -686,7 +686,7 @@ func (bi *blockIndex) addNode(node *blockNode) {
 
 	// Update the header with most known work that is also not known to be
 	// invalid to this node if needed.
-	if !node.status.KnownInvalid() && workSorterLess(bi.bestHeader, node) {
+	if !node.status.KnownInvalid() && betterCandidate(node, bi.bestHeader) {
 		bi.bestHeader = node
 	}
 }
@@ -1040,7 +1040,7 @@ func (bi *blockIndex) removeBestChainCandidate(node *blockNode) {
 //
 // This function MUST be called with the block index lock held (for writes).
 func (bi *blockIndex) maybeUpdateBestInvalid(invalidNode *blockNode) {
-	if bi.bestInvalid == nil || workSorterLess(bi.bestInvalid, invalidNode) {
+	if bi.bestInvalid == nil || betterCandidate(invalidNode, bi.bestInvalid) {
 		bi.bestInvalid = invalidNode
 	}
 }
@@ -1053,7 +1053,7 @@ func (bi *blockIndex) maybeUpdateBestInvalid(invalidNode *blockNode) {
 //
 // This function MUST be called with the block index lock held (for writes).
 func (bi *blockIndex) maybeUpdateBestHeaderForTip(tip *blockNode) {
-	for n := tip; n != nil && workSorterLess(bi.bestHeader, n); n = n.parent {
+	for n := tip; n != nil && betterCandidate(n, bi.bestHeader); n = n.parent {
 		if !n.status.KnownInvalid() {
 			bi.bestHeader = n
 			return
@@ -1347,7 +1347,7 @@ func (bi *blockIndex) FindBestChainCandidate() *blockNode {
 	// since the current best tip is always a candidate.
 	var bestCandidate *blockNode
 	for node := range bi.bestChainCandidates {
-		if bestCandidate == nil || workSorterLess(bestCandidate, node) {
+		if bestCandidate == nil || betterCandidate(node, bestCandidate) {
 			bestCandidate = node
 		}
 	}
