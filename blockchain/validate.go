@@ -1073,7 +1073,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		//
 		// Note that the latest block version for all networks other than the
 		// main network is one higher.
-		latestBlockVersion := int32(8)
+		latestBlockVersion := int32(9)
 		dcp0005Version := int32(7)
 		if b.chainParams.Net != wire.MainNet {
 			latestBlockVersion++
