@@ -67,12 +67,6 @@ var (
 	pathToDCRDMtx sync.RWMutex
 )
 
-const (
-	// BlockVersion is the default block version used when generating
-	// blocks.
-	BlockVersion = 3
-)
-
 // HarnessTestCase represents a test-case which utilizes an instance of the
 // Harness to exercise functionality.
 type HarnessTestCase func(ctx context.Context, r *Harness, t *testing.T)
