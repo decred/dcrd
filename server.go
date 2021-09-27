@@ -639,20 +639,15 @@ func (sp *serverPeer) relayTxDisabled() bool {
 	return isDisabled
 }
 
-// wireToAddrmgrNetAddress converts a wire NetAddress to an address manager
-// NetAddress.
-func wireToAddrmgrNetAddress(netAddr *wire.NetAddress) *addrmgr.NetAddress {
-	newNetAddr := addrmgr.NewNetAddressIPPort(netAddr.IP, netAddr.Port, netAddr.Services)
-	newNetAddr.Timestamp = netAddr.Timestamp
-	return newNetAddr
-}
-
-// wireToAddrmgrNetAddresses converts a collection of wire net addresses to a
-// collection of address manager net addresses.
+// wireToAddrmgrNetAddresses converts a collection of version 1 wire network
+// addresses to a collection of address manager network addresses.
 func wireToAddrmgrNetAddresses(netAddr []*wire.NetAddress) []*addrmgr.NetAddress {
 	addrs := make([]*addrmgr.NetAddress, len(netAddr))
 	for i, wireAddr := range netAddr {
-		addrs[i] = wireToAddrmgrNetAddress(wireAddr)
+		newNetAddr := addrmgr.NewNetAddressIPPort(wireAddr.IP, wireAddr.Port,
+			wireAddr.Services)
+		newNetAddr.Timestamp = wireAddr.Timestamp
+		addrs[i] = newNetAddr
 	}
 	return addrs
 }
@@ -674,21 +669,6 @@ func wireToAddrmgrNetAddressesV2(netAddr []*wire.NetAddressV2) ([]*addrmgr.NetAd
 	return addrs, nil
 }
 
-// addrmgrToWireNetAddress converts an address manager net address to a wire net
-// address.
-func addrmgrToWireNetAddress(netAddr *addrmgr.NetAddress) *wire.NetAddress {
-	return wire.NewNetAddressTimestamp(netAddr.Timestamp, netAddr.Services,
-		netAddr.IP, netAddr.Port)
-}
-
-// addrmgrToWireNetAddressV2 converts an address manager net address to a wire net
-// address.
-func addrmgrToWireNetAddressV2(netAddr *addrmgr.NetAddress) *wire.NetAddressV2 {
-	wireNetAddrType := wire.NetAddressType(netAddr.Type)
-	return wire.NewNetAddressV2(wireNetAddrType, netAddr.IP, netAddr.Port,
-		netAddr.Timestamp, netAddr.Services)
-}
-
 // pushAddrMsg sends an addr message to the connected peer using the provided
 // addresses.  Any network address passed to this function must have
 // already been filtered to ensure that it is supported by the protocol
@@ -698,7 +678,8 @@ func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
 	addrs := make([]*wire.NetAddress, 0, len(addresses))
 	for _, addr := range addresses {
 		if !sp.addressKnown(addr) {
-			wireNetAddr := addrmgrToWireNetAddress(addr)
+			wireNetAddr := wire.NewNetAddressTimestamp(addr.Timestamp,
+				addr.Services, addr.IP, addr.Port)
 			addrs = append(addrs, wireNetAddr)
 		}
 	}
@@ -723,7 +704,9 @@ func (sp *serverPeer) pushAddrV2Msg(addresses []*addrmgr.NetAddress) {
 	addrs := make([]*wire.NetAddressV2, 0, len(addresses))
 	for _, addr := range addresses {
 		if !sp.addressKnown(addr) {
-			addrV2 := addrmgrToWireNetAddressV2(addr)
+			wireNetAddrType := wire.NetAddressType(addr.Type)
+			addrV2 := wire.NewNetAddressV2(wireNetAddrType, addr.IP, addr.Port,
+				addr.Timestamp, addr.Services)
 			addrs = append(addrs, addrV2)
 		}
 	}
@@ -1981,7 +1964,14 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 				net = addrmgr.IPv6Address
 			}
 
-			localAddr := wireToAddrmgrNetAddress(na)
+			localAddr, err := addrmgr.NewNetAddressByType(net, na.IP, na.Port,
+				na.Timestamp, na.Services)
+			if err != nil {
+				srvrLog.Errorf("unable to construct peer network address: %v",
+					err)
+				return true
+			}
+
 			valid, reach := s.addrManager.ValidatePeerNa(localAddr, remoteAddr)
 			if !valid {
 				return true
@@ -3292,10 +3282,9 @@ func (s *server) querySeeders(ctx context.Context) {
 			const httpsPort = 443
 			srcAddr, err := cfg.hostToNetAddress(seeder, httpsPort, 0)
 			if err != nil {
-				srcAddr = wireToAddrmgrNetAddress(addrs[0])
+				srcAddr = addrs[0]
 			}
-			addresses := wireToAddrmgrNetAddresses(addrs)
-			s.addrManager.AddAddresses(addresses, srcAddr)
+			s.addrManager.AddAddresses(addrs, srcAddr)
 		}(seeder)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/decred/dcrd/addrmgr/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -92,7 +93,7 @@ type node struct {
 // The available filters can be set via the exported functions that start with
 // the prefix SeedFilter.  See the documentation for each function for more
 // details.
-func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...func(f *HttpsSeederFilters)) ([]*wire.NetAddress, error) {
+func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...func(f *HttpsSeederFilters)) ([]*addrmgr.NetAddress, error) {
 	// Set any caller provided filters.
 	var seederFilters HttpsSeederFilters
 	for _, f := range filters {
@@ -164,7 +165,7 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 
 	// Convert the response to net addresses.
 	randSource := mrand.New(mrand.NewSource(time.Now().UnixNano()))
-	addrs := make([]*wire.NetAddress, 0, len(nodes))
+	addrs := make([]*addrmgr.NetAddress, 0, len(nodes))
 	for _, node := range nodes {
 		host, portStr, err := net.SplitHostPort(node.Host)
 		if err != nil {
@@ -176,10 +177,17 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 			log.Warnf("seeder returned invalid port %q", node.Host)
 			continue
 		}
-		ip := net.ParseIP(host)
-		if ip == nil {
-			log.Warnf("seeder returned a hostname that is not an IP address %q",
-				host)
+
+		netAddressType, ipBytes, err := addrmgr.ParseHost(host)
+		if err != nil {
+			log.Warnf("seeder returned a hostname that could not be parsed: "+
+				"%q, %q", host, err)
+			continue
+		}
+
+		if netAddressType == addrmgr.UnknownAddressType {
+			log.Warnf("seeder returned a hostname with an unknown address "+
+				"type: %q", host)
 			continue
 		}
 
@@ -188,8 +196,14 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 		// since they are a more authoritative source than other random peers.
 		offsetSecs := secondsIn3Days + randSource.Int31n(secondsIn4Days)
 		ts := time.Now().Add(-1 * time.Second * time.Duration(offsetSecs))
-		na := wire.NewNetAddressTimestamp(ts, wire.ServiceFlag(node.Services),
-			ip, uint16(port))
+		na, err := addrmgr.NewNetAddressByType(netAddressType, ipBytes,
+			uint16(port), ts, wire.ServiceFlag(node.Services))
+		if err != nil {
+			log.Warnf("failed to construct network address from seeder "+
+				"hostname: %q, %q", host, err)
+			continue
+		}
+
 		addrs = append(addrs, na)
 	}
 
