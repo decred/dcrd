@@ -862,6 +862,11 @@ func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, e
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	// The auto revocations agenda is never active for the genesis block.
+	if *prevHash == *zeroHash {
+		return false, nil
+	}
+
 	prevNode := b.index.LookupNode(prevHash)
 	if prevNode == nil || !b.index.CanValidate(prevNode) {
 		return false, unknownBlockError(prevHash)
