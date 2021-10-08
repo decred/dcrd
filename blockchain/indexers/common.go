@@ -665,6 +665,13 @@ func upgradeIndex(ctx context.Context, indexer Indexer, genesisHash *chainhash.H
 // maybeNotifySubscribers updates subscribers the index is synced when
 // the tip is identical to the chain tip.
 func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
+	subs := indexer.Subscribers()
+
+	// Exit immediately if the index has no subscribers.
+	if len(subs) == 0 {
+		return nil
+	}
+
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -677,7 +684,6 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 	}
 
 	if tipHeight == bestHeight && *bestHash == *tipHash {
-		subs := indexer.Subscribers()
 		for sub := range subs {
 			close(sub)
 			delete(subs, sub)
@@ -702,21 +708,20 @@ func notifyDependent(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) erro
 
 	// Notify the dependent subscription if set.
 	sub.mtx.Lock()
-	defer sub.mtx.Unlock()
 	if sub.dependent != nil {
 		err := updateIndex(ctx, sub.dependent.idx, ntfn)
 		if err != nil {
+			sub.mtx.Unlock()
 			return err
 		}
 	}
+	sub.mtx.Unlock()
 
 	return nil
 }
 
 // updateIndex processes the notification for the provided index.
 func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
-	// Ensure the incoming index notification is of the next block
-	// extending the chain.
 	tip, _, err := indexer.Tip()
 	if err != nil {
 		return fmt.Errorf("%s: unable to fetch index tip: %v",
@@ -734,38 +739,39 @@ func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 			indexer.Name(), ntfn.NtfnType)
 	}
 
-	// Relay the notification to the dependent if its height is less than that
-	// of the expected notification since its possible for a dependent to have
-	// a lower tip height than its prerequisite.
-	if ntfn.Block.Height() < expectedHeight {
+	switch {
+	case ntfn.Block.Height() < expectedHeight:
+		// Relay the notification to the dependent if its height is less
+		// than that of the expected notification since its possible for a
+		// dependent to have a lower tip height than its prerequisite.
 		log.Tracef("%s: relaying notification for height %d to dependent",
 			indexer.Name(), ntfn.Block.Height())
-		return notifyDependent(ctx, indexer, ntfn)
-	}
+		notifyDependent(ctx, indexer, ntfn)
 
-	// Receiving a notification with a height higher than the expected implies
-	// a missed index update.
-	if ntfn.Block.Height() > expectedHeight {
+	case ntfn.Block.Height() > expectedHeight:
+		// Receiving a notification with a height higher than the expected
+		// implies a missed index update.
 		return fmt.Errorf("%s: missing index notification, expected "+
 			"notification for height %d, got %d", indexer.Name(),
 			expectedHeight, ntfn.Block.Height())
-	}
 
-	err = indexer.DB().Update(func(dbTx database.Tx) error {
-		return indexer.ProcessNotification(dbTx, ntfn)
-	})
-	if err != nil {
-		return err
-	}
+	default:
+		err = indexer.DB().Update(func(dbTx database.Tx) error {
+			return indexer.ProcessNotification(dbTx, ntfn)
+		})
+		if err != nil {
+			return err
+		}
 
-	err = notifyDependent(ctx, indexer, ntfn)
-	if err != nil {
-		return err
-	}
+		err = notifyDependent(ctx, indexer, ntfn)
+		if err != nil {
+			return err
+		}
 
-	err = maybeNotifySubscribers(ctx, indexer)
-	if err != nil {
-		return err
+		err = maybeNotifySubscribers(ctx, indexer)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
