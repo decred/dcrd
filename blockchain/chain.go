@@ -346,9 +346,17 @@ func newPrevScriptSnapshot(view *UtxoViewpoint) *prevScriptsSnapshot {
 			snapshot.entries[k] = prevScript{}
 			continue
 		}
+
+		var pkScript []byte
+		scriptLen := len(v.pkScript)
+		if scriptLen != 0 {
+			pkScript = make([]byte, scriptLen)
+			copy(pkScript, v.pkScript)
+		}
+
 		snapshot.entries[k] = prevScript{
 			scriptVersion: v.scriptVersion,
-			pkScript:      v.pkScript,
+			pkScript:      pkScript,
 		}
 	}
 

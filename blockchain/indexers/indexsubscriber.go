@@ -192,25 +192,22 @@ func (s *IndexSubscriber) Notify(ntfn *IndexNtfn) {
 	}
 }
 
-// CatchUp syncs all subscribed indexes to the the main chain by
-// connecting blocks from the after the lowest index tip to the current main
-// chain tip.
-//
-// This should be called after all indexes have subscribed for updates.
-func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer ChainQueryer) error {
-	// Find the lowest tip height to catch up from among subscribed indexes.
+// findLowestIndexTipHeight determines the lowest index tip height among
+// subscribed indexes and their dependencies.
+func (s *IndexSubscriber) findLowestIndexTipHeight(queryer ChainQueryer) (int64, int64, error) {
+	// Find the lowest tip height to catch up among subscribed indexes.
 	bestHeight, _ := queryer.Best()
 	lowestHeight := bestHeight
 	for _, sub := range s.subscriptions {
 		tipHeight, tipHash, err := sub.idx.Tip()
 		if err != nil {
-			return err
+			return 0, bestHeight, err
 		}
 
 		// Ensure the index tip is on the main chain.
 		if !queryer.MainChainHasBlock(tipHash) {
-			return fmt.Errorf("%s: index tip (%s) is not on the main chain",
-				sub.idx.Name(), tipHash)
+			return 0, bestHeight, fmt.Errorf("%s: index tip (%s) is not on the "+
+				"main chain", sub.idx.Name(), tipHash)
 		}
 
 		if tipHeight < lowestHeight {
@@ -222,7 +219,7 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 		for dependent != nil {
 			tipHeight, _, err := sub.dependent.idx.Tip()
 			if err != nil {
-				return err
+				return 0, bestHeight, err
 			}
 
 			if tipHeight < lowestHeight {
@@ -231,6 +228,19 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 
 			dependent = dependent.dependent
 		}
+	}
+
+	return lowestHeight, bestHeight, nil
+}
+
+// CatchUp syncs all subscribed indexes to the the main chain by connecting
+// blocks from after the lowest index tip to the current main chain tip.
+//
+// This should be called after all indexes have subscribed for updates.
+func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer ChainQueryer) error {
+	lowestHeight, bestHeight, err := s.findLowestIndexTipHeight(queryer)
+	if err != nil {
+		return err
 	}
 
 	// Nothing to do if all indexes are synced.
