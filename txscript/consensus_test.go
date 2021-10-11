@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -320,135 +320,135 @@ func TestIsStrictNullData(t *testing.T) {
 	}{{
 		name:        "empty (bare OP_RETURN), req len 0",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN"),
+		script:      mustParseShortFormV0("RETURN"),
 		requiredLen: 0,
 		want:        true,
 	}, {
 		name:        "empty (bare OP_RETURN), req len 0, unsupported script ver",
 		scriptVer:   65535,
-		script:      mustParseShortForm("RETURN"),
+		script:      mustParseShortFormV0("RETURN"),
 		requiredLen: 0,
 		want:        false,
 	}, {
 		name:        "small int push 0, req len 1",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 0"),
+		script:      mustParseShortFormV0("RETURN 0"),
 		requiredLen: 1,
 		want:        true,
 	}, {
 		name:        "small int push 0, req len 1, unsupported script ver",
 		scriptVer:   65535,
-		script:      mustParseShortForm("RETURN 0"),
+		script:      mustParseShortFormV0("RETURN 0"),
 		requiredLen: 1,
 		want:        false,
 	}, {
 		name:        "non-canonical small int push 0, req len 1",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN DATA_1 0x00"),
+		script:      mustParseShortFormV0("RETURN DATA_1 0x00"),
 		requiredLen: 1,
 		want:        false,
 	}, {
 		name:        "small int push 1, req len 1",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 1"),
+		script:      mustParseShortFormV0("RETURN 1"),
 		requiredLen: 1,
 		want:        true,
 	}, {
 		name:        "small int push 1, req len 1, unsupported script ver",
 		scriptVer:   65535,
-		script:      mustParseShortForm("RETURN 1"),
+		script:      mustParseShortFormV0("RETURN 1"),
 		requiredLen: 1,
 		want:        false,
 	}, {
 		name:        "small int push 16, req len 1",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 16"),
+		script:      mustParseShortFormV0("RETURN 16"),
 		requiredLen: 1,
 		want:        true,
 	}, {
 		name:        "small int push 16, req len 1, unsupported script ver",
 		scriptVer:   65535,
-		script:      mustParseShortForm("RETURN 16"),
+		script:      mustParseShortFormV0("RETURN 16"),
 		requiredLen: 1,
 		want:        false,
 	}, {
 		name:        "small int push 0, req len 2",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 0"),
+		script:      mustParseShortFormV0("RETURN 0"),
 		requiredLen: 2,
 		want:        false,
 	}, {
 		name:        "small int push 1, req len 2",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 1"),
+		script:      mustParseShortFormV0("RETURN 1"),
 		requiredLen: 2,
 		want:        false,
 	}, {
 		name:        "small int push 16, req len 2",
 		scriptVer:   0,
-		script:      mustParseShortForm("RETURN 16"),
+		script:      mustParseShortFormV0("RETURN 16"),
 		requiredLen: 2,
 		want:        false,
 	}, {
 		name:      "32-byte push, req len 32",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN DATA_32 0x0102030405060708090a0b0c" +
+		script: mustParseShortFormV0("RETURN DATA_32 0x0102030405060708090a0b0c" +
 			"0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        true,
 	}, {
 		name:      "32-byte push, req len 32, unsupported script ver",
 		scriptVer: 65535,
-		script: mustParseShortForm("RETURN DATA_32 0x0102030405060708090a0b0c" +
+		script: mustParseShortFormV0("RETURN DATA_32 0x0102030405060708090a0b0c" +
 			"0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        false,
 	}, {
 		name:      "32-byte push, req len 31",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN DATA_32 0x0102030405060708090a0b0c" +
+		script: mustParseShortFormV0("RETURN DATA_32 0x0102030405060708090a0b0c" +
 			"0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 31,
 		want:        false,
 	}, {
 		name:      "32-byte push, req len 33",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN DATA_32 0x0102030405060708090a0b0c" +
+		script: mustParseShortFormV0("RETURN DATA_32 0x0102030405060708090a0b0c" +
 			"0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 33,
 		want:        false,
 	}, {
 		name:      "32-byte push, req len 32, no leading OP_RETURN",
 		scriptVer: 0,
-		script: mustParseShortForm("DATA_32 0x0102030405060708090a0b0c0d0e0f" +
+		script: mustParseShortFormV0("DATA_32 0x0102030405060708090a0b0c0d0e0f" +
 			"101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        false,
 	}, {
 		name:      "non-canonical 32-byte push via PUSHDATA1, req len 32",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN PUSHDATA1 0x20 0x0102030405060708" +
+		script: mustParseShortFormV0("RETURN PUSHDATA1 0x20 0x0102030405060708" +
 			"090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        false,
 	}, {
 		name:      "non-canonical 32-byte push via PUSHDATA2, req len 32",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN PUSHDATA2 0x2000 0x01020304050607" +
+		script: mustParseShortFormV0("RETURN PUSHDATA2 0x2000 0x01020304050607" +
 			"08090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        false,
 	}, {
 		name:      "non-canonical 32-byte push via PUSHDATA4, req len 32",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN PUSHDATA4 0x20000000 0x0102030405" +
+		script: mustParseShortFormV0("RETURN PUSHDATA4 0x20000000 0x0102030405" +
 			"060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		requiredLen: 32,
 		want:        false,
 	}, {
 		name:      "76-byte push, req len 76",
 		scriptVer: 0,
-		script: mustParseShortForm("RETURN PUSHDATA1 0x4c 0x0102030405060708" +
+		script: mustParseShortFormV0("RETURN PUSHDATA1 0x4c 0x0102030405060708" +
 			"090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728" +
 			"292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748" +
 			"494a4b4c"),

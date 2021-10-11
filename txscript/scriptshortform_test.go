@@ -47,8 +47,8 @@ func parseHex(tok string) ([]byte, error) {
 	return hex.DecodeString(tok[2:])
 }
 
-// parseShortForm parses a script from a human-readable format that allows for
-// convenient testing into the associated raw script bytes.
+// parseShortFormV0 parses a version 0 script from a human-readable format that
+// allows for convenient testing into the associated raw script bytes.
 //
 // The format used is as follows:
 //   - Opcodes other than the push opcodes and unknown are present as either
@@ -68,7 +68,7 @@ func parseHex(tok string) ([]byte, error) {
 //     inside the angular brackets were manually repeated the specified number
 //     of times
 //   - Anything else is an error
-func parseShortForm(script string) ([]byte, error) {
+func parseShortFormV0(script string) ([]byte, error) {
 	// Only create the short form opcode map once.
 	if shortFormOps == nil {
 		ops := make(map[string]byte)
@@ -181,15 +181,47 @@ func parseShortForm(script string) ([]byte, error) {
 	return builder.Script()
 }
 
+// parseShortForm parses a script from a human-readable format for the given
+// script version that allows for convenient testing into the associated raw
+// script bytes.
+//
+// See the associated version-specific short form parsing function for each
+// version for details regarding the format since it may or may not differ
+// between script version.
+func parseShortForm(scriptVersion uint16, script string) ([]byte, error) {
+	switch scriptVersion {
+	case 0:
+		return parseShortFormV0(script)
+	}
+
+	str := fmt.Sprintf("parsing short form for version %d scripts is not "+
+		"supported", scriptVersion)
+	return nil, scriptError(ErrUnsupportedScriptVersion, str)
+}
+
+// mustParseShortFormV0 parses the passed version 0 short form script and
+// returns the resulting bytes.  It panics if an error occurs.  This is only
+// used in the tests as a helper since the only way it can fail is if there is
+// an error in the test source code.
+func mustParseShortFormV0(script string) []byte {
+	s, err := parseShortFormV0(script)
+	if err != nil {
+		panic(fmt.Sprintf("invalid short form script in test source: err %v, "+
+			"script: %s", err, script))
+	}
+
+	return s
+}
+
 // mustParseShortForm parses the passed short form script and returns the
 // resulting bytes.  It panics if an error occurs.  This is only used in the
 // tests as a helper since the only way it can fail is if there is an error in
 // the test source code.
-func mustParseShortForm(script string) []byte {
-	s, err := parseShortForm(script)
+func mustParseShortForm(scriptVersion uint16, script string) []byte {
+	s, err := parseShortForm(scriptVersion, script)
 	if err != nil {
-		panic("invalid short form script in test source: err " +
-			err.Error() + ", script: " + script)
+		panic(fmt.Sprintf("invalid short form script in test source: err %v, "+
+			"script: %s", err, script))
 	}
 
 	return s

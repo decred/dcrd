@@ -240,14 +240,14 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 		}
 
 		// Extract and parse the signature script from the test fields.
-		scriptSig, err := parseShortForm(test[0])
+		scriptSig, err := parseShortFormV0(test[0])
 		if err != nil {
 			t.Errorf("%s: can't parse scriptSig; %v", name, err)
 			continue
 		}
 
 		// Extract and parse the public key script from the test fields.
-		scriptPubKey, err := parseShortForm(test[1])
+		scriptPubKey, err := parseShortFormV0(test[1])
 		if err != nil {
 			t.Errorf("%s: can't parse scriptPubkey; %v", name, err)
 			continue
@@ -450,7 +450,7 @@ testloop:
 				continue testloop
 			}
 
-			script, err := parseShortForm(oscript)
+			script, err := parseShortFormV0(oscript)
 			if err != nil {
 				t.Errorf("bad test (%dth input script doesn't "+
 					"parse %v) %d: %v", j, err, i, test)
@@ -590,7 +590,7 @@ testloop:
 				continue
 			}
 
-			script, err := parseShortForm(oscript)
+			script, err := parseShortFormV0(oscript)
 			if err != nil {
 				t.Errorf("bad test (%dth input script doesn't "+
 					"parse %v) %d: %v", j, err, i, test)

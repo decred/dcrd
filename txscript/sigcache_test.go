@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -57,7 +57,7 @@ func msgTx113875_1() *wire.MsgTx {
 	txOut := wire.TxOut{
 		Value:   5000000000,
 		Version: 0xf0f0,
-		PkScript: mustParseShortForm("DATA_65 0x04d64bdfd09eb1c5fe295abdeb1dca4281b" +
+		PkScript: mustParseShortFormV0("DATA_65 0x04d64bdfd09eb1c5fe295abdeb1dca4281b" +
 			"e988e2da0b6c1c6a59dc226c28624e18175e851c96b973d81b01cc31f047834bc06d6d6e" +
 			"df620d184241a6aed8b63a6 CHECKSIG"),
 	}

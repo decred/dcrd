@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,58 +52,58 @@ func TestScriptTokenizer(t *testing.T) {
 	}
 
 	// Add both positive and negative tests for OP_PUSHDATA{1,2,4}.
-	data := mustParseShortForm("0x01{76}")
+	data := mustParseShortFormV0("0x01{76}")
 	tests = append(tests, []tokenizerTest{{
 		name:     "OP_PUSHDATA1",
-		script:   mustParseShortForm("OP_PUSHDATA1 0x4c 0x01{76}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA1 0x4c 0x01{76}"),
 		expected: []expectedResult{{OP_PUSHDATA1, data, 2 + int32(len(data))}},
 		finalIdx: 2 + int32(len(data)),
 		err:      nil,
 	}, {
 		name:     "OP_PUSHDATA1 no data length",
-		script:   mustParseShortForm("OP_PUSHDATA1"),
+		script:   mustParseShortFormV0("OP_PUSHDATA1"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
 	}, {
 		name:     "OP_PUSHDATA1 short data by 1 byte",
-		script:   mustParseShortForm("OP_PUSHDATA1 0x4c 0x01{75}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA1 0x4c 0x01{75}"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
 	}, {
 		name:     "OP_PUSHDATA2",
-		script:   mustParseShortForm("OP_PUSHDATA2 0x4c00 0x01{76}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA2 0x4c00 0x01{76}"),
 		expected: []expectedResult{{OP_PUSHDATA2, data, 3 + int32(len(data))}},
 		finalIdx: 3 + int32(len(data)),
 		err:      nil,
 	}, {
 		name:     "OP_PUSHDATA2 no data length",
-		script:   mustParseShortForm("OP_PUSHDATA2"),
+		script:   mustParseShortFormV0("OP_PUSHDATA2"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
 	}, {
 		name:     "OP_PUSHDATA2 short data by 1 byte",
-		script:   mustParseShortForm("OP_PUSHDATA2 0x4c00 0x01{75}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA2 0x4c00 0x01{75}"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
 	}, {
 		name:     "OP_PUSHDATA4",
-		script:   mustParseShortForm("OP_PUSHDATA4 0x4c000000 0x01{76}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA4 0x4c000000 0x01{76}"),
 		expected: []expectedResult{{OP_PUSHDATA4, data, 5 + int32(len(data))}},
 		finalIdx: 5 + int32(len(data)),
 		err:      nil,
 	}, {
 		name:     "OP_PUSHDATA4 no data length",
-		script:   mustParseShortForm("OP_PUSHDATA4"),
+		script:   mustParseShortFormV0("OP_PUSHDATA4"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
 	}, {
 		name:     "OP_PUSHDATA4 short data by 1 byte",
-		script:   mustParseShortForm("OP_PUSHDATA4 0x4c000000 0x01{75}"),
+		script:   mustParseShortFormV0("OP_PUSHDATA4 0x4c000000 0x01{75}"),
 		expected: nil,
 		finalIdx: 0,
 		err:      ErrMalformedPush,
@@ -127,17 +127,17 @@ func TestScriptTokenizer(t *testing.T) {
 	// Add various positive and negative tests for multi-opcode scripts.
 	tests = append(tests, []tokenizerTest{{
 		name:   "pay-to-pubkey-hash",
-		script: mustParseShortForm("DUP HASH160 DATA_20 0x01{20} EQUAL CHECKSIG"),
+		script: mustParseShortFormV0("DUP HASH160 DATA_20 0x01{20} EQUAL CHECKSIG"),
 		expected: []expectedResult{
 			{OP_DUP, nil, 1}, {OP_HASH160, nil, 2},
-			{OP_DATA_20, mustParseShortForm("0x01{20}"), 23},
+			{OP_DATA_20, mustParseShortFormV0("0x01{20}"), 23},
 			{OP_EQUAL, nil, 24}, {OP_CHECKSIG, nil, 25},
 		},
 		finalIdx: 25,
 		err:      nil,
 	}, {
 		name:   "almost pay-to-pubkey-hash (short data)",
-		script: mustParseShortForm("DUP HASH160 DATA_20 0x01{17} EQUAL CHECKSIG"),
+		script: mustParseShortFormV0("DUP HASH160 DATA_20 0x01{17} EQUAL CHECKSIG"),
 		expected: []expectedResult{
 			{OP_DUP, nil, 1}, {OP_HASH160, nil, 2},
 		},
@@ -145,27 +145,27 @@ func TestScriptTokenizer(t *testing.T) {
 		err:      ErrMalformedPush,
 	}, {
 		name:   "almost pay-to-pubkey-hash (overlapped data)",
-		script: mustParseShortForm("DUP HASH160 DATA_20 0x01{19} EQUAL CHECKSIG"),
+		script: mustParseShortFormV0("DUP HASH160 DATA_20 0x01{19} EQUAL CHECKSIG"),
 		expected: []expectedResult{
 			{OP_DUP, nil, 1}, {OP_HASH160, nil, 2},
-			{OP_DATA_20, mustParseShortForm("0x01{19} EQUAL"), 23},
+			{OP_DATA_20, mustParseShortFormV0("0x01{19} EQUAL"), 23},
 			{OP_CHECKSIG, nil, 24},
 		},
 		finalIdx: 24,
 		err:      nil,
 	}, {
 		name:   "pay-to-script-hash",
-		script: mustParseShortForm("HASH160 DATA_20 0x01{20} EQUAL"),
+		script: mustParseShortFormV0("HASH160 DATA_20 0x01{20} EQUAL"),
 		expected: []expectedResult{
 			{OP_HASH160, nil, 1},
-			{OP_DATA_20, mustParseShortForm("0x01{20}"), 22},
+			{OP_DATA_20, mustParseShortFormV0("0x01{20}"), 22},
 			{OP_EQUAL, nil, 23},
 		},
 		finalIdx: 23,
 		err:      nil,
 	}, {
 		name:   "almost pay-to-script-hash (short data)",
-		script: mustParseShortForm("HASH160 DATA_20 0x01{18} EQUAL"),
+		script: mustParseShortFormV0("HASH160 DATA_20 0x01{18} EQUAL"),
 		expected: []expectedResult{
 			{OP_HASH160, nil, 1},
 		},
@@ -173,10 +173,10 @@ func TestScriptTokenizer(t *testing.T) {
 		err:      ErrMalformedPush,
 	}, {
 		name:   "almost pay-to-script-hash (overlapped data)",
-		script: mustParseShortForm("HASH160 DATA_20 0x01{19} EQUAL"),
+		script: mustParseShortFormV0("HASH160 DATA_20 0x01{19} EQUAL"),
 		expected: []expectedResult{
 			{OP_HASH160, nil, 1},
-			{OP_DATA_20, mustParseShortForm("0x01{19} EQUAL"), 22},
+			{OP_DATA_20, mustParseShortFormV0("0x01{19} EQUAL"), 22},
 		},
 		finalIdx: 22,
 		err:      nil,
@@ -231,7 +231,6 @@ func TestScriptTokenizer(t *testing.T) {
 		if !errors.Is(tokenizer.Err(), test.err) {
 			t.Fatalf("%q: unexpected tokenizer err -- got %v, want %v",
 				test.name, tokenizer.Err(), test.err)
-
 		}
 
 		// Ensure the final index is the expected value.

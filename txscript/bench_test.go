@@ -158,7 +158,7 @@ func BenchmarkIsMultisigScript(b *testing.B) {
 		"DATA_33 " +
 		"0x0284f4d078b236a9ff91661f8ffbe012737cd3507566f30fd97d25f2b23539f3cd " +
 		"2 CHECKMULTISIG"
-	pkScript := mustParseShortForm(multisigShortForm)
+	pkScript := mustParseShortFormV0(multisigShortForm)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -195,12 +195,12 @@ func BenchmarkIsMultisigSigScript(b *testing.B) {
 		"DATA_33 " +
 		"0x0284f4d078b236a9ff91661f8ffbe012737cd3507566f30fd97d25f2b23539f3cd " +
 		"2 CHECKMULTISIG"
-	pkScript := mustParseShortForm(multisigShortForm)
+	pkScript := mustParseShortFormV0(multisigShortForm)
 
 	sigHex := "0x304402205795c3ab6ba11331eeac757bf1fc9c34bef0c7e1a9c8bd5eebb8" +
 		"82f3b79c5838022001e0ab7b4c7662e4522dc5fa479e4b4133fa88c6a53d895dc1d5" +
 		"2eddc7bbcf2801 "
-	sigScript := mustParseShortForm("DATA_71 " + sigHex + "DATA_71 " +
+	sigScript := mustParseShortFormV0("DATA_71 " + sigHex + "DATA_71 " +
 		multisigShortForm)
 
 	b.ResetTimer()
@@ -255,7 +255,7 @@ func BenchmarkGetPreciseSigOpCount(b *testing.B) {
 	// the signature script accordingly by pushing the generated "redeem" script
 	// as the final data push so the benchmark will cover the p2sh path.
 	scriptHash := "0x0000000000000000000000000000000000000001"
-	pkScript := mustParseShortForm("HASH160 DATA_20 " + scriptHash + " EQUAL")
+	pkScript := mustParseShortFormV0("HASH160 DATA_20 " + scriptHash + " EQUAL")
 	sigScript, err := NewScriptBuilder().AddData(redeemScript).Script()
 	if err != nil {
 		b.Fatalf("failed to create signature script: %v", err)
@@ -280,7 +280,7 @@ func BenchmarkGetPreciseSigOpCountTreasury(b *testing.B) {
 	// the signature script accordingly by pushing the generated "redeem" script
 	// as the final data push so the benchmark will cover the p2sh path.
 	scriptHash := "0x0000000000000000000000000000000000000001"
-	pkScript := mustParseShortForm("HASH160 DATA_20 " + scriptHash + " EQUAL")
+	pkScript := mustParseShortFormV0("HASH160 DATA_20 " + scriptHash + " EQUAL")
 	sigScript, err := NewScriptBuilder().AddDataUnchecked(redeemScript).Script()
 	if err != nil {
 		b.Fatalf("failed to create signature script: %v", err)
@@ -520,7 +520,7 @@ func BenchmarkContainsStakeOpCodesTreasury(b *testing.B) {
 // BenchmarkCalcMultiSigStats benchmarks how long it takes CalcMultiSigStats to
 // analyze a typical multisig script.
 func BenchmarkCalcMultiSigStats(b *testing.B) {
-	script := mustParseShortForm("1 " +
+	script := mustParseShortFormV0("1 " +
 		"DATA_33 " +
 		"0x030478aaaa2be30772f1e69e581610f1840b3cf2fe7228ee0281cd599e5746f81e " +
 		"DATA_33 " +
@@ -591,7 +591,7 @@ func BenchmarkExtractAtomicSwapDataPushes(b *testing.B) {
 	secret := "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 	recipient := "0000000000000000000000000000000000000001"
 	refund := "0000000000000000000000000000000000000002"
-	script := mustParseShortForm(fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 "+
+	script := mustParseShortFormV0(fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 "+
 		"DATA_32 0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
 		"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
 		"EQUALVERIFY CHECKSIG", secret, recipient, refund))
@@ -629,7 +629,7 @@ func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
 // BenchmarkExtractPkScriptAddrs benchmarks how long it takes to analyze and
 // potentially extract addresses from a typical script.
 func BenchmarkExtractPkScriptAddrs(b *testing.B) {
-	script := mustParseShortForm("OP_SSTX HASH160 " +
+	script := mustParseShortFormV0("OP_SSTX HASH160 " +
 		"DATA_20 0x0102030405060708090a0b0c0d0e0f1011121314 " +
 		"EQUAL")
 
@@ -648,7 +648,7 @@ func BenchmarkExtractPkScriptAddrs(b *testing.B) {
 // BenchmarkExtractAltSigType benchmarks how long it takes to analyze and
 // potentially extract the signature type from a typical script.
 func BenchmarkExtractAltSigType(b *testing.B) {
-	script := mustParseShortForm("DUP HASH160 " +
+	script := mustParseShortFormV0("DUP HASH160 " +
 		"DATA_20 0x0102030405060708090a0b0c0d0e0f1011121314 " +
 		"EQUALVERIFY OP_1 CHECKSIGALT")
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,7 +149,7 @@ func TestGetSigOpCount(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			script := mustParseShortForm(tc.script)
+			script := mustParseShortFormV0(tc.script)
 			gotCount := GetSigOpCount(script, false)
 			if gotCount != tc.wantCount {
 				t.Fatalf("unexpected sigOpCount with treasury=false. "+
@@ -178,11 +178,11 @@ func TestGetPreciseSigOps(t *testing.T) {
 	}{
 		{
 			name:      "scriptSig doesn't parse",
-			scriptSig: mustParseShortForm("PUSHDATA1 0x02"),
+			scriptSig: mustParseShortFormV0("PUSHDATA1 0x02"),
 		},
 		{
 			name:      "scriptSig isn't push only",
-			scriptSig: mustParseShortForm("1 DUP"),
+			scriptSig: mustParseShortFormV0("1 DUP"),
 			nSigOps:   0,
 		},
 		{
@@ -193,19 +193,19 @@ func TestGetPreciseSigOps(t *testing.T) {
 		{
 			name: "No script at the end",
 			// No script at end but still push only.
-			scriptSig: mustParseShortForm("1 1"),
+			scriptSig: mustParseShortFormV0("1 1"),
 			nSigOps:   0,
 		},
 		{
 			name:      "pushed script doesn't parse",
-			scriptSig: mustParseShortForm("DATA_2 PUSHDATA1 0x02"),
+			scriptSig: mustParseShortFormV0("DATA_2 PUSHDATA1 0x02"),
 		},
 	}
 
 	// The signature in the p2sh script is nonsensical for the tests since
 	// this script will never be executed.  What matters is that it matches
 	// the right pattern. Without treasury enabled.
-	pkScript := mustParseShortForm("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
+	pkScript := mustParseShortFormV0("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
 		"27f564529c57197f9ae88 EQUAL")
 	for _, test := range tests {
 		count := GetPreciseSigOpCount(test.scriptSig, pkScript,
@@ -219,7 +219,7 @@ func TestGetPreciseSigOps(t *testing.T) {
 	// The signature in the p2sh script is nonsensical for the tests since
 	// this script will never be executed.  What matters is that it matches
 	// the right pattern. With treasury enabled.
-	pkScript = mustParseShortForm("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
+	pkScript = mustParseShortFormV0("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
 		"27f564529c57197f9ae88 EQUAL")
 	for _, test := range tests {
 		count := GetPreciseSigOpCount(test.scriptSig, pkScript,
@@ -245,170 +245,170 @@ func TestRemoveOpcodeByData(t *testing.T) {
 	}{
 		{
 			name:   "nothing to do",
-			before: mustParseShortForm("NOP"),
+			before: mustParseShortFormV0("NOP"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("NOP"),
+			after:  mustParseShortFormV0("NOP"),
 		},
 		{
 			name:   "simple case",
-			before: mustParseShortForm("DATA_4 0x01020304"),
+			before: mustParseShortFormV0("DATA_4 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
 			after:  nil,
 		},
 		{
 			name:   "simple case (miss)",
-			before: mustParseShortForm("DATA_4 0x01020304"),
+			before: mustParseShortFormV0("DATA_4 0x01020304"),
 			remove: []byte{1, 2, 3, 5},
-			after:  mustParseShortForm("DATA_4 0x01020304"),
+			after:  mustParseShortFormV0("DATA_4 0x01020304"),
 		},
 		{
 			name: "stakesubmission simple case p2pkh",
-			before: mustParseShortForm("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("SSTX DUP HASH160 EQUALVERIFY CHECKSIG"),
+			after:  mustParseShortFormV0("SSTX DUP HASH160 EQUALVERIFY CHECKSIG"),
 		},
 		{
 			name: "stakesubmission simple case p2pkh (miss)",
-			before: mustParseShortForm("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			after: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 		},
 		{
 			name: "stakesubmission simple case p2sh",
-			before: mustParseShortForm("SSTX HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("SSTX HASH160 EQUAL"),
+			after:  mustParseShortFormV0("SSTX HASH160 EQUAL"),
 		},
 		{
 			name: "stakesubmission simple case p2sh (miss)",
-			before: mustParseShortForm("SSTX HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("SSTX HASH160 DATA_20 0x00{16} " +
+			after: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 		},
 		{
 			name: "stakegen simple case p2pkh",
-			before: mustParseShortForm("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("SSGEN DUP HASH160 EQUALVERIFY CHECKSIG"),
+			after:  mustParseShortFormV0("SSGEN DUP HASH160 EQUALVERIFY CHECKSIG"),
 		},
 		{
 			name: "stakegen simple case p2pkh (miss)",
-			before: mustParseShortForm("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			after: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 		},
 		{
 			name: "stakegen simple case p2sh",
-			before: mustParseShortForm("SSGEN HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("SSGEN HASH160 EQUAL"),
+			after:  mustParseShortFormV0("SSGEN HASH160 EQUAL"),
 		},
 		{
 			name: "stakegen simple case p2sh (miss)",
-			before: mustParseShortForm("SSGEN HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("SSGEN HASH160 DATA_20 0x00{16} " +
+			after: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 		},
 		{
 			name: "stakerevoke simple case p2pkh",
-			before: mustParseShortForm("SSRTX DUP HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUALVERIFY CHECKSIG"),
 			remove: []byte{1, 2, 3, 4},
 			after:  []byte{OP_SSRTX, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG},
 		},
 		{
 			name: "stakerevoke simple case p2pkh (miss)",
-			before: mustParseShortForm("SSRTX DUP HASH160 DATA_20 0x00{20} " +
+			before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
 				"EQUALVERIFY CHECKSIG"),
 			remove: bytes.Repeat([]byte{0}, 21),
-			after: mustParseShortForm("SSRTX DUP HASH160 DATA_20 0x00{20} " +
+			after: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
 				"EQUALVERIFY CHECKSIG"),
 		},
 		{
 			name: "stakerevoke simple case p2sh",
-			before: mustParseShortForm("SSRTX HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("SSRTX HASH160 EQUAL"),
+			after:  mustParseShortFormV0("SSRTX HASH160 EQUAL"),
 		},
 		{
 			name: "stakerevoke simple case p2sh (miss)",
-			before: mustParseShortForm("SSRTX HASH160 DATA_20 0x00{16} " +
+			before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("SSRTX HASH160 DATA_20 0x00{16} " +
+			after: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
 				"0x01020304 EQUAL"),
 		},
 		{
 			// padded to keep it canonical.
 			name:   "simple case (pushdata1)",
-			before: mustParseShortForm("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
 			after:  nil,
 		},
 		{
 			name:   "simple case (pushdata1 miss)",
-			before: mustParseShortForm("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
 			remove: []byte{1, 2, 3, 5},
-			after:  mustParseShortForm("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+			after:  mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
 		},
 		{
 			name:   "simple case (pushdata1 miss noncanonical)",
-			before: mustParseShortForm("PUSHDATA1 0x04 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("PUSHDATA1 0x04 0x01020304"),
+			after:  mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
 		},
 		{
 			name:   "simple case (pushdata2)",
-			before: mustParseShortForm("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
 			after:  nil,
 		},
 		{
 			name:   "simple case (pushdata2 miss)",
-			before: mustParseShortForm("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after:  mustParseShortForm("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+			after:  mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
 		},
 		{
 			name:   "simple case (pushdata2 miss noncanonical)",
-			before: mustParseShortForm("PUSHDATA2 0x0400 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("PUSHDATA2 0x0400 0x01020304"),
+			after:  mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
 		},
 		{
 			// This is padded to make the push canonical.
 			name: "simple case (pushdata4)",
-			before: mustParseShortForm("PUSHDATA4 0x00000100 0x00{65532} " +
+			before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
 				"0x01020304"),
 			remove: []byte{1, 2, 3, 4},
 			after:  nil,
 		},
 		{
 			name:   "simple case (pushdata4 miss noncanonical)",
-			before: mustParseShortForm("PUSHDATA4 0x04000000 0x01020304"),
+			before: mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
 			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortForm("PUSHDATA4 0x04000000 0x01020304"),
+			after:  mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
 		},
 		{
 			// This is padded to make the push canonical.
 			name: "simple case (pushdata4 miss)",
-			before: mustParseShortForm("PUSHDATA4 0x00000100 0x00{65532} " +
+			before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
 				"0x01020304"),
 			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortForm("PUSHDATA4 0x00000100 0x00{65532} " +
+			after: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
 				"0x01020304"),
 		},
 		{
@@ -462,10 +462,10 @@ func TestRemoveOpcodeByData(t *testing.T) {
 func TestIsPayToScriptHash(t *testing.T) {
 	t.Parallel()
 
-	// Convience function that combines fmt.Sprintf with mustParseShortForm
+	// Convience function that combines fmt.Sprintf with mustParseShortFormV0
 	// to create more compact tests.
 	p := func(format string, a ...interface{}) []byte {
-		return mustParseShortForm(fmt.Sprintf(format, a...))
+		return mustParseShortFormV0(fmt.Sprintf(format, a...))
 	}
 
 	// Script hash for a 2-of-3 multisig composed of the following public keys:
@@ -506,10 +506,10 @@ func TestIsPayToScriptHash(t *testing.T) {
 func TestIsAnyKindOfScriptHash(t *testing.T) {
 	t.Parallel()
 
-	// Convience function that combines fmt.Sprintf with mustParseShortForm
+	// Convience function that combines fmt.Sprintf with mustParseShortFormV0
 	// to create more compact tests.
 	p := func(format string, a ...interface{}) []byte {
-		return mustParseShortForm(fmt.Sprintf(format, a...))
+		return mustParseShortFormV0(fmt.Sprintf(format, a...))
 	}
 
 	// Script hash for a 2-of-3 multisig composed of the following public keys:
@@ -640,7 +640,7 @@ func TestHasCanonicalPushes(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		script := mustParseShortForm(test.script)
+		script := mustParseShortForm(scriptVersion, test.script)
 		if err := checkScriptParses(scriptVersion, script); err != nil {
 			if test.expected {
 				t.Errorf("%q: script parse failed: %v", test.name, err)
@@ -670,7 +670,7 @@ func TestIsPushOnlyScript(t *testing.T) {
 		expected bool
 	}{
 		name: "does not parse",
-		script: mustParseShortForm("0x046708afdb0fe5548271967f1a67130" +
+		script: mustParseShortFormV0("0x046708afdb0fe5548271967f1a67130" +
 			"b7105cd6a828e03909a67962e0ea1f61d"),
 		expected: false,
 	}

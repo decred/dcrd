@@ -440,7 +440,7 @@ func TestMultiSigScript(t *testing.T) {
 			continue
 		}
 
-		expected := mustParseShortForm(test.expected)
+		expected := mustParseShortFormV0(test.expected)
 		if !bytes.Equal(script, expected) {
 			t.Errorf("%q: unexpected result -- got: %x\nwant: %x", test.name,
 				script, expected)
@@ -481,7 +481,7 @@ func TestCalcMultiSigStats(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		script := mustParseShortForm(test.script)
+		script := mustParseShortFormV0(test.script)
 		_, _, err := CalcMultiSigStats(script)
 		if !errors.Is(err, test.err) {
 			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
@@ -698,7 +698,7 @@ func TestScriptClass(t *testing.T) {
 
 	const scriptVersion = 0
 	for _, test := range scriptClassTests {
-		script := mustParseShortForm(test.script)
+		script := mustParseShortFormV0(test.script)
 		class := GetScriptClass(scriptVersion, script, noTreasury)
 		if class != test.class {
 			t.Errorf("%s: expected %s got %s (script %x)", test.name,
@@ -709,7 +709,7 @@ func TestScriptClass(t *testing.T) {
 
 	// Repeat tests with treasury.
 	for _, test := range scriptClassTests {
-		script := mustParseShortForm(test.script)
+		script := mustParseShortFormV0(test.script)
 		class := GetScriptClass(scriptVersion, script, withTreasury)
 		if class != test.class {
 			t.Errorf("%s: expected %s got %s (script %x)", test.name,
@@ -798,14 +798,14 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 		{
 			name:     "small int",
 			data:     hexToBytes("01"),
-			expected: mustParseShortForm("RETURN 1"),
+			expected: mustParseShortFormV0("RETURN 1"),
 			err:      nil,
 			class:    NullDataTy,
 		},
 		{
 			name:     "max small int",
 			data:     hexToBytes("10"),
-			expected: mustParseShortForm("RETURN 16"),
+			expected: mustParseShortFormV0("RETURN 16"),
 			err:      nil,
 			class:    NullDataTy,
 		},
@@ -813,7 +813,7 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 			name: "data of size before OP_PUSHDATA1 is needed",
 			data: hexToBytes("0102030405060708090a0b0c0d0e0f10111" +
 				"2131415161718"),
-			expected: mustParseShortForm("RETURN 0x18 0x01020304" +
+			expected: mustParseShortFormV0("RETURN 0x18 0x01020304" +
 				"05060708090a0b0c0d0e0f101112131415161718"),
 			err:   nil,
 			class: NullDataTy,
@@ -830,7 +830,7 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 				"132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4" +
 				"e4f202122232425262728292a2b2c2d2e2f303132333435363738393a3" +
 				"b3c3d3e"),
-			expected: mustParseShortForm("RETURN PUSHDATA1 0xFF " +
+			expected: mustParseShortFormV0("RETURN PUSHDATA1 0xFF " +
 				"0x000102030405060708090a0b0c0d0e0f101112131415161" +
 				"718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f" +
 				"303132333435363738393a3b3c3d3e3f40414243444546474" +
@@ -1035,7 +1035,7 @@ func TestExtractAtomicSwapDataPushes(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		script := mustParseShortForm(test.script)
+		script := mustParseShortFormV0(test.script)
 
 		// Attempt to extract the atomic swap data from the script and ensure
 		// the error is as expected.
