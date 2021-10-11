@@ -14,53 +14,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
-// TestHasCanonicalPush ensures the isCanonicalPush function works as expected.
-func TestHasCanonicalPush(t *testing.T) {
-	t.Parallel()
-
-	const scriptVersion = 0
-	for i := 0; i < 65535; i++ {
-		builder := NewScriptBuilder()
-		builder.AddInt64(int64(i))
-		script, err := builder.Script()
-		if err != nil {
-			t.Errorf("Script: test #%d unexpected error: %v\n", i, err)
-			continue
-		}
-		if !IsPushOnlyScript(script) {
-			t.Errorf("IsPushOnlyScript: test #%d failed: %x\n", i, script)
-			continue
-		}
-		tokenizer := MakeScriptTokenizer(scriptVersion, script)
-		for tokenizer.Next() {
-			if !isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) {
-				t.Errorf("isCanonicalPush: test #%d failed: %x\n", i, script)
-				break
-			}
-		}
-	}
-	for i := 0; i <= MaxScriptElementSize; i++ {
-		builder := NewScriptBuilder()
-		builder.AddData(bytes.Repeat([]byte{0x49}, i))
-		script, err := builder.Script()
-		if err != nil {
-			t.Errorf("Script: test #%d unexpected error: %v\n", i, err)
-			continue
-		}
-		if !IsPushOnlyScript(script) {
-			t.Errorf("IsPushOnlyScript: test #%d failed: %x\n", i, script)
-			continue
-		}
-		tokenizer := MakeScriptTokenizer(scriptVersion, script)
-		for tokenizer.Next() {
-			if !isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) {
-				t.Errorf("isCanonicalPush: test #%d failed: %x\n", i, script)
-				break
-			}
-		}
-	}
-}
-
 // TestGetSigOpCount tests that the GetSigOpCount function behaves as expected.
 func TestGetSigOpCount(t *testing.T) {
 	// This should correspond to MaxPubKeysPerMultiSig. It's intentionally
@@ -175,32 +128,26 @@ func TestGetPreciseSigOps(t *testing.T) {
 		name      string
 		scriptSig []byte
 		nSigOps   int
-	}{
-		{
-			name:      "scriptSig doesn't parse",
-			scriptSig: mustParseShortFormV0("PUSHDATA1 0x02"),
-		},
-		{
-			name:      "scriptSig isn't push only",
-			scriptSig: mustParseShortFormV0("1 DUP"),
-			nSigOps:   0,
-		},
-		{
-			name:      "scriptSig length 0",
-			scriptSig: nil,
-			nSigOps:   0,
-		},
-		{
-			name: "No script at the end",
-			// No script at end but still push only.
-			scriptSig: mustParseShortFormV0("1 1"),
-			nSigOps:   0,
-		},
-		{
-			name:      "pushed script doesn't parse",
-			scriptSig: mustParseShortFormV0("DATA_2 PUSHDATA1 0x02"),
-		},
-	}
+	}{{
+		name:      "scriptSig doesn't parse",
+		scriptSig: mustParseShortFormV0("PUSHDATA1 0x02"),
+	}, {
+		name:      "scriptSig isn't push only",
+		scriptSig: mustParseShortFormV0("1 DUP"),
+		nSigOps:   0,
+	}, {
+		name:      "scriptSig length 0",
+		scriptSig: nil,
+		nSigOps:   0,
+	}, {
+		// No script at end but still push only.
+		name:      "No script at the end",
+		scriptSig: mustParseShortFormV0("1 1"),
+		nSigOps:   0,
+	}, {
+		name:      "pushed script doesn't parse",
+		scriptSig: mustParseShortFormV0("DATA_2 PUSHDATA1 0x02"),
+	}}
 
 	// The signature in the p2sh script is nonsensical for the tests since
 	// this script will never be executed.  What matters is that it matches
@@ -242,194 +189,166 @@ func TestRemoveOpcodeByData(t *testing.T) {
 		remove []byte
 		err    error
 		after  []byte
-	}{
-		{
-			name:   "nothing to do",
-			before: mustParseShortFormV0("NOP"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("NOP"),
-		},
-		{
-			name:   "simple case",
-			before: mustParseShortFormV0("DATA_4 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name:   "simple case (miss)",
-			before: mustParseShortFormV0("DATA_4 0x01020304"),
-			remove: []byte{1, 2, 3, 5},
-			after:  mustParseShortFormV0("DATA_4 0x01020304"),
-		},
-		{
-			name: "stakesubmission simple case p2pkh",
-			before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("SSTX DUP HASH160 EQUALVERIFY CHECKSIG"),
-		},
-		{
-			name: "stakesubmission simple case p2pkh (miss)",
-			before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-		},
-		{
-			name: "stakesubmission simple case p2sh",
-			before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("SSTX HASH160 EQUAL"),
-		},
-		{
-			name: "stakesubmission simple case p2sh (miss)",
-			before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-		},
-		{
-			name: "stakegen simple case p2pkh",
-			before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("SSGEN DUP HASH160 EQUALVERIFY CHECKSIG"),
-		},
-		{
-			name: "stakegen simple case p2pkh (miss)",
-			before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-		},
-		{
-			name: "stakegen simple case p2sh",
-			before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("SSGEN HASH160 EQUAL"),
-		},
-		{
-			name: "stakegen simple case p2sh (miss)",
-			before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-		},
-		{
-			name: "stakerevoke simple case p2pkh",
-			before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUALVERIFY CHECKSIG"),
-			remove: []byte{1, 2, 3, 4},
-			after:  []byte{OP_SSRTX, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG},
-		},
-		{
-			name: "stakerevoke simple case p2pkh (miss)",
-			before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
-				"EQUALVERIFY CHECKSIG"),
-			remove: bytes.Repeat([]byte{0}, 21),
-			after: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
-				"EQUALVERIFY CHECKSIG"),
-		},
-		{
-			name: "stakerevoke simple case p2sh",
-			before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("SSRTX HASH160 EQUAL"),
-		},
-		{
-			name: "stakerevoke simple case p2sh (miss)",
-			before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
-				"0x01020304 EQUAL"),
-		},
-		{
-			// padded to keep it canonical.
-			name:   "simple case (pushdata1)",
-			before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name:   "simple case (pushdata1 miss)",
-			before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
-			remove: []byte{1, 2, 3, 5},
-			after:  mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
-		},
-		{
-			name:   "simple case (pushdata1 miss noncanonical)",
-			before: mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
-		},
-		{
-			name:   "simple case (pushdata2)",
-			before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name:   "simple case (pushdata2 miss)",
-			before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after:  mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
-		},
-		{
-			name:   "simple case (pushdata2 miss noncanonical)",
-			before: mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
-		},
-		{
-			// This is padded to make the push canonical.
-			name: "simple case (pushdata4)",
-			before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
-				"0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  nil,
-		},
-		{
-			name:   "simple case (pushdata4 miss noncanonical)",
-			before: mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
-			remove: []byte{1, 2, 3, 4},
-			after:  mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
-		},
-		{
-			// This is padded to make the push canonical.
-			name: "simple case (pushdata4 miss)",
-			before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
-				"0x01020304"),
-			remove: []byte{1, 2, 3, 4, 5},
-			after: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
-				"0x01020304"),
-		},
-		{
-			name:   "invalid opcode",
-			before: []byte{OP_UNKNOWN240},
-			remove: []byte{1, 2, 3, 4},
-			after:  []byte{OP_UNKNOWN240},
-		},
-		{
-			name:   "invalid length (instruction)",
-			before: []byte{OP_PUSHDATA1},
-			remove: []byte{1, 2, 3, 4},
-			err:    ErrMalformedPush,
-		},
-		{
-			name:   "invalid length (data)",
-			before: []byte{OP_PUSHDATA1, 255, 254},
-			remove: []byte{1, 2, 3, 4},
-			err:    ErrMalformedPush,
-		},
-	}
+	}{{
+		name:   "nothing to do",
+		before: mustParseShortFormV0("NOP"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("NOP"),
+	}, {
+		name:   "simple case",
+		before: mustParseShortFormV0("DATA_4 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  nil,
+	}, {
+		name:   "simple case (miss)",
+		before: mustParseShortFormV0("DATA_4 0x01020304"),
+		remove: []byte{1, 2, 3, 5},
+		after:  mustParseShortFormV0("DATA_4 0x01020304"),
+	}, {
+		name: "stakesubmission simple case p2pkh",
+		before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("SSTX DUP HASH160 EQUALVERIFY CHECKSIG"),
+	}, {
+		name: "stakesubmission simple case p2pkh (miss)",
+		before: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("SSTX DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+	}, {
+		name: "stakesubmission simple case p2sh",
+		before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} 0x01020304 " +
+			"EQUAL"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("SSTX HASH160 EQUAL"),
+	}, {
+		name: "stakesubmission simple case p2sh (miss)",
+		before: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} 0x01020304 " +
+			"EQUAL"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("SSTX HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+	}, {
+		name: "stakegen simple case p2pkh",
+		before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("SSGEN DUP HASH160 EQUALVERIFY CHECKSIG"),
+	}, {
+		name: "stakegen simple case p2pkh (miss)",
+		before: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("SSGEN DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+	}, {
+		name: "stakegen simple case p2sh",
+		before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("SSGEN HASH160 EQUAL"),
+	}, {
+		name: "stakegen simple case p2sh (miss)",
+		before: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("SSGEN HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+	}, {
+		name: "stakerevoke simple case p2pkh",
+		before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUALVERIFY CHECKSIG"),
+		remove: []byte{1, 2, 3, 4},
+		after:  []byte{OP_SSRTX, OP_DUP, OP_HASH160, OP_EQUALVERIFY, OP_CHECKSIG},
+	}, {
+		name: "stakerevoke simple case p2pkh (miss)",
+		before: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
+			"EQUALVERIFY CHECKSIG"),
+		remove: bytes.Repeat([]byte{0}, 21),
+		after: mustParseShortFormV0("SSRTX DUP HASH160 DATA_20 0x00{20} " +
+			"EQUALVERIFY CHECKSIG"),
+	}, {
+		name: "stakerevoke simple case p2sh",
+		before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("SSRTX HASH160 EQUAL"),
+	}, {
+		name: "stakerevoke simple case p2sh (miss)",
+		before: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("SSRTX HASH160 DATA_20 0x00{16} " +
+			"0x01020304 EQUAL"),
+	}, {
+		// padded to keep it canonical.
+		name:   "simple case (pushdata1)",
+		before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  nil,
+	}, {
+		name:   "simple case (pushdata1 miss)",
+		before: mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+		remove: []byte{1, 2, 3, 5},
+		after:  mustParseShortFormV0("PUSHDATA1 0x4c 0x00{72} 0x01020304"),
+	}, {
+		name:   "simple case (pushdata1 miss noncanonical)",
+		before: mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("PUSHDATA1 0x04 0x01020304"),
+	}, {
+		name:   "simple case (pushdata2)",
+		before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  nil,
+	}, {
+		name:   "simple case (pushdata2 miss)",
+		before: mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after:  mustParseShortFormV0("PUSHDATA2 0x0001 0x00{252} 0x01020304"),
+	}, {
+		name:   "simple case (pushdata2 miss noncanonical)",
+		before: mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("PUSHDATA2 0x0400 0x01020304"),
+	}, {
+		// This is padded to make the push canonical.
+		name: "simple case (pushdata4)",
+		before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
+			"0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  nil,
+	}, {
+		name:   "simple case (pushdata4 miss noncanonical)",
+		before: mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
+		remove: []byte{1, 2, 3, 4},
+		after:  mustParseShortFormV0("PUSHDATA4 0x04000000 0x01020304"),
+	}, {
+		// This is padded to make the push canonical.
+		name: "simple case (pushdata4 miss)",
+		before: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
+			"0x01020304"),
+		remove: []byte{1, 2, 3, 4, 5},
+		after: mustParseShortFormV0("PUSHDATA4 0x00000100 0x00{65532} " +
+			"0x01020304"),
+	}, {
+		name:   "invalid opcode",
+		before: []byte{OP_UNKNOWN240},
+		remove: []byte{1, 2, 3, 4},
+		after:  []byte{OP_UNKNOWN240},
+	}, {
+		name:   "invalid length (instruction)",
+		before: []byte{OP_PUSHDATA1},
+		remove: []byte{1, 2, 3, 4},
+		err:    ErrMalformedPush,
+	}, {
+		name:   "invalid length (data)",
+		before: []byte{OP_PUSHDATA1, 255, 254},
+		remove: []byte{1, 2, 3, 4},
+		err:    ErrMalformedPush,
+	}}
 
 	// tstRemoveOpcodeByData is a convenience function to ensure the provided
 	// script parses before attempting to remove the passed data.
@@ -445,14 +364,14 @@ func TestRemoveOpcodeByData(t *testing.T) {
 	for _, test := range tests {
 		result, err := tstRemoveOpcodeByData(test.before, test.remove)
 		if !errors.Is(err, test.err) {
-			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
+			t.Errorf("%s: unexpected error -- got %v, want %v", test.name, err,
 				test.err)
 			continue
 		}
 
-		if !bytes.Equal(test.after, result) {
-			t.Errorf("%s: value does not equal expected: exp: %q"+
-				" got: %q", test.name, test.after, result)
+		if !bytes.Equal(result, test.after) {
+			t.Errorf("%s: value does not equal expected -- got: %x, want %x",
+				test.name, result, test.after)
 		}
 	}
 }
@@ -616,34 +535,46 @@ func TestIsAnyKindOfScriptHash(t *testing.T) {
 
 // TestHasCanonicalPushes ensures the isCanonicalPush function properly
 // determines what is considered a canonical push for the purposes of
-// removeOpcodeByData.
+// removeOpcodeByData and script null data checks.
 func TestHasCanonicalPushes(t *testing.T) {
 	t.Parallel()
 
 	const scriptVersion = 0
-	tests := []struct {
-		name     string
-		script   string
-		expected bool
-	}{
-		{
-			name: "does not parse",
-			script: "0x046708afdb0fe5548271967f1a67130b7105cd6a82" +
-				"8e03909a67962e0ea1f61d",
-			expected: false,
-		},
-		{
-			name:     "non-canonical push",
-			script:   "PUSHDATA1 0x04 0x01020304",
-			expected: false,
-		},
+	type canonicalPushTest struct {
+		name     string // test description
+		script   string // short form script to test
+		expected bool   // expected result
+	}
+	tests := []canonicalPushTest{{
+		name: "does not parse",
+		script: "0x046708afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e" +
+			"0ea1f61d",
+		expected: false,
+	}, {
+		name:     "non-canonical push",
+		script:   "PUSHDATA1 0x04 0x01020304",
+		expected: false,
+	}}
+	for i := 0; i < 65535; i++ {
+		tests = append(tests, canonicalPushTest{
+			name:     fmt.Sprintf("canonical push of integer %d", i),
+			script:   fmt.Sprintf("%d", i),
+			expected: true,
+		})
+	}
+	for i := 0; i <= MaxScriptElementSize; i++ {
+		tests = append(tests, canonicalPushTest{
+			name:     fmt.Sprintf("canonical push of %d bytes of data", i),
+			script:   fmt.Sprintf("'a'{%d}", i),
+			expected: true,
+		})
 	}
 
 	for _, test := range tests {
 		script := mustParseShortForm(scriptVersion, test.script)
 		if err := checkScriptParses(scriptVersion, script); err != nil {
 			if test.expected {
-				t.Errorf("%q: script parse failed: %v", test.name, err)
+				t.Errorf("%s: script parse failed: %v", test.name, err)
 			}
 			continue
 		}
@@ -651,8 +582,8 @@ func TestHasCanonicalPushes(t *testing.T) {
 		for tokenizer.Next() {
 			result := isCanonicalPush(tokenizer.Opcode(), tokenizer.Data())
 			if result != test.expected {
-				t.Errorf("%q: isCanonicalPush wrong result\ngot: %v\nwant: %v",
-					test.name, result, test.expected)
+				t.Errorf("%s: wrong result -- got %v, want: %v", test.name,
+					result, test.expected)
 				break
 			}
 		}
@@ -664,20 +595,39 @@ func TestHasCanonicalPushes(t *testing.T) {
 func TestIsPushOnlyScript(t *testing.T) {
 	t.Parallel()
 
-	test := struct {
-		name     string
-		script   []byte
-		expected bool
-	}{
+	type pushOnlyTest struct {
+		name     string // test description
+		script   string // short form script to test
+		expected bool   // expected result
+	}
+	tests := []pushOnlyTest{{
 		name: "does not parse",
-		script: mustParseShortFormV0("0x046708afdb0fe5548271967f1a67130" +
-			"b7105cd6a828e03909a67962e0ea1f61d"),
+		script: "0x046708afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0" +
+			"ea1f61d",
 		expected: false,
+	}}
+	for i := 0; i < 65535; i++ {
+		tests = append(tests, pushOnlyTest{
+			name:     fmt.Sprintf("canonical push of integer %d", i),
+			script:   fmt.Sprintf("%d", i),
+			expected: true,
+		})
+	}
+	for i := 0; i <= MaxScriptElementSize; i++ {
+		tests = append(tests, pushOnlyTest{
+			name:     fmt.Sprintf("canonical push of %d bytes of data", i),
+			script:   fmt.Sprintf("'a'{%d}", i),
+			expected: true,
+		})
 	}
 
-	if IsPushOnlyScript(test.script) != test.expected {
-		t.Errorf("IsPushOnlyScript (%s) wrong result\ngot: %v\nwant: "+
-			"%v", test.name, true, test.expected)
+	for _, test := range tests {
+		script := mustParseShortFormV0(test.script)
+		result := IsPushOnlyScript(script)
+		if result != test.expected {
+			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name, result,
+				test.expected)
+		}
 	}
 }
 
@@ -687,41 +637,35 @@ func TestIsUnspendable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name     string
 		amount   int64
-		pkScript []byte
+		pkScript string
 		expected bool
-	}{
-		{
-			// Unspendable
-			amount:   100,
-			pkScript: []byte{0x6a, 0x04, 0x74, 0x65, 0x73, 0x74},
-			expected: true,
-		},
-		{
-			// Unspendable
-			amount: 0,
-			pkScript: []byte{0x76, 0xa9, 0x14, 0x29, 0x95, 0xa0,
-				0xfe, 0x68, 0x43, 0xfa, 0x9b, 0x95, 0x45,
-				0x97, 0xf0, 0xdc, 0xa7, 0xa4, 0x4d, 0xf6,
-				0xfa, 0x0b, 0x5c, 0x88, 0xac},
-			expected: true,
-		},
-		{
-			// Spendable
-			amount: 100,
-			pkScript: []byte{0x76, 0xa9, 0x14, 0x29, 0x95, 0xa0,
-				0xfe, 0x68, 0x43, 0xfa, 0x9b, 0x95, 0x45,
-				0x97, 0xf0, 0xdc, 0xa7, 0xa4, 0x4d, 0xf6,
-				0xfa, 0x0b, 0x5c, 0x88, 0xac},
-			expected: false,
-		},
-	}
+	}{{
+		name:     "unspendable due to being provably pruneable",
+		amount:   100,
+		pkScript: "RETURN DATA_4 0x74657374",
+		expected: true,
+	}, {
+		name:   "unspendable due to zero amount",
+		amount: 0,
+		pkScript: "DUP HASH160 DATA_20 0x2995a0fe6843fa9b954597f0dca7a44df6fa" +
+			"0b5c EQUALVERIFY CHECKSIG",
+		expected: true,
+	}, {
+		name:   "spendable",
+		amount: 100,
+		pkScript: "DUP HASH160 DATA_20 0x2995a0fe6843fa9b954597f0dca7a44df6fa" +
+			"0b5c EQUALVERIFY CHECKSIG",
+		expected: false,
+	}}
 
-	for i, test := range tests {
-		res := IsUnspendable(test.amount, test.pkScript)
-		if res != test.expected {
-			t.Errorf("IsUnspendable #%d failed: got %v want %v", i,
-				res, test.expected)
+	for _, test := range tests {
+		pkScript := mustParseShortFormV0(test.pkScript)
+		result := IsUnspendable(test.amount, pkScript)
+		if result != test.expected {
+			t.Errorf("%s: unexpected result -- got %v, want %v", test.name,
+				result, test.expected)
 			continue
 		}
 	}
