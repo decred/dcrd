@@ -135,18 +135,17 @@ type BlockChain struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
-	checkpoints         []chaincfg.Checkpoint
-	checkpointsByHeight map[int64]*chaincfg.Checkpoint
-	deploymentVers      map[string]uint32
-	db                  database.DB
-	dbInfo              *databaseInfo
-	chainParams         *chaincfg.Params
-	timeSource          MedianTimeSource
-	notifications       NotificationCallback
-	sigCache            *txscript.SigCache
-	indexSubscriber     *indexers.IndexSubscriber
-	interrupt           <-chan struct{}
-	utxoCache           UtxoCacher
+	latestCheckpoint *chaincfg.Checkpoint
+	deploymentVers   map[string]uint32
+	db               database.DB
+	dbInfo           *databaseInfo
+	chainParams      *chaincfg.Params
+	timeSource       MedianTimeSource
+	notifications    NotificationCallback
+	sigCache         *txscript.SigCache
+	indexSubscriber  *indexers.IndexSubscriber
+	interrupt        <-chan struct{}
+	utxoCache        UtxoCacher
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -820,8 +819,8 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	// Optimization: Before checkpoints, immediately dump the parent's stake
 	// node because we no longer need it.
 	var latestCheckpointHeight int64
-	if len(b.checkpoints) > 0 {
-		latestCheckpointHeight = b.checkpoints[len(b.checkpoints)-1].Height
+	if b.latestCheckpoint != nil {
+		latestCheckpointHeight = b.latestCheckpoint.Height
 	}
 	if node.height < latestCheckpointHeight {
 		parent := b.bestChain.Tip().parent
@@ -2296,13 +2295,11 @@ type Config struct {
 	// This field is required.
 	ChainParams *chaincfg.Params
 
-	// Checkpoints specifies caller-defined checkpoints that are typically the
-	// default checkpoints in ChainParams or additional checkpoints added to
-	// them.  Checkpoints must be sorted by height.
+	// LatestCheckpoint specifies the most recent known checkpoint that is
+	// typically the default checkpoint in ChainParams.
 	//
-	// This field can be nil if the caller does not wish to specify any
-	// checkpoints.
-	Checkpoints []chaincfg.Checkpoint
+	// This field can be nil if the caller does not wish to specify a checkpoint.
+	LatestCheckpoint *chaincfg.Checkpoint
 
 	// TimeSource defines the median time source to use for things such as
 	// block processing and determining whether or not the chain is current.
@@ -2362,25 +2359,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
 
-	// Generate a checkpoint by height map from the provided checkpoints.
-	params := config.ChainParams
-	var checkpointsByHeight map[int64]*chaincfg.Checkpoint
-	var prevCheckpointHeight int64
-	if len(config.Checkpoints) > 0 {
-		checkpointsByHeight = make(map[int64]*chaincfg.Checkpoint)
-		for i := range config.Checkpoints {
-			checkpoint := &config.Checkpoints[i]
-			if checkpoint.Height <= prevCheckpointHeight {
-				return nil, AssertError("blockchain.New checkpoints are not " +
-					"sorted by height")
-			}
-
-			checkpointsByHeight[checkpoint.Height] = checkpoint
-			prevCheckpointHeight = checkpoint.Height
-		}
-	}
-
 	// Generate a deployment ID to version map from the provided params.
+	params := config.ChainParams
 	deploymentVers, err := extractDeploymentIDVersions(params)
 	if err != nil {
 		return nil, err
@@ -2394,8 +2374,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 
 	b := BlockChain{
-		checkpoints:                   config.Checkpoints,
-		checkpointsByHeight:           checkpointsByHeight,
+		latestCheckpoint:              config.LatestCheckpoint,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,
 		chainParams:                   params,

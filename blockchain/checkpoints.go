@@ -19,30 +19,13 @@ import (
 // best block chain that a good checkpoint candidate must be.
 const CheckpointConfirmations = 4096
 
-// Checkpoints returns a slice of checkpoints (regardless of whether they are
-// already known).  When checkpoints are disabled or there are no checkpoints
-// for the active network, it will return nil.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) Checkpoints() []chaincfg.Checkpoint {
-	if len(b.checkpoints) == 0 {
-		return nil
-	}
-
-	return b.checkpoints
-}
-
 // LatestCheckpoint returns the most recent checkpoint (regardless of whether it
 // is already known).  When checkpoints are disabled or there are no checkpoints
 // for the active network, it will return nil.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) LatestCheckpoint() *chaincfg.Checkpoint {
-	if len(b.checkpoints) == 0 {
-		return nil
-	}
-
-	return &b.checkpoints[len(b.checkpoints)-1]
+	return b.latestCheckpoint
 }
 
 // verifyCheckpoint returns whether the passed block height and hash combination
@@ -51,22 +34,21 @@ func (b *BlockChain) LatestCheckpoint() *chaincfg.Checkpoint {
 //
 // This function MUST be called with the chain lock held (for reads).
 func (b *BlockChain) verifyCheckpoint(height int64, hash *chainhash.Hash) bool {
-	if len(b.checkpoints) == 0 {
+	if b.latestCheckpoint == nil {
 		return true
 	}
 
 	// Nothing to check if there is no checkpoint data for the block height.
-	checkpoint, exists := b.checkpointsByHeight[height]
-	if !exists {
+	if b.latestCheckpoint.Height != height {
 		return true
 	}
 
-	if *checkpoint.Hash != *hash {
+	if *b.latestCheckpoint.Hash != *hash {
 		return false
 	}
 
-	log.Debugf("Verified checkpoint at height %d/block %s", checkpoint.Height,
-		checkpoint.Hash)
+	log.Debugf("Verified checkpoint at height %d/block %s",
+		b.latestCheckpoint.Height, b.latestCheckpoint.Hash)
 	return true
 }
 
@@ -75,20 +57,23 @@ func (b *BlockChain) verifyCheckpoint(height int64, hash *chainhash.Hash) bool {
 //
 // This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) maybeUpdateMostRecentCheckpoint(node *blockNode) {
-	if len(b.checkpoints) == 0 {
+	if b.latestCheckpoint == nil {
 		return
 	}
 
 	// Nothing to update if there is no checkpoint data for the block height or
 	// the checkpoint hash does not match.
-	checkpoint, exists := b.checkpointsByHeight[node.height]
-	if !exists || node.hash != *checkpoint.Hash {
+	if node.height != b.latestCheckpoint.Height ||
+		node.hash != *b.latestCheckpoint.Hash {
+
 		return
 	}
 
 	// Update the previous checkpoint to current block so long as it is more
 	// recent than the existing previous checkpoint.
-	if b.checkpointNode == nil || b.checkpointNode.height < checkpoint.Height {
+	if b.checkpointNode == nil ||
+		b.checkpointNode.height < b.latestCheckpoint.Height {
+
 		log.Debugf("Most recent checkpoint updated to %s (height %d)",
 			node.hash, node.height)
 		b.checkpointNode = node

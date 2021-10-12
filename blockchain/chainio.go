@@ -1471,13 +1471,12 @@ func (b *BlockChain) initChainState(ctx context.Context,
 		}
 
 		// Find the most recent checkpoint.
-		for i := len(b.checkpoints) - 1; i >= 0; i-- {
-			node := b.index.lookupNode(b.checkpoints[i].Hash)
+		if b.latestCheckpoint != nil {
+			node := b.index.lookupNode(b.latestCheckpoint.Hash)
 			if node != nil {
 				log.Debugf("Most recent checkpoint is %s (height %d)",
 					node.hash, node.height)
 				b.checkpointNode = node
-				break
 			}
 		}
 

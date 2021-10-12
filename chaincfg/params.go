@@ -329,6 +329,10 @@ type Params struct {
 	BlockTaxProportion uint16
 
 	// Checkpoints ordered from oldest to newest.
+	//
+	// Note: Only the most recent checkpoint is used and all others are ignored.
+	// This is left as a slice to avoid a major version bump for the module and
+	// will likely be changed to only allow a single checkpoint in the future.
 	Checkpoints []Checkpoint
 
 	// MinKnownChainWork is the minimum amount of known total work for the chain
@@ -339,7 +343,7 @@ type Params struct {
 	// These fields are related to voting on consensus rule changes as
 	// defined by BIP0009.
 	//
-	// RuleChangeActivationQurom is the number of votes required for a vote
+	// RuleChangeActivationQuorum is the number of votes required for a vote
 	// to take effect.
 	//
 	// RuleChangeActivationInterval is the number of blocks in each threshold
