@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,12 +149,31 @@ func main() {
 	}
 	defer db.Close()
 
+	// Load the UTXO database.
+	utxoDb, err := blockchain.LoadUtxoDB(context.Background(), activeNetParams,
+		cfg.DataDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "failed to load UTXO database:", err)
+		return
+	}
+	defer utxoDb.Close()
+
+	// Instantiate a UTXO backend and UTXO cache.
+	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
+	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
+		Backend:      utxoBackend,
+		FlushBlockDB: db.Flush,
+		MaxSize:      100 * 1024 * 1024, // 100 MiB
+	})
+
 	// Setup chain.  Ignore notifications since they aren't needed for this
 	// util.
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
 			DB:          db,
 			ChainParams: activeNetParams,
+			UtxoBackend: blockchain.NewLevelDbUtxoBackend(utxoDb),
+			UtxoCache:   utxoCache,
 		})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize chain: %v\n", err)
