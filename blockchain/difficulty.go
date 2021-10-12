@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -185,15 +185,20 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 		nextDiffBig.Set(b.chainParams.PowLimit)
 	}
 
-	// Log new target difficulty and return it.  The new target logging is
-	// intentionally converting the bits back to a number instead of using
-	// newTarget since conversion to the compact representation loses
-	// precision.
+	// Convert the difficulty to the compact representation.
 	nextDiffBits := standalone.BigToCompact(nextDiffBig)
-	log.Debugf("Difficulty retarget at block height %d", curNode.height+1)
-	log.Debugf("Old target %08x (%064x)", curNode.bits, oldDiffBig)
-	log.Debugf("New target %08x (%064x)", nextDiffBits, standalone.CompactToBig(
-		nextDiffBits))
+
+	// Conditionally log the new target difficulty.  Only log if the chain
+	// believes it is current since it is very noisy during syncing.
+	//
+	// The new target logging is intentionally converting the bits back to a
+	// number since conversion to the compact representation loses precision.
+	if b.isCurrent(b.bestChain.Tip()) {
+		log.Debugf("Difficulty retarget at block height %d", curNode.height+1)
+		log.Debugf("Old target %08x (%064x)", curNode.bits, oldDiffBig)
+		log.Debugf("New target %08x (%064x)", nextDiffBits, standalone.CompactToBig(
+			nextDiffBits))
+	}
 
 	return nextDiffBits
 }
