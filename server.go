@@ -3465,9 +3465,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	s.feeEstimator = fe
 
 	// Only configure checkpoints when enabled.
-	var checkpoints []chaincfg.Checkpoint
-	if !cfg.DisableCheckpoints {
-		checkpoints = s.chainParams.Checkpoints
+	var latestCheckpoint *chaincfg.Checkpoint
+	numCheckpoints := len(s.chainParams.Checkpoints)
+	if !cfg.DisableCheckpoints && numCheckpoints != 0 {
+		// Only use the most recent checkpoint, which is the last entry in the
+		// slice.
+		latestCheckpoint = &s.chainParams.Checkpoints[numCheckpoints-1]
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
@@ -3479,16 +3482,16 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	})
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
-			DB:              s.db,
-			UtxoBackend:     utxoBackend,
-			ChainParams:     s.chainParams,
-			Checkpoints:     checkpoints,
-			TimeSource:      s.timeSource,
-			Notifications:   s.handleBlockchainNotification,
-			SigCache:        s.sigCache,
-			SubsidyCache:    s.subsidyCache,
-			IndexSubscriber: s.indexSubscriber,
-			UtxoCache:       utxoCache,
+			DB:               s.db,
+			UtxoBackend:      utxoBackend,
+			ChainParams:      s.chainParams,
+			LatestCheckpoint: latestCheckpoint,
+			TimeSource:       s.timeSource,
+			Notifications:    s.handleBlockchainNotification,
+			SigCache:         s.sigCache,
+			SubsidyCache:     s.subsidyCache,
+			IndexSubscriber:  s.indexSubscriber,
+			UtxoCache:        utxoCache,
 		})
 	if err != nil {
 		return nil, err
