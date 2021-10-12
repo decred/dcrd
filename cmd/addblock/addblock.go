@@ -85,6 +85,15 @@ func realMain() error {
 	}
 	defer db.Close()
 
+	// Load the UTXO database.
+	utxoDb, err := blockchain.LoadUtxoDB(context.Background(), activeNetParams,
+		cfg.DataDir)
+	if err != nil {
+		log.Errorf("Failed to load UTXO database: %v", err)
+		return err
+	}
+	defer utxoDb.Close()
+
 	fi, err := os.Open(cfg.InFile)
 	if err != nil {
 		log.Errorf("Failed to open file %v: %v", cfg.InFile, err)
@@ -96,7 +105,7 @@ func realMain() error {
 	// The done channel returned from start will contain an error if
 	// anything went wrong.
 	ctx, cancel := context.WithCancel(context.Background())
-	importer, err := newBlockImporter(ctx, db, fi, cancel)
+	importer, err := newBlockImporter(ctx, db, utxoDb, fi, cancel)
 	if err != nil {
 		log.Errorf("Failed create block importer: %v", err)
 		return err

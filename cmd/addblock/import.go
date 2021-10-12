@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var zeroHash = chainhash.Hash{}
@@ -307,9 +308,17 @@ func (bi *blockImporter) Import(ctx context.Context) chan *importResults {
 
 // newBlockImporter returns a new importer for the provided file reader seeker
 // and database.
-func newBlockImporter(ctx context.Context, db database.DB, r io.ReadSeeker, cancel context.CancelFunc) (*blockImporter, error) {
+func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r io.ReadSeeker, cancel context.CancelFunc) (*blockImporter, error) {
 	subber := indexers.NewIndexSubscriber(ctx)
 	go subber.Run(ctx)
+
+	// Instantiate a UTXO backend and UTXO cache.
+	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
+	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
+		Backend:      utxoBackend,
+		FlushBlockDB: db.Flush,
+		MaxSize:      100 * 1024 * 1024, // 100 MiB
+	})
 
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
@@ -318,6 +327,8 @@ func newBlockImporter(ctx context.Context, db database.DB, r io.ReadSeeker, canc
 			Checkpoints:     activeNetParams.Checkpoints,
 			TimeSource:      blockchain.NewMedianTime(),
 			IndexSubscriber: subber,
+			UtxoBackend:     blockchain.NewLevelDbUtxoBackend(utxoDb),
+			UtxoCache:       utxoCache,
 		})
 	if err != nil {
 		return nil, err
