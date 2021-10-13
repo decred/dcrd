@@ -309,7 +309,7 @@ func (bi *blockImporter) Import(ctx context.Context) chan *importResults {
 // and database.
 func newBlockImporter(ctx context.Context, db database.DB, r io.ReadSeeker, cancel context.CancelFunc) (*blockImporter, error) {
 	subber := indexers.NewIndexSubscriber(ctx)
-	subber.Run(ctx)
+	go subber.Run(ctx)
 
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
