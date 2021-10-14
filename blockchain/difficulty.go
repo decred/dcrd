@@ -185,21 +185,8 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 		nextDiffBig.Set(b.chainParams.PowLimit)
 	}
 
-	// Convert the difficulty to the compact representation.
+	// Convert the difficulty to the compact representation and return it.
 	nextDiffBits := standalone.BigToCompact(nextDiffBig)
-
-	// Conditionally log the new target difficulty.  Only log if the chain
-	// believes it is current since it is very noisy during syncing.
-	//
-	// The new target logging is intentionally converting the bits back to a
-	// number since conversion to the compact representation loses precision.
-	if b.isCurrent(b.bestChain.Tip()) {
-		log.Debugf("Difficulty retarget at block height %d", curNode.height+1)
-		log.Debugf("Old target %08x (%064x)", curNode.bits, oldDiffBig)
-		log.Debugf("New target %08x (%064x)", nextDiffBits, standalone.CompactToBig(
-			nextDiffBits))
-	}
-
 	return nextDiffBits
 }
 

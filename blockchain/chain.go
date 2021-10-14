@@ -772,6 +772,19 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	b.stateSnapshot = state
 	b.stateLock.Unlock()
 
+	// Conditionally log target difficulty changes at retarget intervals.  Only
+	// log when the chain believes it is current since it is very noisy during
+	// syncing otherwise.
+	if isCurrent && node.parent != nil && node.bits != node.parent.bits &&
+		node.height%b.chainParams.WorkDiffWindowSize == 0 {
+
+		oldDiff := standalone.CompactToBig(node.parent.bits)
+		newDiff := standalone.CompactToBig(node.bits)
+		log.Debugf("Difficulty retarget at block height %d", node.height)
+		log.Debugf("Old target %08x (%064x)", node.parent.bits, oldDiff)
+		log.Debugf("New target %08x (%064x)", node.bits, newDiff)
+	}
+
 	// Notify the spend pruner of the connected block.
 	go b.spendPruner.NotifyConnectedBlock(block.Hash())
 
