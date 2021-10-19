@@ -579,10 +579,14 @@ func (p *Peer) ID() int32 {
 // This function is safe for concurrent access.
 func (p *Peer) NA() *wire.NetAddress {
 	p.flagsMtx.Lock()
-	na := p.na
+	if p.na == nil {
+		p.flagsMtx.Unlock()
+		return nil
+	}
+	na := *p.na
 	p.flagsMtx.Unlock()
 
-	return na
+	return &na
 }
 
 // Addr returns the peer address.
@@ -1852,7 +1856,7 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 		}
 	}
 
-	theirNA := p.na
+	theirNA := p.NA()
 
 	// If we are behind a proxy and the connection comes from the proxy then
 	// we return an unroutable address as their address. This is to prevent
