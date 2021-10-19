@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/base58 v1.0.3
-	github.com/decred/dcrd/addrmgr/v2 v2.0.0-20210802141345-893802fc06b0
+	github.com/decred/dcrd/addrmgr/v2 v2.0.0-20211005210707-931a579e127b
 	github.com/decred/dcrd/bech32 v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210906140327-598bf66f24a6
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
