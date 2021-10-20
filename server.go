@@ -2750,6 +2750,17 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			s.bg.BlockConnected(block)
 		}
 
+		// Notify subscribed indexes of connected block.
+		if s.indexSubscriber != nil {
+			s.indexSubscriber.Notify(&indexers.IndexNtfn{
+				NtfnType:          indexers.ConnectNtfn,
+				Block:             block,
+				Parent:            parentBlock,
+				IsTreasuryEnabled: isTreasuryEnabled,
+				PrevScripts:       ntfn.PrevScripts,
+			})
+		}
+
 		// Proactively evict signature cache entries that are virtually
 		// guaranteed to no longer be useful.
 		s.proactivelyEvictSigCacheEntries(block.Height())
@@ -2863,6 +2874,17 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		if s.bg != nil {
 			s.bg.BlockDisconnected(block)
+		}
+
+		// Notify subscribed indexes of disconnected block.
+		if s.indexSubscriber != nil {
+			s.indexSubscriber.Notify(&indexers.IndexNtfn{
+				NtfnType:          indexers.DisconnectNtfn,
+				Block:             block,
+				Parent:            parentBlock,
+				IsTreasuryEnabled: isTreasuryEnabled,
+				PrevScripts:       ntfn.PrevScripts,
+			})
 		}
 
 		// Notify registered websocket clients.

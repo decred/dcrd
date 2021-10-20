@@ -359,7 +359,9 @@ func (s *IndexSubscriber) Run(ctx context.Context) {
 				}
 			}
 
-			close(ntfn.Done)
+			if ntfn.Done != nil {
+				close(ntfn.Done)
+			}
 
 		case <-ctx.Done():
 			log.Infof("Index subscriber shutting down")
