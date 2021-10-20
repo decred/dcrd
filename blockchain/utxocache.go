@@ -95,12 +95,7 @@ type UtxoCacher interface {
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
 
 	// FetchStats returns statistics on the current utxo set.
-	//
-	// NOTE: During initial block download the utxo stats will lag behind the best
-	// block that is currently synced since the utxo cache is only flushed to the
-	// backend periodically.  After initial block download the utxo stats will
-	// always be in sync with the best block.
-	FetchStats() (*UtxoStats, error)
+	FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*UtxoStats, error)
 
 	// Initialize initializes the utxo cache and underlying utxo backend.  This
 	// entails running any database migrations as well as ensuring that the utxo
@@ -443,12 +438,14 @@ func (c *UtxoCache) FetchBackendState() (*UtxoSetState, error) {
 }
 
 // FetchStats returns statistics on the current utxo set.
-//
-// NOTE: During initial block download the utxo stats will lag behind the best
-// block that is currently synced since the utxo cache is only flushed to the
-// backend periodically.  After initial block download the utxo stats will
-// always be in sync with the best block.
-func (c *UtxoCache) FetchStats() (*UtxoStats, error) {
+func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*UtxoStats, error) {
+	// Force a UTXO cache flush.  This is required in order for the backend to
+	// fetch statistics on the full UTXO set.
+	err := c.MaybeFlush(bestHash, bestHeight, true, false)
+	if err != nil {
+		return nil, err
+	}
+
 	return c.backend.FetchStats()
 }
 
@@ -972,11 +969,7 @@ func (b *BlockChain) FetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) 
 }
 
 // FetchUtxoStats returns statistics on the current utxo set.
-//
-// NOTE: During initial block download the utxo stats will lag behind the best
-// block that is currently synced since the utxo cache is only flushed to the
-// backend periodically.  After initial block download the utxo stats will
-// always be in sync with the best block.
 func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
-	return b.utxoCache.FetchStats()
+	tip := b.bestChain.Tip()
+	return b.utxoCache.FetchStats(&tip.hash, uint32(tip.height))
 }
