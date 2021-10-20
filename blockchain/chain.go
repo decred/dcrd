@@ -748,18 +748,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
-	// Notify subscribed indexes of the connected block.
-	if b.indexSubscriber != nil {
-		b.indexSubscriber.Notify(&indexers.IndexNtfn{
-			NtfnType:          indexers.ConnectNtfn,
-			Block:             block,
-			Parent:            parent,
-			PrevScripts:       prevScripter,
-			IsTreasuryEnabled: isTreasuryEnabled,
-			Done:              make(chan bool),
-		})
-	}
-
 	// This node is now the end of the best chain.
 	b.bestChain.SetTip(node)
 	b.index.MaybePruneCachedTips(node)
@@ -784,6 +772,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		Block:        block,
 		ParentBlock:  parent,
 		CheckTxFlags: checkTxFlags,
+		PrevScripts:  prevScripter,
 	})
 	b.chainLock.Lock()
 
@@ -946,18 +935,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		return err
 	}
 
-	// Notify subscribed indexes of the disconnected block.
-	if b.indexSubscriber != nil {
-		b.indexSubscriber.Notify(&indexers.IndexNtfn{
-			NtfnType:          indexers.DisconnectNtfn,
-			Block:             block,
-			Parent:            parent,
-			PrevScripts:       prevScripter,
-			IsTreasuryEnabled: isTreasuryEnabled,
-			Done:              make(chan bool),
-		})
-	}
-
 	// This node's parent is now the end of the best chain.
 	b.bestChain.SetTip(node.parent)
 
@@ -978,6 +955,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		Block:        block,
 		ParentBlock:  parent,
 		CheckTxFlags: checkTxFlags,
+		PrevScripts:  prevScripter,
 	})
 	b.chainLock.Lock()
 

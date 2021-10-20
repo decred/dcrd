@@ -8,6 +8,7 @@ package blockchain
 import (
 	"fmt"
 
+	"github.com/decred/dcrd/blockchain/v4/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 )
@@ -131,6 +132,10 @@ type BlockConnectedNtfnsData struct {
 	// CheckTxFlags represents the agendas to consider as active when checking
 	// transactions for the block that was connected.
 	CheckTxFlags AgendaFlags
+
+	// PrevScripts provides access to previous transaction scripts and their
+	// associated versions spent by the connected block.
+	PrevScripts indexers.PrevScripter
 }
 
 // BlockDisconnectedNtfnsData is the structure for data indicating information
@@ -146,6 +151,10 @@ type BlockDisconnectedNtfnsData struct {
 	// CheckTxFlags represents the agendas to consider as active when checking
 	// transactions for the block that was **disconnected**.
 	CheckTxFlags AgendaFlags
+
+	// PrevScripts provides access to previous transaction scripts and their
+	// associated versions spent by the disconnected block.
+	PrevScripts indexers.PrevScripter
 }
 
 // ReorganizationNtfnsData is the structure for data indicating information

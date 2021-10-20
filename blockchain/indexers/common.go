@@ -532,12 +532,18 @@ func recover(ctx context.Context, idx Indexer) error {
 			return err
 		}
 
+		isTreasuryEnabled, err := queryer.IsTreasuryAgendaActive(parentHash)
+		if err != nil {
+			return err
+		}
+
 		ntfn := &IndexNtfn{
-			NtfnType:    DisconnectNtfn,
-			Block:       block,
-			Parent:      parent,
-			PrevScripts: prevScripts,
-			Done:        make(chan bool),
+			NtfnType:          DisconnectNtfn,
+			Block:             block,
+			Parent:            parent,
+			IsTreasuryEnabled: isTreasuryEnabled,
+			PrevScripts:       prevScripts,
+			Done:              make(chan bool),
 		}
 
 		err = updateIndex(ctx, idx, ntfn)
