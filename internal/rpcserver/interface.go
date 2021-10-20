@@ -288,11 +288,6 @@ type Chain interface {
 	FetchUtxoEntry(outpoint wire.OutPoint) (UtxoEntry, error)
 
 	// FetchUtxoStats returns statistics on the current utxo set.
-	//
-	// NOTE: During initial block download the utxo stats will lag behind the best
-	// block that is currently synced since the utxo cache is only flushed to the
-	// database periodically.  After initial block download the utxo stats will
-	// always be in sync with the best block.
 	FetchUtxoStats() (*blockchain.UtxoStats, error)
 
 	// GetStakeVersions returns a cooked array of StakeVersions.  We do this in
