@@ -1912,4 +1912,50 @@ func TestAutoRevocations(t *testing.T) {
 		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions)
 	g.AssertTipNumRevocations(2)
 	g.AcceptTipBlock()
+
+	// Create a slice of the ticket hashes that revocations spent in the tip block
+	// that was just connected.
+	revocationTicketHashes := make([]chainhash.Hash, 0, params.TicketsPerBlock)
+	for _, stx := range g.Tip().STransactions {
+		// Append revocation ticket hashes.
+		if stake.IsSSRtx(stx, autoRevocationsEnabled) {
+			ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
+			revocationTicketHashes = append(revocationTicketHashes, ticketHash)
+
+			continue
+		}
+	}
+
+	// Validate that the revocations are now in the revoked ticket treap in the
+	// ticket database.
+	tipHash = &g.chain.BestSnapshot().Hash
+	blockNode := g.chain.index.LookupNode(tipHash)
+	stakeNode, err := g.chain.fetchStakeNode(blockNode)
+	if err != nil {
+		t.Fatalf("error fetching stake node: %v", err)
+	}
+	for _, revocationTicketHash := range revocationTicketHashes {
+		if !stakeNode.ExistsRevokedTicket(revocationTicketHash) {
+			t.Fatalf("expected ticket %v to exist in the revoked ticket treap",
+				revocationTicketHash)
+		}
+	}
+
+	// Invalidate the previously connected block so that it is disconnected.
+	g.InvalidateBlockAndExpectTip("b4", nil, startTip)
+
+	// Validate that the revocations from the disconnected block are now back in
+	// the live ticket treap in the ticket database.
+	tipHash = &g.chain.BestSnapshot().Hash
+	blockNode = g.chain.index.LookupNode(tipHash)
+	stakeNode, err = g.chain.fetchStakeNode(blockNode)
+	if err != nil {
+		t.Fatalf("error fetching stake node: %v", err)
+	}
+	for _, revocationTicketHash := range revocationTicketHashes {
+		if !stakeNode.ExistsLiveTicket(revocationTicketHash) {
+			t.Fatalf("expected ticket %v to exist in the live ticket treap",
+				revocationTicketHash)
+		}
+	}
 }
