@@ -778,6 +778,7 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 		}
 	}
 
+	votesPerBlock := node.params.VotesPerBlock()
 	restoredNode := &Node{
 		height:               node.height - 1,
 		liveTickets:          node.liveTickets,
@@ -785,16 +786,22 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 		revokedTickets:       node.revokedTickets,
 		databaseUndoUpdate:   parentUtds,
 		databaseBlockTickets: parentTickets,
-		nextWinners:          make([]chainhash.Hash, 0),
+		nextWinners:          make([]chainhash.Hash, 0, votesPerBlock),
 		params:               node.params,
 	}
 
-	// Iterate through the block undo data and write all database
-	// changes to the respective treap, reversing all the changes
-	// added when the child block was added to the chain.
-	stateBuffer := make([]byte, 0,
-		(node.params.VotesPerBlock()+1)*chainhash.HashSize)
-	for _, undo := range node.databaseUndoUpdate {
+	// Iterate through the block undo data and write all database changes to the
+	// respective treap, reversing all the changes added when the child block was
+	// added to the chain.
+	//
+	// Note that the undo data must be applied in reverse order since there may
+	// be multiple changes for the same ticket.  For example, when the automatic
+	// revocations agenda is enabled a ticket can become missed and revoked in the
+	// same block.  This is recorded as two separate entries in the undo data and
+	// must be processed in reverse order when disconnecting.
+	winners := make([]chainhash.Hash, 0, votesPerBlock)
+	for i := len(node.databaseUndoUpdate) - 1; i >= 0; i-- {
+		undo := node.databaseUndoUpdate[i]
 		var err error
 		k := tickettreap.Key(undo.TicketHash)
 		v := &tickettreap.Value{
@@ -838,10 +845,7 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 			// Expired tickets could never have been
 			// winners.
 			if !undo.Expired {
-				restoredNode.nextWinners = append(restoredNode.nextWinners,
-					undo.TicketHash)
-				stateBuffer = append(stateBuffer,
-					undo.TicketHash[:]...)
+				winners = append(winners, undo.TicketHash)
 			} else {
 				v.Expired = false
 			}
@@ -862,9 +866,7 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 		// winners.
 		case undo.Spent:
 			v.Spent = false
-			restoredNode.nextWinners = append(restoredNode.nextWinners,
-				undo.TicketHash)
-			stateBuffer = append(stateBuffer, undo.TicketHash[:]...)
+			winners = append(winners, undo.TicketHash)
 			restoredNode.liveTickets, err =
 				safePut(restoredNode.liveTickets, k, v)
 			if err != nil {
@@ -875,6 +877,16 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 			str := "unknown ticket state in undo data"
 			return nil, stakeRuleError(ErrMemoryCorruption, str)
 		}
+	}
+
+	// Set the next winners on the restored node.  The winners are appended in
+	// reverse order since the undo data is applied in reverse above.
+	numWinners := len(winners)
+	stateBuffer := make([]byte, 0, (numWinners+1)*chainhash.HashSize)
+	for i := numWinners - 1; i >= 0; i-- {
+		winner := winners[i]
+		restoredNode.nextWinners = append(restoredNode.nextWinners, winner)
+		stateBuffer = append(stateBuffer, winner[:]...)
 	}
 
 	if node.height >= uint32(node.params.StakeValidationBeginHeight()) {
@@ -1029,11 +1041,17 @@ func WriteDisconnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash
 		}
 	}
 
-	// Iterate through the block undo data and write all database
-	// changes to the respective on-disk map, reversing all the
-	// changes added when the child block was added to the block
-	// chain.
-	for _, undo := range childUndoData {
+	// Iterate through the block undo data and write all database changes to the
+	// respective on-disk map, reversing all the changes added when the child
+	// block was added to the block chain.
+	//
+	// Note that the undo data must be applied in reverse order since there may
+	// be multiple changes for the same ticket.  For example, when the automatic
+	// revocations agenda is enabled a ticket can become missed and revoked in the
+	// same block.  This is recorded as two separate entries in the undo data and
+	// must be processed in reverse order when disconnecting.
+	for i := len(childUndoData) - 1; i >= 0; i-- {
+		undo := childUndoData[i]
 		var err error
 		switch {
 		// All flags are unset; this is a newly added ticket.
