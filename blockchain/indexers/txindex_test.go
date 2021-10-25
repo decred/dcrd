@@ -7,7 +7,6 @@ package indexers
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
@@ -326,7 +325,7 @@ func addBlock(t *testing.T, chain *testChain, gen *chaingen.Generator, name stri
 
 // setupDB initializes the test database.
 func setupDB(t *testing.T, dbName string) (database.DB, string) {
-	dbPath, err := ioutil.TempDir("", dbName)
+	dbPath, err := os.MkdirTemp("", dbName)
 	if err != nil {
 		t.Fatalf("unable to create test db path: %v", err)
 	}
