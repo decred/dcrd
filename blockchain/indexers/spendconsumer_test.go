@@ -4,7 +4,6 @@
 package indexers
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 
 // TestSpendConsumer ensures the spend consumer behaves as expected.
 func TestSpendConsumer(t *testing.T) {
-	dbPath, err := ioutil.TempDir("", "test_spendconsumer")
+	dbPath, err := os.MkdirTemp("", "test_spendconsumer")
 	if err != nil {
 		t.Fatalf("unable to create test db path: %v", err)
 	}
