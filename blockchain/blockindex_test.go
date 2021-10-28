@@ -299,6 +299,98 @@ func TestAncestorSkipList(t *testing.T) {
 	}
 }
 
+// TestIsAncestorOf ensures determining if a node is an ancestor of another one
+// works as expected.
+func TestIsAncestorOf(t *testing.T) {
+	params := chaincfg.RegNetParams()
+	bc := newFakeChain(params)
+	genesis := bc.bestChain.NodeByHeight(0)
+
+	// Construct a synthetic simnet chain consisting of the following structure.
+	// 0 -> 1 -> 2  -> 3  -> 4
+	//  |    \-> 2a -> 3a -> 4a -> 5a -> 6a -> 7a
+	//  |    |     \-> 3b -> 4b -> 5b
+	//  |    \-> 2c -> 3c -> 4c -> 5c -> 6c -> 7c
+	//  \-> 1d
+	//  \-> 1e
+
+	branches := make([][]*blockNode, 6)
+	branches[0] = chainedFakeNodes(genesis, 4)
+	branches[1] = chainedFakeNodes(branches[0][0], 8)
+	branches[2] = chainedFakeNodes(branches[1][0], 3)
+	branches[3] = chainedFakeNodes(branches[0][0], 8)
+	branches[4] = chainedFakeNodes(genesis, 1)
+	branches[5] = chainedFakeNodes(genesis, 1)
+
+	// Add all of the nodes to the index.
+	for _, branch := range branches {
+		for _, node := range branch {
+			bc.index.AddNode(node)
+		}
+	}
+
+	tests := []struct {
+		name string
+		n    *blockNode
+		n2   *blockNode
+		want bool
+	}{{
+		name: "node is ancestor of itself",
+		n:    branchTip(branches[0]),
+		n2:   branchTip(branches[0]),
+		want: true,
+	}, {
+		name: "different branch tips at same height",
+		n:    branchTip(branches[1]),
+		n2:   branchTip(branches[3]),
+		want: false,
+	}, {
+		name: "different branch tips at different heights",
+		n:    branchTip(branches[1]),
+		n2:   branchTip(branches[2]),
+		want: false,
+	}, {
+		name: "genesis is ancestor of all blocks (via branch 4)",
+		n:    genesis,
+		n2:   branchTip(branches[4]),
+		want: true,
+	}, {
+		name: "genesis is ancestor of all blocks (via branch 5)",
+		n:    genesis,
+		n2:   branchTip(branches[5]),
+		want: true,
+	}, {
+		name: "descendants are not ancestors (via branch 1)",
+		n:    branchTip(branches[1]),
+		n2:   branches[1][2],
+		want: false,
+	}, {
+		name: "branch 1 ancestor",
+		n:    branches[1][2],
+		n2:   branchTip(branches[1]),
+		want: true,
+	}, {
+		name: "branch 3 node not ancestor of a branch 1 node (smaller height)",
+		n:    branches[3][0],
+		n2:   branchTip(branches[1]),
+		want: false,
+	}, {
+		name: "branch 2 node not ancestor of a branch 1 node (greater height)",
+		n:    branchTip(branches[2]),
+		n2:   branches[1][0],
+		want: false,
+	}}
+
+	for _, test := range tests {
+		got := test.n.IsAncestorOf(test.n2)
+		if got != test.want {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
+				test.want)
+			continue
+		}
+	}
+}
+
 // TestBetterCandidate ensures the best candidate and hash comparison functions
 // work as intended including multiple keys.
 func TestBetterCandidate(t *testing.T) {

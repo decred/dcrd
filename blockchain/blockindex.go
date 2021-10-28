@@ -365,6 +365,14 @@ func (node *blockNode) RelativeAncestor(distance int64) *blockNode {
 	return node.Ancestor(node.height - distance)
 }
 
+// IsAncestorOf returns whether or not this node is an ancestor of the provided
+// target node.
+//
+// NOTE: Nodes are considered ancestors of themselves.
+func (node *blockNode) IsAncestorOf(target *blockNode) bool {
+	return target.Ancestor(node.height) == node
+}
+
 // CalcPastMedianTime calculates the median time of the previous few blocks
 // prior to, and including, the block node.
 //
