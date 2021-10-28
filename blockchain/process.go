@@ -499,10 +499,10 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	//    of the new target tip
 	target := b.index.FindBestChainCandidate()
 	if b.index.CanValidate(node) {
-		triggersReorg := target.Ancestor(currentTip.height) != currentTip
+		triggersReorg := !currentTip.IsAncestorOf(target)
 		if triggersReorg {
 			log.Infof("REORGANIZE: Block %v is causing a reorganize", node.hash)
-		} else if target.Ancestor(node.height) != node {
+		} else if !node.IsAncestorOf(target) {
 			fork := b.bestChain.FindFork(node)
 			if fork == node.parent {
 				log.Infof("FORK: Block %v (height %v) forks the chain at "+
@@ -778,7 +778,7 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 	b.index.forEachChainTipAfterHeight(vfNode, func(tip *blockNode) error {
 		// Nothing to do if the earliest failed block to be reconsidered is not
 		// an ancestor of this chain tip.
-		if tip.Ancestor(vfNode.height) != vfNode {
+		if !vfNode.IsAncestorOf(tip) {
 			return nil
 		}
 

@@ -1334,7 +1334,7 @@ func (b *BlockChain) reorganizeChain(target *blockNode) error {
 		// Determine if the chain is being reorganized to a competing branch.
 		// This is the case when the current tip is not an ancestor of the
 		// target tip.
-		if !sentReorgingNtfn && target.Ancestor(tip.height) != tip {
+		if !sentReorgingNtfn && !tip.IsAncestorOf(target) {
 			// Send a notification announcing the start of the chain
 			// reorganization.
 			//
@@ -1587,7 +1587,7 @@ func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
 		bestHeader := b.index.bestHeader
 		b.index.RUnlock()
 		syncedToBestHeader := curBest.height == bestHeader.height ||
-			curBest.Ancestor(bestHeader.height) == bestHeader
+			bestHeader.IsAncestorOf(curBest)
 		if !syncedToBestHeader {
 			return
 		}

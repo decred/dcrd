@@ -893,7 +893,7 @@ func (b *BlockChain) checkTSpendExists(prevNode *blockNode, tspend chainhash.Has
 			continue
 		}
 
-		if prevNode.Ancestor(node.height) != node {
+		if !node.IsAncestorOf(prevNode) {
 			trsyLog.Errorf("  checkTSpendExists: not ancestor "+
 				"block %v tspend %v", v, tspend)
 			continue

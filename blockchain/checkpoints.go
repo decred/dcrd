@@ -89,7 +89,7 @@ func (b *BlockChain) isKnownCheckpointAncestor(node *blockNode) bool {
 	if b.checkpointNode == nil {
 		return false
 	}
-	return b.checkpointNode.Ancestor(node.height) == node
+	return node.IsAncestorOf(b.checkpointNode)
 }
 
 // isNonstandardTransaction determines whether a transaction contains any

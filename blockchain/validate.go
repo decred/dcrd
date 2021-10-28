@@ -1051,7 +1051,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	checkpoint := b.checkpointNode
 	blockHash := header.BlockHash()
 	if checkpoint != nil && blockHeight < checkpoint.height &&
-		(checkpoint.Ancestor(prevNode.height) != prevNode ||
+		(!prevNode.IsAncestorOf(checkpoint) ||
 			b.index.LookupNode(&blockHash) == nil) {
 
 		str := fmt.Sprintf("block at height %d forks the main chain before "+

@@ -1132,7 +1132,7 @@ func (bi *blockIndex) MarkBlockFailedValidation(node *blockNode) {
 	// need to be marked invalid.
 	markDescendantsInvalid := func(node, tip *blockNode) {
 		// Nothing to do if the node is not an ancestor of the given chain tip.
-		if tip.Ancestor(node.height) != node {
+		if !node.IsAncestorOf(tip) {
 			return
 		}
 
@@ -1191,7 +1191,7 @@ func (bi *blockIndex) MarkBlockFailedValidation(node *blockNode) {
 			// Skip chain tips that are descendants of the failed block since
 			// none of the intermediate headers are eligible to become the best
 			// header given they all have an invalid ancestor.
-			if tip.Ancestor(node.height) == node {
+			if node.IsAncestorOf(tip) {
 				return nil
 			}
 
