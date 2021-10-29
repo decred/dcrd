@@ -177,7 +177,6 @@ type processBlockResponse struct {
 // way to call ProcessBlock on the internal block chain instance.
 type processBlockMsg struct {
 	block *dcrutil.Block
-	flags blockchain.BehaviorFlags
 	reply chan processBlockResponse
 }
 
@@ -713,9 +712,9 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 // the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.  Orphans are rejected and can be
 // detected by checking if the error is blockchain.ErrMissingParent.
-func (m *SyncManager) processBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, error) {
+func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
-	forkLen, err := m.cfg.Chain.ProcessBlock(block, flags)
+	forkLen, err := m.cfg.Chain.ProcessBlock(block, blockchain.BFNone)
 	if err != nil {
 		return 0, err
 	}
@@ -752,7 +751,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// Also, remove the block from the request maps once it has been processed.
 	// This ensures chain is aware of the block before it is removed from the
 	// maps in order to help prevent duplicate requests.
-	forkLen, err := m.processBlock(bmsg.block, blockchain.BFNone)
+	forkLen, err := m.processBlock(bmsg.block)
 	delete(peer.requestedBlocks, *blockHash)
 	delete(m.requestedBlocks, *blockHash)
 	if err != nil {
@@ -1372,7 +1371,7 @@ out:
 				}
 
 			case processBlockMsg:
-				forkLen, err := m.processBlock(msg.block, msg.flags)
+				forkLen, err := m.processBlock(msg.block)
 				if err != nil {
 					msg.reply <- processBlockResponse{
 						forkLen: forkLen,
@@ -1656,8 +1655,7 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 	reply := make(chan processBlockResponse, 1)
 	select {
-	case m.msgChan <- processBlockMsg{block: block, flags: blockchain.BFNone,
-		reply: reply}:
+	case m.msgChan <- processBlockMsg{block: block, reply: reply}:
 	case <-m.quit:
 	}
 
