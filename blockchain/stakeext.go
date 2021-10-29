@@ -14,20 +14,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// NextLotteryData returns the next tickets eligible for spending as SSGen
-// on the top block.  It also returns the ticket pool size and the PRNG
-// state checksum.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) NextLotteryData() ([]chainhash.Hash, int, [6]byte, error) {
-	b.chainLock.RLock()
-	defer b.chainLock.RUnlock()
-
-	tipStakeNode := b.bestChain.Tip().stakeNode
-	return tipStakeNode.Winners(), tipStakeNode.PoolSize(),
-		tipStakeNode.FinalState(), nil
-}
-
 // lotteryDataForNode is a helper function that returns winning tickets
 // along with the ticket pool size and PRNG checksum for a given node.
 //
