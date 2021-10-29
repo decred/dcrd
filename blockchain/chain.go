@@ -2036,17 +2036,6 @@ func (b *BlockChain) BlockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 	return locator
 }
 
-// LatestBlockLocator returns a block locator for the latest known tip of the
-// main (best) chain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) LatestBlockLocator() BlockLocator {
-	b.chainLock.RLock()
-	locator := b.bestChain.BlockLocator(nil)
-	b.chainLock.RUnlock()
-	return locator
-}
-
 // extractDeploymentIDVersions returns a map of all deployment IDs within the
 // provided params to the deployment version for which they are defined.  An
 // error is returned if a duplicate ID is encountered.
