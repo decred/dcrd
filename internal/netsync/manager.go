@@ -1653,10 +1653,11 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 // ProcessBlock makes use of ProcessBlock on an internal instance of a block
 // chain.  It is funneled through the sync manager since blockchain is not safe
 // for concurrent access.
-func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) error {
+func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 	reply := make(chan processBlockResponse, 1)
 	select {
-	case m.msgChan <- processBlockMsg{block: block, flags: flags, reply: reply}:
+	case m.msgChan <- processBlockMsg{block: block, flags: blockchain.BFNone,
+		reply: reply}:
 	case <-m.quit:
 	}
 

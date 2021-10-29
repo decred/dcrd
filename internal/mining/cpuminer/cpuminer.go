@@ -92,7 +92,7 @@ type Config struct {
 	// ProcessBlock defines the function to call with any solved blocks.
 	// It typically must run the provided block through the same set of
 	// rules and handling as any other block coming from the network.
-	ProcessBlock func(*dcrutil.Block, blockchain.BehaviorFlags) error
+	ProcessBlock func(*dcrutil.Block) error
 
 	// ConnectedCount defines the function to use to obtain how many other
 	// peers the server is connected to.  This is used by the automatic
@@ -196,7 +196,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 
 	// Process this block using the same rules as blocks coming from other
 	// nodes. This will in turn relay it to the network like normal.
-	err := m.cfg.ProcessBlock(block, blockchain.BFNone)
+	err := m.cfg.ProcessBlock(block)
 	if err != nil {
 		if errors.Is(err, blockchain.ErrMissingParent) {
 			log.Errorf("Block submitted via CPU miner is an orphan building "+
