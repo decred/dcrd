@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
@@ -197,12 +196,18 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		*mustParseHash("8146f01b8ffca8008ebc80293d2978d63b1dffa5c456a73e7b39a9b1e695e8eb"),
 		*mustParseHash("2292ff2461e725c58cc6e2051eac2a10e6ee6d1f62327ed676b7a196fb94be0c"),
 	}
-	baseVoteInfo := []stake.VoteVersionTuple{
-		{Version: 4, Bits: 0x0001},
-		{Version: 4, Bits: 0x0015},
-		{Version: 4, Bits: 0x0015},
-		{Version: 4, Bits: 0x0001},
+	baseVoteInfo := []blockIndexVoteVersionTuple{
+		{version: 4, bits: 0x0001},
+		{version: 4, bits: 0x0015},
+		{version: 4, bits: 0x0015},
+		{version: 4, bits: 0x0001},
 	}
+
+	// Version 2 block status flags used in the tests.
+	const (
+		v2StatusDataStored = 1 << 0
+		v2StatusValidated  = 1 << 1
+	)
 
 	tests := []struct {
 		name       string
@@ -212,7 +217,7 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		name: "no votes, no revokes",
 		entry: blockIndexEntryV2{
 			header:         baseHeader,
-			status:         statusDataStored | statusValidated,
+			status:         v2StatusDataStored | v2StatusValidated,
 			voteInfo:       nil,
 			ticketsVoted:   nil,
 			ticketsRevoked: nil,
@@ -227,7 +232,7 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		name: "1 vote, no revokes",
 		entry: blockIndexEntryV2{
 			header:         baseHeader,
-			status:         statusDataStored | statusValidated,
+			status:         v2StatusDataStored | v2StatusValidated,
 			voteInfo:       baseVoteInfo[:1],
 			ticketsVoted:   baseTicketsVoted[:1],
 			ticketsRevoked: nil,
@@ -244,7 +249,7 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		name: "no votes, 1 revoke",
 		entry: blockIndexEntryV2{
 			header:         baseHeader,
-			status:         statusDataStored | statusValidated,
+			status:         v2StatusDataStored | v2StatusValidated,
 			voteInfo:       nil,
 			ticketsVoted:   nil,
 			ticketsRevoked: baseTicketsRevoked[:1],
@@ -260,7 +265,7 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		name: "4 votes, same vote versions, different vote bits, 2 revokes",
 		entry: blockIndexEntryV2{
 			header:         baseHeader,
-			status:         statusDataStored | statusValidated,
+			status:         v2StatusDataStored | v2StatusValidated,
 			voteInfo:       baseVoteInfo,
 			ticketsVoted:   baseTicketsVoted,
 			ticketsRevoked: baseTicketsRevoked,
@@ -339,6 +344,135 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		if bytesRead != len(test.serialized) {
 			t.Errorf("%s: did not get expected number of bytes read - got %d, "+
 				"want %d", test.name, bytesRead, len(test.serialized))
+			continue
+		}
+	}
+}
+
+// TestBlockIndexSerializationV3 ensures serializing block index entries in the
+// version 3 format works as expected.
+func TestBlockIndexSerializationV3(t *testing.T) {
+	t.Parallel()
+
+	// base data is based on block 150287 on mainnet and serves as a template
+	// for the various tests below.
+	baseHeader := wire.BlockHeader{
+		Version:      4,
+		PrevBlock:    *mustParseHash("000000000000016916671ae225343a5ee131c999d5cadb6348805db25737731f"),
+		MerkleRoot:   *mustParseHash("5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"),
+		StakeRoot:    *mustParseHash("022965059b7527dc2bc18daaa533f806eda1f96fd0b04bbda2381f5552d7c2de"),
+		VoteBits:     0x0001,
+		FinalState:   hexToFinalState("313e16e64c0b"),
+		Voters:       4,
+		FreshStake:   3,
+		Revocations:  2,
+		PoolSize:     41332,
+		Bits:         0x1a016f98,
+		SBits:        7473162478,
+		Height:       150287,
+		Size:         11295,
+		Timestamp:    time.Unix(1499907127, 0),
+		Nonce:        4116576260,
+		ExtraData:    hexToExtraData("8f01ed92645e0a6b11ee3b3c0000000000000000000000000000000000000000"),
+		StakeVersion: 4,
+	}
+	baseVoteInfo := []blockIndexVoteVersionTuple{
+		{version: 4, bits: 0x0001},
+		{version: 4, bits: 0x0015},
+		{version: 4, bits: 0x0015},
+		{version: 4, bits: 0x0001},
+	}
+
+	// Version 3 block status flags used in the tests.
+	const (
+		v3StatusDataStored = 1 << 0
+		v3StatusValidated  = 1 << 1
+	)
+	tests := []struct {
+		name       string
+		entry      blockIndexEntryV3
+		serialized []byte
+	}{{
+		name: "no votes",
+		entry: blockIndexEntryV3{
+			header:   baseHeader,
+			status:   v3StatusDataStored | v3StatusValidated,
+			voteInfo: nil,
+		},
+		serialized: hexToBytes("040000001f733757b25d804863dbcad599c931e15e3a3" +
+			"425e21a6716690100000000000066c664d887c6e2c0c132b3c5c8c82f9931470" +
+			"d6ecbc5ccc003755d7979bbf25edec2d752551f38a2bd4bb0d06ff9a1ed06f83" +
+			"3a5aa8dc12bdc27759b056529020100313e16e64c0b0400030274a10000986f0" +
+			"11aee686fbd010000000f4b02001f2c000037c4665904f85df58f01ed92645e0" +
+			"a6b11ee3b3c0000000000000000000000000000000000000000040000000300"),
+	}, {
+		name: "1 vote",
+		entry: blockIndexEntryV3{
+			header:   baseHeader,
+			status:   v3StatusDataStored | v3StatusValidated,
+			voteInfo: baseVoteInfo[:1],
+		},
+		serialized: hexToBytes("040000001f733757b25d804863dbcad599c931e15e3a" +
+			"3425e21a6716690100000000000066c664d887c6e2c0c132b3c5c8c82f99314" +
+			"70d6ecbc5ccc003755d7979bbf25edec2d752551f38a2bd4bb0d06ff9a1ed06" +
+			"f833a5aa8dc12bdc27759b056529020100313e16e64c0b0400030274a100009" +
+			"86f011aee686fbd010000000f4b02001f2c000037c4665904f85df58f01ed92" +
+			"645e0a6b11ee3b3c00000000000000000000000000000000000000000400000" +
+			"003010401"),
+	}, {
+		name: "4 votes, same vote versions, different vote bits",
+		entry: blockIndexEntryV3{
+			header:   baseHeader,
+			status:   v3StatusDataStored | v3StatusValidated,
+			voteInfo: baseVoteInfo,
+		},
+		serialized: hexToBytes("040000001f733757b25d804863dbcad599c931e15e3a3" +
+			"425e21a6716690100000000000066c664d887c6e2c0c132b3c5c8c82f9931470" +
+			"d6ecbc5ccc003755d7979bbf25edec2d752551f38a2bd4bb0d06ff9a1ed06f83" +
+			"3a5aa8dc12bdc27759b056529020100313e16e64c0b0400030274a10000986f0" +
+			"11aee686fbd010000000f4b02001f2c000037c4665904f85df58f01ed92645e0" +
+			"a6b11ee3b3c00000000000000000000000000000000000000000400000003040" +
+			"401041504150401"),
+	}}
+
+	for _, test := range tests {
+		// Ensure the function to calculate the serialized size without actually
+		// serializing it is calculated properly.
+		gotSize := blockIndexEntrySerializeSizeV3(&test.entry)
+		if gotSize != len(test.serialized) {
+			t.Errorf("%q: did not get expected size - got %d, want %d",
+				test.name, gotSize, len(test.serialized))
+		}
+
+		// Ensure the block index entry serializes to the expected value.
+		gotSerialized, err := serializeBlockIndexEntryV3(&test.entry)
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", test.name, err)
+			continue
+		}
+		if !bytes.Equal(gotSerialized, test.serialized) {
+			t.Errorf("%q: did not get expected bytes - got %x, want %x",
+				test.name, gotSerialized, test.serialized)
+			continue
+		}
+
+		// Ensure the block index entry serializes to the expected value and
+		// produces the expected number of bytes written via a direct put.
+		gotSerialized2 := make([]byte, gotSize)
+		gotBytesWritten, err := putBlockIndexEntryV3(gotSerialized2,
+			&test.entry)
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", test.name, err)
+			continue
+		}
+		if !bytes.Equal(gotSerialized2, test.serialized) {
+			t.Errorf("%q: did not get expected bytes - got %x, want %x",
+				test.name, gotSerialized2, test.serialized)
+			continue
+		}
+		if gotBytesWritten != len(test.serialized) {
+			t.Errorf("%q: did not get expected number of bytes written - got "+
+				"%d, want %d", test.name, gotBytesWritten, len(test.serialized))
 			continue
 		}
 	}

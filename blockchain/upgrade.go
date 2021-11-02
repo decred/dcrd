@@ -101,7 +101,7 @@ func deserializeDatabaseInfoV2(dbInfoBytes []byte) (*databaseInfo, error) {
 //
 //   Field              Type                Size
 //   block header       wire.BlockHeader    180 bytes
-//   status             blockStatus         1 byte
+//   status             byte                1 byte
 //   num votes          VLQ                 variable
 //   vote info
 //     ticket hash      chainhash.Hash      chainhash.HashSize
@@ -110,11 +110,28 @@ func deserializeDatabaseInfoV2(dbInfoBytes []byte) (*databaseInfo, error) {
 //   num revoked        VLQ                 variable
 //   revoked tickets
 //     ticket hash      chainhash.Hash      chainhash.HashSize
+//
+// The version 2 block status flags format is:
+//
+//   bit  0   - block payload is stored on disk
+//   bit  1   - block and all of its ancestors have been fully validated
+//   bit  2   - block failed validation
+//   bit  3   - an ancestor of the block failed validation
+//   bits 4-7 - unused
 // -----------------------------------------------------------------------------
+
+// blockIndexVoteVersionTuple houses the extracted vote bits and version from
+// votes for use in block index database entries.
+type blockIndexVoteVersionTuple struct {
+	version uint32
+	bits    uint16
+}
+
+// blockIndexEntryV2 represents a legacy version 2 block index database entry.
 type blockIndexEntryV2 struct {
 	header         wire.BlockHeader
-	status         blockStatus
-	voteInfo       []stake.VoteVersionTuple
+	status         byte
+	voteInfo       []blockIndexVoteVersionTuple
 	ticketsVoted   []chainhash.Hash
 	ticketsRevoked []chainhash.Hash
 }
@@ -126,8 +143,8 @@ func blockIndexEntrySerializeSizeV2(entry *blockIndexEntryV2) int {
 	voteInfoSize := 0
 	for i := range entry.voteInfo {
 		voteInfoSize += chainhash.HashSize +
-			serializeSizeVLQ(uint64(entry.voteInfo[i].Version)) +
-			serializeSizeVLQ(uint64(entry.voteInfo[i].Bits))
+			serializeSizeVLQ(uint64(entry.voteInfo[i].version)) +
+			serializeSizeVLQ(uint64(entry.voteInfo[i].bits))
 	}
 
 	return blockHdrSize + 1 + serializeSizeVLQ(uint64(len(entry.voteInfo))) +
@@ -154,15 +171,15 @@ func putBlockIndexEntryV2(target []byte, entry *blockIndexEntryV2) (int, error) 
 
 	// Serialize the status.
 	offset := blockHdrSize
-	target[offset] = byte(entry.status)
+	target[offset] = entry.status
 	offset++
 
 	// Serialize the number of votes and associated vote information.
 	offset += putVLQ(target[offset:], uint64(len(entry.voteInfo)))
 	for i := range entry.voteInfo {
 		offset += copy(target[offset:], entry.ticketsVoted[i][:])
-		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Version))
-		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Bits))
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].version))
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].bits))
 	}
 
 	// Serialize the number of revocations and associated revocation
@@ -201,12 +218,12 @@ func decodeBlockIndexEntryV2(serialized []byte, entry *blockIndexEntryV2) (int, 
 		return offset, errDeserialize("unexpected end of data while reading " +
 			"status")
 	}
-	status := blockStatus(serialized[offset])
+	status := serialized[offset]
 	offset++
 
 	// Deserialize the number of tickets spent.
 	var ticketsVoted []chainhash.Hash
-	var votes []stake.VoteVersionTuple
+	var votes []blockIndexVoteVersionTuple
 	numVotes, bytesRead := deserializeVLQ(serialized[offset:])
 	if bytesRead == 0 {
 		return offset, errDeserialize("unexpected end of data while reading " +
@@ -215,7 +232,7 @@ func decodeBlockIndexEntryV2(serialized []byte, entry *blockIndexEntryV2) (int, 
 	offset += bytesRead
 	if numVotes > 0 {
 		ticketsVoted = make([]chainhash.Hash, numVotes)
-		votes = make([]stake.VoteVersionTuple, numVotes)
+		votes = make([]blockIndexVoteVersionTuple, numVotes)
 		for i := uint64(0); i < numVotes; i++ {
 			// Deserialize the ticket hash associated with the vote.
 			if offset+chainhash.HashSize > len(serialized) {
@@ -241,8 +258,8 @@ func decodeBlockIndexEntryV2(serialized []byte, entry *blockIndexEntryV2) (int, 
 			}
 			offset += bytesRead
 
-			votes[i].Version = uint32(version)
-			votes[i].Bits = uint16(voteBits)
+			votes[i].version = uint32(version)
+			votes[i].bits = uint16(voteBits)
 		}
 	}
 
@@ -1144,6 +1161,97 @@ func initializeGCSFilters(ctx context.Context, db database.DB, genesisHash *chai
 	return nil
 }
 
+// -----------------------------------------------------------------------------
+// The version 3 block index consists of an entry for every known block.  It
+// consists of information such as the block header and information about votes.
+//
+// The serialized key format is:
+//
+//   <block height><block hash>
+//
+//   Field           Type              Size
+//   block height    uint32            4 bytes
+//   block hash      chainhash.Hash    chainhash.HashSize
+//
+// The serialized value format is:
+//
+//   <block header><status><num votes><votes info>
+//
+//   Field              Type                Size
+//   block header       wire.BlockHeader    180 bytes
+//   status             byte                1 byte
+//   num votes          VLQ                 variable
+//   vote info
+//     vote version     VLQ                 variable
+//     vote bits        VLQ                 variable
+//
+// The version 3 block status flags format is:
+//
+//   bit  0   - block payload is stored on disk
+//   bit  1   - block and all of its ancestors have been fully validated
+//   bit  2   - block failed validation
+//   bit  3   - an ancestor of the block failed validation
+//   bits 4-7 - unused
+// -----------------------------------------------------------------------------
+
+// blockIndexEntryV3 represents a version 3 block index database entry.
+type blockIndexEntryV3 struct {
+	header   wire.BlockHeader
+	status   byte
+	voteInfo []blockIndexVoteVersionTuple
+}
+
+// blockIndexEntrySerializeSizeV3 returns the number of bytes it would take to
+// serialize the passed block index entry according to the version 3 format
+// described above.
+func blockIndexEntrySerializeSizeV3(entry *blockIndexEntryV3) int {
+	voteInfoSize := 0
+	for i := range entry.voteInfo {
+		voteInfoSize += serializeSizeVLQ(uint64(entry.voteInfo[i].version)) +
+			serializeSizeVLQ(uint64(entry.voteInfo[i].bits))
+	}
+
+	const blockHdrSize = 180
+	return blockHdrSize + 1 + serializeSizeVLQ(uint64(len(entry.voteInfo))) +
+		voteInfoSize
+}
+
+// putBlockIndexEntryV3 serializes the passed block index entry according to the
+// version 3 format described above directly into the passed target byte slice.
+// The target byte slice must be at least large enough to handle the number of
+// bytes returned by the blockIndexEntrySerializeSize function or it will panic.
+func putBlockIndexEntryV3(target []byte, entry *blockIndexEntryV3) (int, error) {
+	// Serialize the entire block header.
+	w := bytes.NewBuffer(target[0:0])
+	if err := entry.header.Serialize(w); err != nil {
+		return 0, err
+	}
+
+	// Serialize the status.
+	const blockHdrSize = 180
+	offset := blockHdrSize
+	target[offset] = entry.status
+	offset++
+
+	// Serialize the number of votes and associated vote information.
+	offset += putVLQ(target[offset:], uint64(len(entry.voteInfo)))
+	for i := range entry.voteInfo {
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].version))
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].bits))
+	}
+
+	return offset, nil
+}
+
+// serializeBlockIndexEntryV3 serializes the passed block index entry into a
+// single byte slice according to the version 3 format described in detail
+// above.
+func serializeBlockIndexEntryV3(entry *blockIndexEntryV3) ([]byte, error) {
+	serialized := make([]byte, blockIndexEntrySerializeSizeV3(entry))
+	_, err := putBlockIndexEntryV3(serialized, entry)
+	return serialized, err
+}
+
 // upgradeToVersion6 upgrades a version 5 blockchain database to version 6.
 func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
 	if interruptRequested(ctx) {
@@ -1270,9 +1378,9 @@ func migrateBlockIndexVersion2To3(ctx context.Context, db database.DB, dbInfo *d
 				return err
 			}
 
-			// Write the block index entry seriliazed with the new format to the
+			// Write the block index entry serialized with the new format to the
 			// new bucket.
-			serialized, err := serializeBlockIndexEntry(&blockIndexEntry{
+			serialized, err := serializeBlockIndexEntryV3(&blockIndexEntryV3{
 				header:   entry.header,
 				status:   entry.status,
 				voteInfo: entry.voteInfo,
@@ -2048,7 +2156,7 @@ func migrateUtxoSetVersion2To3(ctx context.Context, db database.DB) error {
 			// The legacy V2 format is as follows:
 			//
 			//   <version><height><header code><unspentness bitmap>
-			//	 [<compressed txouts>,...]
+			//     [<compressed txouts>,...]
 			//
 			//   Field                 Type     Size
 			//   transaction version   VLQ      variable
@@ -2804,7 +2912,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 					// The legacy V2 format is as follows:
 					//
 					//   <version><height><header code><unspentness bitmap>
-					//	 [<compressed txouts>,...]
+					//     [<compressed txouts>,...]
 					//
 					//   Field                 Type     Size
 					//   transaction version   VLQ      variable

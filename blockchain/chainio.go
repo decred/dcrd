@@ -265,7 +265,7 @@ func readDeserializeSizeOfMinimalOutputs(serialized []byte) (int, error) {
 //
 // The serialized value format is:
 //
-//   <block header><status><num votes><votes info><num revoked><revoked tickets>
+//   <block header><status><num votes><votes info>
 //
 //   Field              Type                Size
 //   block header       wire.BlockHeader    180 bytes
@@ -1399,7 +1399,7 @@ func (b *BlockChain) initChainState(ctx context.Context,
 		return err
 	}
 
-	// Attempt to load the chain state from the database.
+	// Attempt to load the chain state and block index from the database.
 	var tip *blockNode
 	err = b.db.View(func(dbTx database.Tx) error {
 		// Fetch the stored best chain state from the database.
