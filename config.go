@@ -477,45 +477,50 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 
 // createDefaultConfig copies the file sample-dcrd.conf to the given destination path,
 // and populates it with some randomly generated RPC username and password.
-func createDefaultConfigFile(destPath string) error {
+func createDefaultConfigFile(destPath string, authType string) error {
 	// Create the destination directory if it does not exist.
 	err := os.MkdirAll(filepath.Dir(destPath), 0700)
 	if err != nil {
 		return err
 	}
 
-	// Generate a random user and password for the RPC server credentials.
-	randomBytes := make([]byte, 20)
-	_, err = rand.Read(randomBytes)
-	if err != nil {
-		return err
-	}
-	generatedRPCUser := base64.StdEncoding.EncodeToString(randomBytes)
-	rpcUserLine := fmt.Sprintf("rpcuser=%v", generatedRPCUser)
+	cfg := sampleconfig.FileContents()
 
-	_, err = rand.Read(randomBytes)
-	if err != nil {
-		return err
-	}
-	generatedRPCPass := base64.StdEncoding.EncodeToString(randomBytes)
-	rpcPassLine := fmt.Sprintf("rpcpass=%v", generatedRPCPass)
+	// Set a randomized rpcuser and rpcpass if the authorization type is basic.
+	if authType == authTypeBasic {
+		// Generate a random user and password for the RPC server credentials.
+		randomBytes := make([]byte, 20)
+		_, err = rand.Read(randomBytes)
+		if err != nil {
+			return err
+		}
+		generatedRPCUser := base64.StdEncoding.EncodeToString(randomBytes)
+		rpcUserLine := fmt.Sprintf("rpcuser=%v", generatedRPCUser)
 
-	// Replace the rpcuser and rpcpass lines in the sample configuration
-	// file contents with their generated values.
-	rpcUserRE := regexp.MustCompile(`(?m)^;\s*rpcuser=[^\s]*$`)
-	rpcPassRE := regexp.MustCompile(`(?m)^;\s*rpcpass=[^\s]*$`)
-	s := rpcUserRE.ReplaceAllString(sampleconfig.FileContents(), rpcUserLine)
-	s = rpcPassRE.ReplaceAllString(s, rpcPassLine)
+		_, err = rand.Read(randomBytes)
+		if err != nil {
+			return err
+		}
+		generatedRPCPass := base64.StdEncoding.EncodeToString(randomBytes)
+		rpcPassLine := fmt.Sprintf("rpcpass=%v", generatedRPCPass)
+
+		// Replace the rpcuser and rpcpass lines in the sample configuration
+		// file contents with their generated values.
+		rpcUserRE := regexp.MustCompile(`(?m)^;\s*rpcuser=[^\s]*$`)
+		rpcPassRE := regexp.MustCompile(`(?m)^;\s*rpcpass=[^\s]*$`)
+		updatedCfg := rpcUserRE.ReplaceAllString(cfg, rpcUserLine)
+		updatedCfg = rpcPassRE.ReplaceAllString(updatedCfg, rpcPassLine)
+		cfg = updatedCfg
+	}
 
 	// Create config file at the provided path.
-	dest, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC,
-		0600)
+	dest, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer dest.Close()
 
-	_, err = dest.WriteString(s)
+	_, err = dest.WriteString(cfg)
 	return err
 }
 
@@ -745,7 +750,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	if !(preCfg.SimNet || preCfg.RegNet) && preCfg.ConfigFile ==
 		defaultConfigFile && !fileExists(preCfg.ConfigFile) {
 
-		err := createDefaultConfigFile(preCfg.ConfigFile)
+		err := createDefaultConfigFile(preCfg.ConfigFile, preCfg.RPCAuthType)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating a default "+
 				"config file: %v\n", err)
