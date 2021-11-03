@@ -1108,8 +1108,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 // available.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: The transactions are not checked to see if they are expired and
-//    the coinbase height check is not performed.
+//  - BFFastAdd: The transactions are not checked to see if they are expired.
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1615,9 +1614,13 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 // necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: The max block size is not checked, transactions are not checked
-//    to see if they are finalized, and the included votes and revocations are
-//    not verified to be allowed.
+//  - BFFastAdd:
+//      - The max block size is not checked
+//      - The calculated merkle root(s) of the transaction trees are not checked
+//        against the associated entries in the header
+//      - Transactions are not checked to see if they are finalized
+//      - The included votes, revocations, and treasury spend transactions are
+//        not verified to be allowed
 //
 // The flags are also passed to checkBlockHeaderContext.  See its documentation
 // for how the flags modify its behavior.
