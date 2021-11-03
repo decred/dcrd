@@ -248,6 +248,11 @@ type BlockChain struct {
 	// spendPruner prunes spend journal data for disconnected blocks
 	// if there are no consumers left for it.
 	spendPruner *spendpruner.SpendJournalPruner
+
+	// bulkImportMode provides a mechanism to indicate that several validation
+	// checks can be avoided when bulk importing blocks already known to be valid.
+	// It is protected by the chain lock.
+	bulkImportMode bool
 }
 
 const (
@@ -372,6 +377,18 @@ func (p *prevScriptsSnapshot) PrevScript(prevOut *wire.OutPoint) (uint16, []byte
 		return 0, nil, false
 	}
 	return entry.scriptVersion, entry.pkScript, true
+}
+
+// EnableBulkImportMode provides a mechanism to indicate that several validation
+// checks can be avoided when bulk importing blocks already known to be valid.
+// This must NOT be enabled in any other circumstance where blocks need to be
+// fully validated.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) EnableBulkImportMode(bulkImportMode bool) {
+	b.chainLock.Lock()
+	b.bulkImportMode = bulkImportMode
+	b.chainLock.Unlock()
 }
 
 // GetVoteInfo returns information on consensus deployment agendas and their
