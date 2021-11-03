@@ -491,7 +491,7 @@ func (a *accumulator96) Add(v uint64) {
 	low := uint32(v & uint32Mask)
 	hi := uint32(v >> 32)
 	a.n[0] += low
-	a.n[1] += constantTimeLess(a.n[0], low) // Carry if overflow in n[0].
+	hi += constantTimeLess(a.n[0], low) // Carry if overflow in n[0].
 	a.n[1] += hi
 	a.n[2] += constantTimeLess(a.n[1], hi) // Carry if overflow in n[1].
 }

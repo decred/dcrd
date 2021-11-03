@@ -622,6 +622,53 @@ func TestModNScalarAddRandom(t *testing.T) {
 	}
 }
 
+// TestAccumulator96Add ensures that the internal 96-bit accumulator used by
+// multiplication works as expected for overflow edge cases including overflow.
+func TestAccumulator96Add(t *testing.T) {
+	tests := []struct {
+		name     string        // test description
+		start    accumulator96 // starting value of accumulator
+		in       uint64        // value to add to accumulator
+		expected accumulator96 // expected value of accumulator after addition
+	}{{
+		name:     "0 + 0 = 0",
+		start:    accumulator96{[3]uint32{0, 0, 0}},
+		in:       0,
+		expected: accumulator96{[3]uint32{0, 0, 0}},
+	}, {
+		name:     "overflow in word zero",
+		start:    accumulator96{[3]uint32{0xffffffff, 0, 0}},
+		in:       1,
+		expected: accumulator96{[3]uint32{0, 1, 0}},
+	}, {
+		name:     "overflow in word one",
+		start:    accumulator96{[3]uint32{0, 0xffffffff, 0}},
+		in:       0x100000000,
+		expected: accumulator96{[3]uint32{0, 0, 1}},
+	}, {
+		name:     "overflow in words one and two",
+		start:    accumulator96{[3]uint32{0xffffffff, 0xffffffff, 0}},
+		in:       1,
+		expected: accumulator96{[3]uint32{0, 0, 1}},
+	}, {
+		// Start accumulator at 129127208455837319175 which is the result of
+		// 4294967295 * 4294967295 accumulated seven times.
+		name:     "max result from eight adds of max uint32 multiplications",
+		start:    accumulator96{[3]uint32{7, 4294967282, 6}},
+		in:       18446744065119617025,
+		expected: accumulator96{[3]uint32{8, 4294967280, 7}},
+	}}
+
+	for _, test := range tests {
+		acc := test.start
+		acc.Add(test.in)
+		if acc.n != test.expected.n {
+			t.Errorf("%s: wrong result\ngot: %v\nwant: %v", test.name, acc.n,
+				test.expected.n)
+		}
+	}
+}
+
 // TestModNScalarMul ensures that multiplying two scalars together works as
 // expected for edge cases.
 func TestModNScalarMul(t *testing.T) {
@@ -705,6 +752,11 @@ func TestModNScalarMul(t *testing.T) {
 		in1:      "1000000000000000000000000000000000000000000000000000000000000",
 		in2:      "1000000000000000000000000000000000000000000000000000000000000",
 		expected: "2fc9bec09d671cd581c69bc5e697f5e41f12c33a0a7b6f4e3302b92ea029cecd",
+	}, {
+		name:     "double overflow in internal accumulator",
+		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		in2:      "55555555555555555555555555555554e8e4f44ce51835693ff0ca2ef01215c2",
+		expected: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9d1c9e899ca306ad27fe1945de0242b7f",
 	}, {
 		name:     "alternating bits",
 		in1:      "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
