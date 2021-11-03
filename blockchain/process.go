@@ -436,7 +436,9 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	// this package and then the ability to specify the fast add flag should be
 	// removed along with the fast add portion of this check here so that it is
 	// solely determined internally.
-	if flags&BFFastAdd == BFFastAdd || b.isKnownCheckpointAncestor(node) {
+	if flags&BFFastAdd == BFFastAdd || b.bulkImportMode ||
+		b.isKnownCheckpointAncestor(node) {
+
 		b.index.SetStatusFlags(node, statusValidated)
 		flags |= BFFastAdd
 	}
