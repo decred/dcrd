@@ -133,7 +133,7 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 
 	// Ensure the blocks follows all of the chain rules and match up to the
 	// known checkpoints.
-	forkLen, err := bi.chain.ProcessBlock(block, blockchain.BFFastAdd)
+	forkLen, err := bi.chain.ProcessBlock(block, blockchain.BFNone)
 	if err != nil {
 		if errors.Is(err, blockchain.ErrMissingParent) {
 			return false, fmt.Errorf("import file contains an orphan block: %v",
@@ -342,6 +342,10 @@ func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r
 	if err != nil {
 		return nil, err
 	}
+
+	// Enable bulk import mode to allow several validation checks to be skipped
+	// when importing blocks.
+	chain.EnableBulkImportMode(true)
 
 	queryer := &blockchain.ChainQueryerAdapter{BlockChain: chain}
 
