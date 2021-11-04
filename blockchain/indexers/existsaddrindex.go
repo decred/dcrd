@@ -109,7 +109,7 @@ var _ Indexer = (*ExistsAddrIndex)(nil)
 // This is part of the Indexer interface.
 func (idx *ExistsAddrIndex) Init(ctx context.Context, chainParams *chaincfg.Params) error {
 	if interruptRequested(ctx) {
-		return errInterruptRequested
+		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
 
 	// Finish any drops that were previously interrupted.
@@ -536,19 +536,24 @@ func (idx *ExistsAddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtf
 		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.Parent,
 			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
 		if err != nil {
-			return fmt.Errorf("%s: unable to connect block: %v", idx.Name(), err)
+			msg := fmt.Sprintf("%s: unable to connect block: %v",
+				idx.Name(), err)
+			return indexerError(ErrConnectBlock, msg)
 		}
 
 	case DisconnectNtfn:
 		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.Parent,
 			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
 		if err != nil {
-			log.Errorf("%s: unable to disconnect block: %v", idx.Name(), err)
+			msg := fmt.Sprintf("%s: unable to disconnect block: %v",
+				idx.Name(), err)
+			return indexerError(ErrDisconnectBlock, msg)
 		}
 
 	default:
-		return fmt.Errorf("%s: unknown notification type received: %d",
+		msg := fmt.Sprintf("%s: unknown notification type received: %d",
 			idx.Name(), ntfn.NtfnType)
+		return indexerError(ErrInvalidNotificationType, msg)
 	}
 
 	return nil
