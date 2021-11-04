@@ -182,8 +182,9 @@ const fileContents = `[Application Options]
 ; specified.
 ; ------------------------------------------------------------------------------
 
-; Secure the RPC API by specifying the username and password.  You must specify
-; both or the RPC server will be disabled.
+; Secure the RPC API by specifying the username and password if the 
+; authorization type is basic. You must specify both if so or the RPC 
+; server will be disabled.
 ; rpcuser=whatever_username_you_want
 ; rpcpass=
 
