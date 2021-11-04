@@ -213,7 +213,7 @@ func TestFullBlocks(t *testing.T) {
 			item.Name, block.Hash(), blockHeight)
 
 		var isOrphan bool
-		forkLen, err := chain.ProcessBlock(block, blockchain.BFNone)
+		forkLen, err := chain.ProcessBlock(block)
 		if errors.Is(err, blockchain.ErrMissingParent) {
 			isOrphan = true
 			err = nil
@@ -250,7 +250,7 @@ func TestFullBlocks(t *testing.T) {
 		t.Logf("Testing block %s (hash %s, height %d)",
 			item.Name, block.Hash(), blockHeight)
 
-		_, err := chain.ProcessBlock(block, blockchain.BFNone)
+		_, err := chain.ProcessBlock(block)
 		if err == nil {
 			t.Fatalf("block %q (hash %s, height %d) should not "+
 				"have been accepted", item.Name, block.Hash(),
@@ -300,7 +300,7 @@ func TestFullBlocks(t *testing.T) {
 		t.Logf("Testing block %s (hash %s, height %d)",
 			item.Name, block.Hash(), blockHeight)
 
-		_, err := chain.ProcessBlock(block, blockchain.BFNone)
+		_, err := chain.ProcessBlock(block)
 		if err != nil {
 			// Ensure the error is of the expected type.  Note that orphans are
 			// rejected with ErrMissingParent, so this check covers both

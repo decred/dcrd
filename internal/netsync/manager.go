@@ -714,7 +714,7 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 // detected by checking if the error is blockchain.ErrMissingParent.
 func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
-	forkLen, err := m.cfg.Chain.ProcessBlock(block, blockchain.BFNone)
+	forkLen, err := m.cfg.Chain.ProcessBlock(block)
 	if err != nil {
 		return 0, err
 	}

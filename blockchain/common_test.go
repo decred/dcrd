@@ -746,7 +746,7 @@ func (g *chaingenHarness) AcceptBlockData(blockName string) {
 	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, blockHash,
 		blockHeight)
 
-	_, err := g.chain.ProcessBlock(block, BFNone)
+	_, err := g.chain.ProcessBlock(block)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			blockName, blockHash, blockHeight, err)
@@ -775,7 +775,7 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
-	forkLen, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, err := g.chain.ProcessBlock(block)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			blockName, block.Hash(), blockHeight, err)
@@ -869,7 +869,7 @@ func (g *chaingenHarness) RejectBlock(blockName string, kind ErrorKind) {
 	g.t.Logf("Testing reject block %q (hash %s, height %d, reason %v)",
 		blockName, block.Hash(), blockHeight, kind)
 
-	_, err := g.chain.ProcessBlock(block, BFNone)
+	_, err := g.chain.ProcessBlock(block)
 	if err == nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should not have been accepted",
 			blockName, block.Hash(), blockHeight)
@@ -943,7 +943,7 @@ func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
 	g.t.Logf("Testing block %q (hash %s, height %d)", g.TipName(), block.Hash(),
 		blockHeight)
 
-	forkLen, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, err := g.chain.ProcessBlock(block)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			g.TipName(), block.Hash(), blockHeight, err)

@@ -367,7 +367,7 @@ func (b *BlockChain) maybeAcceptBlocks(curTip *blockNode, nodes []*blockNode, fl
 // reorganize, the fork length will be 0.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (int64, error) {
+func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 	// Since the chain lock is periodically released to send notifications,
 	// protect the overall processing of blocks with a separate mutex.
 	b.processLock.Lock()
@@ -398,7 +398,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	// significantly increase the cost to attackers.  Of particular note is that
 	// the checks include proof-of-work validation which means a significant
 	// amount of work must have been done in order to pass this check.
-	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
+	err := checkBlockSanity(block, b.timeSource, BFNone, b.chainParams)
 	if err != nil {
 		// When there is a block index entry for the block, which will be the
 		// case if the header was previously seen and passed all validation,
@@ -421,7 +421,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	if node == nil {
 		const checkHeaderSanity = false
 		header := &block.MsgBlock().Header
-		node, err = b.maybeAcceptBlockHeader(header, flags, checkHeaderSanity)
+		node, err = b.maybeAcceptBlockHeader(header, BFNone, checkHeaderSanity)
 		if err != nil {
 			return 0, err
 		}
@@ -429,16 +429,8 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 
 	// Enable skipping some of the more expensive validation checks when the
 	// block is an ancestor of a known good checkpoint.
-	//
-	// NOTE: The fast add flag from the caller is used as a standin for now
-	// since that validation is currently handled by the calling code.  In the
-	// future, the calling code should be updated to process all headers through
-	// this package and then the ability to specify the fast add flag should be
-	// removed along with the fast add portion of this check here so that it is
-	// solely determined internally.
-	if flags&BFFastAdd == BFFastAdd || b.bulkImportMode ||
-		b.isKnownCheckpointAncestor(node) {
-
+	flags := BFNone
+	if b.bulkImportMode || b.isKnownCheckpointAncestor(node) {
 		b.index.SetStatusFlags(node, statusValidated)
 		flags |= BFFastAdd
 	}
