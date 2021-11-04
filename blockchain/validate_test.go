@@ -95,7 +95,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 			t.Fatalf("NewBlockFromBytes error: %v", err.Error())
 		}
 
-		forkLen, err := chain.ProcessBlock(bl, BFNone)
+		forkLen, err := chain.ProcessBlock(bl)
 		if err != nil {
 			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
 		}

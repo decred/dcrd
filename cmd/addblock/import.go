@@ -133,7 +133,7 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 
 	// Ensure the blocks follows all of the chain rules and match up to the
 	// known checkpoints.
-	forkLen, err := bi.chain.ProcessBlock(block, blockchain.BFNone)
+	forkLen, err := bi.chain.ProcessBlock(block)
 	if err != nil {
 		if errors.Is(err, blockchain.ErrMissingParent) {
 			return false, fmt.Errorf("import file contains an orphan block: %v",

@@ -115,7 +115,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			t.Errorf("NewBlockFromBytes error: %v", err.Error())
 		}
 
-		_, err = chain.ProcessBlock(bl, BFNone)
+		_, err = chain.ProcessBlock(bl)
 		if err != nil {
 			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
 		}
