@@ -259,7 +259,7 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 	var cachedParent *dcrutil.Block
 	for height := lowestHeight + 1; height <= bestHeight; height++ {
 		if interruptRequested(ctx) {
-			return errInterruptRequested
+			return indexerError(ErrInterruptRequested, interruptMsg)
 		}
 
 		hash, err := queryer.BlockHashByHeight(height)
@@ -269,8 +269,9 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 
 		// Ensure the next tip hash is on the main chain.
 		if !queryer.MainChainHasBlock(hash) {
-			return fmt.Errorf("the next block being synced to (%s) "+
-				"at height %d is "+"not on the main chain", hash, height)
+			msg := fmt.Sprintf("the next block being synced to (%s) "+
+				"at height %d is not on the main chain", hash, height)
+			return indexerError(ErrBlockNotOnMainChain, msg)
 		}
 
 		var parent *dcrutil.Block
@@ -296,7 +297,7 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 		var prevScripts PrevScripter
 		err = db.View(func(dbTx database.Tx) error {
 			if interruptRequested(ctx) {
-				return errInterruptRequested
+				return indexerError(ErrInterruptRequested, interruptMsg)
 			}
 
 			prevScripts, err = queryer.PrevScripts(dbTx, child)

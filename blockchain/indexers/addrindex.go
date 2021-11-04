@@ -7,7 +7,6 @@ package indexers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -77,11 +76,6 @@ var (
 	// addrIndexKey is the key of the address index and the db bucket used
 	// to house it.
 	addrIndexKey = []byte("txbyaddridx")
-
-	// errUnsupportedAddressType is an error that is used to signal an
-	// unsupported address type has been used.
-	errUnsupportedAddressType = errors.New("address type is not supported " +
-		"by the address index")
 )
 
 // -----------------------------------------------------------------------------
@@ -564,8 +558,8 @@ func addrToKey(addr stdaddr.Address) ([addrKeySize]byte, error) {
 		copy(result[1:], addr.Hash160()[:])
 		return result, nil
 	}
-
-	return [addrKeySize]byte{}, errUnsupportedAddressType
+	return [addrKeySize]byte{}, indexerError(ErrUnsupportedAddressType,
+		"address type is not supported by the address index")
 }
 
 // AddrIndex implements a transaction by address index.  That is to say, it
@@ -630,7 +624,7 @@ func (idx *AddrIndex) NeedsInputs() bool {
 // This is part of the Indexer interface.
 func (idx *AddrIndex) Init(ctx context.Context, chainParams *chaincfg.Params) error {
 	if interruptRequested(ctx) {
-		return errInterruptRequested
+		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
 
 	// Finish any drops that were previously interrupted.
@@ -1150,7 +1144,8 @@ func NewAddrIndex(subscriber *IndexSubscriber, db database.DB, chain ChainQuerye
 
 	consumer, ok := sc.(*SpendConsumer)
 	if !ok {
-		return nil, errors.New("consumer not of type SpendConsumer")
+		return nil, indexerError(ErrInvalidSpendConsumerType,
+			"consumer not of type SpendConsumer")
 	}
 
 	idx.consumer = consumer
@@ -1193,7 +1188,9 @@ func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) err
 		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.Parent,
 			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
 		if err != nil {
-			return fmt.Errorf("%s: unable to connect block: %v", idx.Name(), err)
+			msg := fmt.Sprintf("%s: unable to connect block: %v",
+				idx.Name(), err)
+			return indexerError(ErrConnectBlock, msg)
 		}
 
 		idx.consumer.UpdateTip(ntfn.Block.Hash())
@@ -1202,7 +1199,9 @@ func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) err
 		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.Parent,
 			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
 		if err != nil {
-			log.Errorf("%s: unable to disconnect block: %v", idx.Name(), err)
+			msg := fmt.Sprintf("%s: unable to disconnect block: %v",
+				idx.Name(), err)
+			return indexerError(ErrDisconnectBlock, msg)
 		}
 
 		// Remove the associated spend consumer dependency for the disconnected
@@ -1210,15 +1209,18 @@ func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) err
 		err = idx.Queryer().RemoveSpendConsumerDependency(dbTx, ntfn.Block.Hash(),
 			idx.consumer.id)
 		if err != nil {
-			log.Errorf("%s: unable to remove spend consumer dependency "+
-				"for block %s: %v", idx.Name(), ntfn.Block.Hash(), err)
+			msg := fmt.Sprintf("%s: unable to remove spend consumer "+
+				"dependency for block %s: %v", idx.Name(),
+				ntfn.Block.Hash(), err)
+			return indexerError(ErrDisconnectBlock, msg)
 		}
 
 		idx.consumer.UpdateTip(ntfn.Parent.Hash())
 
 	default:
-		return fmt.Errorf("%s: unknown notification type provided: %d",
+		msg := fmt.Sprintf("%s: unknown notification type provided: %d",
 			idx.Name(), ntfn.NtfnType)
+		return indexerError(ErrInvalidNotificationType, msg)
 	}
 
 	return nil

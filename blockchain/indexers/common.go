@@ -28,13 +28,12 @@ var (
 	// fields for storage in the database.
 	byteOrder = binary.LittleEndian
 
-	// errInterruptRequested indicates that an operation was cancelled due
-	// to a user-requested interrupt.
-	errInterruptRequested = errors.New("interrupt requested")
-
 	// indexTipsBucketName is the name of the db bucket used to house the
 	// current tip of each index.
 	indexTipsBucketName = []byte("idxtips")
+
+	// interruptMsg is the error message for interrupt requested errors.
+	interruptMsg = "interrupt requested"
 )
 
 // NeedsInputser provides a generic interface for an indexer to specify the it
@@ -310,7 +309,7 @@ func incrementalFlatDrop(ctx context.Context, db database.DB, idxKey []byte, idx
 		}
 
 		if interruptRequested(ctx) {
-			return errInterruptRequested
+			return indexerError(ErrInterruptRequested, interruptMsg)
 		}
 	}
 	return nil
@@ -489,7 +488,7 @@ func recover(ctx context.Context, idx Indexer) error {
 	var cachedBlock *dcrutil.Block
 	for !queryer.MainChainHasBlock(hash) {
 		if interruptRequested(ctx) {
-			return errInterruptRequested
+			return indexerError(ErrInterruptRequested, interruptMsg)
 		}
 
 		// Get the block, unless it's already cached.
@@ -513,7 +512,7 @@ func recover(ctx context.Context, idx Indexer) error {
 		var prevScripts PrevScripter
 		err = idx.DB().Update(func(dbTx database.Tx) error {
 			if interruptRequested(ctx) {
-				return errInterruptRequested
+				return indexerError(ErrInterruptRequested, interruptMsg)
 			}
 
 			// Fetch the associated script information for previous outputs
@@ -597,7 +596,7 @@ func finishDrop(ctx context.Context, indexer Indexer) error {
 	}
 
 	if interruptRequested(ctx) {
-		return errInterruptRequested
+		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
 
 	log.Infof("Resuming %s drop", indexer.Name())
@@ -679,7 +678,7 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 	}
 
 	if interruptRequested(ctx) {
-		return errInterruptRequested
+		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
 
 	bestHeight, bestHash := indexer.Queryer().Best()
@@ -703,13 +702,14 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 // the provided index if there is one set.
 func notifyDependent(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 	if interruptRequested(ctx) {
-		return errInterruptRequested
+		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
 
 	sub := indexer.IndexSubscription()
 	if sub == nil {
-		return fmt.Errorf("%s: no index update subscription found",
+		msg := fmt.Sprintf("%s: no index update subscription found",
 			indexer.Name())
+		return indexerError(ErrFetchSubscription, msg)
 	}
 
 	// Notify the dependent subscription if set.
@@ -730,8 +730,9 @@ func notifyDependent(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) erro
 func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 	tip, _, err := indexer.Tip()
 	if err != nil {
-		return fmt.Errorf("%s: unable to fetch index tip: %v",
+		msg := fmt.Sprintf("%s: unable to fetch index tip: %v",
 			indexer.Name(), err)
+		return indexerError(ErrFetchTip, msg)
 	}
 
 	var expectedHeight int64
@@ -741,8 +742,9 @@ func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 	case DisconnectNtfn:
 		expectedHeight = tip
 	default:
-		return fmt.Errorf("%s: unknown notification type received: %v",
+		msg := fmt.Sprintf("%s: unknown notification type received: %v",
 			indexer.Name(), ntfn.NtfnType)
+		return indexerError(ErrInvalidNotificationType, msg)
 	}
 
 	switch {
@@ -757,9 +759,10 @@ func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 	case ntfn.Block.Height() > expectedHeight:
 		// Receiving a notification with a height higher than the expected
 		// implies a missed index update.
-		return fmt.Errorf("%s: missing index notification, expected "+
+		msg := fmt.Sprintf("%s: missing index notification, expected "+
 			"notification for height %d, got %d", indexer.Name(),
 			expectedHeight, ntfn.Block.Height())
+		return indexerError(ErrMissingNotification, msg)
 
 	default:
 		err = indexer.DB().Update(func(dbTx database.Tx) error {
@@ -791,8 +794,9 @@ func AddIndexSpendConsumers(db database.DB, chain ChainQueryer) error {
 	if err != nil {
 		if !errors.Is(err, database.ErrValueNotFound) &&
 			!errors.Is(err, database.ErrBucketNotFound) {
-			return fmt.Errorf("unable to fetch index tip for "+
-				"address index %w", err)
+			msg := fmt.Sprintf("unable to fetch index tip for "+
+				"address index %s", err)
+			return indexerError(ErrFetchTip, msg)
 		}
 	}
 
