@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
@@ -1199,6 +1200,17 @@ type blockIndexEntryV3 struct {
 	header   wire.BlockHeader
 	status   byte
 	voteInfo []blockIndexVoteVersionTuple
+}
+
+// blockIndexKeyV3 generates the binary key for an entry in the version 3 block
+// index bucket.  The key is composed of the block height encoded as a
+// big-endian 32-bit unsigned int followed by the 32 byte block hash.  Big
+// endian is used here so the entries can easily be iterated by height.
+func blockIndexKeyV3(blockHash *chainhash.Hash, blockHeight uint32) []byte {
+	indexKey := make([]byte, chainhash.HashSize+4)
+	binary.BigEndian.PutUint32(indexKey[0:4], blockHeight)
+	copy(indexKey[4:chainhash.HashSize+4], blockHash[:])
+	return indexKey
 }
 
 // blockIndexEntrySerializeSizeV3 returns the number of bytes it would take to
@@ -3371,6 +3383,1288 @@ func upgradeToVersion11(ctx context.Context, db database.DB, dbInfo *databaseInf
 	return nil
 }
 
+// -----------------------------------------------------------------------------
+// The version 1 stake database stores information about the state of tickets,
+// potentially along with other information, using the shared format described
+// here in several different places such as the stake undo data and the various
+// category-based sets of tickets.
+//
+// The version 1 serialized format of the ticket state information is:
+//
+//   <block height><flags>
+//
+//   Field             Type             Size
+//   block height      uint32           4 bytes
+//   flags             byte             1 byte
+//
+// The version 1 serialized flags format is:
+//   bit  0   - ticket is missed
+//   bit  1   - ticket is revoked
+//   bit  2   - ticket is spent
+//   bit  3   - ticket is expired
+//   bits 4-7 - unused
+// -----------------------------------------------------------------------------
+
+// Hardcoded constants so updates do not affect old upgrades.
+const (
+	// Version 1 ticket status flags.
+	ticketMissedFlagV1  = 1 << 0
+	ticketRevokedFlagV1 = 1 << 1
+	ticketSpentFlagV1   = 1 << 2
+	ticketExpiredFlagV1 = 1 << 3
+
+	// ticketInfoSerializeSizeV1 is the number of bytes required to serialize
+	// ticket state information in the version 1 format described above.
+	ticketInfoSerializeSizeV1 = 5
+)
+
+// ticketInfoV1 represents the state of a ticket as used in version 1 stake
+// database entries.
+type ticketInfoV1 struct {
+	hash    chainhash.Hash
+	height  uint32
+	missed  bool
+	revoked bool
+	spent   bool
+	expired bool
+}
+
+// encodeTicketInfoFlagsV1 encodes the state flags of the provided ticket
+// according to the version 1 format described above.
+func encodeTicketInfoFlagsV1(ticket *ticketInfoV1) byte {
+	var encodedFlags byte
+	if ticket.missed {
+		encodedFlags |= ticketMissedFlagV1
+	}
+	if ticket.revoked {
+		encodedFlags |= ticketRevokedFlagV1
+	}
+	if ticket.spent {
+		encodedFlags |= ticketSpentFlagV1
+	}
+	if ticket.expired {
+		encodedFlags |= ticketExpiredFlagV1
+	}
+	return encodedFlags
+}
+
+// putTicketInfoV1 serializes the passed ticket state info according to the
+// version 1 format described above directly into the passed target byte slice.
+// The target byte slice must be at least large enough to handle the number of
+// bytes specified by ticketInfoSerializeSizeV1 or it will panic.
+func putTicketInfoV1(target []byte, ticket *ticketInfoV1) {
+	binary.LittleEndian.PutUint32(target[0:4], ticket.height)
+	target[4] = encodeTicketInfoFlagsV1(ticket)
+}
+
+// decodeTicketInfoV1 decodes the passed serialized ticket state info into the
+// passed struct according to the version 1 format described above.  It returns
+// the number of bytes read.
+func decodeTicketInfoV1(serialized []byte, ticket *ticketInfoV1) (int, error) {
+	// Ensure there are enough bytes to decode the ticket info.
+	if len(serialized) < 4 {
+		return 0, errDeserialize("unexpected end of data while reading ticket " +
+			"info")
+	}
+
+	// Deserialize the block height associated with the ticket.
+	height := binary.LittleEndian.Uint32(serialized[0:4])
+	offset := 4
+
+	// Deserialize the encoded flags.
+	if offset+1 > len(serialized) {
+		return offset, errDeserialize("unexpected end of data while reading " +
+			"flags")
+	}
+	encodedFlags := serialized[offset]
+	offset++
+
+	ticket.height = height
+	ticket.missed = encodedFlags&ticketMissedFlagV1 != 0
+	ticket.revoked = encodedFlags&ticketRevokedFlagV1 != 0
+	ticket.spent = encodedFlags&ticketSpentFlagV1 != 0
+	ticket.expired = encodedFlags&ticketExpiredFlagV1 != 0
+	return offset, nil
+}
+
+// -----------------------------------------------------------------------------
+// The version 1 stake database undo data consists of an entry for each main
+// chain block that contains data for all tickets modified by the block along
+// with their updated state info in the order that they were spent, meaning that
+// each element needs to be applied in reverse order to undo the effects of the
+// block.
+//
+// The version 1 serialized format is:
+//
+//   [<ticket hash><ticket info>,...]
+//
+//   Field            Type              Size
+//   ticket hash      chainhash.Hash    chainhash.HashSize
+//   ticket info      ticketInfoV1      5 bytes
+// -----------------------------------------------------------------------------
+
+// v1UndoElementSize is the size of each individual element in a version 1 stake
+// database undo record.
+const v1UndoElementSize = chainhash.HashSize + ticketInfoSerializeSizeV1
+
+// deserializeTicketDBUndoEntryV1 deserializes stake undo data from the passed
+// serialized byte slice according to the version 1 format described in detail
+// above.
+func deserializeTicketDBUndoEntryV1(serialized []byte, blockHeight uint32) ([]ticketInfoV1, error) {
+	// Ensure the undo data is a multiple of the entry size to detect corruption
+	// and avoid the need to check additional size constraints while decoding.
+	if len(serialized)%v1UndoElementSize != 0 {
+		str := fmt.Sprintf("corrupt undo data for height %d", blockHeight)
+		return nil, errDeserialize(str)
+	}
+
+	numEntries := len(serialized) / v1UndoElementSize
+	undoEntries := make([]ticketInfoV1, 0, numEntries)
+	offset := 0
+	for i := 0; i < numEntries; i++ {
+		var ticket ticketInfoV1
+		copy(ticket.hash[:], serialized[offset:offset+chainhash.HashSize])
+		offset += chainhash.HashSize
+		bytesRead, err := decodeTicketInfoV1(serialized[offset:], &ticket)
+		if err != nil {
+			return nil, err
+		}
+		offset += bytesRead
+
+		undoEntries = append(undoEntries, ticket)
+	}
+
+	return undoEntries, nil
+}
+
+// serializeTicketDBUndoEntryV1 serializes the passed undo data into a single
+// byte slice according to the version 1 format described in detail above.
+func serializeTicketDBUndoEntryV1(undoEntries []ticketInfoV1) []byte {
+	serialized := make([]byte, len(undoEntries)*v1UndoElementSize)
+	offset := 0
+	for _, entry := range undoEntries {
+		copy(serialized[offset:], entry.hash[:])
+		offset += chainhash.HashSize
+		putTicketInfoV1(serialized[offset:], &entry)
+		offset += ticketInfoSerializeSizeV1
+	}
+	return serialized
+}
+
+// correctTreasurySpendVoteData corrects block index and ticket database entries
+// to account for an issue in legacy code that caused votes which also include
+// treasury spend vote data to be incorrectly marked as missed.
+func correctTreasurySpendVoteData(ctx context.Context, db database.DB, params *chaincfg.Params) error {
+	log.Info("Reindexing ticket database.  This will take a while...")
+	start := time.Now()
+
+	// Hardcoded data so updates do not affect old upgrades.
+	const hashSize = chainhash.HashSize
+	v1ChainStateKeyName := []byte("chainstate")
+	v3BlockIdxBucketName := []byte("blockidxv3")
+	v1StakeChainStateKeyName := []byte("stakechainstate")
+	v1LiveTicketsBucketName := []byte("livetickets")
+	v1MissedTicketsBucketName := []byte("missedtickets")
+	v1RevokedTicketsBucketName := []byte("revokedtickets")
+	v1StakeBlockUndoBucketName := []byte("stakeblockundo")
+	v1TicketsInBlockBucketName := []byte("ticketsinblock")
+
+	// uint32Bytes is a helper function to convert a uint32 to a little endian
+	// byte slice.
+	byteOrder := binary.LittleEndian
+	uint32Bytes := func(ui32 uint32) []byte {
+		var b [4]byte
+		byteOrder.PutUint32(b[:], ui32)
+		return b[:]
+	}
+
+	// Determine the current best chain tip using the version 1 chain state.
+	var bestTipHash chainhash.Hash
+	var bestTipHeight uint32
+	err := db.View(func(dbTx database.Tx) error {
+		// Load the current best chain tip hash and height from the v1 chain
+		// state.
+		//
+		// The serialized format of the v1 chain state is roughly:
+		//
+		//   <block hash><block height><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   hashSize
+		//   block height      uint32           4 bytes
+		//   rest of data...
+		meta := dbTx.Metadata()
+		serializedChainState := meta.Get(v1ChainStateKeyName)
+		if serializedChainState == nil {
+			str := fmt.Sprintf("chain state with key %s does not exist",
+				v1ChainStateKeyName)
+			return errDeserialize(str)
+		}
+		if len(serializedChainState) < hashSize+4 {
+			str := "version 1 chain state is malformed"
+			return errDeserialize(str)
+		}
+		copy(bestTipHash[:], serializedChainState[0:hashSize])
+		offset := hashSize
+		bestTipHeight = byteOrder.Uint32(serializedChainState[offset : offset+4])
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Determine the minimum bound to disconnect back to in order to undo the
+	// incorrect information so it can then be corrected.
+	//
+	// The only entries that might be incorrect are those after the treasury
+	// agenda activated, so a lot of work can be avoided by only considering
+	// those entries.  However, determining if the treasury agenda is active and
+	// the point at which it activated requires a bunch of data that is not
+	// readily available here in the upgrade code, so hard code the data for the
+	// main and test networks to significantly optimize those cases and just
+	// redo everything back to the genesis block for other networks.  While this
+	// does potentially do more work than is strictly necessary for those other
+	// networks, it is quite rare for them to have old databases in practice, so
+	// it is a reasonable tradeoff.
+	//
+	// Finally, note that the heights here are for the block _before_ the
+	// treasury activated on their respective networks since the block in which
+	// it activated also needs to be undone.
+	var disconnectUntilHeight uint32
+	switch params.Net {
+	case wire.MainNet:
+		disconnectUntilHeight = 552447
+	case wire.TestNet3:
+		disconnectUntilHeight = 560207
+	}
+
+	// There is nothing to do if the best chain tip is prior to the point after
+	// where potentially incorrect entries exist.
+	if bestTipHeight < disconnectUntilHeight {
+		return nil
+	}
+
+	// blockTreeEntry represents a version 3 block index entry with the details
+	// needed to be able to determine which blocks need to have the treasury
+	// spend vote data corrected as well as which ones comprise the main chain.
+	type blockTreeEntry struct {
+		parent    *blockTreeEntry
+		children  []*blockTreeEntry
+		hash      chainhash.Hash
+		height    uint32
+		mainChain bool
+		header    wire.BlockHeader
+		status    byte
+	}
+
+	// Load the block tree to determine all blocks and ticket database entries
+	// that need to be corrected as well as the required order using the version
+	// 3 block index along with the information determined above.
+	var bestTip *blockTreeEntry
+	blockTree := make(map[chainhash.Hash]*blockTreeEntry)
+	err = db.View(func(dbTx database.Tx) error {
+		// Hardcoded data so updates do not affect old upgrades.
+		const blockHdrSize = 180
+
+		// Construct a full block tree from the version 2 block index by mapping
+		// each block to its parent block.
+		var lastEntry, parent *blockTreeEntry
+		meta := dbTx.Metadata()
+		v3BlockIdxBucket := meta.Bucket(v3BlockIdxBucketName)
+		if v3BlockIdxBucket == nil {
+			return fmt.Errorf("bucket %s does not exist", v3BlockIdxBucketName)
+		}
+		cursor := v3BlockIdxBucket.Cursor()
+		for ok := cursor.First(); ok; ok = cursor.Next() {
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			// Deserialize the header from the version 3 block index entry.
+			//
+			// The serialized value format of a v3 block index entry is roughly:
+			//
+			//   <block header><status><rest of data>
+			//
+			//   Field              Type                Size
+			//   block header       wire.BlockHeader    180 bytes
+			//   status             byte                1 byte
+			//   rest of data...
+			serializedBlkIdxEntry := cursor.Value()
+			if len(serializedBlkIdxEntry) < blockHdrSize {
+				return errDeserialize("unexpected end of data while reading " +
+					"block header")
+			}
+			hB := serializedBlkIdxEntry[0:blockHdrSize]
+			var header wire.BlockHeader
+			if err := header.Deserialize(bytes.NewReader(hB)); err != nil {
+				return err
+			}
+			if blockHdrSize+1 > len(serializedBlkIdxEntry) {
+				return errDeserialize("unexpected end of data while reading " +
+					"status")
+			}
+			status := serializedBlkIdxEntry[blockHdrSize]
+
+			// Stop loading if the best chain tip height is exceeded.  This
+			// can happen when there are block index entries for known headers
+			// that haven't had their associated block data fully validated and
+			// connected yet and therefore are not relevant for this upgrade
+			// code.
+			blockHeight := header.Height
+			if blockHeight > bestTipHeight {
+				break
+			}
+
+			// Determine the parent block node.  Since the entries are iterated
+			// in order of height, there is a very good chance the previous
+			// one processed is the parent.
+			blockHash := header.BlockHash()
+			if lastEntry == nil {
+				if blockHash != params.GenesisHash {
+					str := fmt.Sprintf("correctTreasurySpendVoteData: expected "+
+						"first entry to be genesis block, found %s", blockHash)
+					return errDeserialize(str)
+				}
+			} else if header.PrevBlock == lastEntry.hash {
+				parent = lastEntry
+			} else {
+				parent = blockTree[header.PrevBlock]
+				if parent == nil {
+					str := fmt.Sprintf("correctTreasurySpendVoteData: could "+
+						"not find parent for block %s", blockHash)
+					return errDeserialize(str)
+				}
+			}
+
+			// Add the block to the block tree.
+			treeEntry := &blockTreeEntry{
+				parent: parent,
+				hash:   blockHash,
+				height: blockHeight,
+				header: header,
+				status: status,
+			}
+			blockTree[blockHash] = treeEntry
+			if parent != nil {
+				parent.children = append(parent.children, treeEntry)
+			}
+
+			lastEntry = treeEntry
+		}
+
+		// Determine the blocks that comprise the main chain by starting at the
+		// best tip and walking backwards to the oldest tracked block.
+		bestTip = blockTree[bestTipHash]
+		if bestTip == nil {
+			str := fmt.Sprintf("chain tip %s is not in block index", bestTipHash)
+			return errDeserialize(str)
+		}
+		for entry := bestTip; entry != nil; entry = entry.parent {
+			entry.mainChain = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Ensure all of the buckets used repeatedly in the remaining code below
+	// exist now to avoid the need to check multiple times.
+	err = db.View(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+		bucketNames := [][]byte{v1StakeBlockUndoBucketName,
+			v1LiveTicketsBucketName, v1MissedTicketsBucketName,
+			v1RevokedTicketsBucketName, v1TicketsInBlockBucketName,
+		}
+		for _, bucketName := range bucketNames {
+			if bucket := meta.Bucket(bucketName); bucket == nil {
+				return fmt.Errorf("bucket %s does not exist", bucketName)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// ticketDBInfo represents a version 1 ticket database with only the details
+	// needed to be able to correct the treasury spend vote data.
+	type ticketDBInfo struct {
+		tip            *blockTreeEntry
+		liveTickets    map[chainhash.Hash]ticketInfoV1
+		missedTickets  map[chainhash.Hash]ticketInfoV1
+		revokedTickets map[chainhash.Hash]ticketInfoV1
+	}
+
+	// calcNextWinners returns a slice of tickets that are eligible to vote in
+	// the next block given the current state of the provided ticket database.
+	// It will return nil when there are not any winners for the next block due
+	// to it being prior to the point where voting starts.
+	calcNextWinners := func(ticketDB *ticketDBInfo) ([]chainhash.Hash, error) {
+		// Voting does not start until stake validation height, so there are not
+		// any winners prior to that point.
+		if ticketDB.tip.height < uint32(params.StakeValidationHeight-1) {
+			return nil, nil
+		}
+
+		// Assert there are enough live tickets to produce the required number
+		// of winning tickets.
+		numLiveTickets := uint32(len(ticketDB.liveTickets))
+		if numLiveTickets < uint32(params.TicketsPerBlock) {
+			return nil, AssertError(fmt.Sprintf("the live ticket pool as of "+
+				"block %s (height %d) only has %d tickets which is less than "+
+				"the required minimum to choose %d winners", ticketDB.tip.hash,
+				ticketDB.tip.height, numLiveTickets, params.TicketsPerBlock))
+		}
+
+		// Sort the live tickets.
+		liveTickets := make([]chainhash.Hash, 0, numLiveTickets)
+		for ticketHash := range ticketDB.liveTickets {
+			liveTickets = append(liveTickets, ticketHash)
+		}
+		sort.Slice(liveTickets, func(i, j int) bool {
+			return bytes.Compare(liveTickets[i][:], liveTickets[j][:]) < 0
+		})
+
+		// Determine the winning tickets.
+		nextWinners := make([]chainhash.Hash, 0, params.TicketsPerBlock)
+		hB, _ := ticketDB.tip.header.Bytes()
+		prng := stake.NewHash256PRNG(hB)
+		usedOffsets := make(map[uint32]struct{})
+		for uint16(len(nextWinners)) < params.TicketsPerBlock {
+			ticketIndex := prng.UniformRandom(numLiveTickets)
+			if _, exists := usedOffsets[ticketIndex]; !exists {
+				usedOffsets[ticketIndex] = struct{}{}
+				nextWinners = append(nextWinners, liveTickets[ticketIndex])
+			}
+		}
+
+		return nextWinners, nil
+	}
+
+	// serializeStakeChainStateV1 serializes the stake chain state for the
+	// passed ticket database into a single byte slice according to the version
+	// 1 format described below.
+	//
+	// The version 1 stake chain state consists of the best block hash and
+	// height, the total number of live, missed, and revoked tickets, the number
+	// of winning tickets per block, and the tickets that are eligible to vote
+	// in the next block (aka winning tickets).
+	//
+	// The serialized format is:
+	//
+	//   <block hash><block height><live><missed><revoked><per block><winners>
+	//
+	//   Field              Type              Size
+	//   block hash         chainhash.Hash    hashSize
+	//   block height       uint32            4 bytes
+	//   live tickets       uint32            4 bytes
+	//   missed tickets     uint64            8 bytes
+	//   revoked tickets    uint64            8 bytes
+	//   winners per block  uint16            2 bytes
+	//   next winners       []chainhash.Hash  hashSize * winners per block
+	//
+	// NOTE: The next winners are populated with zero hashes prior to stake
+	// validation height.
+	serializeStakeChainStateV1 := func(ticketDB *ticketDBInfo) ([]byte, error) {
+		numLiveTickets := uint32(len(ticketDB.liveTickets))
+		numMissedTickets := uint64(len(ticketDB.missedTickets))
+		numRevokedTickets := uint64(len(ticketDB.revokedTickets))
+
+		const baseSize = hashSize + 4 + 4 + 8 + 8 + 2
+		serialized := make([]byte, baseSize+params.TicketsPerBlock*hashSize)
+		copy(serialized[0:hashSize], ticketDB.tip.hash[:])
+		offset := hashSize
+		byteOrder.PutUint32(serialized[offset:offset+4], ticketDB.tip.height)
+		offset += 4
+		byteOrder.PutUint32(serialized[offset:offset+4], numLiveTickets)
+		offset += 4
+		byteOrder.PutUint64(serialized[offset:offset+8], numMissedTickets)
+		offset += 8
+		byteOrder.PutUint64(serialized[offset:offset+8], numRevokedTickets)
+		offset += 8
+		byteOrder.PutUint16(serialized[offset:offset+2], params.TicketsPerBlock)
+		offset += 2
+
+		// Determine and serialize the next winning tickets, if any.  There will
+		// not be any winners prior to the point where voting starts (stake
+		// validation height).  In that case, since the slice is already sized
+		// to include them, the hashes will be all zero as expected.
+		nextWinners, err := calcNextWinners(ticketDB)
+		if err != nil {
+			return nil, err
+		}
+		for _, winner := range nextWinners {
+			copy(serialized[offset:offset+hashSize], winner[:])
+			offset += hashSize
+		}
+
+		return serialized, nil
+	}
+
+	// Load information about the current state of the version 1 ticket database
+	// including the current tip and all of the associated live, missed, and
+	// revoked tickets.
+	ticketDB := ticketDBInfo{
+		liveTickets:    make(map[chainhash.Hash]ticketInfoV1),
+		missedTickets:  make(map[chainhash.Hash]ticketInfoV1),
+		revokedTickets: make(map[chainhash.Hash]ticketInfoV1),
+	}
+	err = db.View(func(dbTx database.Tx) error {
+		// Load the current ticket db chain tip hash and height from the v1
+		// stake chain state.
+		//
+		// The serialized format of the v1 stake chain state is roughly:
+		//
+		//   <block hash><block height><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   hashSize
+		//   block height      uint32           4 bytes
+		//   rest of data...
+		var ticketDBTipHash chainhash.Hash
+		var ticketDBTipHeight uint32
+		meta := dbTx.Metadata()
+		serializedState := meta.Get(v1StakeChainStateKeyName)
+		if serializedState == nil {
+			str := fmt.Sprintf("chain state with key %s does not exist",
+				v1StakeChainStateKeyName)
+			return errDeserialize(str)
+		}
+		if len(serializedState) < hashSize+4 {
+			str := "version 1 stake chain state is malformed"
+			return errDeserialize(str)
+		}
+		copy(ticketDBTipHash[:], serializedState[0:hashSize])
+		offset := hashSize
+		ticketDBTipHeight = byteOrder.Uint32(serializedState[offset : offset+4])
+
+		// Look up ticket database tip in the block index and assert it exists.
+		tip, ok := blockTree[ticketDBTipHash]
+		if !ok {
+			str := fmt.Sprintf("ticket db tip %s is not in block index",
+				ticketDBTipHash)
+			return errDeserialize(str)
+		}
+		if tip.height != ticketDBTipHeight {
+			str := fmt.Sprintf("corrupt ticket db tip height for %s",
+				ticketDBTipHash)
+			return errDeserialize(str)
+		}
+		ticketDB.tip = tip
+
+		// Load all of the live, missed, and revoked tickets.
+		//
+		// The version 1 stake database stores each of these sets in their own
+		// bucket with an entry for every ticket keyed by its hash and the value
+		// serialized according to the shared version 1 stake database ticket
+		// state.
+		loadTickets := func(key []byte, m map[chainhash.Hash]ticketInfoV1) error {
+			bucket := meta.Bucket(key)
+			return bucket.ForEach(func(k []byte, v []byte) error {
+				var ticket ticketInfoV1
+				copy(ticket.hash[:], k)
+				_, err := decodeTicketInfoV1(v, &ticket)
+				if err != nil {
+					return err
+				}
+				m[ticket.hash] = ticket
+				return nil
+			})
+		}
+		err := loadTickets(v1LiveTicketsBucketName, ticketDB.liveTickets)
+		if err != nil {
+			return err
+		}
+		err = loadTickets(v1MissedTicketsBucketName, ticketDB.missedTickets)
+		if err != nil {
+			return err
+		}
+		return loadTickets(v1RevokedTicketsBucketName, ticketDB.revokedTickets)
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Determine the known good block to disconnect back to by following the
+	// ticket database tip back to the known good height.  This approach ensures
+	// that any corner cases, such as the local best chain being on a side chain
+	// for which the treasury agenda may or may not be active, are handled
+	// properly at the expense of potentially doing more work than is strictly
+	// necessary in those highly unlikely cases.
+	disconnectTo := ticketDB.tip
+	for disconnectTo.height != disconnectUntilHeight {
+		disconnectTo = disconnectTo.parent
+	}
+
+	// dbPutTicketV1 writes the provided ticket info into the provided bucket
+	// keyed by the ticket hash.
+	dbPutTicketV1 := func(bucket database.Bucket, ticket ticketInfoV1) error {
+		var serialized [5]byte
+		putTicketInfoV1(serialized[:], &ticket)
+		return bucket.Put(ticket.hash[:], serialized[:])
+	}
+
+	// doDisconnectBatch contains the logic for reverting the ticket database
+	// back to a known good point by undoing all blocks in between in batches.
+	// This is done because attempting to undo them all in a single database
+	// transaction could result in massive memory usage and could potentially
+	// crash on many systems due to ulimits.
+	//
+	// Note that the current ticket database tip is updated as the batches
+	// either are interrupted or successfully complete so interrupted upgrades
+	// start from the most recent tip.
+	//
+	// It returns whether or not all entries have been updated.
+	const maxDisconnectEntries = 10000
+	var totalUpdated uint64
+	doDisconnectBatch := func(dbTx database.Tx) (bool, error) {
+		meta := dbTx.Metadata()
+		v1UndoDataBucket := meta.Bucket(v1StakeBlockUndoBucketName)
+		v1LiveTicketsBucket := meta.Bucket(v1LiveTicketsBucketName)
+		v1MissedTicketsBucket := meta.Bucket(v1MissedTicketsBucketName)
+		v1RevokedTicketsBucket := meta.Bucket(v1RevokedTicketsBucketName)
+
+		// loadUndoV1 loads the undo data for the given height from the version
+		// 1 stake database, deserializes the data, and returns it.
+		loadUndoV1 := func(height uint32) ([]ticketInfoV1, error) {
+			heightAsKey := uint32Bytes(height)
+			undoData := v1UndoDataBucket.Get(heightAsKey)
+			if undoData == nil {
+				str := fmt.Sprintf("missing undo data for height %d", height)
+				return nil, errDeserialize(str)
+			}
+
+			return deserializeTicketDBUndoEntryV1(undoData, height)
+		}
+
+		var logProgress bool
+		var numUpdated uint64
+		err := func() error {
+			// Loop backwards from the current ticket database tip to the known
+			// good point.
+			var batchErr error
+			for ticketDB.tip != disconnectTo {
+				if interruptRequested(ctx) {
+					logProgress = true
+					batchErr = errInterruptRequested
+					break
+				}
+
+				if numUpdated >= maxDisconnectEntries {
+					logProgress = true
+					batchErr = errBatchFinished
+					break
+				}
+
+				// Load all the undo entries for the current ticket database tip
+				// and apply all of them in reverse order.
+				undoEntries, err := loadUndoV1(ticketDB.tip.height)
+				if err != nil {
+					return err
+				}
+				for undoIdx := len(undoEntries) - 1; undoIdx >= 0; undoIdx-- {
+					undo := &undoEntries[undoIdx]
+
+					switch {
+					// Remove tickets that became live in the block from the set
+					// of live tickets.
+					case !undo.missed && !undo.revoked && !undo.spent:
+						delete(ticketDB.liveTickets, undo.hash)
+						err := v1LiveTicketsBucket.Delete(undo.hash[:])
+						if err != nil {
+							return err
+						}
+
+					// Move tickets revoked in the block back to the set of
+					// missed tickets.
+					case undo.missed && undo.revoked:
+						delete(ticketDB.revokedTickets, undo.hash)
+						err := v1RevokedTicketsBucket.Delete(undo.hash[:])
+						if err != nil {
+							return err
+						}
+
+						ticket := ticketInfoV1{
+							hash:    undo.hash,
+							height:  undo.height,
+							missed:  true,
+							revoked: false,
+							spent:   false,
+							expired: undo.expired,
+						}
+						ticketDB.missedTickets[undo.hash] = ticket
+						err = dbPutTicketV1(v1MissedTicketsBucket, ticket)
+						if err != nil {
+							return err
+						}
+
+					// Move tickets that became missed as of the block back to
+					// the set of live tickets.
+					case undo.missed && !undo.revoked:
+						delete(ticketDB.missedTickets, undo.hash)
+						err := v1MissedTicketsBucket.Delete(undo.hash[:])
+						if err != nil {
+							return err
+						}
+
+						ticket := ticketInfoV1{
+							hash:    undo.hash,
+							height:  undo.height,
+							missed:  false,
+							revoked: false,
+							spent:   false,
+							expired: false,
+						}
+						ticketDB.liveTickets[undo.hash] = ticket
+						err = dbPutTicketV1(v1LiveTicketsBucket, ticket)
+						if err != nil {
+							return err
+						}
+
+					// Move tickets spent in the block back to the set of live
+					// tickets.
+					case undo.spent:
+						ticket := ticketInfoV1{
+							hash:    undo.hash,
+							height:  undo.height,
+							missed:  false,
+							revoked: false,
+							spent:   false,
+							expired: false,
+						}
+						ticketDB.liveTickets[undo.hash] = ticket
+						err := dbPutTicketV1(v1LiveTicketsBucket, ticket)
+						if err != nil {
+							return err
+						}
+
+					default:
+						str := fmt.Sprintf("unknown ticket state in undo data "+
+							"(missed=%v, revoked=%v, spent=%v, expired=%v)",
+							undo.missed, undo.revoked, undo.spent, undo.expired)
+						return errDeserialize(str)
+					}
+				}
+
+				// NOTE: The undo data for the block is not dropped here to save
+				// additional database writes because it will be overwritten
+				// with the correct data later when the block is reconnected.
+				//
+				// Also, the list of tickets maturing in the block is correct,
+				// so it is kept and used when the block is reconnected later to
+				// avoid the otherwise much more expensive need to load the
+				// historical block to determine them.
+
+				// The ticket database tip is now the previous block.
+				ticketDB.tip = ticketDB.tip.parent
+
+				numUpdated++
+			}
+
+			// Write the new stake chain state to the database so it will resume
+			// at the correct place if interrupted.
+			serialized, err := serializeStakeChainStateV1(&ticketDB)
+			if err != nil {
+				return err
+			}
+			err = meta.Put(v1StakeChainStateKeyName, serialized)
+			if err != nil {
+				return err
+			}
+
+			return batchErr
+		}()
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numUpdated > 0 {
+			totalUpdated += numUpdated
+			log.Infof("Updated %d entries (%d total)", numUpdated, totalUpdated)
+		}
+		return isFullyDone, err
+	}
+
+	// Revert the ticket database back to a known good point by undoing all
+	// blocks from the current ticket database back to that point in batches.
+	//
+	// Note that the disconnect is done in an upgrade stage so that interrupting
+	// the upgrade after the disconnect process successfully completes will not
+	// attempt to undo again.
+	disconnectDoneKey := []byte("tsvfdisconnectdone")
+	err = runUpgradeStageOnce(ctx, db, disconnectDoneKey, func() error {
+		// Update all entries in batches for the reasons mentioned above.
+		return batchedUpdate(ctx, db, doDisconnectBatch)
+	})
+	if err != nil {
+		return err
+	}
+
+	// dbFetchBlock uses an existing database transaction to retrieve the block
+	// for the provided block tree entry.
+	dbFetchBlock := func(dbTx database.Tx, entry *blockTreeEntry) (*wire.MsgBlock, error) {
+		// Load the raw block bytes from the database.
+		blockBytes, err := dbTx.FetchBlock(&entry.hash)
+		if err != nil {
+			return nil, err
+		}
+
+		var block wire.MsgBlock
+		if err := block.FromBytes(blockBytes); err != nil {
+			return nil, err
+		}
+
+		return &block, nil
+	}
+
+	// findSpentTicketsInBlock returns information about tickets spent in the
+	// provided block including voted and revoked tickets as well as the vote
+	// bits of each vote.
+	type spentTicketsInBlock struct {
+		votedTickets   []chainhash.Hash
+		votes          []blockIndexVoteVersionTuple
+		revokedTickets []chainhash.Hash
+	}
+	findSpentTicketsInBlock := func(block *wire.MsgBlock) spentTicketsInBlock {
+		votes := make([]blockIndexVoteVersionTuple, 0, block.Header.Voters)
+		voters := make([]chainhash.Hash, 0, block.Header.Voters)
+		revocations := make([]chainhash.Hash, 0, block.Header.Revocations)
+
+		for _, stx := range block.STransactions {
+			// It is safe to use the version as a proxy for treasury activation
+			// here since the format of version 3 votes was invalid prior to its
+			// activation and so even if there were votes with version >= 3
+			// prior to that point, those votes still would've had to conform to
+			// the rules that existed at that time and therefore could not have
+			// simultaneously had the new format and made it into a block.
+			// Further, the old format is still treated as a valid vote when the
+			// flag is set, so the historical consensus rules would not be
+			// violated by incorrectly setting this flag even if there were
+			// votes with version >= 3 prior to treasury activation.  Finally,
+			// there were no votes with versions >= 3 prior to the treasury
+			// activation point on mainnet anyway.
+			isTreasuryEnabled := stx.Version >= 3
+			if stake.IsSSGen(stx, isTreasuryEnabled) {
+				voters = append(voters, stx.TxIn[1].PreviousOutPoint.Hash)
+				votes = append(votes, blockIndexVoteVersionTuple{
+					version: stake.SSGenVersion(stx),
+					bits:    stake.SSGenVoteBits(stx),
+				})
+				continue
+			}
+
+			// The automatic ticket revocations agenda is not eligible to vote
+			// prior to this upgrade code running, so it couldn't possibly be
+			// active.
+			const isAutoRevocationsEnabled = false
+			if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
+				spentTicketHash := stx.TxIn[0].PreviousOutPoint.Hash
+				revocations = append(revocations, spentTicketHash)
+				continue
+			}
+		}
+		return spentTicketsInBlock{
+			votedTickets:   voters,
+			votes:          votes,
+			revokedTickets: revocations,
+		}
+	}
+
+	// nextMainChainBlock returns the block in the main chain after the provided
+	// one.
+	nextMainChainBlock := func(n *blockTreeEntry) *blockTreeEntry {
+		for _, child := range n.children {
+			if child.mainChain {
+				return child
+			}
+		}
+		return nil
+	}
+
+	// doConnectBatch contains the logic for catching the ticket database back
+	// up to the current best chain tip by replaying all blocks in between in
+	// batches.  This is done because attempting to undo them all in a single
+	// database transaction could result in massive memory usage and could
+	// potentially crash on many systems due to ulimits.
+	//
+	// Note that the current ticket database tip is updated as the batches
+	// either are interrupted or successfully complete so interrupted upgrades
+	// start from the most recent tip.
+	//
+	// It returns whether or not all entries have been updated.
+	const maxConnectEntries = 1000
+	doConnectBatch := func(dbTx database.Tx) (bool, error) {
+		meta := dbTx.Metadata()
+		v1LiveTicketsBucket := meta.Bucket(v1LiveTicketsBucketName)
+		v1MissedTicketsBucket := meta.Bucket(v1MissedTicketsBucketName)
+		v1RevokedTicketsBucket := meta.Bucket(v1RevokedTicketsBucketName)
+		v1TicketsInBlockBucket := meta.Bucket(v1TicketsInBlockBucketName)
+		v1UndoDataBucket := meta.Bucket(v1StakeBlockUndoBucketName)
+		v3BlockIdxBucket := meta.Bucket(v3BlockIdxBucketName)
+
+		var logProgress bool
+		var numUpdated uint64
+		err := func() error {
+			// Loop forwards from the current ticket database tip to the current
+			// best chain tip.
+			var batchErr error
+			for ticketDB.tip != bestTip {
+				if interruptRequested(ctx) {
+					logProgress = true
+					batchErr = errInterruptRequested
+					break
+				}
+
+				if numUpdated >= maxConnectEntries {
+					logProgress = true
+					batchErr = errBatchFinished
+					break
+				}
+
+				// Determine the next main chain block, load it from the block
+				// database and extract information about the spent tickets in
+				// order to construct all of the stake info needed to update the
+				// ticket database and block index.
+				nextTip := nextMainChainBlock(ticketDB.tip)
+				block, err := dbFetchBlock(dbTx, nextTip)
+				if err != nil {
+					return err
+				}
+				spentTickets := findSpentTicketsInBlock(block)
+
+				// Load the list of tickets that are maturing in the block that
+				// is being connected.
+				//
+				// The version 1 serialized format of the tickets in the block
+				// is:
+				//
+				//   [<block hash>,...]
+				//
+				//   Field         Type              Size
+				//   block hash    chainhash.Hash    hashSize
+				heightAsKey := uint32Bytes(nextTip.height)
+				serializedHashes := v1TicketsInBlockBucket.Get(heightAsKey)
+				if serializedHashes == nil {
+					str := fmt.Sprintf("missing maturing ticket data for "+
+						"block height %d", nextTip.height)
+					return errDeserialize(str)
+				}
+				if len(serializedHashes)%hashSize != 0 {
+					str := fmt.Sprintf("malformed maturing ticket data for "+
+						"block height %d", nextTip.height)
+					return errDeserialize(str)
+				}
+				var newTickets []chainhash.Hash
+				numEntries := len(serializedHashes) / hashSize
+				if numEntries > 0 {
+					newTickets = make([]chainhash.Hash, numEntries)
+				}
+				offset := 0
+				for i := 0; i < numEntries; i++ {
+					copy(newTickets[i][:], serializedHashes[offset:])
+					offset += hashSize
+				}
+
+				// Determine the winning tickets eligible to vote in the block
+				// that is being connected and remove them from the set of live
+				// tickets, add any that missed to the set of missed tickets,
+				// and track the state changes needed for the undo entry.
+				//
+				// Note that there will not be any winners prior to the point
+				// where voting starts (stake validation height).
+				nextWinners, err := calcNextWinners(&ticketDB)
+				if err != nil {
+					return err
+				}
+				undoEntriesSizeHint := len(nextWinners) + len(newTickets) +
+					len(spentTickets.revokedTickets)
+				undoEntries := make([]ticketInfoV1, 0, undoEntriesSizeHint)
+				for _, winner := range nextWinners {
+					ticket, ok := ticketDB.liveTickets[winner]
+					if !ok {
+						return AssertError(fmt.Sprintf("winning ticket %s "+
+							"voting on block %s (height %d) is not in the set "+
+							"of live tickets", winner, ticketDB.tip.hash,
+							ticketDB.tip.height))
+					}
+					delete(ticketDB.liveTickets, ticket.hash)
+					err := v1LiveTicketsBucket.Delete(ticket.hash[:])
+					if err != nil {
+						return err
+					}
+
+					// The ticket is either spent and not missed when it voted
+					// or unspent and missed when it did not.
+					var voted bool
+					for _, votedTicket := range spentTickets.votedTickets {
+						if votedTicket == ticket.hash {
+							voted = true
+							break
+						}
+					}
+					ticket.missed = !voted
+					ticket.revoked = false
+					ticket.spent = voted
+					ticket.expired = false
+					if ticket.missed {
+						ticketDB.missedTickets[ticket.hash] = ticket
+						err := dbPutTicketV1(v1MissedTicketsBucket, ticket)
+						if err != nil {
+							return err
+						}
+					}
+					undoEntries = append(undoEntries, ticket)
+				}
+
+				// Determine tickets that are expiring as of the block that is
+				// being connected, move them from the set of live tickets to
+				// the set of missed tickets, and track the state changes needed
+				// for the undo entry.
+				var expiredTickets []chainhash.Hash
+				if nextTip.height >= params.TicketExpiry {
+					expiringHeight := nextTip.height - params.TicketExpiry
+					for _, ticket := range ticketDB.liveTickets {
+						if ticket.height > expiringHeight {
+							continue
+						}
+						expiredTickets = append(expiredTickets, ticket.hash)
+					}
+				}
+				for _, expiredTicket := range expiredTickets {
+					ticket := ticketDB.liveTickets[expiredTicket]
+					delete(ticketDB.liveTickets, ticket.hash)
+					err := v1LiveTicketsBucket.Delete(ticket.hash[:])
+					if err != nil {
+						return err
+					}
+
+					// The ticket is now missed and expired.
+					ticket.missed = true
+					ticket.revoked = false
+					ticket.spent = false
+					ticket.expired = true
+					ticketDB.missedTickets[ticket.hash] = ticket
+					err = dbPutTicketV1(v1MissedTicketsBucket, ticket)
+					if err != nil {
+						return err
+					}
+					undoEntries = append(undoEntries, ticket)
+				}
+
+				// Move revocations in the block that is being connected from
+				// the set of missed tickets to the set of revoked tickets and
+				// track the state changes needed for the undo entry.
+				for _, revokedTicket := range spentTickets.revokedTickets {
+					ticket, ok := ticketDB.missedTickets[revokedTicket]
+					if !ok {
+						return AssertError(fmt.Sprintf("ticket %s revoked by "+
+							"block %s (height %d) is not in the set of missed "+
+							"tickets", revokedTicket, nextTip.hash,
+							nextTip.height))
+					}
+					delete(ticketDB.missedTickets, ticket.hash)
+					err := v1MissedTicketsBucket.Delete(ticket.hash[:])
+					if err != nil {
+						return err
+					}
+
+					// The ticket is now revoked.  Note that it will already be
+					// marked missed, but set it explicitly for clarity.
+					ticket.missed = true
+					ticket.revoked = true
+					ticket.spent = false
+					ticket.expired = false
+					ticketDB.revokedTickets[ticket.hash] = ticket
+					err = dbPutTicketV1(v1RevokedTicketsBucket, ticket)
+					if err != nil {
+						return err
+					}
+					undoEntries = append(undoEntries, ticket)
+				}
+
+				// Add tickets that are maturing in the block that is being
+				// connected to the set of live tickets and track the state
+				// changes needed for the undo entry.
+				for _, newTicket := range newTickets {
+					ticket := ticketInfoV1{
+						hash:    newTicket,
+						height:  nextTip.height,
+						missed:  false,
+						revoked: false,
+						spent:   false,
+						expired: false,
+					}
+					ticketDB.liveTickets[ticket.hash] = ticket
+					err := dbPutTicketV1(v1LiveTicketsBucket, ticket)
+					if err != nil {
+						return err
+					}
+					undoEntries = append(undoEntries, ticket)
+				}
+
+				// Store the undo data for the block that is being connected.
+				serialized := serializeTicketDBUndoEntryV1(undoEntries)
+				err = v1UndoDataBucket.Put(heightAsKey, serialized)
+				if err != nil {
+					return err
+				}
+
+				// Correct the vote information for the block being connected as
+				// well as any side chain blocks at the same height (siblings).
+				for _, tip := range ticketDB.tip.children {
+					// The vote data will already be loaded for the main chain
+					// block, so make use of it.  Otherwise, load the associated
+					// side chain block and extract if the data for the block
+					// has been stored.
+					votes := spentTickets.votes
+					if tip != nextTip {
+						// Nothing to do if the block data is not available.
+						const v3StatusDataStored = 1 << 0
+						if tip.status&v3StatusDataStored == 0 {
+							continue
+						}
+
+						// Load the block from the database and extract the
+						// vote information from it.
+						block, err := dbFetchBlock(dbTx, tip)
+						if err != nil {
+							return err
+						}
+						spentTickets := findSpentTicketsInBlock(block)
+						votes = spentTickets.votes
+					}
+
+					// Write the corrected block index entry to the database.
+					v3Entry := &blockIndexEntryV3{
+						header:   tip.header,
+						status:   tip.status,
+						voteInfo: votes,
+					}
+					serialized, err := serializeBlockIndexEntryV3(v3Entry)
+					if err != nil {
+						return err
+					}
+					indexKey := blockIndexKeyV3(&tip.hash, tip.height)
+					err = v3BlockIdxBucket.Put(indexKey, serialized)
+					if err != nil {
+						return err
+					}
+				}
+
+				// The ticket database tip is now the next main chain block.
+				ticketDB.tip = nextTip
+
+				numUpdated++
+			}
+
+			// Write the new stake chain state to the database.  This ensures it
+			// will resume at the correct place if interrupted as well as match
+			// the best chain state as required once the entire process is
+			// finished.
+			serialized, err := serializeStakeChainStateV1(&ticketDB)
+			if err != nil {
+				return err
+			}
+			err = meta.Put(v1StakeChainStateKeyName, serialized)
+			if err != nil {
+				return err
+			}
+
+			return batchErr
+		}()
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numUpdated > 0 {
+			totalUpdated += numUpdated
+			log.Infof("Updated %d entries (%d total)", numUpdated, totalUpdated)
+		}
+		return isFullyDone, err
+	}
+
+	// Catch the ticket database back up to the current best chain tip in
+	// batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, db, doConnectBatch); err != nil {
+		return err
+	}
+
+	// Remove upgrade progress tracking keys.
+	err = db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().Delete(disconnectDoneKey)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done updating ticket database in %v.  Total entries: %d",
+		elapsed, totalUpdated)
+	return nil
+}
+
+// upgradeToVersion12 upgrades a version 11 blockchain database to version 12.
+// This entails correcting block index and ticket database entries to account
+// for an issue in legacy code that caused votes which also include treasury
+// spend vote data to be incorrectly marked as missed as well as unmarking all
+// blocks previously marked failed so they are eligible for validation again
+// under the new consensus rules.
+func upgradeToVersion12(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 12...")
+	start := time.Now()
+
+	// Correct the block index and ticket database entries to account for an
+	// issue in legacy code as needed.
+	tsvfDoneKeyName := []byte("v12tsvfdone")
+	err := runUpgradeStageOnce(ctx, db, tsvfDoneKeyName, func() error {
+		return correctTreasurySpendVoteData(ctx, db, chainParams)
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Unmark all blocks previously marked failed so they are eligible for
+	// validation again under the new consensus rules.
+	if err := clearFailedBlockFlagsV3(ctx, db); err != nil {
+		return err
+	}
+
+	// Update and persist the overall block database version and remove upgrade
+	// progress tracking keys.
+	err = db.Update(func(dbTx database.Tx) error {
+		err := dbTx.Metadata().Delete(tsvfDoneKeyName)
+		if err != nil {
+			return err
+		}
+
+		dbInfo.version = 12
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // separateUtxoDatabase moves the UTXO set and state from the block database to
 // the UTXO database.
 func separateUtxoDatabase(ctx context.Context, db database.DB,
@@ -4133,6 +5427,18 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// database is being moved in this same set of changes.
 	if dbInfo.version == 10 {
 		if err := upgradeToVersion11(ctx, db, dbInfo); err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 12 database if needed.  This entails correcting block
+	// index and ticket database entries to account for an issue in legacy code
+	// that caused votes which also include treasury spend vote data to be
+	// incorrectly marked as missed as well as unmarking all blocks previously
+	// marked failed so they are eligible for validation again under the new
+	// consensus rules.
+	if dbInfo.version == 11 {
+		if err := upgradeToVersion12(ctx, db, chainParams, dbInfo); err != nil {
 			return err
 		}
 	}

@@ -477,3 +477,190 @@ func TestBlockIndexSerializationV3(t *testing.T) {
 		}
 	}
 }
+
+// TestTicketStateInfoSerializationV1 ensures serializing and deserializing
+// ticket state information in the version 1 format works as expected.
+func TestTicketStateInfoSerializationV1(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		entry      ticketInfoV1
+		serialized []byte
+	}{{
+		name: "ticket from height 36467 voted",
+		entry: ticketInfoV1{
+			height: 36467,
+			spent:  true,
+		},
+		serialized: hexToBytes("738e000004"),
+	}, {
+		name: "ticket from height 1023 missed and unrevoked",
+		entry: ticketInfoV1{
+			height: 1023,
+			missed: true,
+		},
+		serialized: hexToBytes("ff03000001"),
+	}, {
+		name: "ticket from height 610 missed and revoked",
+		entry: ticketInfoV1{
+			height:  610,
+			missed:  true,
+			revoked: true,
+		},
+		serialized: hexToBytes("6202000003"),
+	}, {
+		name: "ticket from height 513 expired and revoked",
+		entry: ticketInfoV1{
+			height:  513,
+			missed:  true,
+			revoked: true,
+			expired: true,
+		},
+		serialized: hexToBytes("010200000b"),
+	}, {
+		name: "ticket from height 41474 matured (aka became live)",
+		entry: ticketInfoV1{
+			height: 41474,
+		},
+		serialized: hexToBytes("02a2000000"),
+	}}
+
+	for _, test := range tests {
+		// Ensure the block index entry serializes to the expected value.
+		gotSerialized := make([]byte, ticketInfoSerializeSizeV1)
+		putTicketInfoV1(gotSerialized, &test.entry)
+		if !bytes.Equal(gotSerialized, test.serialized) {
+			t.Errorf("%s: did not get expected bytes - got %x, want %x",
+				test.name, gotSerialized, test.serialized)
+			continue
+		}
+
+		// Ensure the serialized bytes are decoded back to the expected block
+		// index entry.
+		var gotEntry ticketInfoV1
+		bytesRead, err := decodeTicketInfoV1(test.serialized, &gotEntry)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", test.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(gotEntry, test.entry) {
+			t.Errorf("%s: mismatched entries\ngot %+v\nwant %+v", test.name,
+				gotEntry, test.entry)
+			continue
+		}
+		if bytesRead != len(test.serialized) {
+			t.Errorf("%s: did not get expected number of bytes read - got %d, "+
+				"want %d", test.name, bytesRead, len(test.serialized))
+			continue
+		}
+	}
+}
+
+// TestTicketDBUndoEntrySerializationV1 ensures serializing and deserializing
+// stake ticket database undo data in the version 1 format works as expected.
+func TestTicketDBUndoEntrySerializationV1(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		entries    []ticketInfoV1
+		serialized []byte
+	}{{
+		name: "undo data for mainnnet block 10001",
+		entries: []ticketInfoV1{{
+			hash:   *mustParseHash("b4e2d2ffa3e422725502f0578e68ff36624c1365b2a51679b4847074a4df652f"),
+			height: 8549,
+			spent:  true,
+		}, {
+			hash:   *mustParseHash("180e5d38f5032694e2cc69a4c866d98f12026899eb14c27ae3775b37fab6628c"),
+			height: 4693,
+			spent:  true,
+		}, {
+			hash:   *mustParseHash("8b89a2f1e9571885e0a4097938ae210ec717a0861eed7e401f03eae51dc9a252"),
+			height: 1023,
+			missed: true,
+		}, {
+			hash:   *mustParseHash("0c3b457eb539a1715f4066d9e2cccad087fa5499b79ac89a7803f381b3386c80"),
+			height: 7927,
+			spent:  true,
+		}, {
+			hash:   *mustParseHash("6647750c5df88dcc0756a97850c30b8577b387c497ec62f6127aef51d0d4f96c"),
+			height: 4236,
+			spent:  true,
+		}, {
+			hash:   *mustParseHash("5fcfdfc1b61ea1e4747bf4c02389aba3c0108050a56135935b046a13e4ea79c7"),
+			height: 10001,
+		}, {
+			hash:   *mustParseHash("f489d45d2019844619d5c32791c26745312e8f34969987e4cbf72292c851e94b"),
+			height: 10001,
+		}, {
+			hash:   *mustParseHash("3a46034c083af9e6c93fe01cacd5964f10aaf8a4a502d3dbd37166e55b8e2efe"),
+			height: 10001,
+		}},
+		serialized: hexToBytes("2f65dfa4747084b47916a5b265134c6236ff688e57f002" +
+			"557222e4a3ffd2e2b465210000048c62b6fa375b77e37ac214eb996802128fd96" +
+			"6c8a469cce2942603f5385d0e18551200000452a2c91de5ea031f407eed1e86a0" +
+			"17c70e21ae387909a4e0851857e9f1a2898bff03000001806c38b381f303789ac" +
+			"89ab79954fa87d0cacce2d966405f71a139b57e453b0cf71e0000046cf9d4d051" +
+			"ef7a12f662ec97c487b377850bc35078a95607cc8df85d0c7547668c10000004c" +
+			"779eae4136a045b933561a5508010c0a3ab8923c0f47b74e4a11eb6c1dfcf5f11" +
+			"270000004be951c89222f7cbe4879996348f2e314567c29127c3d519468419205" +
+			"dd489f41127000000fe2e8e5be56671d3dbd302a5a4f8aa104f96d5ac1ce03fc9" +
+			"e6f93a084c03463a1127000000"),
+	}, {
+		name: "undo data with all possible combinations",
+		entries: []ticketInfoV1{{
+			hash:   *mustParseHash("3eca8ff37f64424e77630c7c5b77998cc21a42f21751118521d864f69abd74a9"),
+			height: 36467,
+			spent:  true,
+		}, {
+			hash:   *mustParseHash("8b89a2f1e9571885e0a4097938ae210ec717a0861eed7e401f03eae51dc9a252"),
+			height: 1023,
+			missed: true,
+		}, {
+			hash:    *mustParseHash("8af80129bc62e7ac8cc9b2e275cb3c28cc8b0e84253436ca04f059ec70a53693"),
+			height:  610,
+			missed:  true,
+			revoked: true,
+		}, {
+			hash:    *mustParseHash("9043be520f3f79d9e134ad43dd3bb5a3d41d5ba46c4624846f0c6648123c5991"),
+			height:  513,
+			missed:  true,
+			revoked: true,
+			expired: true,
+		}, {
+			hash:   *mustParseHash("9c83e6eaa4e234a7217a53d3cef58b0b9ae386c89e899ba779cb54156e465bd5"),
+			height: 41474,
+		}},
+		serialized: hexToBytes("a974bd9af664d82185115117f2421ac28c99775b7c0c63" +
+			"774e42647ff38fca3e738e00000452a2c91de5ea031f407eed1e86a017c70e21a" +
+			"e387909a4e0851857e9f1a2898bff030000019336a570ec59f004ca363425840e" +
+			"8bcc283ccb75e2b2c98cace762bc2901f88a620200000391593c1248660c6f842" +
+			"4466ca45b1dd4a3b53bdd43ad34e1d9793f0f52be4390010200000bd55b466e15" +
+			"54cb79a79b899ec886e39a0b8bf5ced3537a21a734e2a4eae6839c02a2000000"),
+	}}
+
+	for _, test := range tests {
+		// Ensure the undo entry serializes to the expected value.
+		gotSerialized := serializeTicketDBUndoEntryV1(test.entries)
+		if !bytes.Equal(gotSerialized, test.serialized) {
+			t.Errorf("%s: did not get expected bytes - got %x, want %x",
+				test.name, gotSerialized, test.serialized)
+			continue
+		}
+
+		// Ensure the serialized bytes are decoded back to the expected undo
+		// entry.
+		gotEntries, err := deserializeTicketDBUndoEntryV1(test.serialized, 0)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", test.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(gotEntries, test.entries) {
+			t.Errorf("%s: mismatched entries\ngot %+v\nwant %+v", test.name,
+				gotEntries, test.entries)
+			continue
+		}
+	}
+}

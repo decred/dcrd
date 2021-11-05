@@ -25,7 +25,7 @@ import (
 
 const (
 	// currentDatabaseVersion indicates the current database version.
-	currentDatabaseVersion = 11
+	currentDatabaseVersion = 12
 
 	// currentBlockIndexVersion indicates the current block index database
 	// version.
@@ -1433,9 +1433,8 @@ func (b *BlockChain) initChainState(ctx context.Context,
 
 		log.Debugf("Block index loaded in %v", time.Since(bidxStart))
 
-		// Exception for version 1 blockchains: skip loading the stake
-		// node, as the upgrade path handles ensuring this is correctly
-		// set.
+		// Exception for version 1 blockchains: skip loading the stake node, as
+		// the upgrade path handles ensuring this is correctly set.
 		if b.dbInfo.version >= 2 {
 			tip.stakeNode, err = stake.LoadBestNode(dbTx, uint32(tip.height),
 				tip.hash, tip.Header(), b.chainParams)
