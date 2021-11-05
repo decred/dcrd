@@ -1313,9 +1313,19 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 	revocations := make([]chainhash.Hash, 0, block.Header.Revocations)
 
 	for _, stx := range block.STransactions {
-		// This can only be called with treasury disabled.
-		const noTreasury = false
-		if IsSSGen(stx, noTreasury) {
+		// It is safe to use the version as a proxy for treasury activation here
+		// since the format of version 3 votes was invalid prior to its
+		// activation and so even if there were votes with version >= 3 prior to
+		// that point, those votes still would've had to conform to the rules
+		// that existed at that time and therefore could not have simultaneously
+		// had the new format and made it into a block.  Further, the old format
+		// is still treated as a valid vote when the flag is set, so the
+		// historical consensus rules would not be violated by incorrectly
+		// setting this flag even if there were votes with version >= 3 prior to
+		// treasury activation.  Finally, there were no votes with versions >= 3
+		// prior to the treasury activation point on mainnet anyway.
+		isTreasuryEnabled := stx.Version >= 3
+		if IsSSGen(stx, isTreasuryEnabled) {
 			voters = append(voters, stx.TxIn[1].PreviousOutPoint.Hash)
 			votes = append(votes, VoteVersionTuple{
 				Version: SSGenVersion(stx),
