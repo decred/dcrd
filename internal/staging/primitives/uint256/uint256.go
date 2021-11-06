@@ -6,7 +6,11 @@
 // integer arithmetic.
 package uint256
 
-import "math/bits"
+import (
+	"bytes"
+	"fmt"
+	"math/bits"
+)
 
 // References:
 //   [TAOCP2]: The Art of Computer Programming, Volume 2.
@@ -22,16 +26,13 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
-// less, greater, cmp), interpreting and producing big and little endian bytes,
-// and other convenience methods such as determining the minimum number of bits
-// required to represent the current value and whether or not the value can be
-// represented as a uint64 without loss of precision.
-//
-// Future commits will implement other convenience methods such as text
-// formatting with base conversion.
+// It implements the primary arithmetic operations (addition, subtraction,
+// multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
+// not, or, and, xor), comparison operations (equals, less, greater, cmp),
+// interpreting and producing big and little endian bytes, and other convenience
+// methods such as determining the minimum number of bits required to represent
+// the current value, whether or not the value can be represented as a uint64
+// without loss of precision, and text formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -1340,4 +1341,392 @@ func (n *Uint256) BitLen() uint16 {
 		return uint16(bits.Len64(w)) + 64
 	}
 	return uint16(bits.Len64(n.n[0]))
+}
+
+// bitsPerInternalWord is the number of bits used for each internal word of the
+// uint256.
+const bitsPerInternalWord = 64
+
+// toBin converts the uint256 to its string representation in base 2.
+func (n *Uint256) toBin() []byte {
+	if n.IsZero() {
+		return []byte("0")
+	}
+
+	// Create space for the max possible number of output digits.
+	maxOutDigits := n.BitLen()
+	result := make([]byte, maxOutDigits)
+
+	// Convert each internal base 2^64 word to base 2 from least to most
+	// significant.  Since the value is guaranteed to be non-zero per a previous
+	// check, there will always be a nonzero most-significant word.  Also, note
+	// that no partial digit handling is needed in this case because the shift
+	// amount evenly divides the bits per internal word.
+	const shift = 1
+	const mask = 1<<shift - 1
+	const digitsPerInternalWord = bitsPerInternalWord
+	outputIdx := maxOutDigits - 1
+	numInputWords := n.numDigits()
+	inputWord := n.n[0]
+	for inputIdx := 1; inputIdx < numInputWords; inputIdx++ {
+		for i := 0; i < digitsPerInternalWord; i++ {
+			result[outputIdx] = '0' + byte(inputWord&mask)
+			inputWord >>= shift
+			outputIdx--
+		}
+		inputWord = n.n[inputIdx]
+	}
+	for inputWord != 0 {
+		result[outputIdx] = '0' + byte(inputWord&mask)
+		inputWord >>= shift
+		outputIdx--
+	}
+
+	return result[outputIdx+1:]
+}
+
+// toOctal converts the uint256 to its string representation in base 8.
+func (n *Uint256) toOctal() []byte {
+	if n.IsZero() {
+		return []byte("0")
+	}
+
+	// Create space for the max possible number of output digits using the fact
+	// that 3 bits converts directly to a single octal digit.
+	maxOutDigits := (n.BitLen() + 2) / 3
+	result := make([]byte, maxOutDigits)
+
+	// Convert each internal base 2^64 word to base 8 from least to most
+	// significant.  Since the value is guaranteed to be non-zero per a previous
+	// check, there will always be a nonzero most-significant word.  Also, note
+	// that partial digit handling is needed in this case because the shift
+	// amount does not evenly divide the bits per internal word.
+	const shift = 3
+	const mask = 1<<shift - 1
+	unconvertedBits := bitsPerInternalWord
+	outputIdx := maxOutDigits - 1
+	numInputWords := n.numDigits()
+	inputWord := n.n[0]
+	for inputIdx := 1; inputIdx < numInputWords; inputIdx++ {
+		// Convert full digits.
+		for ; unconvertedBits >= shift; unconvertedBits -= shift {
+			result[outputIdx] = '0' + byte(inputWord&mask)
+			inputWord >>= shift
+			outputIdx--
+		}
+
+		// Move to the next input word when there are not any remaining
+		// unconverted bits that need to be handled.
+		if unconvertedBits == 0 {
+			inputWord = n.n[inputIdx]
+			unconvertedBits = bitsPerInternalWord
+			continue
+		}
+
+		// Account for the remaining unconverted bits from the current word and
+		// the bits needed from the next word to form a full digit for the next
+		// digit.
+		inputWord |= n.n[inputIdx] << unconvertedBits
+		result[outputIdx] = '0' + byte(inputWord&mask)
+		outputIdx--
+
+		// Move to the next input word while accounting for the bits already
+		// consumed above by shifting it and updating the unconverted bits
+		// accordingly.
+		inputWord = n.n[inputIdx] >> (shift - unconvertedBits)
+		unconvertedBits = bitsPerInternalWord - (shift - unconvertedBits)
+	}
+	for inputWord != 0 {
+		result[outputIdx] = '0' + byte(inputWord&mask)
+		inputWord >>= shift
+		outputIdx--
+	}
+
+	return result[outputIdx+1:]
+}
+
+// maxPow10ForInternalWord is the maximum power of 10 that will fit into an
+// internal word.  It is the value 10^floor(64 / log2(10)) and is used when
+// converting to base 10 in order to significantly reduce the number of
+// divisions needed.
+var maxPow10ForInternalWord = new(Uint256).SetUint64(1e19)
+
+// toDecimal converts the uint256 to its string representation in base 10.
+func (n *Uint256) toDecimal() []byte {
+	if n.IsZero() {
+		return []byte("0")
+	}
+
+	// Create space for the max possible number of output digits.
+	//
+	// Note that the actual total number of output digits is usually calculated
+	// as:
+	//  floor(log2(n) / log2(base)) + 1
+	//
+	// However, in order to avoid more expensive calculation of the full log2 of
+	// the value, the code below instead calculates a value that might overcount
+	// by a max of one digit and trims the result as needed via the following
+	// slightly modified version of the formula:
+	//  floor(bitlen(n) / log2(base)) + 1
+	//
+	// The modified formula is guaranteed to be large enough because:
+	//  (a) floor(log2(x)) ≤ log2(x) ≤ floor(log2(x)) + 1
+	//  (b) bitlen(x) = floor(log2(x)) + 1
+	//
+	// Which implies:
+	//  (c) floor(log2(n) / log2(base)) ≤ floor(floor(log2(n))+1) / log2(base))
+	//  (d) floor(log2(n) / log2(base)) ≤ floor(bitlen(n)) / log2(base))
+	//
+	// Note that (c) holds since the left hand side of the inequality has a
+	// dividend that is ≤ the right hand side dividend due to (a) while the
+	// divisor is = the right hand side divisor, and then (d) is equal to (c)
+	// per (b).  Adding 1 to both sides of (d) yields an inequality where the
+	// left hand side is the typical formula and the right hand side is the
+	// modified formula thereby proving it will never under count.
+	const log2Of10 = 3.321928094887362
+	maxOutDigits := uint8(float64(n.BitLen())/log2Of10) + 1
+	result := make([]byte, maxOutDigits)
+
+	// Convert each internal base 2^64 word to base 10 from least to most
+	// significant.  Since the value is guaranteed to be non-zero per a previous
+	// check, there will always be a nonzero most-significant word.  Also, note
+	// that partial digit handling is needed in this case because the shift
+	// amount does not evenly divide the bits per internal word.
+	var quo, rem, t Uint256
+	var r uint64
+	outputIdx := maxOutDigits - 1
+	quo = *n
+	for !quo.IsZero() {
+		rem.Set(&quo)
+		quo.Div(maxPow10ForInternalWord)
+		t.Mul2(&quo, maxPow10ForInternalWord)
+		inputWord := rem.Sub(&t).Uint64()
+		for inputWord != 0 {
+			inputWord, r = inputWord/10, inputWord%10
+			result[outputIdx] = '0' + byte(r)
+			outputIdx--
+		}
+	}
+
+	return result[outputIdx+1:]
+}
+
+// toHex converts the uint256 to its string representation in lowercase base 16.
+func (n *Uint256) toHex() []byte {
+	if n.IsZero() {
+		return []byte("0")
+	}
+
+	// Create space for the max possible number of output digits using the fact
+	// that a nibble converts directly to a single hex digit.
+	maxOutDigits := (n.BitLen() + 3) / 4
+	result := make([]byte, maxOutDigits)
+
+	// Convert each internal base 2^64 word to base 16 from least to most
+	// significant.  Since the value is guaranteed to be non-zero per a
+	// previous check, there will always be a nonzero most-significant word.
+	// Also, note that no partial digit handling is needed in this case
+	// because the shift amount evenly divides the bits per internal word.
+	const alphabet = "0123456789abcdef"
+	const shift = 4
+	const mask = 1<<shift - 1
+	const digitsPerInternalWord = bitsPerInternalWord / shift
+	outputIdx := maxOutDigits - 1
+	numInputWords := n.numDigits()
+	inputWord := n.n[0]
+	for inputIdx := 1; inputIdx < numInputWords; inputIdx++ {
+		for i := 0; i < digitsPerInternalWord; i++ {
+			result[outputIdx] = alphabet[inputWord&mask]
+			inputWord >>= shift
+			outputIdx--
+		}
+		inputWord = n.n[inputIdx]
+	}
+	for inputWord != 0 {
+		result[outputIdx] = alphabet[inputWord&mask]
+		inputWord >>= shift
+		outputIdx--
+	}
+
+	return result[outputIdx+1:]
+}
+
+// OutputBase represents a specific base to use for the string representation of
+// a number.
+type OutputBase int
+
+// These constants define the supported output bases.
+const (
+	// OutputBaseBinary indicates a string representation of a uint256 in
+	// base 2.
+	OutputBaseBinary OutputBase = 2
+
+	// OutputBaseOctal indicates a string representation of a uint256 in base 8.
+	OutputBaseOctal OutputBase = 8
+
+	// OutputBaseDecimal indicates a string representation of a uint256 in base
+	// 10.
+	OutputBaseDecimal OutputBase = 10
+
+	// OutputBaseHex indicates a string representation of a uint256 in base 16.
+	OutputBaseHex OutputBase = 16
+)
+
+// Text returns the string representation of the uint256 in the given base which
+// must be on of the supported bases as defined by the OutputBase type.
+//
+// It will return "<nil>" when the uint256 pointer is nil and a message that
+// indicates the base is not supported along with the value in base 10 in the
+// case the caller goes out of its way to call it with an invalid base.
+func (n *Uint256) Text(base OutputBase) string {
+	if n == nil {
+		return "<nil>"
+	}
+
+	switch base {
+	case OutputBaseHex:
+		return string(n.toHex())
+	case OutputBaseDecimal:
+		return string(n.toDecimal())
+	case OutputBaseBinary:
+		return string(n.toBin())
+	case OutputBaseOctal:
+		return string(n.toOctal())
+	}
+
+	return fmt.Sprintf("base %d not supported (Uint256=%s)", int(base), n)
+}
+
+// String returns the scalar as a human-readable decimal string.
+func (n Uint256) String() string {
+	return string(n.toDecimal())
+}
+
+// Format implements fmt.Formatter.  It accepts the following format verbs:
+//
+//  'v' default format which is decimal
+//  's' default string format which is decimal
+//  'b' binary
+//  'o' octal with 0 prefix when accompanied by #
+//  'O' octal with 0o prefix
+//  'd' decimal
+//  'x' lowercase hexadecimal
+//  'X' uppercase hexadecimal
+//
+// It also supports the full suite of the fmt package format flags for integral
+// types:
+//
+//  '#' output base prefix:
+//      binary: 0b (%#b)
+//      octal: 0 (%#o)
+//      hex: 0x (%#x) or 0X (%#X)
+//  '-' pad with spaces on the right (left-justify field)
+//  '0' pad with leading zeros rather than spaces
+//
+// Finally, it supports specification of the minimum number of digits
+// (precision) and output field width.  Examples:
+//
+//  %#.64x  default width, precision 64, lowercase hex with 0x prefix
+//  %256b   width 256, default precision, binary with leading zeros
+//  %12.3O  width 12, precision 3, octal with 0o prefix
+func (n Uint256) Format(s fmt.State, ch rune) {
+	// Determine output digits for the output base.
+	var digits []byte
+	switch ch {
+	case 'b':
+		digits = n.toBin()
+	case 'o', 'O':
+		digits = n.toOctal()
+	case 'd', 's', 'v':
+		digits = n.toDecimal()
+	case 'x':
+		digits = n.toHex()
+	case 'X':
+		digits = n.toHex()
+		for i, d := range digits {
+			if d >= 'a' && d <= 'f' {
+				digits[i] = 'A' + (d - 'a')
+			}
+		}
+
+	default:
+		fmt.Fprintf(s, "%%!%c(Uint256=%s)", ch, n.String())
+		return
+	}
+
+	// Determine prefix characters for the output base as needed.
+	var prefix string
+	if s.Flag('#') {
+		switch ch {
+		case 'b':
+			prefix = "0b"
+		case 'o':
+			prefix = "0"
+		case 'x':
+			prefix = "0x"
+		case 'X':
+			prefix = "0X"
+		}
+	}
+	if ch == 'O' {
+		prefix = "0o"
+	}
+
+	// Determine how many zeros to pad with based on whether or not a minimum
+	// number of digits to output is specified.
+	//
+	// Also, do not output anything when the minimum number of digits to output
+	// is zero and the uint256 is zero.
+	//
+	// Note that the zero padding might also be set below when the zero pad
+	// ('0') flag is specified and neither a precision nor the right justify
+	// ('-') flag is specified.
+	var zeroPad int
+	minDigits, isPrecisionSet := s.Precision()
+	if isPrecisionSet {
+		switch {
+		case len(digits) < minDigits:
+			zeroPad = minDigits - len(digits)
+		case minDigits == 0 && n.IsZero():
+			return
+		}
+	}
+
+	// Determine the left or right padding depending on whether or not a minimum
+	// number of characters to output is specified as well as the flags.
+	//
+	// A '-' flag indicates the output should be right justified and takes
+	// precedence over the zero pad ('0') flag.  Per the above, the zero pad
+	// flag is ignored when a minimum number of digits is specified.
+	var leftPad, rightPad int
+	digitsPlusPrefixLen := len(prefix) + zeroPad + len(digits)
+	width, isWidthSet := s.Width()
+	if isWidthSet && digitsPlusPrefixLen < width {
+		switch pad := width - digitsPlusPrefixLen; {
+		case s.Flag('-'):
+			rightPad = pad
+		case s.Flag('0') && !isPrecisionSet:
+			zeroPad = pad
+		default:
+			leftPad = pad
+		}
+	}
+
+	// Produce the following output:
+	//
+	//  [left pad][prefix][zero pad][digits][right pad]
+	var buf bytes.Buffer
+	buf.Grow(leftPad + len(prefix) + zeroPad + len(digits) + rightPad)
+	for i := 0; i < leftPad; i++ {
+		buf.WriteRune(' ')
+	}
+	buf.WriteString(prefix)
+	for i := 0; i < zeroPad; i++ {
+		buf.WriteRune('0')
+	}
+	buf.Write(digits)
+	for i := 0; i < rightPad; i++ {
+		buf.WriteRune(' ')
+	}
+	s.Write(buf.Bytes())
 }

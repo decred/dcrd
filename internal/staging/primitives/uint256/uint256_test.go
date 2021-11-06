@@ -3397,3 +3397,648 @@ func TestUint256BitLen(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Text ensures the converting uint256s to the supported output bases
+// via the Text method works as intended that that it also handles nil pointers
+// as intended.
+func TestUint256Text(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string     // test description
+		n    string     // hex encoded test value
+		base OutputBase // base to output
+		want string     // expected output
+	}{{
+		name: "binary",
+		n:    "01abc",
+		base: OutputBaseBinary,
+		want: "1101010111100",
+	}, {
+		name: "octal",
+		n:    "01abc",
+		base: OutputBaseOctal,
+		want: "15274",
+	}, {
+		name: "decimal",
+		n:    "01abc",
+		base: OutputBaseDecimal,
+		want: "6844",
+	}, {
+		name: "hex",
+		n:    "01abc",
+		base: OutputBaseHex,
+		want: "1abc",
+	}, {
+		name: "unsupported base",
+		n:    "01abc",
+		base: OutputBase(100),
+		want: "base 100 not supported (Uint256=6844)",
+	}}
+
+	var nNil *Uint256
+	for _, test := range tests {
+		// Ensure nil pointers are handled as expected.
+		got := nNil.Text(test.base)
+		want := "<nil>"
+		if got != want {
+			t.Errorf("%q: unexpected nil result -- got: %s, want: %s",
+				test.name, got, want)
+		}
+
+		// Parse test hex and ensure expected output for test output base.
+		n := hexToUint256(test.n)
+		got = n.Text(test.base)
+		if got != test.want {
+			t.Errorf("%q: unexpected result -- got: %s, want: %s", test.name,
+				got, test.want)
+		}
+	}
+}
+
+// TestUint256Format ensures that formatting a uint256 via its fmt.Formatter
+// works as intended including things such as the supported output bases,
+// flags for alternate format (e.g. output bases, leading zeros), padding, and
+// precision.
+func TestUint256Format(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded test value
+		fmt  string // format string
+		want string // expected output
+	}{{
+		// ---------------------------------------------------------------------
+		// Zero for all supported bases with and without base prefix.
+		// ---------------------------------------------------------------------
+
+		name: "0 binary",
+		n:    "0",
+		fmt:  "%b",
+		want: "0",
+	}, {
+		name: "0 binary with base prefix",
+		n:    "0",
+		fmt:  "%#b",
+		want: "0b0",
+	}, {
+		name: "0 octal",
+		n:    "0",
+		fmt:  "%o",
+		want: "0",
+	}, {
+		name: "0 octal with '0' base prefix",
+		n:    "0",
+		fmt:  "%#o",
+		want: "00",
+	}, {
+		name: "0 octal with '0o' base prefix",
+		n:    "0",
+		fmt:  "%O",
+		want: "0o0",
+	}, {
+		name: "0 decimal",
+		n:    "0",
+		fmt:  "%d",
+		want: "0",
+	}, {
+		name: "0 decimal with base prefix (no effect)",
+		n:    "0",
+		fmt:  "%#d",
+		want: "0",
+	}, {
+		name: "0 hex",
+		n:    "0",
+		fmt:  "%x",
+		want: "0",
+	}, {
+		name: "0 hex with lowercase base prefix",
+		n:    "0",
+		fmt:  "%#x",
+		want: "0x0",
+	}, {
+		name: "0 hex with uppercase base prefix",
+		n:    "0",
+		fmt:  "%#X",
+		want: "0X0",
+	}, {
+		// ---------------------------------------------------------------------
+		// Binary output for various values and base prefix combinations.
+		// ---------------------------------------------------------------------
+
+		name: "2^8 - 1 binary",
+		n:    "ff",
+		fmt:  "%b",
+		want: "11111111",
+	}, {
+		name: "2^8 - 1 binary with base prefix",
+		n:    "ff",
+		fmt:  "%#b",
+		want: "0b11111111",
+	}, {
+		name: "2^16 - 1 binary",
+		n:    "ffff",
+		fmt:  "%b",
+		want: "1111111111111111",
+	}, {
+		name: "2^32 - 1 binary",
+		n:    "ffffffff",
+		fmt:  "%b",
+		want: "11111111111111111111111111111111",
+	}, {
+		name: "2^64 - 1 binary",
+		n:    "ffffffffffffffff",
+		fmt:  "%b",
+		want: "1111111111111111111111111111111111111111111111111111111111111111",
+	}, {
+		name: "2^128 - 1 binary",
+		n:    "ffffffffffffffffffffffffffffffff",
+		fmt:  "%b",
+		want: "1111111111111111111111111111111111111111111111111111111111111111" +
+			"1111111111111111111111111111111111111111111111111111111111111111",
+	}, {
+		name: "2^256 - 1 binary",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		fmt:  "%b",
+		want: "1111111111111111111111111111111111111111111111111111111111111111" +
+			"1111111111111111111111111111111111111111111111111111111111111111" +
+			"1111111111111111111111111111111111111111111111111111111111111111" +
+			"1111111111111111111111111111111111111111111111111111111111111111",
+	}, {
+		// ---------------------------------------------------------------------
+		// Octal output for various values and base prefix combinations.
+		// ---------------------------------------------------------------------
+
+		name: "2^8 - 1 octal",
+		n:    "ff",
+		fmt:  "%o",
+		want: "377",
+	}, {
+		name: "2^8 - 1 octal with '0' base prefix",
+		n:    "ff",
+		fmt:  "%#o",
+		want: "0377",
+	}, {
+		name: "2^16 - 1 octal",
+		n:    "ffff",
+		fmt:  "%o",
+		want: "177777",
+	}, {
+		name: "2^32 - 1 octal",
+		n:    "ffffffff",
+		fmt:  "%o",
+		want: "37777777777",
+	}, {
+		name: "2^64 - 1 octal with '0o' base prefix",
+		n:    "ffffffffffffffff",
+		fmt:  "%O",
+		want: "0o1777777777777777777777",
+	}, {
+		name: "2^128 - 1 octal",
+		n:    "ffffffffffffffffffffffffffffffff",
+		fmt:  "%o",
+		want: "3777777777777777777777777777777777777777777",
+	}, {
+		name: "2^256 - 1 octal",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		fmt:  "%o",
+		want: "17777777777777777777777777777777777777777777777777777777777777" +
+			"777777777777777777777777",
+	}, {
+		// ---------------------------------------------------------------------
+		// Decimal output for various values via %d, %s, and %v.
+		// ---------------------------------------------------------------------
+
+		name: "2^8 - 1 decimal",
+		n:    "ff",
+		fmt:  "%d",
+		want: "255",
+	}, {
+		name: "2^16 - 1 decimal",
+		n:    "ffff",
+		fmt:  "%d",
+		want: "65535",
+	}, {
+		name: "2^32 - 1 decimal",
+		n:    "ffffffff",
+		fmt:  "%d",
+		want: "4294967295",
+	}, {
+		name: "2^64 - 1 decimal",
+		n:    "ffffffffffffffff",
+		fmt:  "%d",
+		want: "18446744073709551615",
+	}, {
+		name: "2^128 - 1 decimal",
+		n:    "ffffffffffffffffffffffffffffffff",
+		fmt:  "%d",
+		want: "340282366920938463463374607431768211455",
+	}, {
+		name: "2^256 - 1 decimal",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		fmt:  "%d",
+		want: "11579208923731619542357098500868790785326998466564056403945758" +
+			"4007913129639935",
+	}, {
+		name: "10^9 decimal via %s",
+		n:    "3b9aca00",
+		fmt:  "%s",
+		want: "1000000000",
+	}, {
+		name: "123456789 decimal via %v",
+		n:    "75bcd15",
+		fmt:  "%v",
+		want: "123456789",
+	}, {
+		// ---------------------------------------------------------------------
+		// Hex output for various values and base prefix combinations.
+		// ---------------------------------------------------------------------
+
+		name: "2^8 - 1 hex",
+		n:    "ff",
+		fmt:  "%x",
+		want: "ff",
+	}, {
+		name: "2^8 - 1 hex with lowercase base prefix",
+		n:    "ff",
+		fmt:  "%#x",
+		want: "0xff",
+	}, {
+		name: "2^8 - 1 hex with uppercase base prefix",
+		n:    "ff",
+		fmt:  "%#X",
+		want: "0XFF",
+	}, {
+		name: "2^16 - 1 hex",
+		n:    "ffff",
+		fmt:  "%x",
+		want: "ffff",
+	}, {
+		name: "2^32 - 1 hex",
+		n:    "ffffffff",
+		fmt:  "%x",
+		want: "ffffffff",
+	}, {
+		name: "2^64 - 1 hex",
+		n:    "ffffffffffffffff",
+		fmt:  "%x",
+		want: "ffffffffffffffff",
+	}, {
+		name: "2^128 - 1 hex with lowercase base prefix",
+		n:    "ffffffffffffffffffffffffffffffff",
+		fmt:  "%#x",
+		want: "0xffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^256 - 1 hex",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		fmt:  "%x",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		// ---------------------------------------------------------------------
+		// Min precision with and without base prefix / zero pad flag.
+		// ---------------------------------------------------------------------
+
+		name: "binary min 8 bits w/ val < 8 bits",
+		n:    "a",
+		fmt:  "%.8b",
+		want: "00001010",
+	}, {
+		name: "octal min 6 digits w/ val < 6 digits",
+		n:    "4551",
+		fmt:  "%.6o",
+		want: "042521",
+	}, {
+		name: "decimal min 5 digits w/ val < 5 digits",
+		n:    "270f",
+		fmt:  "%.5d",
+		want: "09999",
+	}, {
+		name: "hex min 12 digits w/ val < 12 digits",
+		n:    "abcdef",
+		fmt:  "%.12x",
+		want: "000000abcdef",
+	}, {
+		name: "binary min 8 bits w/ val < 8 bits zero pad",
+		n:    "a",
+		fmt:  "%0.8b",
+		want: "00001010",
+	}, {
+		name: "octal min 6 digits w/ val 6 digits zero pad",
+		n:    "8555",
+		fmt:  "%0.6o",
+		want: "102525",
+	}, {
+		name: "decimal min 5 digits w/ val 5 digits zero pad",
+		n:    "2710",
+		fmt:  "%0.5d",
+		want: "10000",
+	}, {
+		name: "hex min 12 digits w/ val 12 digits",
+		n:    "abcdefabcdef",
+		fmt:  "%.12x",
+		want: "abcdefabcdef",
+	}, {
+		name: "binary min 8 bits w/ val > 8 bits zero pad",
+		n:    "100",
+		fmt:  "%0.8b",
+		want: "100000000",
+	}, {
+		name: "octal min 6 digits w/ val > 6 digits",
+		n:    "40000",
+		fmt:  "%.6o",
+		want: "1000000",
+	}, {
+		name: "decimal min 5 digits w/ val > 5 digits",
+		n:    "186a0",
+		fmt:  "%.5d",
+		want: "100000",
+	}, {
+		name: "hex min 12 digits w/ val > 12 digits",
+		n:    "1000000000000",
+		fmt:  "%.12x",
+		want: "1000000000000",
+	}, {
+		name: "binary min 8 bits w/ val < 8 bits and base prefix",
+		n:    "a",
+		fmt:  "%#.8b",
+		want: "0b00001010",
+	}, {
+		name: "octal min 6 digits w/ val < 6 digits and '0' base prefix",
+		n:    "4551",
+		fmt:  "%#.6o",
+		want: "0042521",
+	}, {
+		name: "octal min 6 digits w/ val < 6 digits and '0o' base prefix",
+		n:    "4551",
+		fmt:  "%0.6O",
+		want: "0o042521",
+	}, {
+		name: "decimal min 5 digits w/ val < 5 digits and base prefix",
+		n:    "270f",
+		fmt:  "%#.5d",
+		want: "09999",
+	}, {
+		name: "hex min 12 digits w/ val < 12 digits and base prefix lowercase",
+		n:    "abcdef",
+		fmt:  "%#.12x",
+		want: "0x000000abcdef",
+	}, {
+		name: "hex min 12 digits w/ val < 12 digits and base prefix uppercase",
+		n:    "abcdef",
+		fmt:  "%#.12X",
+		want: "0X000000ABCDEF",
+	}, {
+		// ---------------------------------------------------------------------
+		// Min width with and without base prefix / zero pad flag.
+		// ---------------------------------------------------------------------
+
+		name: "binary min width 8 w/ val < 8 bits zero pad",
+		n:    "a",
+		fmt:  "%08b",
+		want: "00001010",
+	}, {
+		name: "octal min width 6 w/ val < 6 digits zero pad",
+		n:    "4551",
+		fmt:  "%06o",
+		want: "042521",
+	}, {
+		name: "decimal min width 5 w/ val < 5 digits zero pad",
+		n:    "270f",
+		fmt:  "%05d",
+		want: "09999",
+	}, {
+		name: "hex min width 12 w/ val < 12 digits zero pad",
+		n:    "abcdef",
+		fmt:  "%012x",
+		want: "000000abcdef",
+	}, {
+		name: "binary min width 8 w/ val > 8 bits zero pad",
+		n:    "100",
+		fmt:  "%08b",
+		want: "100000000",
+	}, {
+		name: "octal min width 6 w/ val > 6 digits zero pad",
+		n:    "40000",
+		fmt:  "%06o",
+		want: "1000000",
+	}, {
+		name: "decimal min width 5 w/ val > 5 digits zero pad",
+		n:    "186a0",
+		fmt:  "%05d",
+		want: "100000",
+	}, {
+		name: "hex min width 12 w/ val > 12 digits zero pad",
+		n:    "1000000000000",
+		fmt:  "%012x",
+		want: "1000000000000",
+	}, {
+		name: "binary min width 8 w/ val < 8 bits left pad",
+		n:    "a",
+		fmt:  "%8b",
+		want: "    1010",
+	}, {
+		name: "octal min width 6 w/ val < 6 digits left pad",
+		n:    "4551",
+		fmt:  "%6o",
+		want: " 42521",
+	}, {
+		name: "decimal min width 5 w/ val < 5 digits left pad",
+		n:    "270f",
+		fmt:  "%5d",
+		want: " 9999",
+	}, {
+		name: "hex min width 12 w/ val < 12 digits left pad",
+		n:    "abcdef",
+		fmt:  "%12x",
+		want: "      abcdef",
+	}, {
+		name: "binary min width 8 w/ val > 8 bits left pad",
+		n:    "100",
+		fmt:  "%8b",
+		want: "100000000",
+	}, {
+		name: "octal min width 6 w/ val > 6 digits left pad",
+		n:    "40000",
+		fmt:  "%6o",
+		want: "1000000",
+	}, {
+		name: "decimal min width 5 w/ val > 5 digits left pad",
+		n:    "186a0",
+		fmt:  "%5d",
+		want: "100000",
+	}, {
+		name: "hex min width 12 w/ val > 12 digits left pad",
+		n:    "1000000000000",
+		fmt:  "%12x",
+		want: "1000000000000",
+	}, {
+		name: "binary min width 8 w/ val < 8 bits right pad",
+		n:    "a",
+		fmt:  "%-8b",
+		want: "1010    ",
+	}, {
+		name: "octal min width 6 w/ val < 6 digits right pad",
+		n:    "4551",
+		fmt:  "%-6o",
+		want: "42521 ",
+	}, {
+		name: "decimal min width 5 w/ val < 5 digits right pad",
+		n:    "270f",
+		fmt:  "%-5d",
+		want: "9999 ",
+	}, {
+		name: "hex min width 12 w/ val < 12 digits right pad",
+		n:    "abcdef",
+		fmt:  "%-12x",
+		want: "abcdef      ",
+	}, {
+		name: "binary min width 8 w/ val > 8 bits right pad",
+		n:    "100",
+		fmt:  "%-8b",
+		want: "100000000",
+	}, {
+		name: "octal min width 6 w/ val > 6 digits right pad",
+		n:    "40000",
+		fmt:  "%-6o",
+		want: "1000000",
+	}, {
+		name: "decimal min width 5 w/ val > 5 digits right pad",
+		n:    "186a0",
+		fmt:  "%-5d",
+		want: "100000",
+	}, {
+		name: "hex min width 12 w/ val > 12 digits right pad",
+		n:    "1000000000000",
+		fmt:  "%-12x",
+		want: "1000000000000",
+	}, {
+		name: "binary min width 8 w/ val < 8 bits and base prefix left pad",
+		n:    "a",
+		fmt:  "%#8b",
+		want: "  0b1010",
+	}, {
+		name: "octal min width 6 w/ val < 6 digits and base prefix left pad",
+		n:    "4551",
+		fmt:  "%#6o",
+		want: "042521",
+	}, {
+		name: "decimal min width 5 w/ val < 5 digits and base prefix left pad",
+		n:    "270f",
+		fmt:  "%#5d",
+		want: " 9999",
+	}, {
+		name: "hex min width 12 w/ val < 12 digits and base prefix left pad",
+		n:    "abcdef",
+		fmt:  "%#12x",
+		want: "    0xabcdef",
+	}, {
+		name: "binary min width 8 w/ val > 8 bits and base prefix left pad",
+		n:    "100",
+		fmt:  "%#8b",
+		want: "0b100000000",
+	}, {
+		name: "octal min width 6 w/ val > 6 digits and base prefix left pad",
+		n:    "40000",
+		fmt:  "%#6o",
+		want: "01000000",
+	}, {
+		name: "decimal min width 5 w/ val > 5 digits and base prefix left pad",
+		n:    "186a0",
+		fmt:  "%#5d",
+		want: "100000",
+	}, {
+		name: "hex min width 12 w/ val > 12 digits and base prefix left pad",
+		n:    "1000000000000",
+		fmt:  "%#12x",
+		want: "0x1000000000000",
+	}, {
+		name: "binary min width 8 w/ val < 8 bits and base prefix zero pad",
+		n:    "a",
+		fmt:  "%#08b",
+		want: "0b001010",
+	}, {
+		name: "octal min width 6 w/ val < 6 digits and base prefix zero pad",
+		n:    "4551",
+		fmt:  "%#06o",
+		want: "042521",
+	}, {
+		name: "decimal min width 5 w/ val < 5 digits and base prefix zero pad",
+		n:    "270f",
+		fmt:  "%#05d",
+		want: "09999",
+	}, {
+		name: "hex min width 12 w/ val < 12 digits and base prefix zero pad",
+		n:    "abcdef",
+		fmt:  "%#012x",
+		want: "0x0000abcdef",
+	}, {
+		// ---------------------------------------------------------------------
+		// Mixed min width and precision with and without base prefix.
+		// ---------------------------------------------------------------------
+
+		name: "binary min width 8 min 6 bits w/ val 4 bits",
+		n:    "9",
+		fmt:  "%8.6b",
+		want: "  001001",
+	}, {
+		name: "octal min width 10 min 3 digits w/ val 2 digits and '0o' prefix",
+		n:    "d",
+		fmt:  "%10.3O",
+		want: "     0o015",
+	}, {
+		name: "decimal min width 12 min 7 digits w/ val 5 digits",
+		n:    "c34f",
+		fmt:  "%12.7d",
+		want: "     0049999",
+	}, {
+		name: "hex min width 32 min 16 digits w/ val 9 digits and base prefix",
+		n:    "89abcdef0",
+		fmt:  "%#32.16x",
+		want: "              0x000000089abcdef0",
+	}, {
+		// ---------------------------------------------------------------------
+		// Zero digits via precision with value == 0.
+		// ---------------------------------------------------------------------
+
+		name: "binary min 0 implied digits w/ val == 0",
+		n:    "0",
+		fmt:  "%.b",
+		want: "",
+	}, {
+		name: "octal min 0 digits w/ val == 0",
+		n:    "0",
+		fmt:  "%.0o",
+		want: "",
+	}, {
+		name: "decimal min 0 digits w/ val == 0 zero pad",
+		n:    "0",
+		fmt:  "%0.0d",
+		want: "",
+	}, {
+		name: "hex min 0 digits w/ val == 0 and base prefix",
+		n:    "0",
+		fmt:  "%#.0x",
+		want: "",
+	}, {
+		// ---------------------------------------------------------------------
+		// Misc.
+		// ---------------------------------------------------------------------
+
+		name: "unsupported format verb",
+		n:    "1000",
+		fmt:  "%f",
+		want: "%!f(Uint256=4096)",
+	}}
+
+	for _, test := range tests {
+		// Parse test hex.
+		n := hexToUint256(test.n)
+
+		got := fmt.Sprintf(test.fmt, n)
+		if got != test.want {
+			t.Errorf("%q: unexpected result -- got: %s, want: %s", test.name,
+				got, test.want)
+		}
+	}
+}
