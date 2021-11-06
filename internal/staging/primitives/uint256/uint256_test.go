@@ -4042,3 +4042,38 @@ func TestUint256Format(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256ToBigRandom ensures that converting uint256s created from random
+// values to big ints works as expected.
+func TestUint256ToBigRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair.
+		wantBig, n1 := randBigIntAndUint256(t, rng)
+
+		// Convert to a big int and ensure they match.
+		bigIntResult := n1.ToBig()
+		if bigIntResult.Cmp(wantBig) != 0 {
+			t.Fatalf("mismatched big conversion: %x -- got %x, want %x", n1,
+				bigIntResult, wantBig)
+		}
+
+		// Ensure setting an existing big int directly matches as well.
+		var bigIntResult2 big.Int
+		n1.PutBig(&bigIntResult2)
+		if bigIntResult2.Cmp(wantBig) != 0 {
+			t.Fatalf("mismatched big conversion: %x -- got %x, want %x", n1,
+				&bigIntResult2, wantBig)
+		}
+	}
+}

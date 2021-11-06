@@ -9,6 +9,7 @@ package uint256
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 	"math/bits"
 )
 
@@ -33,6 +34,12 @@ var (
 // methods such as determining the minimum number of bits required to represent
 // the current value, whether or not the value can be represented as a uint64
 // without loss of precision, and text formatting with base conversion.
+//
+// Should it be absolutely necessary, conversion to the standard library
+// math/big.Int can be accomplished by using the ToBig or PutBig methods.
+// However, that should typically be avoided when possible as conversion to
+// big.Ints requires allocations and is slower for every operation, often to a
+// significant degree.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -1729,4 +1736,43 @@ func (n Uint256) Format(s fmt.State, ch rune) {
 		buf.WriteRune(' ')
 	}
 	s.Write(buf.Bytes())
+}
+
+// PutBig sets the passed existing stdlib big integer to the value the uint256
+// currently represents.
+//
+// This can sometimes be useful to reduce the number of allocations due to
+// conversion if reusing the same variable is an option.  The reason is that
+// stdlib big integers internally allocate space on the heap to perform their
+// operations and attempt to reuse that internal buffer when possible.
+//
+// Do note however that even when reusing a big integer, it will naturally still
+// require an allocation for the internal buffer unless it has already allocated
+// one large enough to be reused.  Moreover, they often require further
+// allocations while performing arithmetic, notably multiplication and division.
+//
+// Applications that are performance sensitive should consider avoiding
+// conversion to big integers altogether when possible.
+//
+// See ToBig for a variant that returns the uint256 as a new stdlib big integer
+// instead which can sometimes be more ergonomic in contexts where additional
+// allocations are not a concern.
+func (n *Uint256) PutBig(out *big.Int) {
+	b := n.Bytes()
+	out.SetBytes(b[:])
+}
+
+// ToBig returns the uint256 as a stdlib big integer.
+//
+// Note that this is nearly guaranteed to cause two allocations.  Applications
+// that are performance sensitive should consider using PutBig instead or avoid
+// conversion to big integers altogether when possible.
+//
+// See PutBig for a variant that allows an existing big integer to be reused
+// which can be useful to cut down on the number of allocations by allowing the
+// caller to reuse a big integer that already has an internal buffer allocated.
+func (n *Uint256) ToBig() *big.Int {
+	var out big.Int
+	n.PutBig(&out)
+	return &out
 }
