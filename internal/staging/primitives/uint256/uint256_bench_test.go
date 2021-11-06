@@ -14,6 +14,7 @@ import (
 
 // These variables are used to help ensure the benchmarks do not elide code.
 var (
+	noElideBool  bool
 	noElideBytes []byte
 )
 
@@ -55,6 +56,12 @@ var randBenchVals = func() []randBenchVal {
 	}
 	return vals
 }()
+
+// maxUint256Bytes returns the raw bytes for a max value unsigned 256-bit
+// big-endian integer used throughout the benchmarks.
+func maxUint256Bytes() []byte {
+	return hexToBytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+}
 
 // BenchmarkUint256SetBytes benchmarks initializing an unsigned 256-bit integer
 // from bytes in big endian with the specialized type.
@@ -189,6 +196,58 @@ func BenchmarkBigIntBytesLE(b *testing.B) {
 				buf[i], buf[blen-1-i] = buf[blen-1-i], buf[i]
 			}
 			noElideBytes = buf
+		}
+	}
+}
+
+// BenchmarkUint256Zero benchmarks zeroing an unsigned 256-bit integer with the
+// specialized type.
+func BenchmarkUint256Zero(b *testing.B) {
+	n := new(Uint256).SetByteSlice(maxUint256Bytes())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		n.Zero()
+	}
+}
+
+// BenchmarkBigIntZero benchmarks zeroing an unsigned 256-bit integer with
+// stdlib big integers.
+func BenchmarkBigIntZero(b *testing.B) {
+	n := new(big.Int).SetBytes(maxUint256Bytes())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		n.SetUint64(0)
+	}
+}
+
+// BenchmarkUint256IsZero benchmarks determining if an unsigned 256-bit integer
+// is zero with the specialized type.
+func BenchmarkUint256IsZero(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			noElideBool = vals[j].n1.IsZero()
+		}
+	}
+}
+
+// BenchmarkBigIntIsZero benchmarks determining if an unsigned 256-bit integer
+// is zero with stdlib big integers.
+func BenchmarkBigIntIsZero(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			noElideBool = vals[j].bigN1.Sign() == 0
 		}
 	}
 }
