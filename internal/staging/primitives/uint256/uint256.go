@@ -18,16 +18,16 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for comparison operations (equals, less),
-// interpreting and producing big and little endian bytes, and other convenience
-// methods such as whether or not the value can be represented as a uint64
-// without loss of precision.
+// It currently implements support for comparison operations (equals, less,
+// greater), interpreting and producing big and little endian bytes, and other
+// convenience methods such as whether or not the value can be represented as a
+// uint64 without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (greater,
-// cmp), and other convenience methods such as determining the minimum number of
-// bits required to represent the current value and text formatting with base
+// operations (lsh, rsh, not, or, and, xor), comparison operations (cmp), and
+// other convenience methods such as determining the minimum number of bits
+// required to represent the current value and text formatting with base
 // conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
@@ -397,4 +397,16 @@ func (n *Uint256) LtEq(n2 *Uint256) bool {
 // given uint64.  That is, it returns true when n <= n2.
 func (n *Uint256) LtEqUint64(n2 uint64) bool {
 	return n.n[0] <= n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
+}
+
+// Gt returns whether or not the uint256 is greater than the given one.  That
+// is, it returns true when n > n2.
+func (n *Uint256) Gt(n2 *Uint256) bool {
+	return n2.Lt(n)
+}
+
+// GtUint64 returns whether or not the uint256 is greater than the given uint64.
+// That is, it returns true when n > n2.
+func (n *Uint256) GtUint64(n2 uint64) bool {
+	return n.n[0] > n2 || (n.n[1]|n.n[2]|n.n[3]) != 0
 }

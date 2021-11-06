@@ -876,6 +876,15 @@ func TestUint256Comparison(t *testing.T) {
 				isLtEq, wantLtEq)
 			continue
 		}
+
+		// Ensure comparing the numbers produces the expected > result.
+		isGt := n1.Gt(n2)
+		wantGt := test.wantCmp > 0
+		if isGt != wantGt {
+			t.Errorf("%q: incorrect > result -- got: %v, want: %v", test.name,
+				isGt, wantGt)
+			continue
+		}
 	}
 }
 
@@ -931,6 +940,15 @@ func TestUint256ComparisonRandom(t *testing.T) {
 		if isLtEq != wantLtEq {
 			t.Errorf("incorrect <= result n1: %x, n2: %x -- got: %v, want: %v",
 				n1, n2, isLtEq, wantLtEq)
+			continue
+		}
+
+		// Ensure comparing the numbers produces the expected > result.
+		isGt := n1.Gt(n2)
+		wantGt := bigCmpResult > 0
+		if isGt != wantGt {
+			t.Errorf("incorrect > result n1: %x, n2: %x -- got: %v, want: %v",
+				n1, n2, isGt, wantGt)
 			continue
 		}
 	}
@@ -1051,6 +1069,15 @@ func TestUint256ComparisonUint64(t *testing.T) {
 				isLt, wantLtEq)
 			continue
 		}
+
+		// Ensure comparing the numbers produces the expected > result.
+		isGt := n1.GtUint64(test.n2)
+		wantGt := test.wantCmp > 0
+		if isGt != wantGt {
+			t.Errorf("%q: incorrect > result -- got: %v, want: %v", test.name,
+				isGt, wantGt)
+			continue
+		}
 	}
 }
 
@@ -1108,6 +1135,15 @@ func TestUint256ComparisonUint64Random(t *testing.T) {
 		if isLtEq != wantLtEq {
 			t.Errorf("incorrect <= result n1: %x, n2: %x -- got: %v, want: %v",
 				n1, n2, isLtEq, wantLtEq)
+			continue
+		}
+
+		// Ensure comparing the numbers produces the expected > result.
+		isGt := n1.GtUint64(n2)
+		wantGt := bigCmpResult > 0
+		if isGt != wantGt {
+			t.Errorf("incorrect > result n1: %x, n2: %x -- got: %v, want: %v",
+				n1, n2, isGt, wantGt)
 			continue
 		}
 	}
