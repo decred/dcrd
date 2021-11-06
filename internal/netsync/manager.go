@@ -1007,7 +1007,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 
 	// Process all of the received headers.
 	for _, header := range headers {
-		err := chain.ProcessBlockHeader(header, blockchain.BFNone)
+		err := chain.ProcessBlockHeader(header)
 		if err != nil {
 			// Note that there is no need to check for an orphan header here
 			// because they were already verified to connect above.

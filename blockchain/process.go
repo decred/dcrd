@@ -159,7 +159,7 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, flags Beha
 // be processed in order.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader, flags BehaviorFlags) error {
+func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader) error {
 	b.processLock.Lock()
 	defer b.processLock.Unlock()
 
@@ -172,7 +172,7 @@ func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader, flags Behavior
 	// positional checks, and create a block index entry for it.
 	b.chainLock.Lock()
 	const checkHeaderSanity = true
-	_, err := b.maybeAcceptBlockHeader(header, flags, checkHeaderSanity)
+	_, err := b.maybeAcceptBlockHeader(header, BFNone, checkHeaderSanity)
 	if err != nil {
 		b.chainLock.Unlock()
 		return err
