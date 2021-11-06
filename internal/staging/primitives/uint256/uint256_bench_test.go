@@ -944,3 +944,39 @@ func BenchmarkBigIntNegate(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Lsh benchmarks left shifting an unsigned 256-bit integer with
+// the specialized type.
+func BenchmarkUint256Lsh(b *testing.B) {
+	for _, bits := range []uint32{0, 1, 64, 128, 192, 255, 256} {
+		benchName := fmt.Sprintf("bits %d", bits)
+		b.Run(benchName, func(b *testing.B) {
+			result := new(Uint256)
+			max256 := new(Uint256).SetByteSlice(maxUint256Bytes())
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				result.LshVal(max256, bits)
+			}
+		})
+	}
+}
+
+// BenchmarkBigIntLsh benchmarks left shifting an unsigned 256-bit integer with
+// stdlib big integers.
+func BenchmarkBigIntLsh(b *testing.B) {
+	for _, bits := range []uint{0, 1, 64, 128, 192, 255, 256} {
+		benchName := fmt.Sprintf("bits %d", bits)
+		b.Run(benchName, func(b *testing.B) {
+			result := new(big.Int)
+			max256 := new(big.Int).SetBytes(maxUint256Bytes())
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				result.Lsh(max256, bits)
+			}
+		})
+	}
+}
