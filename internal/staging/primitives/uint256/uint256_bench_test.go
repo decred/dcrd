@@ -650,3 +650,238 @@ func BenchmarkBigIntSquare(b *testing.B) {
 		}
 	}
 }
+
+// divBenchTest describes tests that are used for the deterministic division
+// benchmarks.  It is defined separately so the same tests can easily be used in
+// comparison benchmarks between the specialized type in this package and stdlib
+// big integers.
+type divBenchTest struct {
+	name string   // benchmark description
+	n1   *Uint256 // dividend
+	n2   *Uint256 // divisor
+}
+
+// makeDivBenches returns a slice of tests that consist of deterministic
+// unsigned 256-bit integers of various lengths for use in the division
+// benchmarks.
+func makeDivBenches() []divBenchTest {
+	return []divBenchTest{{
+		// (1<<256 - 2) / (1<<256 - 1)
+		name: "dividend lt divisor",
+		n1:   hexToUint256("fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe"),
+		n2:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<256 - 1)
+		name: "dividend eq divisor",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<64 - 1) / (1<<64 - 255)
+		name: "1 by 1 near",
+		n1:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffff01"),
+	}, {
+		// (1<<64 - 1) / (1<<2 - 1)
+		name: "1 by 1 far",
+		n1:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000000000000000000000000000000000000000000000000003"),
+	}, {
+		// (1<<128 - 1) / (1<<64 - 1)
+		name: "2 by 1 near",
+		n1:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffffff"),
+	}, {
+		// (1<<128 - 1) / (1<<2 - 1)
+		name: "2 by 1 far",
+		n1:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000000000000000000000000000000000000000000000000003"),
+	}, {
+		// (1<<192 - 1) / (1<<64 - 1)
+		name: "3 by 1 near",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffffff"),
+	}, {
+		// (1<<192 - 1) / (1<<2 - 1)
+		name: "3 by 1 far",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000000000000000000000000000000000000000000000000003"),
+	}, {
+		// (1<<256 - 1) / (1<<64 - 1)
+		name: "4 by 1 near",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000000ffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<2 - 1)
+		name: "4 by 1 far",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000000000000000000000000000000000000000000000000003"),
+	}, {
+		// (1<<128 - 1) / (1<<128 - 255)
+		name: "2 by 2 near",
+		n1:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffff01"),
+	}, {
+		// (1<<128 - 1) / (1<<65 - 1)
+		name: "2 by 2 far",
+		n1:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000001ffffffffffffffff"),
+	}, {
+		// (1<<192 - 1) / (1<<128 - 1)
+		name: "3 by 2 near",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<192 - 1) / (1<<65 - 1)
+		name: "3 by 2 far",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000001ffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<128 - 1)
+		name: "4 by 2 near",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("00000000000000000000000000000000ffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<65 - 1)
+		name: "4 by 2 far",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("000000000000000000000000000000000000000000000001ffffffffffffffff"),
+	}, {
+		// (1<<192 - 1) / (1<<192 - 255)
+		name: "3 by 3 near",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffff01"),
+	}, {
+		// (1<<192 - 1) / (1<<129 - 1)
+		name: "3 by 3 far",
+		n1:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("00000000000000000000000000000001ffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<192 - 1)
+		name: "4 by 3 near",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<129 - 1)
+		name: "4 by 3 far",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("00000000000000000000000000000001ffffffffffffffffffffffffffffffff"),
+	}, {
+		// (1<<256 - 1) / (1<<256 - 255)
+		name: "4 by 4 near",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01"),
+	}, {
+		// (1<<256 - 1) / (1<<193 - 1)
+		name: "4 by 4 far",
+		n1:   hexToUint256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+		n2:   hexToUint256("0000000000000001ffffffffffffffffffffffffffffffffffffffffffffffff"),
+	}}
+}
+
+// BenchmarkUint256Div benchmarks computing the quotient of deterministic
+// unsigned 256-bit integers of various length with the specialized type.
+func BenchmarkUint256Div(b *testing.B) {
+	benches := makeDivBenches()
+	for benchIdx := range benches {
+		bench := benches[benchIdx]
+		b.Run(bench.name, func(b *testing.B) {
+			n := new(Uint256)
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				n.Div2(bench.n1, bench.n2)
+			}
+		})
+	}
+}
+
+// BenchmarkUint256DivRandom benchmarks computing the quotient of random large
+// unsigned 256-bit integers with the specialized type.
+func BenchmarkUint256DivRandom(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Div2(val.n1, val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntDiv benchmarks computing the quotient of deterministic
+// unsigned 256-bit integers of various length with stdlib big integers.
+func BenchmarkBigIntDiv(b *testing.B) {
+	benches := makeDivBenches()
+	for benchIdx := range benches {
+		bench := benches[benchIdx]
+		b.Run(bench.name, func(b *testing.B) {
+			n := new(big.Int)
+			n1Bytes, n2Bytes := bench.n1.Bytes(), bench.n2.Bytes()
+			n1 := new(big.Int).SetBytes(n1Bytes[:])
+			n2 := new(big.Int).SetBytes(n2Bytes[:])
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				n.Div(n1, n2)
+			}
+		})
+	}
+}
+
+// BenchmarkBigIntDivRandom benchmarks computing the quotient of random large
+// unsigned 256-bit integers with stdlib big integers.
+func BenchmarkBigIntDivRandom(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Div(val.bigN1, val.bigN2)
+			n.Mod(n, two256)
+		}
+	}
+}
+
+// BenchmarkUint256DivUint64 benchmarks computing the quotient of an unsigned
+// 256-bit integer and unsigned 64-bit integer with the specialized type.
+func BenchmarkUint256DivUint64(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.n1)
+			n.DivUint64(val.n2Low64.Uint64())
+		}
+	}
+}
+
+// BenchmarkBigIntDivUint64 benchmarks computing the quotient of an unsigned
+// 256-bit integer and unsigned 64-bit integer with stdlib big integers.
+func BenchmarkBigIntDivUint64(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Div(val.bigN1, val.bigN2Low64)
+			n.Mod(n, two256)
+		}
+	}
+}
