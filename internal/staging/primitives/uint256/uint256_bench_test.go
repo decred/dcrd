@@ -885,3 +885,34 @@ func BenchmarkBigIntDivUint64(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Negate benchmarks computing the negation modulo 2^256 of an
+// unsigned 256-bit integer with the specialized type.
+func BenchmarkUint256Negate(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			n.NegateVal(vals[j].n1)
+		}
+	}
+}
+
+// BenchmarkBigIntNegate benchmarks computing the negation module 2^256 of an
+// unsigned 256-bit integer with stdlib big integers.
+func BenchmarkBigIntNegate(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			n.Mod(n.Neg(vals[j].bigN1), two256)
+		}
+	}
+}
