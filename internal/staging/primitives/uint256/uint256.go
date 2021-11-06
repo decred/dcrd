@@ -19,16 +19,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements support for comparison operations (equals, less,
-// greater), interpreting and producing big and little endian bytes, and other
-// convenience methods such as whether or not the value can be represented as a
-// uint64 without loss of precision.
+// greater, cmp), interpreting and producing big and little endian bytes, and
+// other convenience methods such as whether or not the value can be represented
+// as a uint64 without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (cmp), and
-// other convenience methods such as determining the minimum number of bits
-// required to represent the current value and text formatting with base
-// conversion.
+// operations (lsh, rsh, not, or, and, xor), and other convenience methods such
+// as determining the minimum number of bits required to represent the current
+// value and text formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -421,4 +420,46 @@ func (n *Uint256) GtEq(n2 *Uint256) bool {
 // given uint64.  That is, it returns true when n >= n2.
 func (n *Uint256) GtEqUint64(n2 uint64) bool {
 	return !n.LtUint64(n2)
+}
+
+// Cmp compares the two uint256s and returns -1, 0, or 1 depending on whether
+// the uint256 is less than, equal to, or greater than the given one.
+//
+// That is, it returns:
+//
+//   -1 when n <  n2
+//    0 when n == n2
+//   +1 when n >  n2
+func (n *Uint256) Cmp(n2 *Uint256) int {
+	var borrow uint64
+	r0, borrow := bits.Sub64(n.n[0], n2.n[0], borrow)
+	r1, borrow := bits.Sub64(n.n[1], n2.n[1], borrow)
+	r2, borrow := bits.Sub64(n.n[2], n2.n[2], borrow)
+	r3, borrow := bits.Sub64(n.n[3], n2.n[3], borrow)
+	if borrow != 0 {
+		return -1
+	}
+	if r0|r1|r2|r3 == 0 {
+		return 0
+	}
+	return 1
+}
+
+// CmpUint64 compares the uint256 with the given uint64 and returns -1, 0, or 1
+// depending on whether the uint256 is less than, equal to, or greater than the
+// uint64.
+//
+// That is, it returns:
+//
+//   -1 when n <  n2
+//    0 when n == n2
+//   +1 when n >  n2
+func (n *Uint256) CmpUint64(n2 uint64) int {
+	if n.LtUint64(n2) {
+		return -1
+	}
+	if n.GtUint64(n2) {
+		return 1
+	}
+	return 0
 }

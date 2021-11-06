@@ -848,9 +848,17 @@ func TestUint256Comparison(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		// Ensure comparing the numbers produces the expected == result.
+		// Ensure comparing the numbers produces the expected cmp result.
 		n1 := hexToUint256(test.n1)
 		n2 := hexToUint256(test.n2)
+		gotCmp := n1.Cmp(n2)
+		if gotCmp != test.wantCmp {
+			t.Errorf("%q: incorrect cmp result -- got: %v, want: %v", test.name,
+				gotCmp, test.wantCmp)
+			continue
+		}
+
+		// Ensure comparing the numbers produces the expected == result.
 		isEq := n1.Eq(n2)
 		wantEq := test.wantCmp == 0
 		if isEq != wantEq {
@@ -924,8 +932,15 @@ func TestUint256ComparisonRandom(t *testing.T) {
 			t.Fatalf("failed equality check -- n2: %x", n2)
 		}
 
-		// Ensure comparing the numbers produces the expected == result.
+		// Ensure the uint256 comparison result matches the one using big ints.
 		bigCmpResult := bigN1.Cmp(bigN2)
+		cmpResult := n1.Cmp(n2)
+		if cmpResult != bigCmpResult {
+			t.Errorf("incorrect cmp result n1: %x, n2: %x -- got %v, want %v",
+				n1, n2, cmpResult, bigCmpResult)
+		}
+
+		// Ensure comparing the numbers produces the expected == result.
 		isEq := n1.Eq(n2)
 		wantEq := bigCmpResult == 0
 		if isEq != wantEq {
@@ -1060,8 +1075,16 @@ func TestUint256ComparisonUint64(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		// Ensure comparing the numbers produces the expected == result.
+		// Ensure comparing the numbers produces the expected cmp result.
 		n1 := hexToUint256(test.n1)
+		gotCmp := n1.CmpUint64(test.n2)
+		if gotCmp != test.wantCmp {
+			t.Errorf("%q: incorrect cmp result -- got: %v, want: %v", test.name,
+				gotCmp, test.wantCmp)
+			continue
+		}
+
+		// Ensure comparing the numbers produces the expected == result.
 		isEq := n1.EqUint64(test.n2)
 		wantEq := test.wantCmp == 0
 		if isEq != wantEq {
@@ -1137,8 +1160,15 @@ func TestUint256ComparisonUint64Random(t *testing.T) {
 			t.Fatalf("failed equality check -- n: %x", truncatedN1)
 		}
 
-		// Ensure comparing the numbers produces the expected == result.
+		// Ensure the uint256 comparison result matches the one using big ints.
 		bigCmpResult := bigN1.Cmp(bigN2)
+		cmpResult := n1.CmpUint64(n2)
+		if cmpResult != bigCmpResult {
+			t.Errorf("incorrect cmp result n1: %x, n2: %x -- got %v, want %v",
+				n1, n2, cmpResult, bigCmpResult)
+		}
+
+		// Ensure comparing the numbers produces the expected == result.
 		isEq := n1.EqUint64(n2)
 		wantEq := bigCmpResult == 0
 		if isEq != wantEq {
