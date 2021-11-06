@@ -412,3 +412,44 @@ func TestUint256BytesLE(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Zero ensures that zeroing a uint256 works as expected.
+func TestUint256Zero(t *testing.T) {
+	t.Parallel()
+
+	n := hexToUint256("a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5")
+	n.Zero()
+	for idx, word := range n.n {
+		if word != 0 {
+			t.Errorf("internal word at index #%d is not zero - got %d", idx,
+				word)
+		}
+	}
+}
+
+// TestUint256IsZero ensures that checking if a uint256 is zero works as
+// expected.
+func TestUint256IsZero(t *testing.T) {
+	t.Parallel()
+
+	var n Uint256
+	if !n.IsZero() {
+		t.Fatalf("new uint256 is not zero - got %v (words %x)", n, n.n)
+	}
+
+	n.SetUint64(1)
+	if n.IsZero() {
+		t.Fatalf("claims zero for nonzero uint256 - got %v (words %x)", n, n.n)
+	}
+
+	n.SetUint64(0)
+	if !n.IsZero() {
+		t.Fatalf("claims nonzero for zero uint256 - got %v (words %x)", n, n.n)
+	}
+
+	n.SetUint64(1)
+	n.Zero()
+	if !n.IsZero() {
+		t.Fatalf("claims zero for nonzero uint256 - got %v (words %x)", n, n.n)
+	}
+}

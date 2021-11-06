@@ -315,3 +315,14 @@ func (n *Uint256) BytesLE() [32]byte {
 	n.PutBytesUncheckedLE(b[:])
 	return b
 }
+
+// Zero sets the uint256 to zero.  A newly created uint256 is already set to
+// zero.  This function can be useful to clear an existing uint256 for reuse.
+func (n *Uint256) Zero() {
+	n.n[0], n.n[1], n.n[2], n.n[3] = 0, 0, 0, 0
+}
+
+// IsZero returns whether or not the uint256 is equal to zero.
+func (n *Uint256) IsZero() bool {
+	return n.n[0] == 0 && n.n[1] == 0 && n.n[2] == 0 && n.n[3] == 0
+}
