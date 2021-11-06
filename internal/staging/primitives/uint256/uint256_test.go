@@ -336,3 +336,79 @@ func TestUint256Bytes(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256BytesLE ensures that retrieving the bytes for a uint256 encoded as
+// a 256-bit little-endian unsigned integer via the various methods works as
+// expected for edge cases.
+func TestUint256BytesLE(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		in   string // hex encoded test value
+		want string // expected hex encoded bytes
+	}{{
+		name: "zero",
+		in:   "0",
+		want: "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "one",
+		in:   "1",
+		want: "0100000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "2^64 - 1",
+		in:   "000000000000000000000000000000000000000000000000ffffffffffffffff",
+		want: "ffffffffffffffff000000000000000000000000000000000000000000000000",
+	}, {
+		name: "2^128 - 1",
+		in:   "00000000000000000000000000000000ffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+	}, {
+		name: "2^192 - 1",
+		in:   "0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000",
+	}, {
+		name: "2^256 - 1",
+		in:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "alternating bits",
+		in:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+	}, {
+		name: "alternating bits 2",
+		in:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+	}}
+
+	for _, test := range tests {
+		n := hexToUint256(test.in)
+		want := hexToBytes(test.want)
+
+		// Ensure getting the bytes works as expected.
+		gotBytes := n.BytesLE()
+		if !bytes.Equal(gotBytes[:], want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				gotBytes, want)
+			continue
+		}
+
+		// Ensure getting the bytes directly into an array works as expected.
+		var b32 [32]byte
+		n.PutBytesLE(&b32)
+		if !bytes.Equal(b32[:], want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				b32, want)
+			continue
+		}
+
+		// Ensure getting the bytes directly into a slice works as expected.
+		var buffer [64]byte
+		n.PutBytesUncheckedLE(buffer[:])
+		if !bytes.Equal(buffer[:32], want) {
+			t.Errorf("%q: unexpected result, got: %x, want: %x", test.name,
+				buffer[:32], want)
+			continue
+		}
+	}
+}

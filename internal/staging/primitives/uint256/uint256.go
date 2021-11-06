@@ -16,17 +16,16 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for interpreting big and little endian bytes
-// and producing big endian bytes.
+// It currently implements support for interpreting and producing big and little
+// endian bytes.
 //
-// Future commits will implement support for producing little endian bytes, the
-// primary arithmetic operations (addition, subtraction, multiplication,
-// squaring, division, negation), bitwise operations (lsh, rsh, not, or, and,
-// xor), comparison operations (equals, less, greater, cmp), and other
-// convenience methods such as determining the minimum number of bits required
-// to represent the current value, whether or not the value can be represented
-// as a uint64 without loss of precision, and text formatting with base
-// conversion.
+// Future commits will implement the primary arithmetic operations (addition,
+// subtraction, multiplication, squaring, division, negation), bitwise
+// operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
+// less, greater, cmp), and other convenience methods such as determining the
+// minimum number of bits required to represent the current value, whether or
+// not the value can be represented as a uint64 without loss of precision, and
+// text formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -217,6 +216,52 @@ func (n *Uint256) PutBytesUnchecked(b []byte) {
 	b[0] = byte(n.n[3] >> 56)
 }
 
+// PutBytesUncheckedLE unpacks the uint256 to a 32-byte little-endian value
+// directly into the passed byte slice.  The target slice must must have at
+// least 32 bytes available or it will panic.
+//
+// There is a similar function, PutBytesLE, which unpacks the uint256 into a
+// 32-byte array directly.  This version is provided since it can be useful to
+// write directly into part of a larger buffer without needing a separate
+// allocation.
+func (n *Uint256) PutBytesUncheckedLE(b []byte) {
+	// Unpack the 256 total bits from the 4 uint64 words.  This could be done
+	// with a for loop, but benchmarks show this unrolled version is about 2
+	// times faster than the variant which uses a loop.
+	b[31] = byte(n.n[3] >> 56)
+	b[30] = byte(n.n[3] >> 48)
+	b[29] = byte(n.n[3] >> 40)
+	b[28] = byte(n.n[3] >> 32)
+	b[27] = byte(n.n[3] >> 24)
+	b[26] = byte(n.n[3] >> 16)
+	b[25] = byte(n.n[3] >> 8)
+	b[24] = byte(n.n[3])
+	b[23] = byte(n.n[2] >> 56)
+	b[22] = byte(n.n[2] >> 48)
+	b[21] = byte(n.n[2] >> 40)
+	b[20] = byte(n.n[2] >> 32)
+	b[19] = byte(n.n[2] >> 24)
+	b[18] = byte(n.n[2] >> 16)
+	b[17] = byte(n.n[2] >> 8)
+	b[16] = byte(n.n[2])
+	b[15] = byte(n.n[1] >> 56)
+	b[14] = byte(n.n[1] >> 48)
+	b[13] = byte(n.n[1] >> 40)
+	b[12] = byte(n.n[1] >> 32)
+	b[11] = byte(n.n[1] >> 24)
+	b[10] = byte(n.n[1] >> 16)
+	b[9] = byte(n.n[1] >> 8)
+	b[8] = byte(n.n[1])
+	b[7] = byte(n.n[0] >> 56)
+	b[6] = byte(n.n[0] >> 48)
+	b[5] = byte(n.n[0] >> 40)
+	b[4] = byte(n.n[0] >> 32)
+	b[3] = byte(n.n[0] >> 24)
+	b[2] = byte(n.n[0] >> 16)
+	b[1] = byte(n.n[0] >> 8)
+	b[0] = byte(n.n[0])
+}
+
 // PutBytes unpacks the uint256 to a 32-byte big-endian value using the passed
 // byte array.
 //
@@ -232,6 +277,21 @@ func (n *Uint256) PutBytes(b *[32]byte) {
 	n.PutBytesUnchecked(b[:])
 }
 
+// PutBytesLE unpacks the uint256 to a 32-byte little-endian value using the
+// passed byte array.
+//
+// There is a similar function, PutBytesUncheckedLE, which unpacks the uint256
+// into a slice that must have at least 32 bytes available.  This version is
+// provided since it can be useful to write directly into an array that is type
+// checked.
+//
+// Alternatively, there is also BytesLE, which unpacks the uint256 into a new
+// array and returns that which can sometimes be more ergonomic in applications
+// that aren't concerned about an additional copy.
+func (n *Uint256) PutBytesLE(b *[32]byte) {
+	n.PutBytesUncheckedLE(b[:])
+}
+
 // Bytes unpacks the uint256 to a 32-byte big-endian array.
 //
 // See PutBytes and PutBytesUnchecked for variants that allow an array or slice
@@ -241,5 +301,17 @@ func (n *Uint256) PutBytes(b *[32]byte) {
 func (n *Uint256) Bytes() [32]byte {
 	var b [32]byte
 	n.PutBytesUnchecked(b[:])
+	return b
+}
+
+// BytesLE unpacks the uint256 to a 32-byte little-endian array.
+//
+// See PutBytesLE and PutBytesUncheckedLE for variants that allow an array or
+// slice to be passed which can be useful to cut down on the number of
+// allocations by allowing the caller to reuse a buffer or write directly into
+// part of a larger buffer.
+func (n *Uint256) BytesLE() [32]byte {
+	var b [32]byte
+	n.PutBytesUncheckedLE(b[:])
 	return b
 }
