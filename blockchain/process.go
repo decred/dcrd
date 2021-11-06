@@ -75,12 +75,8 @@ func (b *BlockChain) checkKnownInvalidBlock(node *blockNode) error {
 // case an appropriate error will be returned.  Otherwise, the block node is
 // returned.
 //
-// The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to checkBlockHeaderSanity and
-// checkBlockHeaderPositional.
-//
 // This function MUST be called with the chain lock held (for writes).
-func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, flags BehaviorFlags, checkHeaderSanity bool) (*blockNode, error) {
+func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeaderSanity bool) (*blockNode, error) {
 	// Avoid validating the header again if its validation status is already
 	// known.  Invalid headers are never added to the block index, so if there
 	// is an entry for the block hash, the header itself is known to be valid.
@@ -97,7 +93,7 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, flags Beha
 
 	// Perform context-free sanity checks on the block header.
 	if checkHeaderSanity {
-		err := checkBlockHeaderSanity(header, b.timeSource, flags, b.chainParams)
+		err := checkBlockHeaderSanity(header, b.timeSource, BFNone, b.chainParams)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +118,7 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, flags Beha
 
 	// The block header must pass all of the validation rules which depend on
 	// its position within the block chain.
-	err := b.checkBlockHeaderPositional(header, prevNode, flags)
+	err := b.checkBlockHeaderPositional(header, prevNode, BFNone)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +168,7 @@ func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader) error {
 	// positional checks, and create a block index entry for it.
 	b.chainLock.Lock()
 	const checkHeaderSanity = true
-	_, err := b.maybeAcceptBlockHeader(header, BFNone, checkHeaderSanity)
+	_, err := b.maybeAcceptBlockHeader(header, checkHeaderSanity)
 	if err != nil {
 		b.chainLock.Unlock()
 		return err
@@ -421,7 +417,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 	if node == nil {
 		const checkHeaderSanity = false
 		header := &block.MsgBlock().Header
-		node, err = b.maybeAcceptBlockHeader(header, BFNone, checkHeaderSanity)
+		node, err = b.maybeAcceptBlockHeader(header, checkHeaderSanity)
 		if err != nil {
 			return 0, err
 		}
