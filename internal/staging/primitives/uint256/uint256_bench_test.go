@@ -406,3 +406,73 @@ func BenchmarkBigIntCmpUint64(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Add benchmarks computing the sum of unsigned 256-bit integers
+// with the specialized type.
+func BenchmarkUint256Add(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Add2(val.n1, val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntAdd benchmarks computing the sum of unsigned 256-bit integers
+// with stdlib big integers.
+func BenchmarkBigIntAdd(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Add(val.bigN1, val.bigN2)
+			n.Mod(n, two256)
+		}
+	}
+}
+
+// BenchmarkUint256AddUint64 benchmarks computing the sum of an unsigned 256-bit
+// integer and an unsigned 64-bit integer with the specialized type.
+func BenchmarkUint256AddUint64(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.n1)
+			n.AddUint64(val.n2Low64.Uint64())
+		}
+	}
+}
+
+// BenchmarkBigIntAddUint64 benchmarks computing the sum of an unsigned 256-bit
+// integer and an unsigned 64-bit integer with stdlib big integers.
+func BenchmarkBigIntAddUint64(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.bigN1) // For fair comparison.
+			n.Add(n, val.bigN2Low64)
+			n.Mod(n, two256)
+		}
+	}
+}
