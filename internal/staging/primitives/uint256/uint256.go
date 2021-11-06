@@ -16,16 +16,17 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for interpreting and producing big and little
-// endian bytes and other convenience methods such as whether or not the value
-// can be represented as a uint64 without loss of precision.
+// It currently implements support for comparison operations (equals),
+// interpreting and producing big and little endian bytes, and other convenience
+// methods such as whether or not the value can be represented as a uint64
+// without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
-// less, greater, cmp), and other convenience methods such as determining the
-// minimum number of bits required to represent the current value and text
-// formatting with base conversion.
+// operations (lsh, rsh, not, or, and, xor), comparison operations (less,
+// greater, cmp), and other convenience methods such as determining the minimum
+// number of bits required to represent the current value and text formatting
+// with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -353,4 +354,16 @@ func (n *Uint256) IsUint64() bool {
 // without truncation with the IsUint64 method.
 func (n *Uint256) Uint64() uint64 {
 	return n.n[0]
+}
+
+// Eq returns whether or not the two uint256s represent the same value.
+func (n *Uint256) Eq(n2 *Uint256) bool {
+	return n.n[0] == n2.n[0] && n.n[1] == n2.n[1] && n.n[2] == n2.n[2] &&
+		n.n[3] == n2.n[3]
+}
+
+// EqUint64 returns whether or not the uint256 represents the same value as the
+// given uint64.
+func (n *Uint256) EqUint64(n2 uint64) bool {
+	return n.n[0] == n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
 }
