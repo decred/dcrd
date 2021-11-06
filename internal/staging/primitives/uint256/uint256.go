@@ -6,9 +6,17 @@
 // integer arithmetic.
 package uint256
 
+var (
+	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
+	// defined here to avoid extra allocations.
+	zero32 = [32]byte{}
+)
+
 // Uint256 implements high-performance, zero-allocation, unsigned 256-bit
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
+//
+// It currently implements support for interpreting big endian bytes.
 //
 // Future commits will implement support for interpreting and producing big and
 // little endian bytes, the primary arithmetic operations (addition,
@@ -70,5 +78,58 @@ func (n *Uint256) SetUint64(n2 uint64) *Uint256 {
 	n.n[1] = 0
 	n.n[2] = 0
 	n.n[3] = 0
+	return n
+}
+
+// SetBytes interprets the provided array as a 256-bit big-endian unsigned
+// integer and sets the uint256 to the result.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n := new(Uint256).SetBytes(n2Bytes).AddUint64(1) so that n = n2 + 1.
+func (n *Uint256) SetBytes(b *[32]byte) *Uint256 {
+	// Pack the 256 total bits across the 4 uint64 words.  This could be done
+	// with a for loop, but benchmarks show this unrolled version is about 2
+	// times faster than the variant that uses a loop.
+	n.n[0] = uint64(b[31]) | uint64(b[30])<<8 | uint64(b[29])<<16 |
+		uint64(b[28])<<24 | uint64(b[27])<<32 | uint64(b[26])<<40 |
+		uint64(b[25])<<48 | uint64(b[24])<<56
+	n.n[1] = uint64(b[23]) | uint64(b[22])<<8 | uint64(b[21])<<16 |
+		uint64(b[20])<<24 | uint64(b[19])<<32 | uint64(b[18])<<40 |
+		uint64(b[17])<<48 | uint64(b[16])<<56
+	n.n[2] = uint64(b[15]) | uint64(b[14])<<8 | uint64(b[13])<<16 |
+		uint64(b[12])<<24 | uint64(b[11])<<32 | uint64(b[10])<<40 |
+		uint64(b[9])<<48 | uint64(b[8])<<56
+	n.n[3] = uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 |
+		uint64(b[4])<<24 | uint64(b[3])<<32 | uint64(b[2])<<40 |
+		uint64(b[1])<<48 | uint64(b[0])<<56
+	return n
+}
+
+// zeroArray32 zeroes the provided 32-byte buffer.
+func zeroArray32(b *[32]byte) {
+	copy(b[:], zero32[:])
+}
+
+// minInt is a helper function to return the minimum of two ints.
+// This avoids a math import and the need to cast to floats.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
+// integer (meaning it is truncated to the final 32 bytes so that it is modulo
+// 2^256), and sets the uint256 to the result.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n := new(Uint256).SetByteSlice(n2Slice).AddUint64(1) so that n = n2 + 1.
+func (n *Uint256) SetByteSlice(b []byte) *Uint256 {
+	var b32 [32]byte
+	b = b[len(b)-minInt(len(b), 32):]
+	copy(b32[32-len(b):], b)
+	n.SetBytes(&b32)
+	zeroArray32(&b32)
 	return n
 }
