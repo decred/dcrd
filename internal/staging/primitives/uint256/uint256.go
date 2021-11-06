@@ -333,6 +333,12 @@ func (n *Uint256) IsZero() bool {
 	return n.n[0] == 0 && n.n[1] == 0 && n.n[2] == 0 && n.n[3] == 0
 }
 
+// IsOdd returns whether or not the uint256 is odd.
+func (n *Uint256) IsOdd() bool {
+	// Only odd numbers have the bottom bit set.
+	return n.n[0]&1 == 1
+}
+
 // IsUint32 returns whether or not the uint256 can be converted to a uint32
 // without any loss of precision.  In other words, 0 <= n < 2^32.
 func (n *Uint256) IsUint32() bool {

@@ -474,6 +474,54 @@ func TestUint256IsZero(t *testing.T) {
 	}
 }
 
+// TestUint256IsOdd ensures that checking if a uint256 is odd works as expected.
+func TestUint256IsOdd(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded value
+		want bool   // expected oddness
+	}{{
+		name: "zero",
+		n:    "0",
+		want: false,
+	}, {
+		name: "one",
+		n:    "1",
+		want: true,
+	}, {
+		name: "two",
+		n:    "2",
+		want: false,
+	}, {
+		name: "2^32 - 1",
+		n:    "ffffffff",
+		want: true,
+	}, {
+		name: "2^64 - 2",
+		n:    "fffffffffffffffe",
+		want: false,
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: true,
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: false,
+	}}
+
+	for _, test := range tests {
+		got := hexToUint256(test.n).IsOdd()
+		if got != test.want {
+			t.Errorf("%q: wrong result -- got: %v, want: %v", test.name, got,
+				test.want)
+			continue
+		}
+	}
+}
+
 // TestUint256IsUint32 ensures that checking if a uint256 can be represented as
 // a uint32 without loss of precision works as expected.
 func TestUint256IsUint32(t *testing.T) {
