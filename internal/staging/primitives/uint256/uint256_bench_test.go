@@ -251,3 +251,33 @@ func BenchmarkBigIntIsZero(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Eq benchmarks determining equality between two unsigned
+// 256-bit integers with the specialized type.
+func BenchmarkUint256Eq(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideBool = val.n1.Eq(val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntEq benchmarks determining equality between two unsigned
+// 256-bit integers with stdlib big integers.
+func BenchmarkBigIntEq(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideBool = val.bigN1.Cmp(val.bigN2) == 0
+		}
+	}
+}
