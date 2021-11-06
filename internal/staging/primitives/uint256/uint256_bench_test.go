@@ -18,6 +18,7 @@ var (
 	noElideBytes  []byte
 	noElideInt    int
 	noElideUint16 uint16
+	noElideString string
 )
 
 // randBenchVal houses values used throughout the benchmarks that are randomly
@@ -1182,6 +1183,110 @@ func BenchmarkBigIntBitLen(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				noElideInt = n.BitLen()
+			}
+		})
+	}
+}
+
+// BenchmarkUint256Text benchmarks converting an unsigned 256-bit integer to
+// various output bases with the specialized type.
+func BenchmarkUint256Text(b *testing.B) {
+	vals := randBenchVals
+
+	for _, base := range []OutputBase{2, 8, 10, 16} {
+		benchName := fmt.Sprintf("base %d", base)
+		b.Run(benchName, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i += len(vals) {
+				for j := 0; j < len(vals); j++ {
+					val := &vals[j]
+					noElideString = val.n1.Text(base)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkBigIntText benchmarks converting an unsigned 256-bit integer to
+// various output bases with stdlib big integers.
+func BenchmarkBigIntText(b *testing.B) {
+	vals := randBenchVals
+
+	for _, base := range []int{2, 8, 10, 16} {
+		benchName := fmt.Sprintf("base %d", base)
+		b.Run(benchName, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i += len(vals) {
+				for j := 0; j < len(vals); j++ {
+					val := &vals[j]
+					noElideString = val.bigN1.Text(base)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkUint256Format benchmarks formatting an unsigned 256-bit integer to
+// various output bases via fmt.Sprintf with the specialized type.
+func BenchmarkUint256Format(b *testing.B) {
+	vals := randBenchVals
+
+	for _, base := range []int{2, 8, 10, 16} {
+		benchName := fmt.Sprintf("base %d", base)
+		b.Run(benchName, func(b *testing.B) {
+			var fmtStr string
+			switch base {
+			case 2:
+				fmtStr = "%b"
+			case 8:
+				fmtStr = "%o"
+			case 10:
+				fmtStr = "%d"
+			case 16:
+				fmtStr = "%x"
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i += len(vals) {
+				for j := 0; j < len(vals); j++ {
+					val := &vals[j]
+					noElideString = fmt.Sprintf(fmtStr, val.n1)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkBigIntFormat benchmarks formatting an unsigned 256-bit integer to
+// various output bases via fmt.Sprintf with stdlib big integers.
+func BenchmarkBigIntFormat(b *testing.B) {
+	vals := randBenchVals
+
+	for _, base := range []int{2, 8, 10, 16} {
+		benchName := fmt.Sprintf("base %d", base)
+		b.Run(benchName, func(b *testing.B) {
+			var fmtStr string
+			switch base {
+			case 2:
+				fmtStr = "%b"
+			case 8:
+				fmtStr = "%o"
+			case 10:
+				fmtStr = "%d"
+			case 16:
+				fmtStr = "%x"
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i += len(vals) {
+				for j := 0; j < len(vals); j++ {
+					val := &vals[j]
+					noElideString = fmt.Sprintf(fmtStr, val.bigN1)
+				}
 			}
 		})
 	}
