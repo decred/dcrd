@@ -1048,3 +1048,37 @@ func BenchmarkBigIntNot(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Or benchmarks computing the bitwise or of unsigned 256-bit
+// integers with the specialized type.
+func BenchmarkUint256Or(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.n1)
+			n.Or(val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntOr benchmarks computing the bitwise or of unsigned 256-bit
+// integers with stdlib big integers.
+func BenchmarkBigIntOr(b *testing.B) {
+	n := new(big.Int)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.bigN1) // For fair comparison.
+			n.Or(n, val.bigN2)
+		}
+	}
+}
