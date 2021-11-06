@@ -18,16 +18,17 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for comparison operations (equals, less,
-// greater, cmp), interpreting and producing big and little endian bytes, and
-// other convenience methods such as whether or not the value can be represented
-// as a uint64 without loss of precision.
+// It currently implements the primary arithmetic operations (addition),
+// comparison operations (equals, less, greater, cmp), interpreting and
+// producing big and little endian bytes, and other convenience methods such as
+// whether or not the value can be represented as a uint64 without loss of
+// precision.
 //
-// Future commits will implement the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), and other convenience methods such
-// as determining the minimum number of bits required to represent the current
-// value and text formatting with base conversion.
+// Future commits will implement the primary arithmetic operations (subtraction,
+// multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
+// not, or, and, xor), and other convenience methods such as determining the
+// minimum number of bits required to represent the current value and text
+// formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -462,4 +463,41 @@ func (n *Uint256) CmpUint64(n2 uint64) int {
 		return 1
 	}
 	return 0
+}
+
+// Add2 adds the passed two uint256s together modulo 2^256 and stores the result
+// in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Add2(n1, n2).AddUint64(1) so that n = n1 + n2 + 1.
+func (n *Uint256) Add2(n1, n2 *Uint256) *Uint256 {
+	var c uint64
+	n.n[0], c = bits.Add64(n1.n[0], n2.n[0], c)
+	n.n[1], c = bits.Add64(n1.n[1], n2.n[1], c)
+	n.n[2], c = bits.Add64(n1.n[2], n2.n[2], c)
+	n.n[3], _ = bits.Add64(n1.n[3], n2.n[3], c)
+	return n
+}
+
+// Add adds the passed uint256 to the existing one modulo 2^256 and stores the
+// result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Add(n2).AddUin64(1) so that n = n + n2 + 1.
+func (n *Uint256) Add(n2 *Uint256) *Uint256 {
+	return n.Add2(n, n2)
+}
+
+// AddUint64 adds the passed uint64 to the existing uint256 modulo 2^256 and
+// stores the result in n.
+//
+// The scalar is returned to support chaining.  This enables syntax like:
+// n.AddUint64(2).MulUint64(2) so that n = (n + 2) * 2.
+func (n *Uint256) AddUint64(n2 uint64) *Uint256 {
+	var c uint64
+	n.n[0], c = bits.Add64(n.n[0], n2, c)
+	n.n[1], c = bits.Add64(n.n[1], 0, c)
+	n.n[2], c = bits.Add64(n.n[2], 0, c)
+	n.n[3], _ = bits.Add64(n.n[3], 0, c)
+	return n
 }
