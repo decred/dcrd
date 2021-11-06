@@ -16,17 +16,20 @@ import (
 var (
 	noElideBool  bool
 	noElideBytes []byte
+	noElideInt   int
 )
 
 // randBenchVal houses values used throughout the benchmarks that are randomly
 // generated with each run to ensure they are not overfitted.
 type randBenchVal struct {
-	buf1  [32]byte
-	buf2  [32]byte
-	n1    *Uint256
-	n2    *Uint256
-	bigN1 *big.Int
-	bigN2 *big.Int
+	buf1       [32]byte
+	buf2       [32]byte
+	n1         *Uint256
+	n2         *Uint256
+	n2Low64    *Uint256
+	bigN1      *big.Int
+	bigN2      *big.Int
+	bigN2Low64 *big.Int
 }
 
 // randBenchVals houses a slice of the aforementioned randomly-generated values
@@ -51,8 +54,10 @@ var randBenchVals = func() []randBenchVal {
 
 		val.n1 = new(Uint256).SetBytes(&val.buf1)
 		val.n2 = new(Uint256).SetBytes(&val.buf2)
+		val.n2Low64 = new(Uint256).SetUint64(val.n2.Uint64())
 		val.bigN1 = new(big.Int).SetBytes(val.buf1[:])
 		val.bigN2 = new(big.Int).SetBytes(val.buf2[:])
+		val.bigN2Low64 = new(big.Int).SetUint64(val.n2.Uint64())
 	}
 	return vals
 }()
@@ -338,6 +343,66 @@ func BenchmarkBigIntGt(b *testing.B) {
 		for j := 0; j < len(vals); j++ {
 			val := &vals[j]
 			noElideBool = val.bigN1.Cmp(val.bigN2) > 0
+		}
+	}
+}
+
+// BenchmarkUint256Cmp benchmarks comparing two unsigned 256-bit integers with
+// the specialized type.
+func BenchmarkUint256Cmp(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideInt = val.n1.Cmp(val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntCmp benchmarks comparing two unsigned 256-bit integers with
+// stdlib big integers.
+func BenchmarkBigIntCmp(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideInt = val.bigN1.Cmp(val.bigN2)
+		}
+	}
+}
+
+// BenchmarkUint256CmpUint64 benchmarks comparing an unsigned 256-bit integer
+// with an unsigned 64-bit integer with the specialized type.
+func BenchmarkUint256CmpUint64(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideInt = val.n1.CmpUint64(val.n2Low64.Uint64())
+		}
+	}
+}
+
+// BenchmarkBigIntCmp benchmarks comparing an unsigned 256-bit integer with an
+// unsigned 64-bit integer with stdlib big integers.
+func BenchmarkBigIntCmpUint64(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideInt = val.bigN1.Cmp(val.bigN2Low64)
 		}
 	}
 }
