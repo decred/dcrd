@@ -2932,3 +2932,109 @@ func TestUint256RshRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Not ensures that computing the bitwise not of uint256s works as
+// expected for edge cases.
+func TestUint256Not(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded test value
+		want string // expected hex encoded value
+	}{{
+		name: "zero",
+		n:    "0",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "one",
+		n:    "1",
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "2^64 - 1",
+		n:    "ffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000",
+	}, {
+		name: "2^64",
+		n:    "10000000000000000",
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffeffffffffffffffff",
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: "fffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^192 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffff000000000000000000000000000000000000000000000000",
+	}, {
+		name: "2^192",
+		n:    "1000000000000000000000000000000000000000000000000",
+		want: "fffffffffffffffeffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^256 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "0",
+	}, {
+		name: "alternating bits",
+		n:    "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+	}, {
+		name: "alternating bits 2",
+		n:    "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+	}}
+
+	for _, test := range tests {
+		n := hexToUint256(test.n)
+		want := hexToUint256(test.want)
+
+		// Ensure the bitwise not of the value produces the expected result.
+		n.Not()
+		if !n.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256NotRandom ensures that computing the bitwise not of uint256s
+// created from random values works as expected by also performing the same
+// operation with big ints and comparing the results.
+func TestUint256NotRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair.
+		bigN, n := randBigIntAndUint256(t, rng)
+
+		// Calculate the bitwise not of the value using big ints.
+		bigIntResult := new(big.Int).Not(bigN)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the bitwise not of the value using uint256s.
+		uint256Result := new(Uint256).Set(n).Not()
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched not n: %x -- got %x, want %x", n, bigIntResult,
+				uint256Result)
+		}
+	}
+}
