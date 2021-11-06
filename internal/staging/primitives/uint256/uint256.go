@@ -21,6 +21,11 @@ var (
 	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
 	// defined here to avoid extra allocations.
 	zero32 = [32]byte{}
+
+	// bigUint256Mask is the value 2^256 - 1 (aka max uint256) as a stdlib big
+	// integer.  It is defined here to save allocations in the conversion code.
+	bigTwo256      = new(big.Int).Lsh(big.NewInt(1), 256)
+	bigUint256Mask = new(big.Int).Sub(bigTwo256, big.NewInt(1))
 )
 
 // Uint256 implements high-performance, zero-allocation, unsigned 256-bit
@@ -1775,4 +1780,41 @@ func (n *Uint256) ToBig() *big.Int {
 	var out big.Int
 	n.PutBig(&out)
 	return &out
+}
+
+// SetBig sets the uint256 to the passed standard library big integer modulo
+// 2^256.
+//
+// The resulting uint256 will be set to the 2's complement of the provided value
+// when it is negative.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n := new(Uint256).SetBig(n2).AddUint64(1) so that n = n2 + 1 where n2 is not
+// modified.
+//
+// PERFORMANCE NOTE: When the caller expects values to potentially be larger
+// than a max uint256, it is _highly_ recommended to reduce the value mod 2^256
+// prior to calling this method for better performance.
+//
+// The reason is that this method requires an allocation and copy when the
+// provided big integer is larger than a max uint256 in order to reduce it
+// without modifying the provided arg.  The caller can avoid this allocation by
+// performing the mod 2^256 prior to calling this method with the value.
+//
+// More concretely, it is around 3 to 4 times faster to perform the reduction
+// caller side as well as avoiding the allocation.
+func (n *Uint256) SetBig(n2 *big.Int) *Uint256 {
+	// Take the value mod 2^256 if needed.
+	tmp := n2
+	if n2.BitLen() > 256 {
+		tmp = new(big.Int).And(n2, bigUint256Mask)
+	}
+
+	var buf [32]byte
+	tmp.FillBytes(buf[:]) // Requires Go 1.15.
+	n.SetBytes(&buf)
+	if tmp.Sign() < 0 {
+		n.Negate()
+	}
+	return n
 }

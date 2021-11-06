@@ -4077,3 +4077,102 @@ func TestUint256ToBigRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256SetBig ensures that setting a uint256 to a standard library big
+// integer works as expected for edge cases.
+func TestUint256SetBig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		in   string // hex encoded big int test value
+		want string // expected hex encoded uint256
+	}{{
+		name: "0",
+		in:   "00",
+		want: "0",
+	}, {
+		name: "1",
+		in:   "1",
+		want: "1",
+	}, {
+		name: "-1",
+		in:   "-1",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2",
+		in:   "2",
+		want: "2",
+	}, {
+		name: "-2",
+		in:   "-2",
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "max int256 (2^255 - 1)",
+		in:   "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "min int256 (-2^255)",
+		in:   "-8000000000000000000000000000000000000000000000000000000000000000",
+		want: "8000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "max uint256 (2^256 - 1)",
+		in:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "max uint256 + 1 (2^256)",
+		in:   "10000000000000000000000000000000000000000000000000000000000000000",
+		want: "0",
+	}, {
+		name: "max uint256 + 2 (2^256 + 1)",
+		in:   "10000000000000000000000000000000000000000000000000000000000000001",
+		want: "1",
+	}}
+
+	for _, test := range tests {
+		// Parse test vals.
+		in, ok := new(big.Int).SetString(test.in, 16)
+		if !ok {
+			t.Errorf("%q: big int parse err for string %s", test.name, test.in)
+			continue
+		}
+		want := hexToUint256(test.want)
+
+		// Ensure setting the uint256 to the test big int produces the expected
+		// value.
+		var n Uint256
+		n.SetBig(in)
+		if !n.Eq(want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name, n,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256SetBigRandom ensures that converting bit ints created from random
+// values to uint256s works as expected.
+func TestUint256SetBigRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair.
+		bigN, wantUint256 := randBigIntAndUint256(t, rng)
+
+		// Convert the big int to a uint256 and ensure they match.
+		uint256Result := new(Uint256).SetBig(bigN)
+		if !uint256Result.Eq(wantUint256) {
+			t.Fatalf("mismatched uint256 conversion: %x -- got %x, want %x",
+				bigN, uint256Result, wantUint256)
+		}
+	}
+}
