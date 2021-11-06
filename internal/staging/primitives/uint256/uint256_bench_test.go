@@ -154,3 +154,41 @@ func BenchmarkBigIntBytes(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256BytesLE benchmarks unpacking an unsigned 256-bit integer to
+// bytes in little endian with the specialized type.
+func BenchmarkUint256BytesLE(b *testing.B) {
+	vals := randBenchVals
+	var buf [32]byte
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			vals[j].n1.PutBytesLE(&buf)
+		}
+	}
+}
+
+// BenchmarkBigIntBytesLE benchmarks unpacking an unsigned 256-bit integer to
+// bytes in little endian with the stdlib big integers.
+func BenchmarkBigIntBytesLE(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			// The big int API only provides the bytes in big endian, so they
+			// need to be reversed by the caller.  Note that this implementation
+			// assumes the buffer is already 32 bytes and is not robust against
+			// other cases, but it's good enough for a reasonable benchmark.
+			buf := vals[j].bigN1.Bytes()
+			blen := len(buf)
+			for i := 0; i < blen/2; i++ {
+				buf[i], buf[blen-1-i] = buf[blen-1-i], buf[i]
+			}
+			noElideBytes = buf
+		}
+	}
+}
