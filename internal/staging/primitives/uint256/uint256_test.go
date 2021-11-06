@@ -3320,3 +3320,80 @@ func TestUint256XorRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256BitLen ensures determining the minimum number of bits required to
+// represent a uint256 works as expected.
+func TestUint256BitLen(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded value
+		want uint16 // expected result
+	}{{
+		name: "zero",
+		n:    "0",
+		want: 0,
+	}, {
+		name: "one",
+		n:    "1",
+		want: 1,
+	}, {
+		name: "two",
+		n:    "2",
+		want: 2,
+	}, {
+		name: "2^32 - 1",
+		n:    "ffffffff",
+		want: 32,
+	}, {
+		name: "2^32",
+		n:    "100000000",
+		want: 33,
+	}, {
+		name: "2^64 - 2",
+		n:    "fffffffffffffffe",
+		want: 64,
+	}, {
+		name: "2^64 - 1",
+		n:    "ffffffffffffffff",
+		want: 64,
+	}, {
+		name: "2^64",
+		n:    "10000000000000000",
+		want: 65,
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: 128,
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: 129,
+	}, {
+		name: "2^192 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: 192,
+	}, {
+		name: "2^192",
+		n:    "1000000000000000000000000000000000000000000000000",
+		want: 193,
+	}, {
+		name: "2^255 - 1",
+		n:    "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: 255,
+	}, {
+		name: "2^256 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: 256,
+	}}
+
+	for _, test := range tests {
+		got := hexToUint256(test.n).BitLen()
+		if got != test.want {
+			t.Errorf("%q: wrong result -- got: %v, want: %v", test.name, got,
+				test.want)
+			continue
+		}
+	}
+}

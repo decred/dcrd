@@ -26,11 +26,11 @@ var (
 // subtraction, multiplication, squaring, division, negation), bitwise
 // operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
 // less, greater, cmp), interpreting and producing big and little endian bytes,
-// and other convenience methods such as whether or not the value can be
+// and other convenience methods such as determining the minimum number of bits
+// required to represent the current value and whether or not the value can be
 // represented as a uint64 without loss of precision.
 //
-// Future commits will implement other convenience methods such as determining
-// the minimum number of bits required to represent the current value and text
+// Future commits will implement other convenience methods such as text
 // formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
@@ -1325,4 +1325,19 @@ func (n *Uint256) Xor(n2 *Uint256) *Uint256 {
 	n.n[2] ^= n2.n[2]
 	n.n[3] ^= n2.n[3]
 	return n
+}
+
+// BitLen returns the minimum number of bits required to represent the uint256.
+// The result is 0 when the value is 0.
+func (n *Uint256) BitLen() uint16 {
+	if w := n.n[3]; w > 0 {
+		return uint16(bits.Len64(w)) + 192
+	}
+	if w := n.n[2]; w > 0 {
+		return uint16(bits.Len64(w)) + 128
+	}
+	if w := n.n[1]; w > 0 {
+		return uint16(bits.Len64(w)) + 64
+	}
+	return uint16(bits.Len64(n.n[0]))
 }
