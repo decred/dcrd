@@ -18,14 +18,14 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements the primary arithmetic operations (addition),
-// comparison operations (equals, less, greater, cmp), interpreting and
-// producing big and little endian bytes, and other convenience methods such as
-// whether or not the value can be represented as a uint64 without loss of
-// precision.
+// It currently implements the primary arithmetic operations (addition,
+// subtraction), comparison operations (equals, less, greater, cmp),
+// interpreting and producing big and little endian bytes, and other convenience
+// methods such as whether or not the value can be represented as a uint64
+// without loss of precision.
 //
-// Future commits will implement the primary arithmetic operations (subtraction,
-// multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
+// Future commits will implement the primary arithmetic operations
+// (multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
 // not, or, and, xor), and other convenience methods such as determining the
 // minimum number of bits required to represent the current value and text
 // formatting with base conversion.
@@ -499,5 +499,47 @@ func (n *Uint256) AddUint64(n2 uint64) *Uint256 {
 	n.n[1], c = bits.Add64(n.n[1], 0, c)
 	n.n[2], c = bits.Add64(n.n[2], 0, c)
 	n.n[3], _ = bits.Add64(n.n[3], 0, c)
+	return n
+}
+
+// Sub2 subtracts the second given uint256 from the first modulo 2^256 and
+// stores the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Sub2(n1, n2).AddUint64(1) so that n = n1 - n2 + 1.
+func (n *Uint256) Sub2(n1, n2 *Uint256) *Uint256 {
+	var borrow uint64
+	n.n[0], borrow = bits.Sub64(n1.n[0], n2.n[0], borrow)
+	n.n[1], borrow = bits.Sub64(n1.n[1], n2.n[1], borrow)
+	n.n[2], borrow = bits.Sub64(n1.n[2], n2.n[2], borrow)
+	n.n[3], _ = bits.Sub64(n1.n[3], n2.n[3], borrow)
+	return n
+}
+
+// Sub subtracts the given uint256 from the existing one modulo 2^256 and stores
+// the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Sub(n2).AddUint64(1) so that n = n - n2 + 1.
+func (n *Uint256) Sub(n2 *Uint256) *Uint256 {
+	var borrow uint64
+	n.n[0], borrow = bits.Sub64(n.n[0], n2.n[0], borrow)
+	n.n[1], borrow = bits.Sub64(n.n[1], n2.n[1], borrow)
+	n.n[2], borrow = bits.Sub64(n.n[2], n2.n[2], borrow)
+	n.n[3], _ = bits.Sub64(n.n[3], n2.n[3], borrow)
+	return n
+}
+
+// SubUint64 subtracts the given uint64 from the uint256 modulo 2^256 and stores
+// the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.SubUint64(1).MulUint64(3) so that n = (n - 1) * 3.
+func (n *Uint256) SubUint64(n2 uint64) *Uint256 {
+	var borrow uint64
+	n.n[0], borrow = bits.Sub64(n.n[0], n2, borrow)
+	n.n[1], borrow = bits.Sub64(n.n[1], 0, borrow)
+	n.n[2], borrow = bits.Sub64(n.n[2], 0, borrow)
+	n.n[3], _ = bits.Sub64(n.n[3], 0, borrow)
 	return n
 }

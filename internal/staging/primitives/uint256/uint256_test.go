@@ -1440,3 +1440,218 @@ func TestUint256AddUint64Random(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Sub ensures that subtracting two uint256s works as expected for
+// edge cases.
+func TestUint256Sub(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded test value
+		n2   string // second hex encoded test value
+		want string // expected hex encoded result
+	}{{
+		name: "zero - one (borrow in all words)",
+		n1:   "0",
+		n2:   "1",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "one - zero",
+		n1:   "1",
+		n2:   "0",
+		want: "1",
+	}, {
+		name: "max uint256 - 1",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "1",
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^64 + 15) - 16 (borrow in word zero)",
+		n1:   "1000000000000000f",
+		n2:   "10",
+		want: "ffffffffffffffff",
+	}, {
+		name: "borrow in word one",
+		n1:   "100000000000000000000000000000000",
+		n2:   "080000000000000000000000000000000",
+		want: "80000000000000000000000000000000",
+	}, {
+		name: "borrow in word two",
+		n1:   "1000000000000000000000000000000000000000000000000",
+		n2:   "0800000000000000000000000000000000000000000000000",
+		want: "800000000000000000000000000000000000000000000000",
+	}, {
+		name: "borrow in word three",
+		n1:   "6000000000000000000000000000000000000000000000000000000000000000",
+		n2:   "8000000000000000000000000000000000000000000000000000000000000000",
+		want: "e000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b5",
+	}}
+
+	for _, test := range tests {
+		// Parse test hex.
+		n1 := hexToUint256(test.n1)
+		n2 := hexToUint256(test.n2)
+		want := hexToUint256(test.want)
+
+		// Ensure subtracting the two values produces the expected result.
+		got := new(Uint256).Sub2(n1, n2)
+		if !got.Eq(want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				got, want)
+			continue
+		}
+
+		// Ensure single argument subtracting also produces the expected result.
+		n1.Sub(n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				n1, want)
+			continue
+		}
+	}
+}
+
+// TestUint256SubRandom ensures that subtracting two uint256s created from
+// random values works as expected by also performing the same operation with
+// big ints and comparing the results.
+func TestUint256SubRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		bigN2, n2 := randBigIntAndUint256(t, rng)
+
+		// Calculate the difference of the values using big ints.
+		bigIntResult := new(big.Int).Sub(bigN1, bigN2)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the difference of the values using uint256s.
+		uint256Result := new(Uint256).Sub2(n1, n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched sub n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}
+
+// TestUint256SubUint64 ensures that adding a uint64 to a uint256 works as
+// expected for edge cases.
+func TestUint256SubUint64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded test value
+		n2   uint64 // uint64 test value
+		want string // expected hex encoded result
+	}{{
+		name: "zero - one (borrow in all words)",
+		n1:   "0",
+		n2:   1,
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "one - zero",
+		n1:   "1",
+		n2:   0,
+		want: "1",
+	}, {
+		name: "max uint256 - 1",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   1,
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^64 + 15) - 16 (borrow in word zero)",
+		n1:   "1000000000000000f",
+		n2:   0x10,
+		want: "ffffffffffffffff",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   0x5a5a5a5a5a5a5a5a,
+		want: "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a54b4b4b4b4b4b4b4b",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   0xa5a5a5a5a5a5a5a5,
+		want: "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a59b4b4b4b4b4b4b4b5",
+	}}
+
+	for _, test := range tests {
+		// Parse test hex.
+		n1 := hexToUint256(test.n1)
+		want := hexToUint256(test.want)
+
+		// Ensure the result is the expected value.
+		n1.SubUint64(test.n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				n1, want)
+			continue
+		}
+	}
+}
+
+// TestUint256SubUint64Random ensures that subtracting a uint64 from a uint256
+// together, both created from random values, works as expected by also
+// performing the same operation with big ints and comparing the results.
+func TestUint256SubUint64Random(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		n2 := rng.Uint64()
+		bigN2 := new(big.Int).SetUint64(n2)
+
+		// Calculate the difference of the values using big ints.
+		bigIntResult := new(big.Int).Sub(bigN1, bigN2)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the difference of the values using uint256s.
+		uint256Result := new(Uint256).Set(n1).SubUint64(n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched sub n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}
