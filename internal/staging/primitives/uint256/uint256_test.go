@@ -2505,3 +2505,116 @@ func TestUint256DivByZeroPanic(t *testing.T) {
 		t.Fatal("DivUint64 did not panic on division by zero")
 	}
 }
+
+// TestUint256Negate ensures that negating uint256s mod 2^256 works as expected
+// for edge cases.
+func TestUint256Negate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded test value
+		want string // expected hex encoded value
+	}{{
+		name: "zero",
+		n:    "0",
+		want: "0",
+	}, {
+		name: "one",
+		n:    "1",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^64 - 1",
+		n:    "ffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000001",
+	}, {
+		name: "2^64",
+		n:    "10000000000000000",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000",
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffff00000000000000000000000000000001",
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: "ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+	}, {
+		name: "2^192 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffff000000000000000000000000000000000000000000000001",
+	}, {
+		name: "2^192",
+		n:    "1000000000000000000000000000000000000000000000000",
+		want: "ffffffffffffffff000000000000000000000000000000000000000000000000",
+	}, {
+		name: "2^256 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "1",
+	}, {
+		name: "alternating bits",
+		n:    "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5b",
+	}, {
+		name: "alternating bits 2",
+		n:    "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a6",
+	}}
+
+	for _, test := range tests {
+		n := hexToUint256(test.n)
+		want := hexToUint256(test.want)
+
+		// Ensure negating a value produces the expected result.
+		got := new(Uint256).NegateVal(n)
+		if !got.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, got,
+				want)
+			continue
+		}
+		// Ensure self negation also produces the expected result.
+		n.Negate()
+		if !n.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256NegateRandom ensures that negating uint256s created from random
+// values works as expected by also performing the same operation with big ints
+// and comparing the results.
+func TestUint256NegateRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair.
+		bigN, n := randBigIntAndUint256(t, rng)
+
+		// Calculate the negation of the value using big ints.
+		bigIntResult := new(big.Int).Neg(bigN)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the negation of the value using uint256s.
+		uint256Result := new(Uint256).NegateVal(n)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched negate n: %x -- got %x, want %x", n,
+				bigIntResult, uint256Result)
+		}
+	}
+}

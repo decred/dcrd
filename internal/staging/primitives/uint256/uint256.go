@@ -23,15 +23,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring, division), comparison operations
-// (equals, less, greater, cmp), interpreting and producing big and little
-// endian bytes, and other convenience methods such as whether or not the value
-// can be represented as a uint64 without loss of precision.
+// subtraction, multiplication, squaring, division, negation), comparison
+// operations (equals, less, greater, cmp), interpreting and producing big and
+// little endian bytes, and other convenience methods such as whether or not the
+// value can be represented as a uint64 without loss of precision.
 //
-// Future commits will implement the primary arithmetic operations (negation),
-// bitwise operations (lsh, rsh, not, or, and, xor), and other convenience
-// methods such as determining the minimum number of bits required to represent
-// the current value and text formatting with base conversion.
+// Future commits will implement bitwise operations (lsh, rsh, not, or, and,
+// xor), and other convenience methods such as determining the minimum number of
+// bits required to represent the current value and text formatting with base
+// conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -1097,4 +1097,31 @@ func (n *Uint256) DivUint64(divisor uint64) *Uint256 {
 		quotient.n[d], r = bits.Div64(r, n.n[d], divisor)
 	}
 	return n.Set(&quotient)
+}
+
+// NegateVal negates the passed uint256 modulo 2^256 and stores the result in
+// n.  In other words, n will be set to the two's complement of the passed
+// uint256.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.NegateVal(n2).AddUint64(1) so that n = -n2 + 1.
+func (n *Uint256) NegateVal(n2 *Uint256) *Uint256 {
+	// This uses math/bits to perform the negation via subtraction from 0 as the
+	// compiler will replace it with the relevant intrinsic on most
+	// architectures.
+	var borrow uint64
+	n.n[0], borrow = bits.Sub64(0, n2.n[0], borrow)
+	n.n[1], borrow = bits.Sub64(0, n2.n[1], borrow)
+	n.n[2], borrow = bits.Sub64(0, n2.n[2], borrow)
+	n.n[3], _ = bits.Sub64(0, n2.n[3], borrow)
+	return n
+}
+
+// Negate negates the uint256 modulo 2^256.  In other words, n will be set to
+// its two's complement.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Negate().AddUint64(1) so that n = -n + 1.
+func (n *Uint256) Negate() *Uint256 {
+	return n.NegateVal(n)
 }
