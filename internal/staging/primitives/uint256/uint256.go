@@ -24,14 +24,14 @@ var (
 //
 // It currently implements the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and), comparison operations (equals, less,
-// greater, cmp), interpreting and producing big and little endian bytes, and
-// other convenience methods such as whether or not the value can be represented
-// as a uint64 without loss of precision.
+// operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
+// less, greater, cmp), interpreting and producing big and little endian bytes,
+// and other convenience methods such as whether or not the value can be
+// represented as a uint64 without loss of precision.
 //
-// Future commits will implement bitwise operations (xor), and other convenience
-// methods such as determining the minimum number of bits required to represent
-// the current value and text formatting with base conversion.
+// Future commits will implement other convenience methods such as determining
+// the minimum number of bits required to represent the current value and text
+// formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -1311,5 +1311,18 @@ func (n *Uint256) And(n2 *Uint256) *Uint256 {
 	n.n[1] &= n2.n[1]
 	n.n[2] &= n2.n[2]
 	n.n[3] &= n2.n[3]
+	return n
+}
+
+// Xor computes the bitwise exclusive or of the uint256 and the passed uint256
+// and stores the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Xor(n2).AddUint64(1) so that n = (n ^ n2) + 1.
+func (n *Uint256) Xor(n2 *Uint256) *Uint256 {
+	n.n[0] ^= n2.n[0]
+	n.n[1] ^= n2.n[1]
+	n.n[2] ^= n2.n[2]
+	n.n[3] ^= n2.n[3]
 	return n
 }
