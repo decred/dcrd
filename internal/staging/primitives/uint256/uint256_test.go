@@ -2017,3 +2017,491 @@ func TestUint256SquareRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256NumDigitsZero ensures that determining the number of digits for
+// the value of zero returns zero digits.
+func TestUint256NumDigitsZero(t *testing.T) {
+	t.Parallel()
+
+	var zero Uint256
+	if got := zero.numDigits(); got != 0 {
+		t.Fatalf("unexpected number of digits -- got %d, want %d", got, 0)
+	}
+}
+
+// TestUint256Div ensures that dividing uint256s works as expected for edge
+// cases.
+func TestUint256Div(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded value
+		n2   string // second hex encoded value
+		want string // expected hex encoded value
+	}{{
+		name: "0 / 1",
+		n1:   "0",
+		n2:   "1",
+		want: "0",
+	}, {
+		name: "1 / 1",
+		n1:   "1",
+		n2:   "1",
+		want: "1",
+	}, {
+		name: "(2^64 - 1) / (2^32 - 1) (divisor max uint32 < dividend max uint64)",
+		n1:   "ffffffffffffffff",
+		n2:   "ffffffff",
+		want: "100000001",
+	}, {
+		name: "(2^64 - 1) / (2^64 - 2) (dividend and divisor both uint64)",
+		n1:   "ffffffffffffffff",
+		n2:   "fffffffffffffffe",
+		want: "1",
+	}, {
+		name: "(2^64 - 1) / (2^64) (dividend max uint64 < divisor)",
+		n1:   "ffffffffffffffff",
+		n2:   "10000000000000000",
+		want: "0",
+	}, {
+		name: "(2^256 - 1) / (2^64 - 1) (divisor max uint64 < dividend)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "ffffffffffffffff",
+		want: "0000000000000001000000000000000100000000000000010000000000000001",
+	}, {
+		name: "Divisor scaling factor 0 (aka no normalization needed)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "ffffffffffffffff0000000000000000",
+		want: "0100000000000000010000000000000001",
+	}, {
+		name: "Divisor scaling factor 2^1 (with 2 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "7a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "0217a17a17a17a17a17a17a17a17a17a19",
+	}, {
+		name: "Divisor scaling factor 2^2 (with 2 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "3a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "046318c6318c6318c6318c6318c6318c69",
+	}, {
+		name: "Divisor scaling factor 2^3 (with 2 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "1a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "09b6db6db6db6db6db6db6db6db6db6dd8",
+	}, {
+		name: "Divisor scaling factor 2^4 (with 2 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "0a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "18ba2e8ba2e8ba2e8ba2e8ba2e8ba2e991",
+	}, {
+		name: "Divisor scaling factor 2^5 (with 3 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "075a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "22d0e5604189374bc6",
+	}, {
+		name: "Divisor scaling factor 2^6 (with 3 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "035a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "4c59d31674c59d3167",
+	}, {
+		name: "Divisor scaling factor 2^7 (with 3 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "015a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "bd37a6f4de9bd37a6f",
+	}, {
+		name: "Divisor scaling factor 2^8 (with 3 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "2d55555555555555555",
+	}, {
+		name: "Divisor scaling factor 2^60 (with 4 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "000000000000000fa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "105c64171905c641",
+	}, {
+		name: "Divisor scaling factor 2^61 (with 4 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "0000000000000007a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "217a17a17a17a17a",
+	}, {
+		name: "Divisor scaling factor 2^62 (with 4 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "0000000000000003a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "46318c6318c6318c",
+	}, {
+		name: "Divisor scaling factor 2^63 (max possible, with 4 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "0000000000000001a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "9b6db6db6db6db6d",
+	}, {
+		name: "Divisor scaling factor 2^12",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "000fffffffffffff0000000000000000",
+		want: "100000000000010000000000001000000000",
+	}, {
+		name: "(2^256 - 1) / (2^256 - 1) (divisor == dividend with max uint256)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "1",
+	}, {
+		name: "(2^256 - 2) / (2^256 - 1) (divisor > dividend with max uint256)",
+		n1:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+		n2:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "0",
+	}, {
+		name: "one overestimate in full div",
+		n1:   "00000000000000020000000000000000",
+		n2:   "00000000000000010000000000000001",
+		want: "1",
+	}, {
+		name: "two overestimates in full div",
+		n1:   "000000000000000180000000000000000000000000000000",
+		n2:   "00000000000000020000000000000003",
+		want: "bffffffffffffffe",
+	}, {
+		name: "three overestimates in full div",
+		n1:   "000000000000000400000000000000010000000000000000",
+		n2:   "00000000000000020000000000000003",
+		want: "1fffffffffffffffd",
+	}, {
+		name: "four overestimates in full div",
+		n1:   "0000000000000001c00000000000000000000000000000000000000000000000",
+		n2:   "00000000000000020000000000000003",
+		want: "dffffffffffffffeb000000000000001",
+	}, {
+		name: "five overestimates in full div (max possible)",
+		n1:   "4000000000000004000000000000000100000000000000010000000000000000",
+		n2:   "00000000000000020000000000000003",
+		want: "2000000000000001cffffffffffffffdc800000000000003",
+	}, {
+		name: "place 2^128 estimate overflow min val (divisor digit == 2^63)",
+		n1:   "000000000000000100000000000000000000000000000000",
+		n2:   "000000000000000000000000000000010000000000000001",
+		want: "ffffffffffffffff",
+	}, {
+		name: "place 2^128 estimate overflow max instance (divisor digit == 2^64-1)",
+		n1:   "fffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff",
+		n2:   "00000000000000000000000000000000ffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffff",
+	}, {
+		name: "place 2^128 estimate overflow plus correction",
+		n1:   "000000000000001000000000000000000000000000000000",
+		n2:   "000000000000000000000000000000100000000000000011",
+		want: "fffffffffffffffe",
+	}, {
+		name: "place 2^128 estimate overflow min val (divisor digit == 2^63)",
+		n1:   "0000000000000001000000000000000000000000000000000000000000000000",
+		n2:   "0000000000000000000000000000000100000000000000000000000000000001",
+		want: "ffffffffffffffff",
+	}, {
+		name: "place 2^192 estimate overflow max instance (divisor digit == 2^64-1)",
+		n1:   "fffffffffffffffffffffffffffffffffffffffffffffffeffffffffffffffff",
+		n2:   "0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffff",
+	}, {
+		name: "place 2^192 estimate overflow plus correction",
+		n1:   "0000000000000001000000000000000000000000000000000000000000000000",
+		n2:   "0000000000000000000000000000000100000000000000010000000000000010",
+		want: "fffffffffffffffe",
+	}, {
+		name: "1 by 1 word division",
+		n1:   "9ec1968abe4be60c",
+		n2:   "7882e0ef10ad6333",
+		want: "1",
+	}, {
+		name: "2 by 1 word division",
+		n1:   "1ee7877f5f0d918d87ff2d8df5475a71",
+		n2:   "3c7c5921ce59535e",
+		want: "82ccc7899eb1f7d3",
+	}, {
+		name: "3 by 1 word division",
+		n1:   "2cafa3e891df1023a149b587a81fe1c6e29ef876d2f1076f",
+		n2:   "6f69c5864e2b6302",
+		want: "66ad79286546f29cc022cd5621075865",
+	}, {
+		name: "4 by 1 word division",
+		n1:   "859dcf75d21abb168921e000faaa91e0cc7f351857c054997f57935512a9acd3",
+		n2:   "9fafdc72ff55ad30",
+		want: "d63495d2e66c2c6d9948d9be0c90a4cbf282d7f069f0d00b",
+	}, {
+		name: "2 by 2 word division",
+		n1:   "b4bd27f8f94b274d0c720bef2840d2c8",
+		n2:   "a51475e9b9fe383f275ee4130be38f05",
+		want: "1",
+	}, {
+		name: "3 by 2 word division",
+		n1:   "d75621a1a66e56100a458d6798e45f73dffe19dc15dcf5e3",
+		n2:   "fc8bc284d73ba47cc9f035ed496b6493",
+		want: "da4816fd39b9beb3",
+	}, {
+		name: "4 by 2 word division",
+		n1:   "07c3dad55fdbcde468fe1012b9a870f45479dec3a856fe19466f7151636bab2e",
+		n2:   "298eb48cf26c33ff40ff678fcaf66765",
+		want: "2fd57ae59007eb97d1506aff05fa6a0d",
+	}, {
+		name: "5 by 2 word division",
+		n1:   "edce7b22ea206400183f1f3495ff19b401206f942ff0667fe038faae7086b750",
+		n2:   "268b13d263e82dc7a2d5fa8e2ee6e85e",
+		want: "62b7be8d25b7099268b3cd12c9975f808",
+	}, {
+		name: "3 by 3 word division",
+		n1:   "e266a16277f9d230fd6dbc29ebdd73c1bde3fc3c227bef9c",
+		n2:   "8d1a0e0a050a5c3bcdba1ab9483bde24ee2d69c977076af0",
+		want: "1",
+	}, {
+		name: "4 by 3 word division",
+		n1:   "e1543f55bf97d87f93cba9e0f33a12b1e3731236ad1558251ae5e2bed34c1517",
+		n2:   "814e09a35d405b258b40a28558d2ed6e128ad239561e2b45",
+		want: "1be1c4b3fca685eb4",
+	}, {
+		name: "5 by 3 word division",
+		n1:   "e4bdee26d527d18ebaaa10b4c0490ee22bdfa5f714ece496e99cb4247ed032c4",
+		n2:   "2d34ea7ab3826dbca03bd4377fed82072a48c5743ec8369d",
+		want: "50f565bf6a8060a26",
+	}, {
+		name: "4 by 4 word division",
+		n1:   "eed0d2d3ab6c94a36fa96d100c783928dffffff4f18e24720a3532c3466590cd",
+		n2:   "db14897e65d547ace12e740764d0a9d0f237b4b13c033df350d6c7c21c4fa0ea",
+		want: "1",
+	}, {
+		name: "5 by 4 word division",
+		n1:   "a879b1126365967b908c16e46f3a6332af5ca667fe92f2ae685fcf158da6f8d9",
+		n2:   "2776bc3b312cdc32d506dc02a93d2dcd7de59c615451be57ae19d3c8ca5a9d59",
+		want: "4",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "1",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "0",
+	}}
+
+	for _, test := range tests {
+		n1 := hexToUint256(test.n1)
+		n2 := hexToUint256(test.n2)
+		want := hexToUint256(test.want)
+
+		// Ensure dividing two other values produces the expected result.
+		got := new(Uint256).Div2(n1, n2)
+		if !got.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, got,
+				want)
+			continue
+		}
+
+		// Ensure single argument division also produces the expected result.
+		n1.Div(n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n1,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256DivRandom ensures that dividing two uint256s created from random
+// values works as expected by also performing the same operation with big ints
+// and comparing the results.
+func TestUint256DivRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		bigN2, n2 := randBigIntAndUint256(t, rng)
+
+		// Calculate the quotient of the values using big ints.
+		bigIntResult := new(big.Int).Div(bigN1, bigN2)
+
+		// Calculate the quotient of the values using uint256s.
+		uint256Result := new(Uint256).Div2(n1, n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched div n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}
+
+// TestUint256DivUint64 ensures that dividing a uint256 by a uint64 works as
+// expected for edge cases.
+func TestUint256DivUint64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // hex encoded dividend
+		n2   uint64 // uint64 divisor
+		want string // expected hex encoded value
+	}{{
+		name: "0 / 1",
+		n1:   "0",
+		n2:   1,
+		want: "0",
+	}, {
+		name: "1 / 1",
+		n1:   "1",
+		n2:   1,
+		want: "1",
+	}, {
+		name: "(2^64 - 1) / (2^32 - 1) (divisor max uint32 < dividend max uint64)",
+		n1:   "ffffffffffffffff",
+		n2:   0xffffffff,
+		want: "100000001",
+	}, {
+		name: "(2^64 - 1) / (2^64 - 2) (dividend and divisor both uint64)",
+		n1:   "ffffffffffffffff",
+		n2:   0xfffffffffffffffe,
+		want: "1",
+	}, {
+		name: "(2^256 - 1) / (2^64 - 1) (divisor max uint64 < dividend)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   0xffffffffffffffff,
+		want: "0000000000000001000000000000000100000000000000010000000000000001",
+	}, {
+		name: "1 by 1 word division",
+		n1:   "9ec1968abe4be60c",
+		n2:   0x7882e0ef10ad6333,
+		want: "1",
+	}, {
+		name: "2 by 1 word division",
+		n1:   "1ee7877f5f0d918d87ff2d8df5475a71",
+		n2:   0x3c7c5921ce59535e,
+		want: "82ccc7899eb1f7d3",
+	}, {
+		name: "3 by 1 word division",
+		n1:   "2cafa3e891df1023a149b587a81fe1c6e29ef876d2f1076f",
+		n2:   0x6f69c5864e2b6302,
+		want: "66ad79286546f29cc022cd5621075865",
+	}, {
+		name: "4 by 1 word division",
+		n1:   "859dcf75d21abb168921e000faaa91e0cc7f351857c054997f57935512a9acd3",
+		n2:   0x9fafdc72ff55ad30,
+		want: "d63495d2e66c2c6d9948d9be0c90a4cbf282d7f069f0d00b",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   0x5a5a5a5a5a5a5a5a,
+		want: "1d5555555555555572aaaaaaaaaaaaaac8000000000000001",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   0xa5a5a5a5a5a5a5a5,
+		want: "8ba2e8ba2e8ba2e945d1745d1745d174e8ba2e8ba2e8ba2f",
+	}}
+
+	for _, test := range tests {
+		n1 := hexToUint256(test.n1)
+		want := hexToUint256(test.want)
+
+		// Ensure single argument division also produces the expected result.
+		n1.DivUint64(test.n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n1,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256DivUint64Random ensures that dividing a uint256 by a uint64, both
+// created from random values, works as expected by also performing the same
+// operation with big ints and comparing the results.
+func TestUint256DivUint64Random(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		n2 := rng.Uint64()
+		bigN2 := new(big.Int).SetUint64(n2)
+
+		// Calculate the quotient of the values using big ints.
+		bigIntResult := new(big.Int).Div(bigN1, bigN2)
+
+		// Calculate the quotient of the values using uint256s.
+		uint256Result := new(Uint256).Set(n1).DivUint64(n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched div n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}
+
+// TestUint256DivByZeroPanic ensures division by zero results in a panic for the
+// various division methods.
+func TestUint256DivByZeroPanic(t *testing.T) {
+	t.Parallel()
+
+	testPanic := func(fn func()) (paniced bool) {
+		// Setup a defer to catch the expected panic and update the return
+		// variable.
+		defer func() {
+			if err := recover(); err != nil {
+				paniced = true
+			}
+		}()
+
+		fn()
+		return false
+	}
+
+	// Ensure attempting to divide by zero via the two parameter variant panics.
+	paniced := testPanic(func() {
+		var n1, n2 Uint256
+		_ = new(Uint256).Div2(&n1, &n2)
+	})
+	if !paniced {
+		t.Fatal("Div2 did not panic on division by zero")
+	}
+
+	// Ensure attempting to divide by zero via the single parameter variant
+	// panics.
+	paniced = testPanic(func() {
+		var n1, n2 Uint256
+		n1.Div(&n2)
+	})
+	if !paniced {
+		t.Fatal("Div did not panic on division by zero")
+	}
+
+	// Ensure attempting to divide by zero via the uint64 parameter variant
+	// panics.
+	paniced = testPanic(func() {
+		var n1 Uint256
+		n1.DivUint64(0)
+	})
+	if !paniced {
+		t.Fatal("DivUint64 did not panic on division by zero")
+	}
+}

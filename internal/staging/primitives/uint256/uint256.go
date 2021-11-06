@@ -8,6 +8,10 @@ package uint256
 
 import "math/bits"
 
+// References:
+//   [TAOCP2]: The Art of Computer Programming, Volume 2.
+//             Seminumerical Algorithms (Knuth, Donald E.)
+
 var (
 	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
 	// defined here to avoid extra allocations.
@@ -19,15 +23,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring), comparison operations (equals, less,
-// greater, cmp), interpreting and producing big and little endian bytes, and
-// other convenience methods such as whether or not the value can be represented
-// as a uint64 without loss of precision.
+// subtraction, multiplication, squaring, division), comparison operations
+// (equals, less, greater, cmp), interpreting and producing big and little
+// endian bytes, and other convenience methods such as whether or not the value
+// can be represented as a uint64 without loss of precision.
 //
-// Future commits will implement the primary arithmetic operations (division,
-// negation), bitwise operations (lsh, rsh, not, or, and, xor), and other
-// convenience methods such as determining the minimum number of bits required
-// to represent the current value and text formatting with base conversion.
+// Future commits will implement the primary arithmetic operations (negation),
+// bitwise operations (lsh, rsh, not, or, and, xor), and other convenience
+// methods such as determining the minimum number of bits required to represent
+// the current value and text formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -731,4 +735,366 @@ func (n *Uint256) SquareVal(n2 *Uint256) *Uint256 {
 // n.Square().Mul(n2) so that n = n^2 * n2.
 func (n *Uint256) Square() *Uint256 {
 	return n.SquareVal(n)
+}
+
+// numDigits returns the number of base 2^64 digits required to represent the
+// uint256.  The result is 0 when the value is 0.
+func (n *Uint256) numDigits() int {
+	for i := 3; i >= 0; i-- {
+		if n.n[i] != 0 {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// prefixLt returns whether or not the first argument is less than the prefix of
+// the same length from the second when treating both as little-endian encoded
+// integers.  That is, it returns true when a < b[0:len(a)].
+func prefixLt(a, b []uint64) bool {
+	var borrow uint64
+	for i := 0; i < len(a); i++ {
+		_, borrow = bits.Sub64(a[i], b[i], borrow)
+	}
+	return borrow != 0
+}
+
+// Div2 divides the passed uint256 dividend by the passed uint256 divisor modulo
+// 2^256 and stores the result in n.  It will panic if the divisor is 0.
+//
+// This implements truncated division like native Go integers and it is safe to
+// alias the arguments.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Div2(n1, n2).AddUint64(1) so that n = (n1 / n2) + 1.
+func (n *Uint256) Div2(dividend, divisor *Uint256) *Uint256 {
+	if divisor.IsZero() {
+		panic("division by zero")
+	}
+
+	// Fast path for a couple of obvious cases.  The result is zero when the
+	// divisor is larger than the dividend and one when they are equal.  The
+	// remaining code also has preconditions on these cases already being
+	// handled.
+	if divisor.Gt(dividend) {
+		n.Zero()
+		return n
+	}
+	if dividend.Eq(divisor) {
+		return n.SetUint64(1)
+	}
+
+	// When the dividend can be fully represented by a uint64, perform the
+	// division using native uint64s since the divisor is also guaranteed to be
+	// fully representable as a uint64 given it was already confirmed to be
+	// smaller than the dividend above.
+	if dividend.IsUint64() {
+		return n.SetUint64(dividend.n[0] / divisor.n[0])
+	}
+
+	// When the divisor can be fully represented by a uint64, the divisor only
+	// consists of a single base 2^64 digit, so use that fact to avoid extra
+	// work.  It is important to note that the algorithm below also requires the
+	// divisor to be at least two digits, so this is not solely a performance
+	// optimization.
+	if divisor.IsUint64() {
+		// The range here satisfies the following inequality:
+		//  1 ≤ divisor < 2^64 ≤ dividend < 2^256
+		var quotient Uint256
+		var r uint64
+		for d := dividend.numDigits() - 1; d >= 0; d-- {
+			quotient.n[d], r = bits.Div64(r, dividend.n[d], divisor.n[0])
+		}
+		return n.Set(&quotient)
+	}
+
+	// The range at this point satisfies the following inequality:
+	//  2^64 ≤ divisor < dividend < 2^256
+
+	// -------------------------------------------------------------------------
+	// The following is loosely based on Algorithm 4.3.1D of [TAOCP2] and is
+	// therefore based on long (aka schoolbook) division.  It has been modified
+	// as compared to said algorithm in the following ways for performance
+	// reasons:
+	//
+	// 1. It uses full words instead of splitting each one into half words
+	// 2. It does not perform the test which effectively expands the estimate to
+	//    be based on 3 digits of the dividend/remainder divided by 2 digits
+	//    of the divisor instead of 2 digits by 1 (Step D3)
+	// 3. It conditionally subtracts the partial product from the partial
+	//    remainder in the case the latter is less than the former instead of
+	//    always subtracting it and then conditionally adding back (Steps D4,
+	//    D5, and D6)
+	// 4. It only computes the active part of the remainder and throws the rest
+	//    away since it is not needed here (parts of Steps D3, D4, D5, and D6)
+	// 5. It skips undoing the normalization for the remainder since it is not
+	//    needed here (Step D8)
+	//
+	// The primary rationale for these changes follows:
+	//
+	// In regards to (1), almost all modern hardware provides native 128-bit by
+	// 64-bit division operations as well as 64-bit by 64-bit multiplication
+	// operations which the Go compiler uses in place of the respective
+	// `bits.Div64/Mul64` and, as a further benefit, using full words cuts the
+	// number of iterations in half.
+	//
+	// The test referred to by (2) serves to pin the potential error in the
+	// estimated quotient to be a max of 1 too high instead of a max of 2 as
+	// well as reduce the probability that single correction is needed at all.
+	// However, in order to achieve that, given full 64-bit words are used here,
+	// the Knuth method would involve an unconditional test which relies on
+	// comparing the result of a software-implemented 128-bit product against
+	// another 128-bit product as well as a 128-bit addition with carry.  That
+	// is typically a sensible tradeoff when the number of digits involved is
+	// large and when working with half words since an additional potential
+	// correction would typically cost more than the test under those
+	// circumstances.
+	//
+	// However, in this implementation, it ends being faster to perform the
+	// extra correction than it is to perform the aforementioned test.  The
+	// primary reasons for this are:
+	//
+	// - The number of digits is ≤ 4 which means very few operations are needed
+	//   for the correction
+	// - Both the comparison of the product against the remainder and the
+	//   conditional subtraction of the product from the remainder are able to
+	//   make use of hardware acceleration that almost all modern hardware
+	//   provides
+	//
+	// Moreover, the probability of the initial estimate being correct
+	// significantly increases as the size of the base grows.  Given this
+	// implementation uses a base of 2^64, the probability of needing a
+	// correction is extremely low.
+	//
+	// Concretely, for quotient digits that are uniformly distributed, the
+	// probability of guessing the initial estimate correctly with normalization
+	// for a base of 2^64 is: 1 - 2/2^64 ~= 99.99999999999999999%.  In other
+	// words, on average, roughly only 1 out of every 10 quintillion (10^19)
+	// will require an adjustment.
+	// -------------------------------------------------------------------------
+
+	// Start by normalizing the arguments.
+	//
+	// For reference, normalization is the process of scaling the operands such
+	// that the leading digit of the divisor is greater than or equal to half of
+	// the base (also often called the radix).  Since this implementation uses a
+	// base of 2^64, half of that equates to 2^63.  Mathematically:
+	//  2^63 ≤ leading digit of divisor < 2^64
+	//
+	// Note that the number of digits in each operand at this point satisfies
+	// the following inequality:
+	//  2 ≤ num divisor digits ≤ num dividend digits ≤ 4
+	//
+	// Further, notice that being ≥ 2^63 is equivalent to a digit having its
+	// most significant bit set.  This means the scaling factor can very quickly
+	// be determined by counting the number of leading zeros and applied to the
+	// operands via bit shifts.
+	//
+	// This process significantly reduces the probability of requiring an
+	// adjustment to the initial estimate for quotient digits later as per the
+	// previous comments as well as bounds the possible number of error
+	// adjustments.
+	numDivisorDigits := divisor.numDigits()
+	numDividendDigits := dividend.numDigits()
+	sf := uint8(bits.LeadingZeros64(divisor.n[numDivisorDigits-1]))
+	var divisorN [4]uint64
+	var dividendN [5]uint64
+	if sf > 0 {
+		// Normalize the divisor by scaling it per the scaling factor.
+		for i := numDivisorDigits - 1; i > 0; i-- {
+			divisorN[i] = divisor.n[i]<<sf | divisor.n[i-1]>>(64-sf)
+		}
+		divisorN[0] = divisor.n[0] << sf
+
+		// Scale the dividend by the same scaling factor too.
+		dividendN[numDividendDigits] = dividend.n[numDividendDigits-1] >> (64 - sf)
+		for i := numDividendDigits - 1; i > 0; i-- {
+			dividendN[i] = dividend.n[i]<<sf | dividend.n[i-1]>>(64-sf)
+		}
+		dividendN[0] = dividend.n[0] << sf
+	} else {
+		copy(divisorN[:], divisor.n[:])
+		copy(dividendN[:], dividend.n[:])
+	}
+
+	// NOTE: The number of digits in the non-normalized dividend and divisor
+	// satisfies the following inequality at this point:
+	//  2 ≤ numDivisorDigits ≤ numDividendDigits ≤ 4
+	//
+	// Therefore the maximum value of d in the loop is 2.
+	var p [5]uint64
+	var qhat, c, borrow uint64
+	n.Zero()
+	for d := numDividendDigits - numDivisorDigits; d >= 0; d-- {
+		// Estimate the quotient digit by dividing the 2 leading digits of the
+		// active part of the remainder by the leading digit of the normalized
+		// divisor.
+		//
+		// Per Theorems A and B in section 4.3.1 of [TAOCP2], when the leading
+		// digit of the divisor is normalized as described above, the estimated
+		// quotient digit (qhat) produced by this is guaranteed to be ≥ the
+		// correct one (q) and at most 2 more.  Mathematically:
+		//  qhat - 2 ≤ q ≤ qhat
+		//
+		// Further, the algorithm implemented here guarantees that the leading
+		// digit of the active part of the remainder will be ≤ the leading digit
+		// of the normalized divisor.  When it is less, the estimated quotient
+		// digit will fit into a single word and everything is normal.  However,
+		// in the equals case, a second word would be required meaning the
+		// calculation would overflow.
+		//
+		// Combining that with the theorem above, the estimate in the case of
+		// overflow must either be one or two more than the maximum possible
+		// value for a single digit.  In either case, assuming a type capable of
+		// representing values larger than a single digit without overflow were
+		// used instead, the quotient digit would have to be adjusted downwards
+		// until it was correct, and given the correct quotient digit must fit
+		// into a single word, it will necessarily either be the maximum
+		// possible value allowed for a single digit or one less.  Therefore,
+		// the equality check here bypasses the overflow by setting the estimate
+		// to the max possible value and allowing the loop below to handle the
+		// potential remaining (extremely rare) overestimate.
+		//
+		// Also note that this behavior is not merely an optimization to skip
+		// the 128-bit by 64-bit division as both the hardware instruction and
+		// the bits.Div64 implementation would otherwise lead to a panic due to
+		// overflow as well.
+		//
+		// For some intuition, consider the base 10 case with a divisor of 5
+		// (recall the divisor is normalized, so it must be at least half the
+		// base).  Then the maximum 2-digit dividend with the leading digit less
+		// than 5 is 49 and the minimum with the leading digit equal to 5 is 50.
+		// Observe that floor(49/5) = 9 is a single digit result, but
+		// floor(50/5) = 10 is not.  The worst overestimate case for these
+		// conditions would occur at floor(59/5) = floor(11.8) = 11 which is
+		// indeed 2 more than the maximum possible single digit 9.
+		if dividendN[d+numDivisorDigits] == divisorN[numDivisorDigits-1] {
+			qhat = ^uint64(0)
+		} else {
+			qhat, _ = bits.Div64(dividendN[d+numDivisorDigits],
+				dividendN[d+numDivisorDigits-1], divisorN[numDivisorDigits-1])
+		}
+
+		// Calculate the product of the estimated quotient digit and divisor.
+		//
+		// This is semantically equivalent to the following if uint320 were
+		// supported:
+		//
+		// p = uint320(qhat) * uint320(divisorN)
+		//
+		// Note that this will compute extra upper terms when the divisor is
+		// fewer digits than the max possible even though it is not really
+		// needed since they will all be zero.  However, because it is only
+		// potentially a max of two extra digits, it ends up being faster on
+		// average to avoid the additional conditional branches due to
+		// pipelining.
+		c, p[0] = bits.Mul64(qhat, divisorN[0])
+		c, p[1] = mulAdd64(qhat, divisorN[1], c)
+		c, p[2] = mulAdd64(qhat, divisorN[2], c)
+		p[4], p[3] = mulAdd64(qhat, divisorN[3], c)
+
+		// Adjust the estimate (and associated product) downwards when they are
+		// too high for the active part of the partial remainder.  As described
+		// above, qhat is guaranteed to be at most two more than the correct
+		// quotient digit, so this loop will run at most twice.
+		//
+		// Moreover, the probability of a single correction is extremely rare
+		// and that of two corrections is roughly an additional two orders of
+		// magnitude less than that.  In other words, in practice, the two
+		// corrections case almost never happens.
+		for prefixLt(dividendN[d:d+numDivisorDigits+1], p[:]) {
+			qhat--
+
+			// Subtract the divisor from the product to adjust it for the
+			// reduced quotient.
+			//
+			// This is semantically equivalent to the following if uint320 were
+			// supported (and with p as a uint320 per above):
+			//
+			// p -= uint320(divisorN)
+			//
+			// Note that as with the original calculation of the product above,
+			// this will compute extra upper terms when the divisor is fewer
+			// digits than the max possible even though it is not really needed
+			// for performance reasons as previously described.
+			p[0], borrow = bits.Sub64(p[0], divisorN[0], 0)
+			p[1], borrow = bits.Sub64(p[1], divisorN[1], borrow)
+			p[2], borrow = bits.Sub64(p[2], divisorN[2], borrow)
+			p[3], borrow = bits.Sub64(p[3], divisorN[3], borrow)
+			p[4] -= borrow
+		}
+
+		// Set the quotient digit in the result.
+		n.n[d] = qhat
+
+		// Update the dividend by subtracting the resulting product from it so
+		// that it becomes the new remainder to use for calculating the next
+		// quotient digit.
+		//
+		// Note that this is only calculating the _active_ part of the remainder
+		// since the final remainder is not needed and the next iteration slides
+		// over one digit to the right meaning none of the upper digits are used
+		// and are therefore safe to ignore despite them no longer being
+		// accurate.
+		//
+		// Also, since 'd' is a maximum of 2 due to previous constraints, there
+		// is no chance of overflowing the array.
+		//
+		// This is semantically equivalent to the following if uint192 and the
+		// syntax to set base 2^64 digits in little endian directly were
+		// supported:
+		//
+		// dividendN[d:d+3] = uint192(dividendN[d:d+3]) - uint192(p[0:3])
+		dividendN[d], borrow = bits.Sub64(dividendN[d], p[0], 0)
+		dividendN[d+1], borrow = bits.Sub64(dividendN[d+1], p[1], borrow)
+		dividendN[d+2], _ = bits.Sub64(dividendN[d+2], p[2], borrow)
+	}
+
+	return n
+}
+
+// Div divides the existing value in n by the passed uint256 divisor modulo
+// 2^256 and stores the result in n.  It will panic if the divisor is 0.
+//
+// This implements truncated division like native Go integers.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Div(n2).AddUint64(1) so that n = (n / n2) + 1.
+func (n *Uint256) Div(divisor *Uint256) *Uint256 {
+	return n.Div2(n, divisor)
+}
+
+// DivUint64 divides the existing value in n by the passed uint64 divisor modulo
+// 2^256 and stores the result in n.  It will panic if the divisor is 0.
+//
+// This implements truncated division like native Go integers.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.DivUint64(2).AddUint64(1) so that n = (n / 2) + 1.
+func (n *Uint256) DivUint64(divisor uint64) *Uint256 {
+	if divisor == 0 {
+		panic("division by zero")
+	}
+
+	// Fast path for a couple of obvious cases.  The result is zero when the
+	// dividend is smaller than the divisor and one when they are equal.  The
+	// remaining code also has preconditions on these cases already being
+	// handled.
+	if n.LtUint64(divisor) {
+		n.Zero()
+		return n
+	}
+	if n.EqUint64(divisor) {
+		return n.SetUint64(1)
+	}
+
+	// The range here satisfies the following inequalities:
+	//  1 ≤ divisor < 2^64
+	//  1 ≤ divisor < dividend < 2^256
+	var quotient Uint256
+	var r uint64
+	for d := n.numDigits() - 1; d >= 0; d-- {
+		quotient.n[d], r = bits.Div64(r, n.n[d], divisor)
+	}
+	return n.Set(&quotient)
 }
