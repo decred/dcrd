@@ -16,16 +16,16 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for interpreting big endian bytes.
+// It currently implements support for interpreting big and little endian bytes.
 //
-// Future commits will implement support for interpreting and producing big and
-// little endian bytes, the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
-// less, greater, cmp), and other convenience methods such as determining the
-// minimum number of bits required to represent the current value, whether or
-// not the value can be represented as a uint64 without loss of precision, and
-// text formatting with base conversion.
+// Future commits will implement support for producing big and little endian
+// bytes, the primary arithmetic operations (addition, subtraction,
+// multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
+// not, or, and, xor), comparison operations (equals, less, greater, cmp), and
+// other convenience methods such as determining the minimum number of bits
+// required to represent the current value, whether or not the value can be
+// represented as a uint64 without loss of precision, and text formatting with
+// base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -105,6 +105,27 @@ func (n *Uint256) SetBytes(b *[32]byte) *Uint256 {
 	return n
 }
 
+// SetBytesLE interprets the provided array as a 256-bit little-endian unsigned
+// integer and sets the uint256 to the result.
+func (n *Uint256) SetBytesLE(b *[32]byte) *Uint256 {
+	// Pack the 256 total bits across the 4 uint64 words.  This could be done
+	// with a for loop, but benchmarks show this unrolled version is about 2
+	// times faster than the variant that uses a loop.
+	n.n[0] = uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 |
+		uint64(b[3])<<24 | uint64(b[4])<<32 | uint64(b[5])<<40 |
+		uint64(b[6])<<48 | uint64(b[7])<<56
+	n.n[1] = uint64(b[8]) | uint64(b[9])<<8 | uint64(b[10])<<16 |
+		uint64(b[11])<<24 | uint64(b[12])<<32 | uint64(b[13])<<40 |
+		uint64(b[14])<<48 | uint64(b[15])<<56
+	n.n[2] = uint64(b[16]) | uint64(b[17])<<8 | uint64(b[18])<<16 |
+		uint64(b[19])<<24 | uint64(b[20])<<32 | uint64(b[21])<<40 |
+		uint64(b[22])<<48 | uint64(b[23])<<56
+	n.n[3] = uint64(b[24]) | uint64(b[25])<<8 | uint64(b[26])<<16 |
+		uint64(b[27])<<24 | uint64(b[28])<<32 | uint64(b[29])<<40 |
+		uint64(b[30])<<48 | uint64(b[31])<<56
+	return n
+}
+
 // zeroArray32 zeroes the provided 32-byte buffer.
 func zeroArray32(b *[32]byte) {
 	copy(b[:], zero32[:])
@@ -130,6 +151,21 @@ func (n *Uint256) SetByteSlice(b []byte) *Uint256 {
 	b = b[len(b)-minInt(len(b), 32):]
 	copy(b32[32-len(b):], b)
 	n.SetBytes(&b32)
+	zeroArray32(&b32)
+	return n
+}
+
+// SetByteSliceLE interprets the provided slice as a 256-bit little-endian
+// unsigned integer (meaning it is truncated to the first 32 bytes so that it is
+// modulo 2^256), and sets the uint256 to the result.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n := new(Uint256).SetByteSliceLE(n2Slice).AddUint64(1) so that n = n2 + 1.
+func (n *Uint256) SetByteSliceLE(b []byte) *Uint256 {
+	var b32 [32]byte
+	b = b[:minInt(len(b), 32)]
+	copy(b32[:], b)
+	n.SetBytesLE(&b32)
 	zeroArray32(&b32)
 	return n
 }
