@@ -257,6 +257,34 @@ func BenchmarkBigIntIsZero(b *testing.B) {
 	}
 }
 
+// BenchmarkUint256IsOdd benchmarks determining if an unsigned 256-bit integer
+// is odd with the specialized type.
+func BenchmarkUint256IsOdd(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			noElideBool = vals[j].n1.IsOdd()
+		}
+	}
+}
+
+// BenchmarkBigIntIsOdd benchmarks determining if an unsigned 256-bit integer is
+// odd with stdlib big integers.
+func BenchmarkBigIntIsOdd(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			noElideBool = vals[j].bigN1.Bit(0) == 1
+		}
+	}
+}
+
 // BenchmarkUint256Eq benchmarks determining equality between two unsigned
 // 256-bit integers with the specialized type.
 func BenchmarkUint256Eq(b *testing.B) {
