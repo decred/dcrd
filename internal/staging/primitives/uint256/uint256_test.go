@@ -2666,3 +2666,136 @@ func TestUint256NegateRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Lsh ensures that left shifting uint256s works as expected for edge
+// cases.
+func TestUint256Lsh(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded test value
+		bits uint32 // number of bits to shift
+		want string // expected hex encoded value
+	}{{
+		name: "zero << 0",
+		n:    "0",
+		bits: 0,
+		want: "0",
+	}, {
+		name: "(2^256 - 1) << 0",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 0,
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "(2^256 - 1) << 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 1,
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^256 - 1) << 64",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 64,
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000",
+	}, {
+		name: "(2^256 - 1) << 66",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 66,
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffc0000000000000000",
+	}, {
+		name: "(2^256 - 1) << 128",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 128,
+		want: "ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+	}, {
+		name: "(2^256 - 1) << 130",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 130,
+		want: "fffffffffffffffffffffffffffffffc00000000000000000000000000000000",
+	}, {
+		name: "(2^256 - 1) << 192",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 192,
+		want: "ffffffffffffffff000000000000000000000000000000000000000000000000",
+	}, {
+		name: "alternating bits << 193",
+		n:    "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		bits: 193,
+		want: "4b4b4b4b4b4b4b4a000000000000000000000000000000000000000000000000",
+	}, {
+		name: "alternating bits 2 << 250",
+		n:    "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		bits: 250,
+		want: "6800000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "(2^256 - 1) << 256",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 256,
+		want: "0",
+	}, {
+		name: "(2^256 - 1) << 300",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		bits: 300,
+		want: "0",
+	}}
+
+	for _, test := range tests {
+		n := hexToUint256(test.n)
+		want := hexToUint256(test.want)
+
+		// Ensure left shifting the value produces the expected result.
+		got := new(Uint256).LshVal(n, test.bits)
+		if !got.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, got,
+				want)
+			continue
+		}
+
+		// Ensure single argument left shifting produces the expected result.
+		n.Lsh(test.bits)
+		if !n.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256LshRandom ensures that left shifting uint256s created from random
+// values works as expected by also performing the same operation with big ints
+// and comparing the results.
+func TestUint256LshRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair along with a random number of
+		// bits to shift it.
+		bigN, n := randBigIntAndUint256(t, rng)
+		randomShift := uint(rng.Int31n(300))
+
+		// Calculate the lsh of the value using big ints.
+		bigIntResult := new(big.Int).Lsh(bigN, randomShift)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the lsh of the value using uint256s.
+		uint256Result := new(Uint256).LshVal(n, uint32(randomShift))
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched lsh n: %x -- got %x, want %x", n, bigIntResult,
+				uint256Result)
+		}
+	}
+}

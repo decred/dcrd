@@ -23,14 +23,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements the primary arithmetic operations (addition,
-// subtraction, multiplication, squaring, division, negation), comparison
-// operations (equals, less, greater, cmp), interpreting and producing big and
-// little endian bytes, and other convenience methods such as whether or not the
-// value can be represented as a uint64 without loss of precision.
+// subtraction, multiplication, squaring, division, negation), bitwise
+// operations (lsh), comparison operations (equals, less, greater, cmp),
+// interpreting and producing big and little endian bytes, and other convenience
+// methods such as whether or not the value can be represented as a uint64
+// without loss of precision.
 //
-// Future commits will implement bitwise operations (lsh, rsh, not, or, and,
-// xor), and other convenience methods such as determining the minimum number of
-// bits required to represent the current value and text formatting with base
+// Future commits will implement bitwise operations (rsh, not, or, and, xor),
+// and other convenience methods such as determining the minimum number of bits
+// required to represent the current value and text formatting with base
 // conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
@@ -1130,4 +1131,76 @@ func (n *Uint256) NegateVal(n2 *Uint256) *Uint256 {
 // n.Negate().AddUint64(1) so that n = -n + 1.
 func (n *Uint256) Negate() *Uint256 {
 	return n.NegateVal(n)
+}
+
+// LshVal shifts the passed uint256 to the left the given number of bits and
+// stores the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.LshVal(n2, 2).AddUint64(1) so that n = (n2 << 2) + 1.
+func (n *Uint256) LshVal(n2 *Uint256, bits uint32) *Uint256 {
+	// Fast path for large and zero shifts.
+	if bits > 255 {
+		n.Zero()
+		return n
+	}
+	if bits == 0 {
+		return n.Set(n2)
+	}
+
+	// Shift entire words when possible.
+	switch {
+	case bits >= 192:
+		// Left shift 192 bits.
+		n.n[3], n.n[2], n.n[1], n.n[0] = n2.n[0], 0, 0, 0
+		bits -= 192
+		if bits == 0 {
+			return n
+		}
+		n.n[3] <<= bits
+		return n
+
+	case bits >= 128:
+		// Left shift 128 bits.
+		n.n[3], n.n[2], n.n[1], n.n[0] = n2.n[1], n2.n[0], 0, 0
+		bits -= 128
+		if bits == 0 {
+			return n
+		}
+		n.n[3] = (n.n[3] << bits) | (n.n[2] >> (64 - bits))
+		n.n[2] <<= bits
+		return n
+
+	case bits >= 64:
+		// Left shift 64 bits.
+		n.n[3], n.n[2], n.n[1], n.n[0] = n2.n[2], n2.n[1], n2.n[0], 0
+		bits -= 64
+		if bits == 0 {
+			return n
+		}
+		n.n[3] = (n.n[3] << bits) | (n.n[2] >> (64 - bits))
+		n.n[2] = (n.n[2] << bits) | (n.n[1] >> (64 - bits))
+		n.n[1] <<= bits
+		return n
+	}
+
+	// At this point the shift must be less than 64 bits, so shift each word
+	// accordingly.
+	n.n[3] = (n2.n[3] << bits) | (n2.n[2] >> (64 - bits))
+	n.n[2] = (n2.n[2] << bits) | (n2.n[1] >> (64 - bits))
+	n.n[1] = (n2.n[1] << bits) | (n2.n[0] >> (64 - bits))
+	n.n[0] = n2.n[0] << bits
+	return n
+}
+
+// Lsh shifts the uint256 to the left the given number of bits and stores the
+// result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Lsh(2).AddUint64(1) so that n = (n << 2) + 1.
+func (n *Uint256) Lsh(bits uint32) *Uint256 {
+	if bits == 0 {
+		return n
+	}
+	return n.LshVal(n, bits)
 }
