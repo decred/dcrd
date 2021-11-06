@@ -326,3 +326,17 @@ func (n *Uint256) Zero() {
 func (n *Uint256) IsZero() bool {
 	return n.n[0] == 0 && n.n[1] == 0 && n.n[2] == 0 && n.n[3] == 0
 }
+
+// IsUint32 returns whether or not the uint256 can be converted to a uint32
+// without any loss of precision.  In other words, 0 <= n < 2^32.
+func (n *Uint256) IsUint32() bool {
+	return (n.n[0]>>32 | n.n[1] | n.n[2] | n.n[3]) == 0
+}
+
+// Uint32 returns the uint32 representation of the value.  In other words, it
+// returns the low-order 32 bits of the value as a uint32 which is equivalent to
+// the value modulo 2^32.  The caller can determine if this method can be used
+// without truncation with the IsUint32 method.
+func (n *Uint256) Uint32() uint32 {
+	return uint32(n.n[0])
+}

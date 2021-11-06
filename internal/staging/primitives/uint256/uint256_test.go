@@ -453,3 +453,121 @@ func TestUint256IsZero(t *testing.T) {
 		t.Fatalf("claims zero for nonzero uint256 - got %v (words %x)", n, n.n)
 	}
 }
+
+// TestUint256IsUint32 ensures that checking if a uint256 can be represented as
+// a uint32 without loss of precision works as expected.
+func TestUint256IsUint32(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded value
+		want bool   // expected result
+	}{{
+		name: "zero",
+		n:    "0",
+		want: true,
+	}, {
+		name: "one",
+		n:    "1",
+		want: true,
+	}, {
+		name: "two",
+		n:    "2",
+		want: true,
+	}, {
+		name: "2^32 - 1",
+		n:    "ffffffff",
+		want: true,
+	}, {
+		name: "2^32",
+		n:    "100000000",
+		want: false,
+	}, {
+		name: "2^64 - 2",
+		n:    "fffffffffffffffe",
+		want: false,
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: false,
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: false,
+	}, {
+		name: "2^256 - 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: false,
+	}}
+
+	for _, test := range tests {
+		got := hexToUint256(test.n).IsUint32()
+		if got != test.want {
+			t.Errorf("%q: wrong result -- got: %v, want: %v", test.name, got,
+				test.want)
+			continue
+		}
+	}
+}
+
+// TestUint256Uint32 ensures that treating a uint256 as a uint32 produces the
+// expected result.
+func TestUint256Uint32(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n    string // hex encoded value
+		want uint32 // expected uint32
+	}{{
+		name: "zero",
+		n:    "0",
+		want: 0,
+	}, {
+		name: "one",
+		n:    "1",
+		want: 1,
+	}, {
+		name: "two",
+		n:    "2",
+		want: 2,
+	}, {
+		name: "2^32 - 1",
+		n:    "ffffffff",
+		want: 0xffffffff,
+	}, {
+		name: "2^32",
+		n:    "100000000",
+		want: 0,
+	}, {
+		name: "2^64 - 2",
+		n:    "fffffffffffffffe",
+		want: 0xfffffffe,
+	}, {
+		name: "2^128 - 1",
+		n:    "ffffffffffffffffffffffffffffffff",
+		want: 0xffffffff,
+	}, {
+		name: "2^128",
+		n:    "100000000000000000000000000000000",
+		want: 0,
+	}, {
+		name: "2^192 - 2^16 + 1",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffff0000",
+		want: 0xffff0000,
+	}, {
+		name: "2^256 - 2^31",
+		n:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fffffff",
+		want: 0x7fffffff,
+	}}
+
+	for _, test := range tests {
+		got := hexToUint256(test.n).Uint32()
+		if got != test.want {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, got,
+				test.want)
+			continue
+		}
+	}
+}
