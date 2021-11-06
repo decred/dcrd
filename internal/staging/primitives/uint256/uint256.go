@@ -386,3 +386,15 @@ func (n *Uint256) Lt(n2 *Uint256) bool {
 func (n *Uint256) LtUint64(n2 uint64) bool {
 	return n.n[0] < n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
 }
+
+// LtEq returns whether or not the uint256 is less than or equal to the given
+// one.  That is, it returns true when n <= n2.
+func (n *Uint256) LtEq(n2 *Uint256) bool {
+	return !n2.Lt(n)
+}
+
+// LtEqUint64 returns whether or not the uint256 is less than or equal to the
+// given uint64.  That is, it returns true when n <= n2.
+func (n *Uint256) LtEqUint64(n2 uint64) bool {
+	return n.n[0] <= n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
+}
