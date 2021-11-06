@@ -80,3 +80,43 @@ func BenchmarkBigIntSetBytes(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256SetBytesLE benchmarks initializing an unsigned 256-bit
+// integer from bytes in little endian with the specialized type.
+func BenchmarkUint256SetBytesLE(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			n.SetBytesLE(&vals[j].buf1)
+		}
+	}
+}
+
+// BenchmarkBigIntSetBytesLE benchmarks initializing an unsigned 256-bit integer
+// from bytes in little endian with stdlib big integers.
+func BenchmarkBigIntSetBytesLE(b *testing.B) {
+	n := new(big.Int)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			// The big int API only takes the bytes in big endian, so they need
+			// to be reversed by the caller.  Note that this implementation
+			// assumes the buffer is already 32 bytes and is not robust against
+			// other cases, but it's good enough for a reasonable benchmark.
+			buf := vals[j].buf1[:]
+			reversed := make([]byte, len(buf))
+			blen := len(buf)
+			for i := 0; i < blen/2; i++ {
+				reversed[i], reversed[blen-1-i] = buf[blen-1-i], buf[i]
+			}
+			n.SetBytes(reversed)
+		}
+	}
+}
