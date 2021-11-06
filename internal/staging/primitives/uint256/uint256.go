@@ -19,16 +19,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements the primary arithmetic operations (addition,
-// subtraction, multiplication), comparison operations (equals, less, greater,
-// cmp), interpreting and producing big and little endian bytes, and other
-// convenience methods such as whether or not the value can be represented as a
-// uint64 without loss of precision.
+// subtraction, multiplication, squaring), comparison operations (equals, less,
+// greater, cmp), interpreting and producing big and little endian bytes, and
+// other convenience methods such as whether or not the value can be represented
+// as a uint64 without loss of precision.
 //
-// Future commits will implement the primary arithmetic operations
-// (squaring, division, negation), bitwise operations (lsh, rsh, not, or, and,
-// xor), and other convenience methods such as determining the minimum number of
-// bits required to represent the current value and text formatting with base
-// conversion.
+// Future commits will implement the primary arithmetic operations (division,
+// negation), bitwise operations (lsh, rsh, not, or, and, xor), and other
+// convenience methods such as determining the minimum number of bits required
+// to represent the current value and text formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -666,4 +665,70 @@ func (n *Uint256) MulUint64(n2 uint64) *Uint256 {
 	c, n.n[2] = mulAdd64(n.n[2], n2, c)
 	n.n[3] = n.n[3]*n2 + c
 	return n
+}
+
+// SquareVal squares the passed uint256 modulo 2^256 and stores the result in
+// n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.SquareVal(n2).Mul(n2) so that n = n2^2 * n2 = n2^3.
+func (n *Uint256) SquareVal(n2 *Uint256) *Uint256 {
+	// Similar to multiplication, the general strategy employed here is:
+	// 1) Calculate the 512-bit product of the two uint256s using standard
+	//    schoolbook multiplication.
+	// 2) Reduce the result modulo 2^256.
+	//
+	// However, some optimizations are used versus naively calculating all
+	// intermediate terms:
+	// 1) Reuse the high 64 bits from the intermediate 128-bit products directly
+	//    since that is equivalent to shifting the result right by 64 bits.
+	// 2) Ignore all of the products between individual digits that would
+	//    ordinarily be needed for the full 512-bit product when they are
+	//    guaranteed to result in values that fall in the half open interval
+	//    [2^256, 2^512) since they are all ≡ 0 (mod 2^256) given they are
+	//    necessarily multiples of it.
+	// 3) Use native uint64s for the calculations involving the final digit of
+	//    the result (r3) because all overflow carries to bits >= 256 which, as
+	//    above, are all ≡ 0 (mod 2^256) and thus safe to discard.
+	// 4) Use the fact the number is being multiplied by itself to take
+	//    advantage of symmetry to double the result of some individual products
+	//    versus calculating them again.
+	var r0, r1, r2, r3, c uint64
+
+	// Terms resulting from the product of the first digit of the second number
+	// by all digits of the first number except those that will be accounted for
+	// later via symmetry.
+	c, r0 = bits.Mul64(n2.n[0], n2.n[0])
+	c, r1 = mulAdd64(n2.n[0], n2.n[1], c)
+	c, r2 = mulAdd64(n2.n[0], n2.n[2], c)
+	r3 = c
+
+	// Terms resulting from the product of the second digit of the second number
+	// by all digits of the first number except those that will be accounted for
+	// later via symmetry and those that are guaranteed to be ≡ 0 (mod 2^256).
+	c, r1 = mulAdd64(n2.n[1], n2.n[0], r1)
+	c, r2 = mulAdd64Carry(n2.n[1], n2.n[1], r2, c)
+	r3 += c
+
+	// Terms resulting from the product of the third digit of the second number
+	// by all digits of the first number except those that will be accounted for
+	// later via symmetry and those that are guaranteed to be ≡ 0 (mod 2^256).
+	c, r2 = mulAdd64(n2.n[2], n2.n[0], r2)
+	r3 += c
+
+	// Terms resulting from the product of the fourth digit of the second number
+	// by all digits of the first number except those that are guaranteed to be
+	// ≡ 0 (mod 2^256) and doubling those that were skipped earlier.
+	r3 += 2 * (n2.n[0]*n2.n[3] + n2.n[1]*n2.n[2])
+
+	n.n[0], n.n[1], n.n[2], n.n[3] = r0, r1, r2, r3
+	return n
+}
+
+// Square squares the uint256 modulo 2^256 and stores the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Square().Mul(n2) so that n = n^2 * n2.
+func (n *Uint256) Square() *Uint256 {
+	return n.SquareVal(n)
 }
