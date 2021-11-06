@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// These variables are used to help ensure the benchmarks do not elide code.
+var (
+	noElideBytes []byte
+)
+
 // randBenchVal houses values used throughout the benchmarks that are randomly
 // generated with each run to ensure they are not overfitted.
 type randBenchVal struct {
@@ -117,6 +122,35 @@ func BenchmarkBigIntSetBytesLE(b *testing.B) {
 				reversed[i], reversed[blen-1-i] = buf[blen-1-i], buf[i]
 			}
 			n.SetBytes(reversed)
+		}
+	}
+}
+
+// BenchmarkUint256Bytes benchmarks unpacking an unsigned 256-bit integer to
+// bytes in big endian with the specialized type.
+func BenchmarkUint256Bytes(b *testing.B) {
+	vals := randBenchVals
+	var buf [32]byte
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			vals[j].n1.PutBytes(&buf)
+		}
+	}
+}
+
+// BenchmarkBigIntBytes benchmarks unpacking an unsigned 256-bit integer to
+// bytes in big endian with the stdlib big integers.
+func BenchmarkBigIntBytes(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			noElideBytes = vals[j].bigN1.Bytes()
 		}
 	}
 }
