@@ -1116,3 +1116,37 @@ func BenchmarkBigIntAnd(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Xor benchmarks computing the bitwise exclusive or of unsigned
+// 256-bit integers with the specialized type.
+func BenchmarkUint256Xor(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.n1)
+			n.Xor(val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntXor benchmarks computing the bitwise exclusive or of unsigned
+// 256-bit integers with stdlib big integers.
+func BenchmarkBigIntXor(b *testing.B) {
+	n := new(big.Int)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Set(val.bigN1) // For fair comparison.
+			n.Xor(n, val.bigN2)
+		}
+	}
+}
