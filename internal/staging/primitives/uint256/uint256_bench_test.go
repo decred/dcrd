@@ -1016,3 +1016,35 @@ func BenchmarkBigIntRsh(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkUint256Not benchmarks computing the bitwise not of an unsigned
+// 256-bit integer with the specialized type.
+func BenchmarkUint256Not(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			n.Set(vals[j].n1)
+			n.Not()
+		}
+	}
+}
+
+// BenchmarkBigIntNot benchmarks computing the bitwise not of an unsigned
+// 256-bit integer with stdlib big integers.
+func BenchmarkBigIntNot(b *testing.B) {
+	n := new(big.Int)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			n.Set(vals[j].bigN1) // For fair comparison.
+			n.Not(n)
+		}
+	}
+}
