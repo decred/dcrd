@@ -281,3 +281,33 @@ func BenchmarkBigIntEq(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Lt benchmarks determining if one unsigned 256-bit integer is
+// less than another with the specialized type.
+func BenchmarkUint256Lt(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideBool = val.n1.Lt(val.n2)
+		}
+	}
+}
+
+// BenchmarkBigIntLt benchmarks determining if one unsigned 256-bit integer is
+// less than another with stdlib big integers.
+func BenchmarkBigIntLt(b *testing.B) {
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			noElideBool = val.bigN1.Cmp(val.bigN2) < 0
+		}
+	}
+}
