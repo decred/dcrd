@@ -1307,3 +1307,19 @@ func BenchmarkUint256PutBig(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256PutBig benchmarks converting a stdlib big integer to an
+// unsigned 256-bit integer.
+func BenchmarkUint256SetBig(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.SetBig(val.bigN1)
+		}
+	}
+}
