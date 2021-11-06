@@ -14,9 +14,10 @@ import (
 
 // These variables are used to help ensure the benchmarks do not elide code.
 var (
-	noElideBool  bool
-	noElideBytes []byte
-	noElideInt   int
+	noElideBool   bool
+	noElideBytes  []byte
+	noElideInt    int
+	noElideUint16 uint16
 )
 
 // randBenchVal houses values used throughout the benchmarks that are randomly
@@ -1148,5 +1149,40 @@ func BenchmarkBigIntXor(b *testing.B) {
 			n.Set(val.bigN1) // For fair comparison.
 			n.Xor(n, val.bigN2)
 		}
+	}
+}
+
+// BenchmarkUint256BitLen benchmarks determining the bit length of an unsigned
+// 256-bit integer with the specialized type.
+func BenchmarkUint256BitLen(b *testing.B) {
+	for _, bits := range []uint32{64, 128, 192, 255} {
+		benchName := fmt.Sprintf("bits %d", bits)
+		b.Run(benchName, func(b *testing.B) {
+			n := new(Uint256).SetUint64(1).Lsh(bits)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				noElideUint16 = n.BitLen()
+			}
+		})
+	}
+}
+
+// BenchmarkBigIntBitLen benchmarks determining the bit length of an unsigned
+// 256-bit integer with stdlib big integers.
+func BenchmarkBigIntBitLen(b *testing.B) {
+	for _, bits := range []uint{64, 128, 192, 255} {
+		benchName := fmt.Sprintf("bits %d", bits)
+		b.Run(benchName, func(b *testing.B) {
+			n := new(big.Int).SetUint64(1)
+			n.Lsh(n, bits)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				noElideInt = n.BitLen()
+			}
+		})
 	}
 }
