@@ -616,3 +616,37 @@ func BenchmarkBigIntMulUint64(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkUint256Square benchmarks computing the quotient of unsigned 256-bit
+// integers with the specialized type.
+func BenchmarkUint256Square(b *testing.B) {
+	n := new(Uint256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.SquareVal(val.n1)
+		}
+	}
+}
+
+// BenchmarkBigIntSquare benchmarks computing the quotient of unsigned 256-bit
+// integers with stdlib big integers.
+func BenchmarkBigIntSquare(b *testing.B) {
+	n := new(big.Int)
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	vals := randBenchVals
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(vals) {
+		for j := 0; j < len(vals); j++ {
+			val := &vals[j]
+			n.Mul(val.bigN1, val.bigN1)
+			n.Mod(n, two256)
+		}
+	}
+}
