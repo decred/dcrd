@@ -6,6 +6,8 @@
 // integer arithmetic.
 package uint256
 
+import "math/bits"
+
 var (
 	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
 	// defined here to avoid extra allocations.
@@ -16,17 +18,17 @@ var (
 // fixed-precision arithmetic.  All operations are performed modulo 2^256, so
 // callers may rely on "wrap around" semantics.
 //
-// It currently implements support for comparison operations (equals),
+// It currently implements support for comparison operations (equals, less),
 // interpreting and producing big and little endian bytes, and other convenience
 // methods such as whether or not the value can be represented as a uint64
 // without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
-// operations (lsh, rsh, not, or, and, xor), comparison operations (less,
-// greater, cmp), and other convenience methods such as determining the minimum
-// number of bits required to represent the current value and text formatting
-// with base conversion.
+// operations (lsh, rsh, not, or, and, xor), comparison operations (greater,
+// cmp), and other convenience methods such as determining the minimum number of
+// bits required to represent the current value and text formatting with base
+// conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -366,4 +368,21 @@ func (n *Uint256) Eq(n2 *Uint256) bool {
 // given uint64.
 func (n *Uint256) EqUint64(n2 uint64) bool {
 	return n.n[0] == n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
+}
+
+// Lt returns whether or not the uint256 is less than the given one.  That is,
+// it returns true when n < n2.
+func (n *Uint256) Lt(n2 *Uint256) bool {
+	var borrow uint64
+	_, borrow = bits.Sub64(n.n[0], n2.n[0], borrow)
+	_, borrow = bits.Sub64(n.n[1], n2.n[1], borrow)
+	_, borrow = bits.Sub64(n.n[2], n2.n[2], borrow)
+	_, borrow = bits.Sub64(n.n[3], n2.n[3], borrow)
+	return borrow != 0
+}
+
+// LtUint64 returns whether or not the uint256 is less than the given uint64.
+// That is, it returns true when n < n2.
+func (n *Uint256) LtUint64(n2 uint64) bool {
+	return n.n[0] < n2 && (n.n[1]|n.n[2]|n.n[3]) == 0
 }
