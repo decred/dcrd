@@ -1655,3 +1655,251 @@ func TestUint256SubUint64Random(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256Mul ensures that multiplying two uint256s together works as
+// expected for edge cases.
+func TestUint256Mul(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded value
+		n2   string // second hex encoded value to multiply with
+		want string // expected hex encoded value
+	}{{
+		name: "zero * zero",
+		n1:   "0",
+		n2:   "0",
+		want: "0",
+	}, {
+		name: "zero * one",
+		n1:   "0",
+		n2:   "1",
+		want: "0",
+	}, {
+		name: "one * zero",
+		n1:   "1",
+		n2:   "0",
+		want: "0",
+	}, {
+		name: "one * one",
+		n1:   "1",
+		n2:   "1",
+		want: "1",
+	}, {
+		name: "(2^64 - 1) * 2 (carry to word 1)",
+		n1:   "ffffffffffffffff",
+		n2:   "2",
+		want: "1fffffffffffffffe",
+	}, {
+		name: "(2^128 - 1) * 2  (carry to word 2)",
+		n1:   "ffffffffffffffffffffffffffffffff",
+		n2:   "2",
+		want: "1fffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^192 - 1) * 2  (carry to word 3)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "2",
+		want: "1fffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^256 - 1) * 2  (carry to word 4)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "2",
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^256 - 1) * (2^256 - 1) (carry through all 8 words)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "1",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "4d10d4985c1fe3a76b2ef2b67a3e01c5894d10d4985c1fe3a76b2ef2b67a3e02",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "4d10d4985c1fe3a76b2ef2b67a3e01c5894d10d4985c1fe3a76b2ef2b67a3e02",
+	}}
+
+	for _, test := range tests {
+		n1 := hexToUint256(test.n1)
+		n2 := hexToUint256(test.n2)
+		want := hexToUint256(test.want)
+
+		// Ensure multiplying two other values produces the expected result.
+		got := new(Uint256).Mul2(n1, n2)
+		if !got.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, got,
+				want)
+			continue
+		}
+
+		// Ensure single argument multiplying also produces the expected result.
+		n1.Mul(n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n1,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256MulRandom ensures that multiplying two uint256s created from
+// random values together works as expected by also performing the same
+// operation with big ints and comparing the results.
+func TestUint256MulRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		bigN2, n2 := randBigIntAndUint256(t, rng)
+
+		// Calculate the product of the values using big ints.
+		bigIntResult := new(big.Int).Mul(bigN1, bigN2)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the product of the values using uint256s.
+		uint256Result := new(Uint256).Mul2(n1, n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched mul n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}
+
+// TestUint256MulUint64 ensures that multiplying a uint256 by a uint64 works as
+// expected for edge cases.
+func TestUint256MulUint64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded value
+		n2   uint64 // uint64 to multiply with
+		want string // expected hex encoded value
+	}{{
+		name: "zero * zero",
+		n1:   "0",
+		n2:   0,
+		want: "0",
+	}, {
+		name: "zero * one",
+		n1:   "0",
+		n2:   1,
+		want: "0",
+	}, {
+		name: "one * zero",
+		n1:   "1",
+		n2:   0,
+		want: "0",
+	}, {
+		name: "one * one",
+		n1:   "1",
+		n2:   1,
+		want: "1",
+	}, {
+		name: "(2^64 - 1) * 2 (carry to word 1)",
+		n1:   "ffffffffffffffff",
+		n2:   2,
+		want: "1fffffffffffffffe",
+	}, {
+		name: "(2^128 - 1) * 2  (carry to word 2)",
+		n1:   "ffffffffffffffffffffffffffffffff",
+		n2:   2,
+		want: "1fffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^192 - 1) * 2  (carry to word 3)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   2,
+		want: "1fffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^256 - 1) * 2  (carry to word 4)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   2,
+		want: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "(2^256 - 1) * (2^64 - 1) (max uint64)",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   0xffffffffffffffff,
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000001",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   0x5a5a5a5a5a5a5a5a,
+		want: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1a76b2ef2b67a3e02",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   0xa5a5a5a5a5a5a5a5,
+		want: "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1a76b2ef2b67a3e02",
+	}}
+
+	for _, test := range tests {
+		n1 := hexToUint256(test.n1)
+		want := hexToUint256(test.want)
+
+		// Ensure single multiplying produces the expected result.
+		n1.MulUint64(test.n2)
+		if !n1.Eq(want) {
+			t.Errorf("%q: wrong result -- got: %x, want: %x", test.name, n1,
+				want)
+			continue
+		}
+	}
+}
+
+// TestUint256MulUint64Random ensures that multiplying a uint256 by a uint64,
+// both created from random values, works as expected by also performing the
+// same operation with big ints and comparing the results.
+func TestUint256MulUint64Random(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	two256 := new(big.Int).Lsh(big.NewInt(1), 256)
+	for i := 0; i < 100; i++ {
+		// Generate two big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		n2 := rng.Uint64()
+		bigN2 := new(big.Int).SetUint64(n2)
+
+		// Calculate the product of the values using big ints.
+		bigIntResult := new(big.Int).Mul(bigN1, bigN2)
+		bigIntResult.Mod(bigIntResult, two256)
+
+		// Calculate the product of the values using uint256s.
+		uint256Result := new(Uint256).Set(n1).MulUint64(n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched mul n1: %x, n2: %x -- got %x, want %x", n1, n2,
+				bigIntResult, uint256Result)
+		}
+	}
+}

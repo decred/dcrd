@@ -19,16 +19,16 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements the primary arithmetic operations (addition,
-// subtraction), comparison operations (equals, less, greater, cmp),
-// interpreting and producing big and little endian bytes, and other convenience
-// methods such as whether or not the value can be represented as a uint64
-// without loss of precision.
+// subtraction, multiplication), comparison operations (equals, less, greater,
+// cmp), interpreting and producing big and little endian bytes, and other
+// convenience methods such as whether or not the value can be represented as a
+// uint64 without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations
-// (multiplication, squaring, division, negation), bitwise operations (lsh, rsh,
-// not, or, and, xor), and other convenience methods such as determining the
-// minimum number of bits required to represent the current value and text
-// formatting with base conversion.
+// (squaring, division, negation), bitwise operations (lsh, rsh, not, or, and,
+// xor), and other convenience methods such as determining the minimum number of
+// bits required to represent the current value and text formatting with base
+// conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -541,5 +541,129 @@ func (n *Uint256) SubUint64(n2 uint64) *Uint256 {
 	n.n[1], borrow = bits.Sub64(n.n[1], 0, borrow)
 	n.n[2], borrow = bits.Sub64(n.n[2], 0, borrow)
 	n.n[3], _ = bits.Sub64(n.n[3], 0, borrow)
+	return n
+}
+
+// mulAdd64 multiplies the two passed base 2^64 digits together, adds the given
+// value to the result, and returns the 128-bit result via a (hi, lo) tuple
+// where the upper half of the bits are returned in hi and the lower half in lo.
+func mulAdd64(digit1, digit2, m uint64) (hi, lo uint64) {
+	// Note the carry on the final add is safe to discard because the maximum
+	// possible value is:
+	//   (2^64 - 1)(2^64 - 1) + (2^64 - 1) = 2^128 - 2^64
+	// and:
+	//   2^128 - 2^64 < 2^128.
+	var c uint64
+	hi, lo = bits.Mul64(digit1, digit2)
+	lo, c = bits.Add64(lo, m, 0)
+	hi, _ = bits.Add64(hi, 0, c)
+	return hi, lo
+}
+
+// mulAdd64Carry multiplies the two passed base 2^64 digits together, adds both
+// the given value and carry to the result, and returns the 128-bit result via a
+// (hi, lo) tuple where the upper half of the bits are returned in hi and the
+// lower half in lo.
+func mulAdd64Carry(digit1, digit2, m, c uint64) (hi, lo uint64) {
+	// Note the carries on the high order adds are safe to discard because the
+	// maximum possible value is:
+	//   (2^64 - 1)(2^64 - 1) + 2*(2^64 - 1) = 2^128 - 1
+	// and:
+	//   2^128 - 1 < 2^128.
+	var c2 uint64
+	hi, lo = bits.Mul64(digit1, digit2)
+	lo, c2 = bits.Add64(lo, m, 0)
+	hi, _ = bits.Add64(hi, 0, c2)
+	lo, c2 = bits.Add64(lo, c, 0)
+	hi, _ = bits.Add64(hi, 0, c2)
+	return hi, lo
+}
+
+// Mul2 multiplies the passed uint256s together modulo 2^256 and stores the
+// result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Mul2(n1, n2).AddUint64(1) so that n = (n1 * n2) + 1.
+func (n *Uint256) Mul2(n1, n2 *Uint256) *Uint256 {
+	// The general strategy employed here is:
+	// 1) Calculate the 512-bit product of the two uint256s using standard
+	//    schoolbook multiplication.
+	// 2) Reduce the result modulo 2^256.
+	//
+	// However, some optimizations are used versus naively calculating all
+	// intermediate terms:
+	// 1) Reuse the high 64 bits from the intermediate 128-bit products directly
+	//    since that is equivalent to shifting the result right by 64 bits.
+	// 2) Ignore all of the products between individual digits that would
+	//    ordinarily be needed for the full 512-bit product when they are
+	//    guaranteed to result in values that fall in the half open interval
+	//    [2^256, 2^512) since they are all ≡ 0 (mod 2^256) given they are
+	//    necessarily multiples of it.
+	// 3) Use native uint64s for the calculations involving the final digit of
+	//    the result (r3) because all overflow carries to bits >= 256 which, as
+	//    above, are all ≡ 0 (mod 2^256) and thus safe to discard.
+	var r0, r1, r2, r3, c uint64
+
+	// Terms resulting from the product of the first digit of the second number
+	// by all digits of the first number.
+	c, r0 = bits.Mul64(n2.n[0], n1.n[0])
+	c, r1 = mulAdd64(n2.n[0], n1.n[1], c)
+	c, r2 = mulAdd64(n2.n[0], n1.n[2], c)
+	r3 = n2.n[0]*n1.n[3] + c
+
+	// Terms resulting from the product of the second digit of the second number
+	// by all digits of the first number except those that are guaranteed to be
+	// ≡ 0 (mod 2^256).
+	c, r1 = mulAdd64(n2.n[1], n1.n[0], r1)
+	c, r2 = mulAdd64Carry(n2.n[1], n1.n[1], r2, c)
+	r3 += n2.n[1]*n1.n[2] + c
+
+	// Terms resulting from the product of the third digit of the second number
+	// by all digits of the first number except those that are guaranteed to be
+	// ≡ 0 (mod 2^256).
+	c, r2 = mulAdd64(n2.n[2], n1.n[0], r2)
+	r3 += n2.n[2]*n1.n[1] + c
+
+	// Terms resulting from the product of the fourth digit of the second number
+	// by all digits of the first number except those that are guaranteed to be
+	// ≡ 0 (mod 2^256).
+	r3 += n2.n[3] * n1.n[0]
+
+	n.n[0], n.n[1], n.n[2], n.n[3] = r0, r1, r2, r3
+	return n
+}
+
+// Mul multiplies the passed uint256 by the existing value in n modulo 2^256
+// and stores the result in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.Mul(n2).AddUint64(1) so that n = (n * n2) + 1.
+func (n *Uint256) Mul(n2 *Uint256) *Uint256 {
+	return n.Mul2(n, n2)
+}
+
+// MulUint64 multiplies the uint256 by the passed uint64 and stores the result
+// in n.
+//
+// The uint256 is returned to support chaining.  This enables syntax like:
+// n.MulUint64(2).Add(n2) so that n = 2 * n + n2.
+func (n *Uint256) MulUint64(n2 uint64) *Uint256 {
+	// The general strategy employed here is:
+	// 1) Calculate the 320-bit product of the uint256 and uint64 using standard
+	//    schoolbook multiplication.
+	// 2) Reduce the result modulo 2^256.
+	//
+	// However, some optimizations are used versus naively calculating all
+	// intermediate terms:
+	// 1) Reuse the high 64 bits from the intermediate 128-bit products directly
+	//    since that is equivalent to shifting the result right by 64 bits.
+	// 2) Use native uint64s for the calculations involving the final digit of
+	//    the result because all overflow carries to bits >= 256 which is ≡ 0
+	//    (mod 2^256) given they are necessarily multiples of it.
+	var c uint64
+	c, n.n[0] = bits.Mul64(n.n[0], n2)
+	c, n.n[1] = mulAdd64(n.n[1], n2, c)
+	c, n.n[2] = mulAdd64(n.n[2], n2, c)
+	n.n[3] = n.n[3]*n2 + c
 	return n
 }
