@@ -3132,3 +3132,97 @@ func TestUint256OrRandom(t *testing.T) {
 		}
 	}
 }
+
+// TestUint256And ensures that computing the bitwise and of two uint256s works
+// as expected for edge cases.
+func TestUint256And(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		n1   string // first hex encoded test value
+		n2   string // second hex encoded test value
+		want string // expected hex encoded result
+	}{{
+		name: "0 & 0",
+		n1:   "0",
+		n2:   "0",
+		want: "0",
+	}, {
+		name: "2^256-1 & 0",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "0",
+		want: "0",
+	}, {
+		name: "0 & 2^256-1",
+		n1:   "0",
+		n2:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "0",
+	}, {
+		name: "2^256-1 & 2^256-1",
+		n1:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		n2:   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		want: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "alternating bits",
+		n1:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		n2:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		want: "0",
+	}, {
+		name: "alternating bits 2",
+		n1:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		n2:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		want: "0",
+	}}
+
+	for _, test := range tests {
+		// Parse test hex.
+		n1 := hexToUint256(test.n1)
+		n2 := hexToUint256(test.n2)
+		want := hexToUint256(test.want)
+
+		// Ensure bitwise and of the two values produces the expected result.
+		got := new(Uint256).Set(n1).And(n2)
+		if !got.Eq(want) {
+			t.Errorf("%q: unexpected result -- got: %x, want: %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
+// TestUint256AndRandom ensures that computing the bitwise and of uint256s
+// created from random values works as expected by also performing the same
+// operation with big ints and comparing the results.
+func TestUint256AndRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pairs.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+		bigN2, n2 := randBigIntAndUint256(t, rng)
+
+		// Calculate the bitwise and of the values using big ints.
+		bigIntResult := new(big.Int).And(bigN1, bigN2)
+
+		// Calculate the bitwise and of the values using uint256s.
+		uint256Result := new(Uint256).Set(n1).And(n2)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult.Bytes())
+		uint256ResultHex := fmt.Sprintf("%064x", uint256Result.Bytes())
+		if bigIntResultHex != uint256ResultHex {
+			t.Fatalf("mismatched and n: %x -- got %x, want %x", n1,
+				bigIntResult, uint256Result)
+		}
+	}
+}
