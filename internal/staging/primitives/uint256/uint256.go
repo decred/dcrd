@@ -17,15 +17,15 @@ var (
 // callers may rely on "wrap around" semantics.
 //
 // It currently implements support for interpreting and producing big and little
-// endian bytes.
+// endian bytes and other convenience methods such as whether or not the value
+// can be represented as a uint64 without loss of precision.
 //
 // Future commits will implement the primary arithmetic operations (addition,
 // subtraction, multiplication, squaring, division, negation), bitwise
 // operations (lsh, rsh, not, or, and, xor), comparison operations (equals,
 // less, greater, cmp), and other convenience methods such as determining the
-// minimum number of bits required to represent the current value, whether or
-// not the value can be represented as a uint64 without loss of precision, and
-// text formatting with base conversion.
+// minimum number of bits required to represent the current value and text
+// formatting with base conversion.
 type Uint256 struct {
 	// The uint256 is represented as 4 unsigned 64-bit integers in base 2^64.
 	//
@@ -339,4 +339,18 @@ func (n *Uint256) IsUint32() bool {
 // without truncation with the IsUint32 method.
 func (n *Uint256) Uint32() uint32 {
 	return uint32(n.n[0])
+}
+
+// IsUint64 returns whether or not the uint256 can be converted to a uint64
+// without any loss of precision.  In other words, 0 <= n < 2^64.
+func (n *Uint256) IsUint64() bool {
+	return (n.n[1] | n.n[2] | n.n[3]) == 0
+}
+
+// Uint64 returns the uint64 representation of the value.  In other words, it
+// returns the low-order 64 bits of the value as a uint64 which is equivalent to
+// the value modulo 2^64.  The caller can determine if this method can be used
+// without truncation with the IsUint64 method.
+func (n *Uint256) Uint64() uint64 {
+	return n.n[0]
 }
