@@ -58,3 +58,22 @@ func BenchmarkHashToUint256(b *testing.B) {
 		HashToUint256(hash)
 	}
 }
+
+// BenchmarkCheckProofOfWork benchmarks ensuring a given block hash satisfies
+// the proof of work requirements for given difficulty bits.
+func BenchmarkCheckProofOfWork(b *testing.B) {
+	// Data from block 100k on the main network.
+	h := "00000000000004289d9a7b0f7a332fb60a1c221faae89a107ce3ab93eead2f93"
+	blockHash, err := chainhash.NewHashFromStr(h)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+	const diffBits = 0x1a1194b4
+	powLimit := hexToUint256(mockMainNetPowLimit())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = CheckProofOfWork(blockHash, diffBits, powLimit)
+	}
+}
