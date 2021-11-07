@@ -30,3 +30,13 @@ func BenchmarkUint256ToDiffBits(b *testing.B) {
 		Uint256ToDiffBits(n)
 	}
 }
+
+// BenchmarkCalcWork benchmarks calculating a work value from difficulty bits.
+func BenchmarkCalcWork(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		const input = 0x1b01330e
+		CalcWork(input)
+	}
+}
