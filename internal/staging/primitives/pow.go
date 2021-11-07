@@ -141,3 +141,50 @@ func Uint256ToDiffBits(n *uint256.Uint256) uint32 {
 	const isNegative = false
 	return uint256ToDiffBits(n, isNegative)
 }
+
+// CalcWork calculates a work value from difficulty bits.  Decred increases the
+// difficulty for generating a block by decreasing the value which the generated
+// hash must be less than.  This difficulty target is stored in each block
+// header using a compact representation as described in the documentation for
+// DiffBitsToUint256.  The main chain is selected by choosing the chain that has
+// the most proof of work (highest difficulty).  Since a lower target difficulty
+// value equates to higher actual difficulty, the work value which will be
+// accumulated must be the inverse of the difficulty.  For legacy reasons, the
+// result is zero when the difficulty is zero.  Finally, to avoid really small
+// floating point numbers, the result multiplies the numerator by 2^256 and adds
+// 1 to the denominator.
+func CalcWork(diffBits uint32) uint256.Uint256 {
+	// Return a work value of zero if the passed difficulty bits represent a
+	// negative number, a number that overflows a uint256, or zero. Note this
+	// should not happen in practice with valid blocks, but an invalid block
+	// could trigger it.
+	diff, isNegative, overflows := DiffBitsToUint256(diffBits)
+	if isNegative || overflows || diff.IsZero() {
+		return uint256.Uint256{}
+	}
+
+	// The goal is to calculate 2^256 / (diff+1), where diff > 0 using a
+	// fixed-precision uint256.
+	//
+	// Since 2^256 can't be represented by a uint256, the calc is performed as
+	// follows:
+	//
+	// Notice:
+	//    work = (2^256 / (diff+1))
+	// => work = ((2^256-diff-1) / (diff+1))+1
+	//
+	// Next, observe that 2^256-diff-1 is the one's complement of diff as a
+	// uint256 which is equivalent to the bitwise not.  Also, of special note is
+	// the case when diff = 2^256-1 because (2^256-1)+1 ≡ 0 (mod 2^256) and
+	// thus would result in division by zero when working with a uint256.  The
+	// original calculation would produce 1 in that case, so the resulting
+	// piecewise function is:
+	//
+	// {work = 1                   , where diff = 2^256-1
+	// {work = (^diff / (diff+1))+1, where 0 < diff < 2^256-1
+	//
+	// However, a difficulty target of 2^256 - 1 is impossible to encode in the
+	// difficulty bits, so it is safe to ignore that case.
+	divisor := new(uint256.Uint256).SetUint64(1).Add(&diff)
+	return *diff.Not().Div(divisor).AddUint64(1)
+}

@@ -209,3 +209,49 @@ func TestUint256ToDiffBits(t *testing.T) {
 		}
 	}
 }
+
+// TestCalcWork ensures calculating a work value from a compact target
+// difficulty produces the correct results.
+func TestCalcWork(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string // test description
+		input uint32 // target difficulty bits to test
+		want  string // expected uint256
+	}{{
+		name:  "mainnet block 1",
+		input: 0x1b01ffff,
+		want:  "0000000000000000000000000000000000000000000000000000800040002000",
+	}, {
+		name:  "mainnet block 288",
+		input: 0x1b01330e,
+		want:  "0000000000000000000000000000000000000000000000000000d56f2dcbe105",
+	}, {
+		name:  "higher diff (exponent 24)",
+		input: 0x185fb28a,
+		want:  "000000000000000000000000000000000000000000000002acd33ddd458512da",
+	}, {
+		name:  "zero",
+		input: 0,
+		want:  "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:  "max uint256",
+		input: 0x2100ffff,
+		want:  "0000000000000000000000000000000000000000000000000000000000000001",
+	}, {
+		name:  "negative target difficulty",
+		input: 0x1810000,
+		want:  "0000000000000000000000000000000000000000000000000000000000000000",
+	}}
+
+	for _, test := range tests {
+		want := hexToUint256(test.want)
+		result := CalcWork(test.input)
+		if !result.Eq(want) {
+			t.Errorf("%q: mismatched result -- got %x, want %x", test.name,
+				result, want)
+			continue
+		}
+	}
+}
