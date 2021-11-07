@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/internal/staging/primitives/uint256"
 )
 
@@ -250,6 +251,42 @@ func TestCalcWork(t *testing.T) {
 		result := CalcWork(test.input)
 		if !result.Eq(want) {
 			t.Errorf("%q: mismatched result -- got %x, want %x", test.name,
+				result, want)
+			continue
+		}
+	}
+}
+
+// TestHashToUint256 ensures converting a hash treated as a little endian
+// unsigned 256-bit value to a uint256 works as intended.
+func TestHashToUint256(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		hash string // hash to convert
+		want string // expected uint256 bytes in hex
+	}{{
+		name: "mainnet block 1 hash",
+		hash: "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9",
+		want: "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9",
+	}, {
+		name: "mainnet block 2 hash",
+		hash: "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba",
+		want: "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba",
+	}}
+
+	for _, test := range tests {
+		hash, err := chainhash.NewHashFromStr(test.hash)
+		if err != nil {
+			t.Errorf("%q: unexpected err parsing test hash: %v", test.name, err)
+			continue
+		}
+		want := hexToUint256(test.want)
+
+		result := HashToUint256(hash)
+		if !result.Eq(want) {
+			t.Errorf("%s: unexpected result -- got %x, want %x", test.name,
 				result, want)
 			continue
 		}

@@ -5,6 +5,7 @@
 package primitives
 
 import (
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/internal/staging/primitives/uint256"
 )
 
@@ -187,4 +188,13 @@ func CalcWork(diffBits uint32) uint256.Uint256 {
 	// difficulty bits, so it is safe to ignore that case.
 	divisor := new(uint256.Uint256).SetUint64(1).Add(&diff)
 	return *diff.Not().Div(divisor).AddUint64(1)
+}
+
+// HashToUint256 converts the provided hash to an unsigned 256-bit integer that
+// can be used to perform math comparisons.
+func HashToUint256(hash *chainhash.Hash) uint256.Uint256 {
+	// Hashes are a stream of bytes that do not have any inherent endianness to
+	// them, so they are interpreted as little endian for the purposes of
+	// treating them as a uint256.
+	return *new(uint256.Uint256).SetBytesLE((*[32]byte)(hash))
 }
