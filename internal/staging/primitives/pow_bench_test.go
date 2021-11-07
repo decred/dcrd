@@ -6,6 +6,8 @@ package primitives
 
 import (
 	"testing"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 // BenchmarkDiffBitsToUint256 benchmarks converting the compact representation
@@ -38,5 +40,21 @@ func BenchmarkCalcWork(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		const input = 0x1b01330e
 		CalcWork(input)
+	}
+}
+
+// BenchmarkHashToUint256 benchmarks converting a hash to an unsigned 256-bit
+// integer that can be used to perform math comparisons.
+func BenchmarkHashToUint256(b *testing.B) {
+	h := "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"
+	hash, err := chainhash.NewHashFromStr(h)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		HashToUint256(hash)
 	}
 }
