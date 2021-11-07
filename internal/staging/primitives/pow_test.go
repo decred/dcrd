@@ -6,6 +6,7 @@ package primitives
 
 import (
 	"encoding/hex"
+	"errors"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -288,6 +289,149 @@ func TestHashToUint256(t *testing.T) {
 		if !result.Eq(want) {
 			t.Errorf("%s: unexpected result -- got %x, want %x", test.name,
 				result, want)
+			continue
+		}
+	}
+}
+
+// mockMainNetPowLimit returns the pow limit for the main network as of the
+// time this comment was written.  It is used to ensure the tests are stable
+// independent of any potential changes to chain parameters.
+func mockMainNetPowLimit() string {
+	return "00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}
+
+// TestCheckProofOfWorkRange ensures target difficulties that are outside of
+// the acceptable ranges are detected as an error and those inside are not.
+func TestCheckProofOfWorkRange(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string // test description
+		bits     uint32 // compact target difficulty bits to test
+		powLimit string // proof of work limit
+		err      error  // expected error
+	}{{
+		name:     "mainnet block 1",
+		bits:     0x1b01ffff,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "mainnet block 288",
+		bits:     0x1b01330e,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "smallest allowed",
+		bits:     0x1010000,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "max allowed (exactly the pow limit)",
+		bits:     0x1d00ffff,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "zero",
+		bits:     0,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}, {
+		name:     "negative",
+		bits:     0x1810000,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}, {
+		name:     "pow limit + 1",
+		bits:     0x1d010000,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}, {
+		name:     "max uint256 + 1 (overflows)",
+		bits:     0x21010000,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}}
+
+	for _, test := range tests {
+		powLimit := hexToUint256(test.powLimit)
+		err := CheckProofOfWorkRange(test.bits, powLimit)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+	}
+}
+
+// TestCheckProofOfWorkRange ensures hashes and target difficulties that are
+// outside of the acceptable ranges are detected as an error and those inside
+// are not.
+func TestCheckProofOfWork(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string // test description
+		hash     string // block hash to test
+		bits     uint32 // compact target difficulty bits to test
+		powLimit string // proof of work limit
+		err      error  // expected error
+	}{{
+		name:     "mainnet block 1 hash",
+		hash:     "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9",
+		bits:     0x1b01ffff,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "mainnet block 288 hash",
+		hash:     "000000000000e0ab546b8fc19f6d94054d47ffa5fe79e17611d170662c8b702b",
+		bits:     0x1b01330e,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "max allowed (exactly the pow limit)",
+		hash:     "0000000000001ffff00000000000000000000000000000000000000000000000",
+		bits:     0x1b01ffff,
+		powLimit: mockMainNetPowLimit(),
+		err:      nil,
+	}, {
+		name:     "high hash (pow limit + 1)",
+		hash:     "000000000001ffff000000000000000000000000000000000000000000000001",
+		bits:     0x1b01ffff,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrHighHash,
+	}, {
+		name:     "hash satisfies target, but target too high at pow limit + 1",
+		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
+		bits:     0x1d010000,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}, {
+		name:     "zero target difficulty",
+		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
+		bits:     0,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}, {
+		name:     "negative target difficulty",
+		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
+		bits:     0x1810000,
+		powLimit: mockMainNetPowLimit(),
+		err:      ErrUnexpectedDifficulty,
+	}}
+
+	for _, test := range tests {
+		hash, err := chainhash.NewHashFromStr(test.hash)
+		if err != nil {
+			t.Errorf("%q: unexpected err parsing test hash: %v", test.name, err)
+			continue
+		}
+		powLimit := hexToUint256(test.powLimit)
+
+		err = CheckProofOfWork(hash, test.bits, powLimit)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 	}

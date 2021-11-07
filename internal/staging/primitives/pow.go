@@ -5,6 +5,8 @@
 package primitives
 
 import (
+	"fmt"
+
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/internal/staging/primitives/uint256"
 )
@@ -197,4 +199,63 @@ func HashToUint256(hash *chainhash.Hash) uint256.Uint256 {
 	// them, so they are interpreted as little endian for the purposes of
 	// treating them as a uint256.
 	return *new(uint256.Uint256).SetBytesLE((*[32]byte)(hash))
+}
+
+// checkProofOfWorkRange ensures the provided target difficulty is in min/max
+// range per the provided proof-of-work limit.
+func checkProofOfWorkRange(diffBits uint32, powLimit *uint256.Uint256) (uint256.Uint256, error) {
+	// The target difficulty must be larger than zero and not overflow and less
+	// than the maximum value that can be represented by a uint256.
+	target, isNegative, overflows := DiffBitsToUint256(diffBits)
+	if isNegative {
+		str := fmt.Sprintf("target difficulty bits %08x is a negative value",
+			diffBits)
+		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
+	}
+	if overflows {
+		str := fmt.Sprintf("target difficulty bits %08x is higher than the "+
+			"max limit %x", diffBits, powLimit)
+		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
+	}
+	if target.IsZero() {
+		str := "target difficulty is zero"
+		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
+	}
+
+	// The target difficulty must not exceed the maximum allowed.
+	if target.Gt(powLimit) {
+		str := fmt.Sprintf("target difficulty of %x is higher than max of %x",
+			target, powLimit)
+		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
+	}
+
+	return target, nil
+}
+
+// CheckProofOfWorkRange ensures the provided target difficulty represented by
+// the given header bits is in min/max range per the provided proof-of-work
+// limit.
+func CheckProofOfWorkRange(diffBits uint32, powLimit *uint256.Uint256) error {
+	_, err := checkProofOfWorkRange(diffBits, powLimit)
+	return err
+}
+
+// CheckProofOfWork ensures the provided block hash is less than the target
+// difficulty represented by given header bits and that said difficulty is in
+// min/max range per the provided proof-of-work limit.
+func CheckProofOfWork(blockHash *chainhash.Hash, diffBits uint32, powLimit *uint256.Uint256) error {
+	target, err := checkProofOfWorkRange(diffBits, powLimit)
+	if err != nil {
+		return err
+	}
+
+	// The block hash must be less than the target difficulty.
+	hashNum := HashToUint256(blockHash)
+	if hashNum.Gt(&target) {
+		str := fmt.Sprintf("block hash of %x is higher than expected max of %x",
+			hashNum, target)
+		return ruleError(ErrHighHash, str)
+	}
+
+	return nil
 }
