@@ -269,18 +269,13 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 		return totalBytes, messageError(op, ErrPayloadTooLarge, str)
 	}
 
-	// Create header for the message.
-	hdr := messageHeader{}
-	hdr.magic = dcrnet
-	hdr.command = cmd
-	hdr.length = uint32(lenp)
-	copy(hdr.checksum[:], chainhash.HashB(payload)[0:4])
-
 	// Encode the header for the message.  This is done to a buffer
 	// rather than directly to the writer since writeElements doesn't
 	// return the number of bytes written.
+	var checksum [4]byte
+	copy(checksum[:], chainhash.HashB(payload)[0:4])
 	hw := bytes.NewBuffer(make([]byte, 0, MessageHeaderSize))
-	writeElements(hw, hdr.magic, command, hdr.length, hdr.checksum)
+	writeElements(hw, dcrnet, command, uint32(lenp), checksum)
 
 	// Write header.
 	n, err := w.Write(hw.Bytes())
