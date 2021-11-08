@@ -8551,9 +8551,9 @@ func TestHandleVersion(t *testing.T) {
 		},
 		"dcrd": {
 			VersionString: version.String(),
-			Major:         uint32(version.Major),
-			Minor:         uint32(version.Minor),
-			Patch:         uint32(version.Patch),
+			Major:         version.Major,
+			Minor:         version.Minor,
+			Patch:         version.Patch,
 			Prerelease:    version.PreRelease,
 			BuildMetadata: buildMeta,
 		}}

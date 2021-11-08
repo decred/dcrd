@@ -63,21 +63,21 @@ var (
 
 	// These fields are the individual semantic version components that define
 	// the application version.
-	Major         uint
-	Minor         uint
-	Patch         uint
+	Major         uint32
+	Minor         uint32
+	Patch         uint32
 	PreRelease    string
 	BuildMetadata string
 )
 
-// parseUint converts the passed string to an unsigned integer or returns an
+// parseUint32 converts the passed string to an unsigned integer or returns an
 // error if it is invalid.
-func parseUint(s string, fieldName string) (uint, error) {
-	val, err := strconv.ParseUint(s, 10, 0)
+func parseUint32(s string, fieldName string) (uint32, error) {
+	val, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("malformed semver %s: %w", fieldName, err)
 	}
-	return uint(val), err
+	return uint32(val), err
 }
 
 // checkSemString returns an error if the passed string contains characters that
@@ -92,7 +92,7 @@ func checkSemString(s, alphabet, fieldName string) error {
 }
 
 // parseSemVer parses various semver components from the provided string.
-func parseSemVer(s string) (uint, uint, uint, string, string, error) {
+func parseSemVer(s string) (uint32, uint32, uint32, string, string, error) {
 	// Parse the various semver component from the version string via a regular
 	// expression.
 	m := semverRE.FindStringSubmatch(s)
@@ -102,17 +102,17 @@ func parseSemVer(s string) (uint, uint, uint, string, string, error) {
 		return 0, 0, 0, "", "", err
 	}
 
-	major, err := parseUint(m[1], "major")
+	major, err := parseUint32(m[1], "major")
 	if err != nil {
 		return 0, 0, 0, "", "", err
 	}
 
-	minor, err := parseUint(m[2], "minor")
+	minor, err := parseUint32(m[2], "minor")
 	if err != nil {
 		return 0, 0, 0, "", "", err
 	}
 
-	patch, err := parseUint(m[3], "patch")
+	patch, err := parseUint32(m[3], "patch")
 	if err != nil {
 		return 0, 0, 0, "", "", err
 	}

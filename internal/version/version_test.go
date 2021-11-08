@@ -11,9 +11,9 @@ import "testing"
 func TestSemVerParsing(t *testing.T) {
 	tests := []struct {
 		ver     string // semantic version string to parse
-		major   uint   // expected major version
-		minor   uint   // expected minor version
-		patch   uint   // expected patch version
+		major   uint32 // expected major version
+		minor   uint32 // expected minor version
+		patch   uint32 // expected patch version
 		pre     string // expected pre-release string
 		build   string // expected build metadata string
 		invalid bool   // expected error
