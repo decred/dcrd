@@ -2508,7 +2508,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// Attempt to add a tspend with an incorrect expiry (not tvi+2). This
 	// should fail.
 	tx := tspends[1].MsgTx()
-	tx.Expiry += 1
+	tx.Expiry++
 	tx.TxIn[0].SignatureScript, err = sign.TSpendSignatureScript(tx, piKey)
 	if err != nil {
 		t.Fatal(err)

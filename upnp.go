@@ -114,7 +114,7 @@ func discover(ctx context.Context) (*upnpNAT, error) {
 		if err != nil {
 			return nil, err
 		}
-		var serviceIP string = getServiceIP(serviceURL)
+		serviceIP := getServiceIP(serviceURL)
 		var ourIP string
 		ourIP, err = getOurIP(serviceIP)
 		if err != nil {

@@ -190,16 +190,6 @@ func (n *node) tracef(format string, args ...interface{}) {
 	tracef(n.t, pid+format, args...)
 }
 
-// debugf is identical to debug.go.debugf but it prepends the pid of this
-// node.
-func (n *node) debugf(format string, args ...interface{}) {
-	if !debug {
-		return
-	}
-	pid := strconv.Itoa(n.pid) + " "
-	debugf(n.t, pid+format, args...)
-}
-
 // buildNode creates a new temporary directory and node and saves the location
 // to a package level variable where it is used for all tests. pathToDCRDMtx
 // must be held for writes.
