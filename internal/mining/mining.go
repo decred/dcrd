@@ -2246,14 +2246,10 @@ nextPriorityQueueItem:
 			continue
 		}
 
-		// Copy the transaction and swap the pointer.
-		txCopy := dcrutil.NewTxDeepTxIns(tx.MsgTx())
-		blockTxnsRegular[i] = txCopy
-		tx = txCopy
-
 		for _, txIn := range tx.MsgTx().TxIn {
-			// This tx was at some point 0-conf and now requires the
-			// correct block height and index. Set it here.
+			// This tx was at some point 0-conf and now requires the correct block
+			// height and index.  Set it here.  It is safe to modify the transaction
+			// directly since it has already been copied above.
 			if txIn.BlockIndex == wire.NullBlockIndex {
 				idx := txIndexFromTxList(txIn.PreviousOutPoint.Hash,
 					blockTxnsRegular)
