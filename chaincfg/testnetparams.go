@@ -108,7 +108,7 @@ func TestNet3Params() *Params {
 		// checkpoint is provided since with headers first syncing the most recent
 		// checkpoint will be discovered before block syncing even starts.
 		Checkpoints: []Checkpoint{
-			{515730, newHashFromStr("00000010ecddf8da5d91f7020f69130db8a163906d460cbbed2a91568701f0ac")},
+			{803810, newHashFromStr("000000016e841f4d94c3b253bc7bdf3a13217c7f28a5935bbaec37c7752678e9")},
 		},
 
 		// MinKnownChainWork is the minimum amount of known total work for the

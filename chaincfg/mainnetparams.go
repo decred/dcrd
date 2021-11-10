@@ -113,7 +113,7 @@ func MainNetParams() *Params {
 		// checkpoint is provided since with headers first syncing the most recent
 		// checkpoint will be discovered before block syncing even starts.
 		Checkpoints: []Checkpoint{
-			{483600, newHashFromStr("000000000000000010f98f7354b501b5747011c82d53b989dbcb368e5059ff9e")},
+			{601900, newHashFromStr("00000000000000001c1865a45a038bb680fc076d70cd88c1843e3e669cb54942")},
 		},
 
 		// MinKnownChainWork is the minimum amount of known total work for the
