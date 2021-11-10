@@ -115,9 +115,9 @@ func TestNet3Params() *Params {
 		// chain at a given point in time.  This is intended to be updated
 		// periodically with new releases.
 		//
-		// Block 000000097a93845014d7865997154cc186be0435742e0d3c37c019ff118493fa
-		// Height: 519845
-		MinKnownChainWork: hexToBigInt("000000000000000000000000000000000000000000000000e41955f181d00f59"),
+		// Block 00000000d64ceb1a686315ed56235e9a6838e3a22e9ec9bd92c2e04c09e0778b
+		// Height: 807905
+		MinKnownChainWork: hexToBigInt("000000000000000000000000000000000000000000000000e419ae4d750d4484"),
 
 		// Consensus rule change deployments.
 		//
