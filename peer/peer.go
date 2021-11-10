@@ -40,10 +40,6 @@ const (
 	// inventory cache.
 	maxKnownInventory = 1000
 
-	// pingInterval is the interval of time to wait in between sending ping
-	// messages.
-	pingInterval = 2 * time.Minute
-
 	// negotiateTimeout is the duration of inactivity before we timeout a
 	// peer that hasn't completed the initial version negotiation.
 	negotiateTimeout = 30 * time.Second
@@ -66,6 +62,10 @@ const (
 	// timed out when a peer is created with the idle timeout configuration
 	// option set to 0.
 	defaultIdleTimeout = 120 * time.Second
+
+	// pingInterval is the interval of time to wait in between sending ping
+	// messages.
+	pingInterval = defaultIdleTimeout - 13*time.Second
 )
 
 var (
