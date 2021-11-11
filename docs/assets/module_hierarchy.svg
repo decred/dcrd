@@ -87,13 +87,13 @@
 </g>
 <!-- types -->
 <g id="node7" class="node"><title>types</title>
-<path fill="tomato" stroke="black" d="M789,-252C789,-252 698,-252 698,-252 692,-252 686,-246 686,-240 686,-240 686,-228 686,-228 686,-222 692,-216 698,-216 698,-216 789,-216 789,-216 795,-216 801,-222 801,-228 801,-228 801,-240 801,-240 801,-246 795,-252 789,-252"/>
-<text text-anchor="middle" x="743.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types</text>
+<path fill="tomato" stroke="black" d="M803.5,-252C803.5,-252 695.5,-252 695.5,-252 689.5,-252 683.5,-246 683.5,-240 683.5,-240 683.5,-228 683.5,-228 683.5,-222 689.5,-216 695.5,-216 695.5,-216 803.5,-216 803.5,-216 809.5,-216 815.5,-222 815.5,-228 815.5,-228 815.5,-240 815.5,-240 815.5,-246 809.5,-252 803.5,-252"/>
+<text text-anchor="middle" x="749.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types/v3</text>
 </g>
 <!-- dcrjson&#45;&gt;types -->
 <g id="edge24" class="edge"><title>dcrjson&#45;&gt;types</title>
-<path fill="none" stroke="tomato" d="M781.25,-421.955C781.25,-421.955 781.25,-252.145 781.25,-252.145"/>
-<polygon fill="tomato" stroke="tomato" points="777.75,-421.955 781.25,-431.955 784.75,-421.956 777.75,-421.955"/>
+<path fill="none" stroke="tomato" d="M788.5,-421.955C788.5,-421.955 788.5,-252.145 788.5,-252.145"/>
+<polygon fill="tomato" stroke="tomato" points="785,-421.955 788.5,-431.955 792,-421.956 785,-421.955"/>
 </g>
 <!-- rpcclient -->
 <g id="node25" class="node"><title>rpcclient</title>
@@ -102,8 +102,8 @@
 </g>
 <!-- types&#45;&gt;rpcclient -->
 <g id="edge25" class="edge"><title>types&#45;&gt;rpcclient</title>
-<path fill="none" stroke="indianred" d="M711.75,-205.762C711.75,-205.762 711.75,-108.09 711.75,-108.09"/>
-<polygon fill="indianred" stroke="indianred" points="708.25,-205.762 711.75,-215.762 715.25,-205.762 708.25,-205.762"/>
+<path fill="none" stroke="indianred" d="M710.5,-205.762C710.5,-205.762 710.5,-108.09 710.5,-108.09"/>
+<polygon fill="indianred" stroke="indianred" points="707,-205.762 710.5,-215.762 714,-205.762 707,-205.762"/>
 </g>
 <!-- addrmgr -->
 <g id="node9" class="node"><title>addrmgr</title>
