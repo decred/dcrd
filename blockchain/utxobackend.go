@@ -512,7 +512,7 @@ func (l *levelDbUtxoBackend) FetchState() (*UtxoSetState, error) {
 	// Return nil if the utxo set state does not exist in the database.  This
 	// should only be the case when starting from a fresh database or a
 	// database that has not been run with the utxo cache yet.
-	if serialized == nil {
+	if len(serialized) == 0 {
 		return nil, nil
 	}
 
