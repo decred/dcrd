@@ -211,7 +211,7 @@ The following versioned modules are provided by dcrd repository:
 * [certgen](https://github.com/decred/dcrd/tree/master/certgen) - Provides a
   function for creating a new TLS certificate key pair, typically used for
   encrypting RPC and websocket communications
-* [addrmgr](https://github.com/decred/dcrd/tree/master/addrmgr) - Provides a
+* [addrmgr/v2](https://github.com/decred/dcrd/tree/master/addrmgr) - Provides a
   concurrency safe Decred network address manager
 * [connmgr/v3](https://github.com/decred/dcrd/tree/master/connmgr) - Implements
   a generic Decred network connection manager
