@@ -198,7 +198,7 @@
 <!-- dcrutil -->
 <g id="node15" class="node"><title>dcrutil</title>
 <path fill="burlywood" stroke="black" d="M317,-396C317,-396 272,-396 272,-396 266,-396 260,-390 260,-384 260,-384 260,-372 260,-372 260,-366 266,-360 272,-360 272,-360 317,-360 317,-360 323,-360 329,-366 329,-372 329,-372 329,-384 329,-384 329,-390 323,-396 317,-396"/>
-<text text-anchor="middle" x="294.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil/v3</text>
+<text text-anchor="middle" x="294.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil/v4</text>
 </g>
 <!-- database -->
 <g id="node16" class="node"><title>database</title>
