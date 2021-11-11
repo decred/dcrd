@@ -2250,7 +2250,7 @@ func TestFetchTransaction(t *testing.T) {
 		t.Fatalf("FetchTransaction: failed to retrieve tx: %v", err)
 	}
 
-	if ticket.Hash() != foundTx.Hash() {
+	if *ticket.Hash() != *foundTx.Hash() {
 		t.Fatalf("FetchTransaction: expected ticket %v "+
 			"but got %v", ticket.Hash(), foundTx.Hash())
 	}
