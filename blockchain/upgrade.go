@@ -4933,6 +4933,12 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 		if err != nil {
 			return err
 		}
+
+		// Return immediately if the entry does not exist at the old location.
+		if serialized == nil {
+			return nil
+		}
+
 		err = tx.Put(newKey, serialized)
 		if err != nil {
 			return err
