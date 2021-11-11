@@ -14,6 +14,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/wire"
 )
 
 // TestTx tests the API for Tx.
@@ -175,46 +176,52 @@ func TestNewTxDeep(t *testing.T) {
 
 // TestNewTxDeepTxIns tests the API for creation of a Tx with deep TxIn copy.
 func TestNewTxDeepTxIns(t *testing.T) {
-	tx := Block100000.Transactions[0]
-	copyTxDeep := NewTxDeepTxIns(tx)
-	cpTx := copyTxDeep.MsgTx()
+	msgTx := Block100000.Transactions[0]
+
+	// Create a new Tx with an underlying wire.MsgTx and set the tree and index
+	// to ensure that those are copied over as well.
+	tx := NewTx(msgTx)
+	tx.SetTree(wire.TxTreeRegular)
+	tx.SetIndex(0)
 
 	// Ensure original and copied transactions has equal values.
-	if !reflect.DeepEqual(tx, cpTx) {
-		t.Fatalf("MsgTx is not equal - got %v, want %v",
-			spew.Sdump(cpTx), spew.Sdump(&tx))
+	copyTxDeep := NewTxDeepTxIns(tx)
+	if !reflect.DeepEqual(tx, copyTxDeep) {
+		t.Fatalf("Tx is not equal - got %v, want %v",
+			spew.Sdump(copyTxDeep), spew.Sdump(&tx))
 	}
 
 	// Ensure original and copied transactions refer to different allocations.
-	if tx == cpTx {
+	cMsgTx := copyTxDeep.MsgTx()
+	if msgTx == cMsgTx {
 		t.Fatal("MsgTx is referring to the same allocation")
 	}
 
 	// Compare each original and copied input transaction allocations.
-	for i := 0; i < len(tx.TxIn); i++ {
+	for i := 0; i < len(msgTx.TxIn); i++ {
 		// Ensure input transactions refer to different allocations.
-		if tx.TxIn[i] == cpTx.TxIn[i] {
+		if msgTx.TxIn[i] == cMsgTx.TxIn[i] {
 			t.Errorf("TxIn #%d is referring to the same allocation", i)
 		}
 
 		// Ensure previous transaction output points refer to different
 		// allocations.
-		if &tx.TxIn[i].PreviousOutPoint == &cpTx.TxIn[i].PreviousOutPoint {
+		if &msgTx.TxIn[i].PreviousOutPoint == &cMsgTx.TxIn[i].PreviousOutPoint {
 			t.Errorf("PreviousOutPoint #%d is referring to the same"+
 				" allocation", i)
 		}
 
 		// Ensure signature scripts refer to different allocations.
-		if &tx.TxIn[i].SignatureScript[0] == &cpTx.TxIn[i].SignatureScript[0] {
+		if &msgTx.TxIn[i].SignatureScript[0] == &cMsgTx.TxIn[i].SignatureScript[0] {
 			t.Errorf("SignatureScript #%d is referring to the same"+
 				" allocation", i)
 		}
 	}
 
 	// Compare each original and copied output transaction allocations.
-	for i := 0; i < len(tx.TxOut); i++ {
+	for i := 0; i < len(msgTx.TxOut); i++ {
 		// Ensure output transactions refer to same allocation.
-		if tx.TxOut[i] != cpTx.TxOut[i] {
+		if msgTx.TxOut[i] != cMsgTx.TxOut[i] {
 			t.Errorf("TxOut #%d is not referring to same allocation", i)
 		}
 	}

@@ -159,11 +159,12 @@ func NewTxDeep(msgTx *wire.MsgTx) *Tx {
 // pointers to the TxOuts while replacing the old pointers to the TxIns with
 // deep copies. This is to prevent races when the fraud proofs for the
 // transactions are set by the miner.
-func NewTxDeepTxIns(msgTx *wire.MsgTx) *Tx {
-	if msgTx == nil {
+func NewTxDeepTxIns(tx *Tx) *Tx {
+	if tx == nil {
 		return nil
 	}
 
+	msgTx := tx.msgTx
 	txIns := make([]*wire.TxIn, len(msgTx.TxIn))
 	txOuts := make([]*wire.TxOut, len(msgTx.TxOut))
 
@@ -201,8 +202,8 @@ func NewTxDeepTxIns(msgTx *wire.MsgTx) *Tx {
 	return &Tx{
 		hash:    newTxMsg.TxHash(),
 		msgTx:   newTxMsg,
-		txTree:  wire.TxTreeUnknown,
-		txIndex: TxIndexUnknown,
+		txTree:  tx.txTree,
+		txIndex: tx.txIndex,
 	}
 }
 

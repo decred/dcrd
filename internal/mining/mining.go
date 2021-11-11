@@ -1935,7 +1935,7 @@ nextPriorityQueueItem:
 			msgTx := tx.MsgTx()
 
 			if stake.IsSSGen(msgTx, isTreasuryEnabled) {
-				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				txCopy := dcrutil.NewTxDeepTxIns(tx)
 				if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 					isTreasuryEnabled) {
 
@@ -2010,7 +2010,7 @@ nextPriorityQueueItem:
 
 			// Quick check for difficulty here.
 			if msgTx.TxOut[0].Value >= best.NextStakeDiff {
-				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				txCopy := dcrutil.NewTxDeepTxIns(tx)
 				if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 					isTreasuryEnabled) {
 
@@ -2046,7 +2046,7 @@ nextPriorityQueueItem:
 		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx,
 			isAutoRevocationsEnabled) {
 
-			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+			txCopy := dcrutil.NewTxDeepTxIns(tx)
 			if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 				isTreasuryEnabled) {
 
@@ -2066,7 +2066,7 @@ nextPriorityQueueItem:
 		for _, tx := range blockTxns {
 			msgTx := tx.MsgTx()
 			if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
-				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				txCopy := dcrutil.NewTxDeepTxIns(tx)
 				if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 					isTreasuryEnabled) {
 
@@ -2074,7 +2074,7 @@ nextPriorityQueueItem:
 					log.Tracef("maybeInsertStakeTx TADD %v ", tx.Hash())
 				}
 			} else if tx.Tree() == wire.TxTreeStake && stake.IsTSpend(msgTx) {
-				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				txCopy := dcrutil.NewTxDeepTxIns(tx)
 				if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 					isTreasuryEnabled) {
 
@@ -2221,7 +2221,7 @@ nextPriorityQueueItem:
 		}
 
 		// Copy the transaction and swap the pointer.
-		txCopy := dcrutil.NewTxDeepTxIns(tx.MsgTx())
+		txCopy := dcrutil.NewTxDeepTxIns(tx)
 		blockTxnsRegular[i] = txCopy
 		tx = txCopy
 
