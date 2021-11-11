@@ -1572,8 +1572,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Perform several checks on the transaction inputs using the invariant
 	// rules in blockchain for what transactions are allowed into blocks.
 	// Also returns the fees associated with the transaction which will be
-	// used later.  The fraud proof is not checked because it will be
-	// filled in by the miner.
+	// used later.
 
 	bestHash := mp.cfg.BestHash()
 	bestHeader, err := mp.cfg.HeaderByHash(bestHash)
@@ -1581,7 +1580,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		return nil, err
 	}
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
-		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams,
+		tx, nextBlockHeight, utxoView, true, mp.cfg.ChainParams,
 		&bestHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
