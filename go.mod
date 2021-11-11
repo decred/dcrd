@@ -28,7 +28,7 @@ require (
 	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0-20210129200153-14fd1a785bf2
 	github.com/decred/dcrd/rpcclient/v7 v7.0.0-20210129214723-fc227a05904d
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210415215133-96b98390a9a9
-	github.com/decred/dcrd/wire v1.4.0
+	github.com/decred/dcrd/wire v1.5.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.4.2

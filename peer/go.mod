@@ -4,7 +4,6 @@ go 1.11
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/decred/dcrd/addrmgr/v2 v2.0.0-20211005210707-931a579e127b
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/lru v1.1.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210129190127-4ebd135a82f1

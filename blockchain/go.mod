@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210906140327-598bf66f24a6
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/chaincfg/v3 v3.0.1-0.20210906134819-8c0e8616ebda
 	github.com/decred/dcrd/database/v3 v3.0.0-20210802132946-9ede6ae83e0f
 	github.com/decred/dcrd/dcrec v1.0.0
@@ -14,7 +14,7 @@ require (
 	github.com/decred/dcrd/gcs/v3 v3.0.0-20210916172859-ca03de05ecd0
 	github.com/decred/dcrd/lru v1.1.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210415215133-96b98390a9a9
-	github.com/decred/dcrd/wire v1.4.0
+	github.com/decred/dcrd/wire v1.5.0
 	github.com/decred/slog v1.1.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 )
