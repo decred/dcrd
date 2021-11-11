@@ -203,7 +203,7 @@
 <!-- database -->
 <g id="node16" class="node"><title>database</title>
 <path fill="dodgerblue" stroke="black" d="M337,-324C337,-324 278,-324 278,-324 272,-324 266,-318 266,-312 266,-312 266,-300 266,-300 266,-294 272,-288 278,-288 278,-288 337,-288 337,-288 343,-288 349,-294 349,-300 349,-300 349,-312 349,-312 349,-318 343,-324 337,-324"/>
-<text text-anchor="middle" x="307.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">database/v2</text>
+<text text-anchor="middle" x="307.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">database/v3</text>
 </g>
 <!-- dcrutil&#45;&gt;database -->
 <g id="edge18" class="edge"><title>dcrutil&#45;&gt;database</title>

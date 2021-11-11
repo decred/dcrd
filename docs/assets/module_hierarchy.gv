@@ -17,7 +17,7 @@ digraph {
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
 	secp256k1 [label="dcrec/secp256k1/v4" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil/v4" fillcolor=burlywood]
-	database [label="database/v2" fillcolor=dodgerblue]
+	database [label="database/v3" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
 	txscript [label="txscript/v4" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake/v3" fillcolor=bisque]
