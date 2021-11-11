@@ -1467,6 +1467,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Transaction is an orphan if any of the referenced transaction outputs don't
 	// exist or are already spent.
 	var missingParents []*chainhash.Hash
+	var updateFraudProof bool
 	for i, txIn := range msgTx.TxIn {
 		if (i == 0 && (isVote || isTreasuryBase)) || isTSpend {
 			continue
@@ -1492,11 +1493,58 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 				log.Tracef("Transaction %v uses spent input %v and will be "+
 					"considered an orphan", txHash, hashCopy)
 			}
+
+			continue
+		}
+
+		// Check the fraud proof data.  If anything does not match, set the update
+		// fraud flag to true.  The fraud proof is not updated directly here since
+		// it requires copying the transaction, which we want to avoid unless
+		// necessary.
+		if int64(txIn.BlockHeight) != entry.BlockHeight() ||
+			txIn.BlockIndex != entry.BlockIndex() ||
+			txIn.ValueIn != entry.Amount() {
+
+			updateFraudProof = true
 		}
 	}
 
 	if len(missingParents) > 0 {
 		return missingParents, nil
+	}
+
+	// Update the fraud proof data on the transaction inputs as necessary.  The
+	// fraud proof data will ultimately get filled in properly when miners create
+	// a block template.  However, ensuring that it is filled in properly when
+	// entering the mempool is beneficial so that it is correct when relaying the
+	// transaction or returning it from an RPC API.
+	if updateFraudProof {
+		// Copy the transaction and swap the pointer.  This is to prevent races
+		// when modifying the fraud proof on the transaction inputs.
+		tx = dcrutil.NewTxDeepTxIns(tx)
+		msgTx = tx.MsgTx()
+
+		for i, txIn := range msgTx.TxIn {
+			// Skip stakebase inputs, treasury base inputs, and tspends.
+			if (i == 0 && (isVote || isTreasuryBase)) || isTSpend {
+				continue
+			}
+
+			// Lookup the UTXO entry for the input.
+			entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
+
+			// Continue if the UTXO entry doesn't exist or is already spent.  This
+			// should never be the case since this function returns early before this
+			// point for orphans, but check in case things change in the future.
+			if entry == nil || entry.IsSpent() {
+				continue
+			}
+
+			// Set the fraud proof data on the transaction input.
+			txIn.ValueIn = entry.Amount()
+			txIn.BlockHeight = uint32(entry.BlockHeight())
+			txIn.BlockIndex = entry.BlockIndex()
+		}
 	}
 
 	// Don't allow the transaction into the mempool unless its sequence lock is
