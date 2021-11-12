@@ -11,6 +11,13 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 )
 
+const (
+	// MaxDataCarrierSizeV0 is the maximum number of bytes allowed in pushed
+	// data to be considered a standard version 0 provably pruneable nulldata
+	// script.
+	MaxDataCarrierSizeV0 = 256
+)
+
 // ExtractCompressedPubKeyV0 extracts a compressed public key from the passed
 // script if it is a standard version 0 pay-to-compressed-secp256k1-pubkey
 // script.  It will return nil otherwise.
@@ -408,7 +415,7 @@ func IsNullDataScriptV0(script []byte) bool {
 	//  OP_RETURN <optional data>
 	//
 	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
-	// canonical data push up to MaxDataCarrierSize bytes.
+	// canonical data push up to MaxDataCarrierSizeV0 bytes.
 
 	// The script can't possibly be a null data script if it doesn't start
 	// with OP_RETURN.  Fail fast to avoid more work below.
@@ -421,12 +428,12 @@ func IsNullDataScriptV0(script []byte) bool {
 		return true
 	}
 
-	// OP_RETURN followed by a canonical data push up to MaxDataCarrierSize
+	// OP_RETURN followed by a canonical data push up to MaxDataCarrierSizeV0
 	// bytes in length.
 	const scriptVersion = 0
 	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script[1:])
 	return tokenizer.Next() && tokenizer.Done() &&
-		len(tokenizer.Data()) <= txscript.MaxDataCarrierSize &&
+		len(tokenizer.Data()) <= MaxDataCarrierSizeV0 &&
 		isCanonicalPushV0(tokenizer.Opcode(), tokenizer.Data())
 }
 
