@@ -179,6 +179,22 @@ need to return interfaces that callers would have to type assert based on the
 version thereby defeating the original intention of using a version-agnostic
 method to begin with.
 
+### Provably Pruneable Scripts
+
+A provably pruneable script is a public key script that is of a specific form
+that is provably unspendable and therefore is safe to prune from the set of
+unspent transaction outputs.  They are primarily useful for anchoring
+commitments into the blockchain and are the preferred method to achieve that
+goal.
+
+This package provides the version-specific `ProvablyPruneableScriptV0` method
+for this purpose.
+
+Note that no version-agnostic variant of the method that accepts a dynamic
+version is provided since the exact details of what is considered standard is
+likely to change between scripting language versions, so callers will
+necessarily have to ensure appropriate data is provided based on the version.
+
 ### Additional Convenience Methods
 
 As mentioned in the overview, standardness only applies to public key scripts.
