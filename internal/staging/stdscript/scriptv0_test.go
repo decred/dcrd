@@ -32,7 +32,7 @@ func hexToBytes(s string) []byte {
 // test global versus inside a specific test function scope since it spans
 // multiple tests and benchmarks.
 var scriptV0Tests = func() []scriptTest {
-	// Convience function that combines fmt.Sprintf with mustParseShortForm
+	// Convenience function that combines fmt.Sprintf with mustParseShortForm
 	// to create more compact tests.
 	p := func(format string, a ...interface{}) []byte {
 		const scriptVersion = 0
@@ -1230,6 +1230,85 @@ func TestExtractTreasuryGenScriptHashV0(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
 				got, want)
+			continue
+		}
+	}
+}
+
+// TestProvablyPruneableScriptV0 ensures generating a version 0
+// provably-pruneable nulldata script works as intended.
+func TestProvablyPruneableScriptV0(t *testing.T) {
+	// Convenience function that closes over the script version and invokes
+	// mustParseShortForm to create more compact tests.
+	const scriptVersion = 0
+	p := func(format string, a ...interface{}) []byte {
+		return mustParseShortForm(scriptVersion, fmt.Sprintf(format, a...))
+	}
+
+	tests := []struct {
+		name     string
+		data     []byte
+		expected []byte
+		err      error
+		typ      ScriptType
+	}{{
+		name:     "small int",
+		data:     hexToBytes("01"),
+		expected: p("RETURN 1"),
+		err:      nil,
+		typ:      STNullData,
+	}, {
+		name:     "max small int",
+		data:     hexToBytes("10"),
+		expected: p("RETURN 16"),
+		err:      nil,
+		typ:      STNullData,
+	}, {
+		name:     "data of size before OP_PUSHDATA1 is needed",
+		data:     bytes.Repeat(hexToBytes("00"), 75),
+		expected: p("RETURN DATA_75 0x00{75}"),
+		err:      nil,
+		typ:      STNullData,
+	}, {
+		name:     "one less than max allowed size",
+		data:     bytes.Repeat(hexToBytes("00"), MaxDataCarrierSizeV0-1),
+		expected: p("RETURN PUSHDATA1 0xff 0x00{255}"),
+		err:      nil,
+		typ:      STNullData,
+	}, {
+		name:     "max allowed size",
+		data:     bytes.Repeat(hexToBytes("00"), MaxDataCarrierSizeV0),
+		expected: p("RETURN PUSHDATA2 0x0001 0x00{256}"),
+		err:      nil,
+		typ:      STNullData,
+	}, {
+		name:     "too big",
+		data:     bytes.Repeat(hexToBytes("00"), MaxDataCarrierSizeV0+1),
+		expected: nil,
+		err:      ErrTooMuchNullData,
+		typ:      STNonStandard,
+	}}
+
+	for _, test := range tests {
+		script, err := ProvablyPruneableScriptV0(test.data)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected error - got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+
+		// Ensure the expected script was generated.
+		if !bytes.Equal(script, test.expected) {
+			t.Errorf("%q: unexpected script -- got: %x, want: %x", test.name,
+				script, test.expected)
+			continue
+		}
+
+		// Ensure the script has the correct type.
+		scriptType := DetermineScriptType(scriptVersion, script)
+		if scriptType != test.typ {
+			t.Errorf("%q: unexpected script type -- got: %v, want: %v",
+				test.name, scriptType, test.typ)
 			continue
 		}
 	}

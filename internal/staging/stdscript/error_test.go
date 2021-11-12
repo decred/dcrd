@@ -19,6 +19,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
 		{ErrTooManyRequiredSigs, "ErrTooManyRequiredSigs"},
 		{ErrPubKeyType, "ErrPubKeyType"},
+		{ErrTooMuchNullData, "ErrTooMuchNullData"},
 	}
 
 	for i, test := range tests {

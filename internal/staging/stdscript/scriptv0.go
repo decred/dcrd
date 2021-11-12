@@ -722,6 +722,21 @@ func MultiSigScriptV0(threshold int, pubKeys ...[]byte) ([]byte, error) {
 	return builder.Script()
 }
 
+// ProvablyPruneableScriptV0 returns a valid version 0 provably-pruneable script
+// which consists of an OP_RETURN followed by the passed data.  An Error with
+// kind ErrTooMuchNullData will be returned if the length of the passed data
+// exceeds MaxDataCarrierSizeV0.
+func ProvablyPruneableScriptV0(data []byte) ([]byte, error) {
+	if len(data) > MaxDataCarrierSizeV0 {
+		str := fmt.Sprintf("data size %d is larger than max allowed size %d",
+			len(data), MaxDataCarrierSizeV0)
+		return nil, makeError(ErrTooMuchNullData, str)
+	}
+
+	builder := txscript.NewScriptBuilder()
+	return builder.AddOp(txscript.OP_RETURN).AddData(data).Script()
+}
+
 // AtomicSwapDataPushesV0 houses the data pushes found in hash-based atomic swap
 // contracts using version 0 scripts.
 type AtomicSwapDataPushesV0 struct {

@@ -20,6 +20,11 @@ const (
 
 	// ErrPubKeyType is returned when a script contains invalid public keys.
 	ErrPubKeyType = ErrorKind("ErrPubKeyType")
+
+	// ErrTooMuchNullData is returned when attempting to generate a
+	// provably-pruneable script with data that exceeds the maximum allowed
+	// length.
+	ErrTooMuchNullData = ErrorKind("ErrTooMuchNullData")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
