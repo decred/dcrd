@@ -384,8 +384,8 @@ func (p *poolHarness) GetKey(addr stdaddr.Address) ([]byte, dcrec.SignatureType,
 }
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
-func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64) {
-	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex, noTreasury,
+func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32) {
+	p.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, noTreasury,
 		noAutoRevocations)
 }
 
@@ -1040,7 +1040,8 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 
 	// Remove the transaction from the mempool. This causes the ticket
 	// in the stage pool to enter the mempool.
-	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight),
+		wire.NullBlockIndex)
 	harness.txPool.RemoveTransaction(tx, false, noTreasury, noAutoRevocations)
 	harness.txPool.MaybeAcceptDependents(tx, noTreasury, noAutoRevocations)
 
@@ -1049,7 +1050,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 
 	// Add the transaction back to the mempool to ensure it
 	// kicks the ticket out to the stage pool.
-	harness.AddFakeUTXO(tx, int64(mining.UnminedHeight))
+	harness.AddFakeUTXO(tx, int64(mining.UnminedHeight), wire.NullBlockIndex)
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: wire.TxTreeRegular, Index: 0}
 	harness.chain.utxos.LookupEntry(outpoint).Spend()
 	_, err = harness.txPool.MaybeAcceptTransaction(tx, false, false)
@@ -1118,7 +1119,8 @@ func TestVoteOrphan(t *testing.T) {
 	testPoolMembership(tc, tx, false, true)
 
 	// Generate a fake mined utxo for the ticket created.
-	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight),
+		wire.NullBlockIndex)
 
 	// Ensure the previously rejected vote is accepted now since all referenced
 	// utxos can now be found.
@@ -1190,7 +1192,8 @@ func TestRevocationOrphan(t *testing.T) {
 	testPoolMembership(tc, tx, false, true)
 
 	// Generate a fake mined utxos for the ticket created.
-	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight),
+		wire.NullBlockIndex)
 
 	// Ensure the previously rejected revocation is accepted now since all referenced
 	// utxos can now be found.
@@ -1823,7 +1826,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			Value:    1000000000 + int64(i),
 		})
 		inputTx := dcrutil.NewTx(inputMsgTx)
-		harness.AddFakeUTXO(inputTx, baseHeight)
+		harness.AddFakeUTXO(inputTx, baseHeight, wire.NullBlockIndex)
 		harness.chain.AddFakeUtxoMedianTime(inputTx, 0, baseTime)
 
 		// Create a transaction which spends from the mock utxo with the details
@@ -2757,7 +2760,7 @@ func TestStagedTransactionHeight(t *testing.T) {
 	// Remove txA, which should bring the ticket out of the stage pool and
 	// into the main pool.
 	newBlockHeight := initialBlockHeight + 1
-	harness.AddFakeUTXO(txA, newBlockHeight)
+	harness.AddFakeUTXO(txA, newBlockHeight, wire.NullBlockIndex)
 	harness.chain.SetHeight(newBlockHeight)
 	harness.txPool.RemoveTransaction(txA, false, noTreasury, noAutoRevocations)
 	harness.txPool.MaybeAcceptDependents(txA, noTreasury, noAutoRevocations)
@@ -2880,7 +2883,8 @@ func TestExplicitVersionSemantics(t *testing.T) {
 		PkScript: []byte{txscript.OP_FALSE},
 	})
 	mockInputTx := dcrutil.NewTx(mockInputMsgTx)
-	harness.AddFakeUTXO(mockInputTx, harness.chain.BestHeight())
+	harness.AddFakeUTXO(mockInputTx, harness.chain.BestHeight(),
+		wire.NullBlockIndex)
 
 	// Ensure spending an existing regular transaction output that has a newer
 	// script version that is no longer valid for new outputs (until explicitly
@@ -2949,7 +2953,8 @@ func TestRevocationsWithAutoRevocationsEnabled(t *testing.T) {
 	testPoolMembership(tc, ticket, false, false)
 
 	// Add a fake UTXO for the ticket.
-	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+	harness.AddFakeUTXO(ticket, int64(ticket.MsgTx().TxIn[0].BlockHeight),
+		wire.NullBlockIndex)
 
 	// Create a revocation from the ticket with a non-zero fee.
 	zeroFee := dcrutil.Amount(0)
