@@ -3006,3 +3006,142 @@ func TestRevocationsWithAutoRevocationsEnabled(t *testing.T) {
 	harness.txPool.PruneStakeTx(nextStakeDiff, harness.chain.BestHeight()+1)
 	testPoolMembership(tc, revocation, false, false)
 }
+
+// TestFraudProofHandling validates that the fraud proof of transaction inputs
+// is corrected as necessary when entering the mempool under a variety of
+// conditions.
+func TestFraudProofHandling(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		incorrectTxInAmount      bool
+		incorrectTxInBlockHeight bool
+		incorrectTxInBlockIndex  bool
+	}{{
+		name:                     "correct fraud proof",
+		incorrectTxInAmount:      false,
+		incorrectTxInBlockHeight: false,
+		incorrectTxInBlockIndex:  false,
+	}, {
+		name:                     "incorrect amount",
+		incorrectTxInAmount:      true,
+		incorrectTxInBlockHeight: false,
+		incorrectTxInBlockIndex:  false,
+	}, {
+		name:                     "incorrect block height",
+		incorrectTxInAmount:      false,
+		incorrectTxInBlockHeight: true,
+		incorrectTxInBlockIndex:  false,
+	}, {
+		name:                     "incorrect block index",
+		incorrectTxInAmount:      false,
+		incorrectTxInBlockHeight: false,
+		incorrectTxInBlockIndex:  true,
+	}, {
+		name:                     "incorrect amount and block height",
+		incorrectTxInAmount:      true,
+		incorrectTxInBlockHeight: true,
+		incorrectTxInBlockIndex:  false,
+	}, {
+		name:                     "incorrect amount and block index",
+		incorrectTxInAmount:      true,
+		incorrectTxInBlockHeight: false,
+		incorrectTxInBlockIndex:  true,
+	}, {
+		name:                     "incorrect block height and block index",
+		incorrectTxInAmount:      false,
+		incorrectTxInBlockHeight: true,
+		incorrectTxInBlockIndex:  true,
+	}, {
+		name:                     "incorrect amount, block height, and block index",
+		incorrectTxInAmount:      true,
+		incorrectTxInBlockHeight: true,
+		incorrectTxInBlockIndex:  true,
+	}}
+
+	for _, test := range tests {
+		harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+		if err != nil {
+			t.Fatalf("%q: unable to create test pool: %v", test.name, err)
+		}
+		tc := &testContext{t, harness}
+
+		// Create a regular transaction from the first spendable output provided by
+		// the harness.
+		baseTx, err := harness.CreateTx(spendableOuts[0])
+		if err != nil {
+			t.Fatalf("%q: unable to create base transaction: %v", test.name, err)
+		}
+
+		// Ensure that the transaction is accepted to the pool.
+		_, err = harness.txPool.ProcessTransaction(baseTx, true, false, true, 0)
+		if err != nil {
+			t.Fatalf("%q: failed to process base transaction: %v", test.name, err)
+		}
+
+		// Add a fake UTXO for the output of the base transaction.
+		utxoAmount := baseTx.MsgTx().TxOut[0].Value
+		utxoBlockHeight := harness.chain.BestHeight()
+		utxoBlockIndex := uint32(0)
+		harness.AddFakeUTXO(baseTx, utxoBlockHeight, utxoBlockIndex)
+
+		// Create a regular transaction that spends an output of the base
+		// transaction.
+		baseTxOut := txOutToSpendableOut(baseTx, 0, wire.TxTreeRegular)
+		tx, err := harness.CreateTx(baseTxOut)
+		if err != nil {
+			t.Fatalf("%q: unable to create transaction: %v", test.name, err)
+		}
+
+		// Set the fraud proof data on the transaction input.  Optionally set some
+		// of the fields incorrectly based on the test parameters.
+		txIn := tx.MsgTx().TxIn[0]
+		txIn.ValueIn = utxoAmount
+		if test.incorrectTxInAmount {
+			txIn.ValueIn++
+		}
+		txIn.BlockHeight = uint32(utxoBlockHeight)
+		if test.incorrectTxInBlockHeight {
+			txIn.BlockHeight++
+		}
+		txIn.BlockIndex = utxoBlockIndex
+		if test.incorrectTxInBlockIndex {
+			txIn.BlockIndex++
+		}
+
+		// Ensure the regular tx is accepted.
+		_, err = harness.txPool.ProcessTransaction(tx, false, false, true, 0)
+		if err != nil {
+			t.Fatalf("%q: ProcessTransaction: failed to accept valid transaction %v",
+				test.name, err)
+		}
+		testPoolMembership(tc, tx, false, true)
+
+		// Validate that the transaction can be fetched from the mempool by its
+		// hash.
+		txFromMempool, err := harness.txPool.FetchTransaction(tx.Hash())
+		if err != nil {
+			t.Fatalf("%q: unable to fetch transaction: %v", test.name, err)
+		}
+
+		// Validate that the transaction input amount is correct.
+		txInFromMempool := txFromMempool.MsgTx().TxIn[0]
+		if txInFromMempool.ValueIn != utxoAmount {
+			t.Errorf("%q: unexpected amount -- got %v, want %v", test.name,
+				txInFromMempool.ValueIn, utxoAmount)
+		}
+
+		// Validate that the transaction input block height is correct.
+		if int64(txInFromMempool.BlockHeight) != utxoBlockHeight {
+			t.Errorf("%q: unexpected block height -- got %v, want %v", test.name,
+				txInFromMempool.BlockHeight, utxoBlockHeight)
+		}
+
+		// Validate that the transaction input block index is correct.
+		if int64(txInFromMempool.BlockIndex) != int64(utxoBlockIndex) {
+			t.Errorf("%q: unexpected block index -- got %v, want %v", test.name,
+				txInFromMempool.BlockIndex, utxoBlockIndex)
+		}
+	}
+}
