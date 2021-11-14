@@ -333,6 +333,31 @@ func BenchmarkDetermineScriptType(b *testing.B) {
 	}
 }
 
+// BenchmarkDetermineRequiredSigs benchmarks the performance of determining the
+// required number of signatures for various public key scripts.
+func BenchmarkDetermineRequiredSigs(b *testing.B) {
+	counts := make(map[ScriptType]int)
+	benches := makeBenchmarks(func(test scriptTest) bool {
+		// Limit to one of each script type.
+		counts[test.wantType]++
+		return counts[test.wantType] == 1
+	})
+
+	for _, bench := range benches {
+		b.Run(bench.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				got := DetermineRequiredSigs(bench.version, bench.script)
+				if got != bench.wantSigs {
+					b.Fatalf("%q: unexpected result -- got %v, want %v",
+						bench.name, got, bench.wantSigs)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkExtractAtomicSwapDataPushes benchmarks the performance of
 // attempting to extract the atomic swap data pushes from various version 0
 // public key scripts.
