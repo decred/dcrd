@@ -220,8 +220,8 @@ func IsScriptHashScriptV0(script []byte) bool {
 // MultiSigDetailsV0 houses details extracted from a standard version 0 ECDSA
 // multisig script.
 type MultiSigDetailsV0 struct {
-	RequiredSigs int
-	NumPubKeys   int
+	RequiredSigs uint16
+	NumPubKeys   uint16
 	PubKeys      [][]byte
 	Valid        bool
 }
@@ -302,8 +302,8 @@ func ExtractMultiSigScriptDetailsV0(script []byte, extractPubKeys bool) MultiSig
 	}
 
 	return MultiSigDetailsV0{
-		RequiredSigs: requiredSigs,
-		NumPubKeys:   numPubKeys,
+		RequiredSigs: uint16(requiredSigs),
+		NumPubKeys:   uint16(numPubKeys),
 		PubKeys:      pubKeys,
 		Valid:        true,
 	}
@@ -637,7 +637,7 @@ func IsTreasuryGenScriptHashScriptV0(script []byte) bool {
 	return ExtractTreasuryGenScriptHashV0(script) != nil
 }
 
-// DetermineScriptTypeV0 returns the type of the passed version 0 script from
+// DetermineScriptTypeV0 returns the type of the passed version 0 script for
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
 //
@@ -687,6 +687,39 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 	}
 
 	return STNonStandard
+}
+
+// DetermineRequiredSigsV0 attempts to identify the number of signatures
+// required by the passed version 0 script for the known standard types.
+//
+// It will return 0 when the script does not parse or is not one of the known
+// standard types.
+func DetermineRequiredSigsV0(script []byte) uint16 {
+	scriptType := DetermineScriptTypeV0(script)
+	switch scriptType {
+	case STPubKeyHashEcdsaSecp256k1, STScriptHash,
+		STPubKeyHashEd25519, STPubKeyHashSchnorrSecp256k1,
+		STPubKeyEcdsaSecp256k1, STPubKeyEd25519, STPubKeySchnorrSecp256k1,
+		STStakeSubmissionPubKeyHash, STStakeSubmissionScriptHash,
+		STStakeGenPubKeyHash, STStakeGenScriptHash,
+		STStakeRevocationPubKeyHash, STStakeRevocationScriptHash,
+		STStakeChangePubKeyHash, STStakeChangeScriptHash,
+		STTreasuryGenPubKeyHash, STTreasuryGenScriptHash:
+
+		return 1
+
+	case STMultiSig:
+		details := ExtractMultiSigScriptDetailsV0(script, false)
+		if details.Valid {
+			return details.RequiredSigs
+		}
+		return 0
+
+	case STNullData, STTreasuryAdd:
+		return 0
+	}
+
+	return 0
 }
 
 // MultiSigScriptV0 returns a valid version 0 script for a multisignature

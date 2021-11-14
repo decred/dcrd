@@ -109,16 +109,19 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_65 0x%s CHECKSIG", pkUE),
 		wantType: STPubKeyEcdsaSecp256k1,
 		wantData: hexToBytes(pkUE),
+		wantSigs: 1,
 	}, {
 		name:     "v0 p2pk-ecdsa-secp256k1 compressed even",
 		script:   p("DATA_33 0x%s CHECKSIG", pkCE),
 		wantType: STPubKeyEcdsaSecp256k1,
 		wantData: hexToBytes(pkCE),
+		wantSigs: 1,
 	}, {
 		name:     "v0 p2pk-ecdsa-secp256k1 compressed odd",
 		script:   p("DATA_33 0x%s CHECKSIG", pkCO),
 		wantType: STPubKeyEcdsaSecp256k1,
 		wantData: hexToBytes(pkCO),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PK Alt tests.
@@ -164,6 +167,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_32 0x%s 1 CHECKSIGALT", pkEd),
 		wantType: STPubKeyEd25519,
 		wantData: hexToBytes(pkEd),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PK Schnorr secp256k1 tests.
@@ -201,11 +205,13 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DATA_33 0x%s 2 CHECKSIGALT", pkCE),
 		wantType: STPubKeySchnorrSecp256k1,
 		wantData: hexToBytes(pkCE),
+		wantSigs: 1,
 	}, {
 		name:     "v0 p2pk-schnorr-secp256k1 compressed odd",
 		script:   p("DATA_33 0x%s 2 CHECKSIGALT", pkCO),
 		wantType: STPubKeySchnorrSecp256k1,
 		wantData: hexToBytes(pkCO),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PKH ECDSA secp256k1 tests.
@@ -223,6 +229,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
 		wantType: STPubKeyHashEcdsaSecp256k1,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PKH Alt tests.
@@ -266,6 +273,7 @@ var scriptV0Tests = func() []scriptTest {
 			h160Ed),
 		wantType: STPubKeyHashEd25519,
 		wantData: hexToBytes(h160Ed),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PKH Schnorr secp256k1 tests.
@@ -285,12 +293,14 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STPubKeyHashSchnorrSecp256k1,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		name: "v0 p2pkh-schnorr-secp256k1 2",
 		script: p("DUP HASH160 DATA_20 0x%s EQUALVERIFY 2 CHECKSIGALT",
 			h160CE2),
 		wantType: STPubKeyHashSchnorrSecp256k1,
 		wantData: hexToBytes(h160CE2),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2SH tests.
@@ -312,6 +322,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative ECDSA multisig secp256k1 tests.
@@ -390,6 +401,7 @@ var scriptV0Tests = func() []scriptTest {
 			PubKeys:      [][]byte{hexToBytes(pkCE)},
 			Valid:        true,
 		},
+		wantSigs: 1,
 	}, {
 		name:     "v0 multisig 1-of-2 compressed pubkeys",
 		script:   p("1 DATA_33 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkCE, pkCE2),
@@ -400,6 +412,7 @@ var scriptV0Tests = func() []scriptTest {
 			PubKeys:      [][]byte{hexToBytes(pkCE), hexToBytes(pkCE2)},
 			Valid:        true,
 		},
+		wantSigs: 1,
 	}, {
 		name: "v0 multisig 2-of-3 compressed pubkeys",
 		script: p("2 DATA_33 0x%s DATA_33 0x%s DATA_33 0x%s 3 CHECKMULTISIG",
@@ -413,6 +426,7 @@ var scriptV0Tests = func() []scriptTest {
 			},
 			Valid: true,
 		},
+		wantSigs: 2,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative ECDSA multisig secp256k1 redeem script tests.
@@ -539,6 +553,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSTX DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
 		wantType: STStakeSubmissionPubKeyHash,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission P2SH tests.
@@ -556,6 +571,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSTX HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STStakeSubmissionScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission generation P2PKH tests.
@@ -575,6 +591,7 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STStakeGenPubKeyHash,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission generation P2SH tests.
@@ -592,6 +609,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSGEN HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STStakeGenScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission revocation P2PKH tests.
@@ -611,6 +629,7 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STStakeRevocationPubKeyHash,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission revocation P2SH tests.
@@ -628,6 +647,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSRTX HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STStakeRevocationScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission change P2PKH tests.
@@ -647,6 +667,7 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STStakeChangePubKeyHash,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative stake submission change P2SH tests.
@@ -664,6 +685,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("SSTXCHANGE HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STStakeChangeScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative treasury add tests.
@@ -703,6 +725,7 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE),
 		wantType: STTreasuryGenPubKeyHash,
 		wantData: hexToBytes(h160CE),
+		wantSigs: 1,
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative treasury generation P2SH tests.
@@ -720,6 +743,7 @@ var scriptV0Tests = func() []scriptTest {
 		script:   p("TGEN HASH160 DATA_20 0x%s EQUAL", p2sh),
 		wantType: STTreasuryGenScriptHash,
 		wantData: hexToBytes(p2sh),
+		wantSigs: 1,
 	}}
 }()
 

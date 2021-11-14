@@ -293,7 +293,6 @@ func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
 // AsSmallInt returns the passed opcode, which MUST be true according to the
 // IsSmallInt function, as an integer.
 //
-//
 // NOTE: This function is only valid for version 0 opcodes.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.

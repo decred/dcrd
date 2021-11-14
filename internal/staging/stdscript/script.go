@@ -525,3 +525,20 @@ func DetermineScriptType(scriptVersion uint16, script []byte) ScriptType {
 	// All scripts with newer versions are considered non standard.
 	return STNonStandard
 }
+
+// DetermineRequiredSigs attempts to identify the number of signatures required
+// by the passed script for the known standard types.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return 0 for other script versions.
+//
+// Similarly, 0 is returned when the script does not parse or is not one of the
+// known standard types.
+func DetermineRequiredSigs(scriptVersion uint16, script []byte) uint16 {
+	switch scriptVersion {
+	case 0:
+		return DetermineRequiredSigsV0(script)
+	}
+
+	return 0
+}
