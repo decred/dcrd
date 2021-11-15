@@ -7,7 +7,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 )
 
 // TestExistsAddrIndexAsync ensures the exist address index
@@ -100,18 +100,10 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 			bk5.Hash().String(), tipHash.String())
 	}
 
-	isTreasuryEnabled, err := idx.chain.IsTreasuryAgendaActive(bk5.Hash())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// Fetch the first address paid to by bk5's coinbase.
 	out := bk5.MsgBlock().Transactions[0].TxOut[0]
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(out.Version, out.PkScript,
-		idx.chain.ChainParams(), isTreasuryEnabled)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, addrs := stdscript.ExtractAddrs(out.Version, out.PkScript,
+		idx.chain.ChainParams())
 
 	// Ensure index has the first address paid to by bk5's coinbase indexed.
 	indexed, err := idx.ExistsAddress(addrs[0])

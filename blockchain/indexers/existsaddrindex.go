@@ -14,8 +14,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -330,45 +330,37 @@ func (idx *ExistsAddrIndex) connectBlock(dbTx database.Tx, block, parent *dcruti
 		isSStx := stake.IsSStx(msgTx)
 		for _, txIn := range msgTx.TxIn {
 			// Note that the functions used here require v0 scripts.  Hence it
-			// is used for the script version.  This will ultimately need to
+			// is used for the script version.  This will ultimately need to be
 			// updated to support new script versions.
-			const scriptVersion = 0
-			if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-				rs := txscript.MultisigRedeemScriptFromScriptSig(
-					txIn.SignatureScript)
-				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-					scriptVersion, rs, idx.chain.ChainParams(),
-					isTreasuryEnabled)
+			if !stdscript.IsMultiSigSigScriptV0(txIn.SignatureScript) {
+				continue
+			}
+			rs := stdscript.MultiSigRedeemScriptFromScriptSigV0(txIn.SignatureScript)
+			typ, addrs := stdscript.ExtractAddrsV0(rs, idx.chain.ChainParams())
+			if typ != stdscript.STMultiSig {
+				// This should never happen, but be paranoid.
+				continue
+			}
+
+			for _, addr := range addrs {
+				k, err := addrToKey(addr)
 				if err != nil {
-					// Non-standard outputs are skipped.
-					continue
-				}
-				if class != txscript.MultiSigTy {
-					// This should never happen, but be paranoid.
 					continue
 				}
 
-				for _, addr := range addrs {
-					k, err := addrToKey(addr)
-					if err != nil {
-						continue
-					}
-
-					usedAddrs[k] = struct{}{}
-				}
+				usedAddrs[k] = struct{}{}
 			}
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txOut.Version, txOut.PkScript, idx.chain.ChainParams(),
-				isTreasuryEnabled)
-			if err != nil {
+			scriptType, addrs := stdscript.ExtractAddrs(txOut.Version,
+				txOut.PkScript, idx.chain.ChainParams())
+			if scriptType == stdscript.STNonStandard {
 				// Non-standard outputs are skipped.
 				continue
 			}
 
-			if isSStx && class == txscript.NullDataTy {
+			if isSStx && scriptType == stdscript.STNullData {
 				addr, err := stake.AddrFromSStxPkScrCommitment(txOut.PkScript,
 					idx.chain.ChainParams())
 				if err != nil {
@@ -453,47 +445,41 @@ func (idx *ExistsAddrIndex) disconnectBlock(dbTx database.Tx, block, parent *dcr
 func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled bool) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
-		if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-			// Note that the functions used here require v0 scripts.  Hence it
-			// is used for the script version.  This will ultimately need to
-			// updated to support new script versions.
-			const scriptVersion = 0
-			rs := txscript.MultisigRedeemScriptFromScriptSig(
-				txIn.SignatureScript)
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				scriptVersion, rs, idx.chain.ChainParams(),
-				isTreasuryEnabled)
+		// Note that the functions used here require v0 scripts.  Hence it is
+		// used for the script version.  This will ultimately need to be updated
+		// to support new script versions.
+		if !stdscript.IsMultiSigSigScriptV0(txIn.SignatureScript) {
+			continue
+		}
+
+		rs := stdscript.MultiSigRedeemScriptFromScriptSigV0(txIn.SignatureScript)
+		scriptType, addrs := stdscript.ExtractAddrsV0(rs, idx.chain.ChainParams())
+		if scriptType != stdscript.STMultiSig {
+			// This should never happen, but be paranoid.
+			continue
+		}
+
+		for _, addr := range addrs {
+			k, err := addrToKey(addr)
 			if err != nil {
-				// Non-standard outputs are skipped.
-				continue
-			}
-			if class != txscript.MultiSigTy {
-				// This should never happen, but be paranoid.
 				continue
 			}
 
-			for _, addr := range addrs {
-				k, err := addrToKey(addr)
-				if err != nil {
-					continue
-				}
-
-				if _, exists := idx.mpExistsAddr[k]; !exists {
-					idx.mpExistsAddr[k] = struct{}{}
-				}
+			if _, exists := idx.mpExistsAddr[k]; !exists {
+				idx.mpExistsAddr[k] = struct{}{}
 			}
 		}
 	}
 
 	for _, txOut := range tx.TxOut {
-		class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
-			txOut.PkScript, idx.chain.ChainParams(), isTreasuryEnabled)
-		if err != nil {
+		scriptType, addrs := stdscript.ExtractAddrs(txOut.Version,
+			txOut.PkScript, idx.chain.ChainParams())
+		if scriptType == stdscript.STNonStandard {
 			// Non-standard outputs are skipped.
 			continue
 		}
 
-		if isSStx && class == txscript.NullDataTy {
+		if isSStx && scriptType == stdscript.STNullData {
 			addr, err := stake.AddrFromSStxPkScrCommitment(txOut.PkScript,
 				idx.chain.ChainParams())
 			if err != nil {

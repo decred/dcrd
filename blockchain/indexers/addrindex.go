@@ -16,8 +16,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -748,14 +748,14 @@ type writeIndexData map[[addrKeySize]byte][]int
 func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
-	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
-		pkScript, idx.chainParams, isTreasuryEnabled)
-	if err != nil {
+	params := idx.chainParams
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, pkScript, params)
+	if scriptType == stdscript.STNonStandard {
 		return
 	}
 
-	if isSStx && class == txscript.NullDataTy {
-		addr, err := stake.AddrFromSStxPkScrCommitment(pkScript, idx.chainParams)
+	if isSStx && scriptType == stdscript.STNullData {
+		addr, err := stake.AddrFromSStxPkScrCommitment(pkScript, params)
 		if err != nil {
 			return
 		}
@@ -993,13 +993,10 @@ func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr stdaddr.Address, 
 //
 // This function is safe for concurrent access.
 func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript []byte, tx *dcrutil.Tx, isSStx bool, isTreasuryEnabled bool) {
-	// The error is ignored here since the only reason it can fail is if the
-	// script fails to parse and it was already validated before being
-	// admitted to the mempool.
-	class, addrs, _, _ := txscript.ExtractPkScriptAddrs(scriptVersion, pkScript,
-		idx.chainParams, isTreasuryEnabled)
+	params := idx.chainParams
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, pkScript, params)
 
-	if isSStx && class == txscript.NullDataTy {
+	if isSStx && scriptType == stdscript.STNullData {
 		addr, err := stake.AddrFromSStxPkScrCommitment(pkScript, idx.chainParams)
 		if err != nil {
 			// Fail if this fails to decode. It should.
