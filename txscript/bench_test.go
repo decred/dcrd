@@ -298,21 +298,6 @@ func BenchmarkIsAltPubKeyHashScript(b *testing.B) {
 	}
 }
 
-// BenchmarkIsNullDataScript benchmarks how long it takes to analyze a very
-// large script to determine if it is a standard nulldata script.
-func BenchmarkIsNullDataScript(b *testing.B) {
-	script, err := genComplexScript()
-	if err != nil {
-		b.Fatalf("failed to create benchmark script: %v", err)
-	}
-
-	const scriptVersion = 0
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = isNullDataScript(scriptVersion, script)
-	}
-}
-
 // BenchmarkContainsStakeOpCodes benchmarks how long it takes
 // ContainsStakeOpCodes to analyze a very large script.
 func BenchmarkContainsStakeOpCodes(b *testing.B) {
