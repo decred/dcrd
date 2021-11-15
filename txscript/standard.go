@@ -182,12 +182,6 @@ func extractPubKeyHash(script []byte) []byte {
 	return nil
 }
 
-// isPubKeyHashScript returns whether or not the passed script is a standard
-// pay-to-pubkey-hash script.
-func isPubKeyHashScript(script []byte) bool {
-	return extractPubKeyHash(script) != nil
-}
-
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
