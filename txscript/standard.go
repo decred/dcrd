@@ -75,32 +75,3 @@ func isStandardAltSignatureType(op byte) bool {
 	sigType := AsSmallInt(op)
 	return sigType == dcrec.STEd25519 || sigType == dcrec.STSchnorrSecp256k1
 }
-
-// extractPubKeyHashAltDetails extracts the public key hash and signature type
-// from the passed script if it is a standard pay-to-alt-pubkey-hash script.  It
-// will return nil otherwise.
-func extractPubKeyHashAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
-	// A pay-to-alt-pubkey-hash script is of the form:
-	//  DUP HASH160 <20-byte hash> EQUALVERIFY SIGTYPE CHECKSIG
-	//
-	// The only two currently supported alternative signature types are ed25519
-	// and schnorr + secp256k1 (with a compressed pubkey).
-	//
-	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte ed25519 sigtype> CHECKSIG
-	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte schnorr+secp sigtype> CHECKSIG
-	//
-	//  Notice that OP_0 is not specified since signature type 0 disabled.
-
-	if len(script) == 26 &&
-		script[0] == OP_DUP &&
-		script[1] == OP_HASH160 &&
-		script[2] == OP_DATA_20 &&
-		script[23] == OP_EQUALVERIFY &&
-		isStandardAltSignatureType(script[24]) &&
-		script[25] == OP_CHECKSIGALT {
-
-		return script[3:23], dcrec.SignatureType(AsSmallInt(script[24]))
-	}
-
-	return nil, 0
-}
