@@ -280,20 +280,3 @@ func extractStakePubKeyHash(script []byte, stakeOpcode byte) []byte {
 
 	return extractPubKeyHash(script[1:])
 }
-
-// extractStakeScriptHash extracts the script hash from the passed script if it
-// is a standard stake-tagged pay-to-script-hash script with the provided stake
-// opcode.  It will return nil otherwise.
-func extractStakeScriptHash(script []byte, stakeOpcode byte) []byte {
-	// A stake-tagged pay-to-script-hash is of the form:
-	//   <stake opcode> <standard-pay-to-script-hash script>
-
-	// The script can't possibly be a stake-tagged pay-to-script-hash if it
-	// doesn't start with the given stake opcode.  Fail fast to avoid more work
-	// below.
-	if len(script) < 1 || script[0] != stakeOpcode {
-		return nil
-	}
-
-	return ExtractScriptHash(script[1:])
-}
