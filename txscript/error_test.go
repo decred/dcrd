@@ -22,7 +22,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrTooManyRequiredSigs, "ErrTooManyRequiredSigs"},
 		{ErrTooMuchNullData, "ErrTooMuchNullData"},
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
-		{ErrNotMultisigScript, "ErrNotMultisigScript"},
 		{ErrEarlyReturn, "ErrEarlyReturn"},
 		{ErrEmptyStack, "ErrEmptyStack"},
 		{ErrEvalFalse, "ErrEvalFalse"},

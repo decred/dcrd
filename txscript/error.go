@@ -27,10 +27,6 @@ const (
 	// index that is greater than or equal to the number of outputs.
 	ErrInvalidSigHashSingleIndex = ErrorKind("ErrInvalidSigHashSingleIndex")
 
-	// ErrNotMultisigScript is returned from CalcMultiSigStats when the
-	// provided script is not a multisig script.
-	ErrNotMultisigScript = ErrorKind("ErrNotMultisigScript")
-
 	// ErrTooManyRequiredSigs is returned from MultiSigScript when the
 	// specified number of required signatures is larger than the number of
 	// provided public keys.
