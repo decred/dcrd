@@ -315,21 +315,3 @@ func isStakeSubmissionScript(scriptVersion uint16, script []byte) bool {
 	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
-
-// isStakeGenScript returns whether or not the passed script is a supported
-// stake generation script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isStakeGenScript(scriptVersion uint16, script []byte) bool {
-	// The only currently supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// The only supported stake generation scripts are pay-to-pubkey-hash and
-	// pay-to-script-hash tagged with the stake submission opcode.
-	const stakeOpcode = OP_SSGEN
-	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
-		extractStakeScriptHash(script, stakeOpcode) != nil
-}
