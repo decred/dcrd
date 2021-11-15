@@ -263,20 +263,3 @@ func isNullDataScript(scriptVersion uint16, script []byte) bool {
 		(IsSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
 		len(tokenizer.Data()) <= MaxDataCarrierSize
 }
-
-// extractStakePubKeyHash extracts the public key hash from the passed script if
-// it is a standard stake-tagged pay-to-pubkey-hash script with the provided
-// stake opcode.  It will return nil otherwise.
-func extractStakePubKeyHash(script []byte, stakeOpcode byte) []byte {
-	// A stake-tagged pay-to-pubkey-hash is of the form:
-	//   <stake opcode> <standard-pay-to-pubkey-hash script>
-
-	// The script can't possibly be a stake-tagged pay-to-pubkey-hash if it
-	// doesn't start with the given stake opcode.  Fail fast to avoid more work
-	// below.
-	if len(script) < 1 || script[0] != stakeOpcode {
-		return nil
-	}
-
-	return extractPubKeyHash(script[1:])
-}
