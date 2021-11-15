@@ -718,19 +718,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	return finalOpcodeData(scriptVersion, script)
 }
 
-// GenerateProvablyPruneableOut creates a provably-prunable script containing
-// OP_RETURN followed by the passed data.  An Error with kind ErrTooMuchNullData
-// will be returned if the length of the passed data exceeds MaxDataCarrierSize.
-func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
-	if len(data) > MaxDataCarrierSize {
-		str := fmt.Sprintf("data size %d is larger than max "+
-			"allowed size %d", len(data), MaxDataCarrierSize)
-		return nil, scriptError(ErrTooMuchNullData, str)
-	}
-
-	return NewScriptBuilder().AddOp(OP_RETURN).AddData(data).Script()
-}
-
 // MultiSigScript returns a valid script for a multisignature redemption where
 // the specified threshold number of the keys in the given public keys are
 // required to have signed the transaction for success.
