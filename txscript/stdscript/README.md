@@ -3,7 +3,7 @@ stdscript
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/staging/stdscript)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4/stdscript)
 
 ## Overview
 
@@ -208,22 +208,22 @@ script) as follows:
 
 ## Installation and Updating
 
-This package is internal and therefore is neither directly installed nor needs
-to be manually updated.
+This package is part of the `github.com/decred/dcrd/txscript/v4` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 
-* [DetermineScriptType](https://pkg.go.dev/github.com/decred/dcrd/internal/staging/stdscript#example-DeterminScriptType)
+* [DetermineScriptType](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4/stdscript#example-DeterminScriptType)
 
   Demonstrates determining the type of a script for a given scripting language
   version.
 
-* [ExtractPubKeyHashV0](https://pkg.go.dev/github.com/decred/dcrd/internal/staging/stdscript#example-ExtractPubKeyHashV0)
+* [ExtractPubKeyHashV0](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4/stdscript#example-ExtractPubKeyHashV0)
 
   Demonstrates extracting a public key hash from a standard pay-to-pubkey-hash
   script for scripting language version 0.
 
-* [ExtractScriptHashV0](https://pkg.go.dev/github.com/decred/dcrd/internal/staging/stdscript#example-ExtractScriptHashV0)
+* [ExtractScriptHashV0](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4/stdscript#example-ExtractScriptHashV0)
 
   Demonstrates extracting a script hash from a standard pay-to-script-hash
   script for scripting language version 0.
