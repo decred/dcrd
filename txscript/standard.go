@@ -595,18 +595,6 @@ func typeOfScript(scriptVersion uint16, script []byte, isTreasuryEnabled bool) S
 	return NonStandardTy
 }
 
-// GetScriptClass returns the class of the script passed.
-//
-// NonStandardTy will be returned when the script does not parse.
-func GetScriptClass(version uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
-	// All scripts with nonzero versions are considered non standard.
-	if version != 0 {
-		return NonStandardTy
-	}
-
-	return typeOfScript(version, script, isTreasuryEnabled)
-}
-
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
 // from a stake output.
 //
