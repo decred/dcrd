@@ -745,7 +745,7 @@ type writeIndexData map[[addrKeySize]byte][]int
 // indexPkScript extracts all standard addresses from the passed public key
 // script and maps each of them to the associated transaction using the passed
 // map.
-func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
+func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
 	params := idx.chainParams
@@ -812,14 +812,12 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 					continue
 				}
 
-				idx.indexPkScript(data, version, pkScript,
-					txIdx, false, isTreasuryEnabled)
+				idx.indexPkScript(data, version, pkScript, txIdx, false)
 			}
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
-				txIdx, false, isTreasuryEnabled)
+			idx.indexPkScript(data, txOut.Version, txOut.PkScript, txIdx, false)
 		}
 	}
 
@@ -859,14 +857,13 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 				continue
 			}
 
-			idx.indexPkScript(data, version, pkScript, thisTxOffset,
-				false, isTreasuryEnabled)
+			idx.indexPkScript(data, version, pkScript, thisTxOffset, false)
 		}
 
 		isSStx := stake.IsSStx(msgTx)
 		for _, txOut := range msgTx.TxOut {
-			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
-				thisTxOffset, isSStx, isTreasuryEnabled)
+			idx.indexPkScript(data, txOut.Version, txOut.PkScript, thisTxOffset,
+				isSStx)
 		}
 	}
 }
@@ -992,7 +989,7 @@ func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr stdaddr.Address, 
 // script to the transaction.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript []byte, tx *dcrutil.Tx, isSStx bool, isTreasuryEnabled bool) {
+func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript []byte, tx *dcrutil.Tx, isSStx bool) {
 	params := idx.chainParams
 	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, pkScript, params)
 
@@ -1063,15 +1060,13 @@ func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter,
 			// be available.
 			continue
 		}
-		idx.indexUnconfirmedAddresses(version, pkScript, tx, false,
-			isTreasuryEnabled)
+		idx.indexUnconfirmedAddresses(version, pkScript, tx, false)
 	}
 
 	// Index addresses of all created outputs.
 	isSStx := stake.IsSStx(msgTx)
 	for _, txOut := range msgTx.TxOut {
-		idx.indexUnconfirmedAddresses(txOut.Version, txOut.PkScript, tx,
-			isSStx, isTreasuryEnabled)
+		idx.indexUnconfirmedAddresses(txOut.Version, txOut.PkScript, tx, isSStx)
 	}
 }
 
