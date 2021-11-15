@@ -525,28 +525,6 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 	return true
 }
 
-// isTreasurySpendScript returns whether or not the passed script is a
-// supported spend treasury OUTPUT script. Since we do not get to see the
-// inputs we cannot assert that there is a valid OP_TSPEND. Only call this
-// function when it has been asserted that the inputs contain a valid OP_TSPEND
-// construct.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
-	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN.
-	// The only currently supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// The only supported stake generation scripts are pay-to-pubkey-hash and
-	// pay-to-script-hash tagged with the stake submission opcode.
-	const stakeOpcode = OP_TGEN
-	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
-		extractStakeScriptHash(script, stakeOpcode) != nil
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
