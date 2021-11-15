@@ -28,6 +28,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -439,7 +440,7 @@ func standardTreasurybaseOpReturn(height uint32) []byte {
 	enData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
 	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
-	extraNonceScript, err := txscript.GenerateProvablyPruneableOut(enData)
+	extraNonceScript, err := stdscript.ProvablyPruneableScriptV0(enData)
 	if err != nil {
 		panic(err)
 	}

@@ -1304,9 +1304,9 @@ func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasury
 	// of that data must be the encoded height of the block so that every
 	// coinbase created has a unique transaction hash.
 	//
-	// NOTE: This is intentionally not using GetScriptClass and the related
-	// functions because those are specifically for standardness checks which
-	// can change over time and this function enforces consensus rules.
+	// NOTE: This is intentionally not using script type determination functions
+	// from stdscript because those are specifically for standardness checks
+	// which can change over time and this function enforces consensus rules.
 	//
 	// Also of note is that technically normal nulldata scripts support encoding
 	// numbers via small opcodes, however, for legacy reasons, the consensus
@@ -1390,9 +1390,9 @@ func checkTreasurybaseUniqueHeight(blockHeight int64, block *dcrutil.Block) erro
 	// data push of 12 bytes which encodes the height of the block followed by
 	// random data.
 	//
-	// NOTE: This is intentionally not using GetScriptClass and the related
-	// functions because those are specifically for standardness checks which
-	// can change over time and this function enforces consensus rules.
+	// NOTE: This is intentionally not using script type determination functions
+	// from stdscript because those are specifically for standardness checks
+	// which can change over time and this function enforces consensus rules.
 	//
 	// Also of note is that technically normal nulldata scripts support encoding
 	// numbers via small opcodes, however, for legacy reasons, the consensus

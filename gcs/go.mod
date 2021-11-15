@@ -7,7 +7,7 @@ require (
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210906140327-598bf66f24a6
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
-	github.com/decred/dcrd/txscript/v4 v4.0.0-20210415215133-96b98390a9a9
+	github.com/decred/dcrd/txscript/v4 v4.0.0-20211118182953-7d97fd5ff83c
 	github.com/decred/dcrd/wire v1.4.0
 )
 

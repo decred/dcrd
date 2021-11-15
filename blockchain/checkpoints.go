@@ -12,7 +12,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 )
 
 // CheckpointConfirmations is the number of blocks before the end of the current
@@ -97,13 +97,8 @@ func (b *BlockChain) isKnownCheckpointAncestor(node *blockNode) bool {
 func isNonstandardTransaction(tx *dcrutil.Tx) bool {
 	// Check all of the output public key scripts for non-standard scripts.
 	for _, txOut := range tx.MsgTx().TxOut {
-		// It is ok to hard code isTreasuryEnabled to true here since
-		// there is no way the chain is going to have treasury
-		// transactions in it prior to activation since they are stake
-		// transactions and would be rejected as unknown types.
-		scriptClass := txscript.GetScriptClass(txOut.Version,
-			txOut.PkScript, true)
-		if scriptClass == txscript.NonStandardTy {
+		typ := stdscript.DetermineScriptType(txOut.Version, txOut.PkScript)
+		if typ == stdscript.STNonStandard {
 			return true
 		}
 	}
