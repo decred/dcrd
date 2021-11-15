@@ -65,24 +65,6 @@ func (t ScriptClass) String() string {
 	return scriptClassToName[t]
 }
 
-// extractCompressedPubKey extracts a compressed public key from the passed
-// script if it is a standard pay-to-compressed-secp256k1-pubkey script.  It
-// will return nil otherwise.
-func extractCompressedPubKey(script []byte) []byte {
-	// A pay-to-compressed-pubkey script is of the form:
-	//  OP_DATA_33 <33-byte compressed pubkey> OP_CHECKSIG
-
-	// All compressed secp256k1 public keys must start with 0x02 or 0x03.
-	if len(script) == 35 &&
-		script[34] == OP_CHECKSIG &&
-		script[0] == OP_DATA_33 &&
-		(script[1] == 0x02 || script[1] == 0x03) {
-
-		return script[1:34]
-	}
-	return nil
-}
-
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
