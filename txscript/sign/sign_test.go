@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -211,20 +212,16 @@ func TestSignTxOutput(t *testing.T) {
 				BlockIndex:  23456,
 			},
 		},
-		TxOut: []*wire.TxOut{
-			{
-				Version: wire.DefaultPkScriptVersion,
-				Value:   1,
-			},
-			{
-				Version: wire.DefaultPkScriptVersion,
-				Value:   2,
-			},
-			{
-				Version: wire.DefaultPkScriptVersion,
-				Value:   3,
-			},
-		},
+		TxOut: []*wire.TxOut{{
+			Version: 0,
+			Value:   1,
+		}, {
+			Version: 0,
+			Value:   2,
+		}, {
+			Version: 0,
+			Value:   3,
+		}},
 		LockTime: 0,
 		Expiry:   0,
 	}
@@ -2079,7 +2076,7 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := txscript.MultiSigScript(2,
+			pkScript, err := stdscript.MultiSigScriptV0(2,
 				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript for %s: %v", msg, err)
@@ -2177,7 +2174,7 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := txscript.MultiSigScript(2,
+			pkScript, err := stdscript.MultiSigScriptV0(2,
 				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript "+
@@ -2316,7 +2313,7 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := txscript.MultiSigScript(2,
+			pkScript, err := stdscript.MultiSigScriptV0(2,
 				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript for %s: %v", msg, err)
