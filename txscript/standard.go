@@ -595,37 +595,6 @@ func typeOfScript(scriptVersion uint16, script []byte, isTreasuryEnabled bool) S
 	return NonStandardTy
 }
 
-// GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
-// from a stake output.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func GetStakeOutSubclass(pkScript []byte, isTreasuryEnabled bool) (ScriptClass, error) {
-	const scriptVersion = 0
-	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
-		return 0, err
-	}
-
-	class := typeOfScript(scriptVersion, pkScript, isTreasuryEnabled)
-	isStake := class == StakeSubmissionTy ||
-		class == StakeGenTy ||
-		class == StakeRevocationTy ||
-		class == StakeSubChangeTy ||
-		class == TreasuryAddTy || // This is ok since typeOfScript can't
-		class == TreasuryGenTy //  return these types when disabled.
-
-	subClass := ScriptClass(0)
-	if isStake {
-		subClass = typeOfScript(scriptVersion, pkScript[1:],
-			isTreasuryEnabled)
-	} else {
-		return 0, fmt.Errorf("not a stake output")
-	}
-
-	return subClass, nil
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
