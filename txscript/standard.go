@@ -684,26 +684,6 @@ func GetStakeOutSubclass(pkScript []byte, isTreasuryEnabled bool) (ScriptClass, 
 	return subClass, nil
 }
 
-// CalcMultiSigStats returns the number of public keys and signatures from
-// a multi-signature transaction script.  The passed script MUST already be
-// known to be a multi-signature script.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func CalcMultiSigStats(script []byte) (int, int, error) {
-	// The public keys are not needed here, so pass false to avoid the extra
-	// allocation.
-	const scriptVersion = 0
-	details := extractMultisigScriptDetails(scriptVersion, script, false)
-	if !details.valid {
-		str := fmt.Sprintf("script %x is not a multisig script", script)
-		return 0, 0, scriptError(ErrNotMultisigScript, str)
-	}
-
-	return details.numPubKeys, details.requiredSigs, nil
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.

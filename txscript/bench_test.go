@@ -517,25 +517,6 @@ func BenchmarkContainsStakeOpCodesTreasury(b *testing.B) {
 	}
 }
 
-// BenchmarkCalcMultiSigStats benchmarks how long it takes CalcMultiSigStats to
-// analyze a typical multisig script.
-func BenchmarkCalcMultiSigStats(b *testing.B) {
-	script := mustParseShortFormV0("1 " +
-		"DATA_33 " +
-		"0x030478aaaa2be30772f1e69e581610f1840b3cf2fe7228ee0281cd599e5746f81e " +
-		"DATA_33 " +
-		"0x0284f4d078b236a9ff91661f8ffbe012737cd3507566f30fd97d25f2b23539f3cd " +
-		"2 CHECKMULTISIG")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _, err := CalcMultiSigStats(script)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-	}
-}
-
 // BenchmarkIsUnspendable benchmarks how long it takes IsUnspendable to analyze
 // a very large script.
 func BenchmarkIsUnspendable(b *testing.B) {

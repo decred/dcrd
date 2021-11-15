@@ -6,7 +6,6 @@
 package txscript
 
 import (
-	"errors"
 	"reflect"
 	"testing"
 
@@ -368,48 +367,6 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 			t.Errorf("ExtractPkScriptAddrs #%d (%s) unexpected "+
 				"script type - got %s, want %s", i, test.name,
 				class, test.class)
-			continue
-		}
-	}
-}
-
-// TestCalcMultiSigStats ensures the CalcMutliSigStats function returns the
-// expected errors.
-func TestCalcMultiSigStats(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		script string
-		err    error
-	}{
-		{
-			name: "short script",
-			script: "0x046708afdb0fe5548271967f1a67130b7105cd6a828" +
-				"e03909a67962e0ea1f61d",
-			err: ErrNotMultisigScript,
-		},
-		{
-			name: "stack underflow",
-			script: "RETURN DATA_41 0x046708afdb0fe5548271967f1a" +
-				"67130b7105cd6a828e03909a67962e0ea1f61deb649f6" +
-				"bc3f4cef308",
-			err: ErrNotMultisigScript,
-		},
-		{
-			name: "multisig script",
-			script: "1 DATA_33 0x0232abdc893e7f0631364d7fd01cb33d24da45329a0" +
-				"0357b3a7886211ab414d55a 1 CHECKMULTISIG",
-			err: nil,
-		},
-	}
-
-	for _, test := range tests {
-		script := mustParseShortFormV0(test.script)
-		_, _, err := CalcMultiSigStats(script)
-		if !errors.Is(err, test.err) {
-			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
-				test.err)
 			continue
 		}
 	}
