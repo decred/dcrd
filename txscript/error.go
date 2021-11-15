@@ -27,11 +27,6 @@ const (
 	// index that is greater than or equal to the number of outputs.
 	ErrInvalidSigHashSingleIndex = ErrorKind("ErrInvalidSigHashSingleIndex")
 
-	// ErrTooManyRequiredSigs is returned from MultiSigScript when the
-	// specified number of required signatures is larger than the number of
-	// provided public keys.
-	ErrTooManyRequiredSigs = ErrorKind("ErrTooManyRequiredSigs")
-
 	// ErrTooMuchNullData is returned from NullDataScript when the length of
 	// the provided data exceeds MaxDataCarrierSize.
 	ErrTooMuchNullData = ErrorKind("ErrTooMuchNullData")
