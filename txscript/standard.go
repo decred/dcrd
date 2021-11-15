@@ -357,21 +357,3 @@ func isStakeRevocationScript(scriptVersion uint16, script []byte) bool {
 	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
-
-// isStakeChangeScript returns whether or not the passed script is a supported
-// stake change script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
-	// The only currently supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// The only supported stake change scripts are pay-to-pubkey-hash and
-	// pay-to-script-hash tagged with the stake submission opcode.
-	const stakeOpcode = OP_SSTXCHANGE
-	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
-		extractStakeScriptHash(script, stakeOpcode) != nil
-}
