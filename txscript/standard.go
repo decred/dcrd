@@ -101,17 +101,6 @@ func extractUncompressedPubKey(script []byte) []byte {
 	return nil
 }
 
-// extractPubKey extracts either a compressed or uncompressed public key from the
-// passed script if it is either a standard pay-to-compressed-secp256k1-pubkey
-// or pay-to-uncompressed-secp256k1-pubkey script, respectively.  It will return
-// nil otherwise.
-func extractPubKey(script []byte) []byte {
-	if pubKey := extractCompressedPubKey(script); pubKey != nil {
-		return pubKey
-	}
-	return extractUncompressedPubKey(script)
-}
-
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
