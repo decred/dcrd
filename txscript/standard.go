@@ -522,16 +522,3 @@ func pubKeyHashToAddrs(hash []byte, params stdaddr.AddressParams) []stdaddr.Addr
 	}
 	return addrs
 }
-
-// scriptHashToAddrs is a convenience function to attempt to convert the passed
-// hash to a pay-to-script-hash address housed within an address slice.  It is
-// used to consolidate common code.
-func scriptHashToAddrs(hash []byte, params stdaddr.AddressParams) []stdaddr.Address {
-	// Skip the hash if it's invalid for some reason.
-	var addrs []stdaddr.Address
-	addr, err := stdaddr.NewAddressScriptHashV0FromHash(hash, params)
-	if err == nil {
-		addrs = append(addrs, addr)
-	}
-	return addrs
-}
