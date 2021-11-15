@@ -7,7 +7,6 @@ package txscript
 
 import (
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
 const (
@@ -508,17 +507,4 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 	}
 
 	return true
-}
-
-// pubKeyHashToAddrs is a convenience function to attempt to convert the
-// passed hash to a pay-to-pubkey-hash address housed within an address
-// slice.  It is used to consolidate common code.
-func pubKeyHashToAddrs(hash []byte, params stdaddr.AddressParams) []stdaddr.Address {
-	// Skip the pubkey hash if it's invalid for some reason.
-	var addrs []stdaddr.Address
-	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(hash, params)
-	if err == nil {
-		addrs = append(addrs, addr)
-	}
-	return addrs
 }
