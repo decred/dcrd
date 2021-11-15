@@ -16,42 +16,17 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-)
-
-// These are redefinitions of version 0 opcodes in the txscript package that are
-// used in this package to generate payment scripts.  Ultimately, this should be
-// using the constant definitions from txscript instead, but it would currently
-// create a cyclic dependency since txscript will need to depend on this package
-// for signing.
-const (
-	opData20      = 0x14
-	opData30      = 0x1e
-	opData32      = 0x20
-	opData33      = 0x21
-	op1           = 0x51
-	op2           = 0x52
-	opReturn      = 0x6a
-	opDup         = 0x76
-	opEqual       = 0x87
-	opEqualVerify = 0x88
-	opHash160     = 0xa9
-	opCheckSig    = 0xac
-	opSSTx        = 0xba
-	opSSGen       = 0xbb
-	opSSRTx       = 0xbc
-	opSSTxChange  = 0xbd
-	opCheckSigAlt = 0xbe
-	opTGen        = 0xc3
+	"github.com/decred/dcrd/txscript/v4"
 )
 
 const (
 	// opPushSTEd25519 is the dcrec.STEd25519 signature type converted to the
 	// associated small integer data push opcode.
-	opPushSTEd25519 = op1
+	opPushSTEd25519 = txscript.OP_1
 
 	// opPushSTSchnorrSecp256k1 is the dcrec.STSchnorrSecp256k1 signature type
 	// converted to the associated small integer data push opcode.
-	opPushSTSchnorrSecp256k1 = op2
+	opPushSTSchnorrSecp256k1 = txscript.OP_2
 
 	// sigTypeSecp256k1PubKeyCompOddFlag specifies the bitmask to apply to the
 	// pubkey address signature type byte for those that deal with compressed
@@ -236,9 +211,9 @@ func (addr *AddressPubKeyEcdsaSecp256k1V0) PaymentScript() (uint16, []byte) {
 	// However, this address type intentionally only supports the compressed
 	// form.
 	var script [35]byte
-	script[0] = opData33
+	script[0] = txscript.OP_DATA_33
 	copy(script[1:34], addr.serializedPubKey)
-	script[34] = opCheckSig
+	script[34] = txscript.OP_CHECKSIG
 	return 0, script[:]
 }
 
@@ -354,10 +329,10 @@ func (addr *AddressPubKeyEd25519V0) PaymentScript() (uint16, []byte) {
 	//
 	// Since the signature type is 1, it is pushed as a small integer.
 	var script [35]byte
-	script[0] = opData32
+	script[0] = txscript.OP_DATA_32
 	copy(script[1:33], addr.serializedPubKey)
 	script[33] = opPushSTEd25519
-	script[34] = opCheckSigAlt
+	script[34] = txscript.OP_CHECKSIGALT
 	return 0, script[:]
 }
 
@@ -491,10 +466,10 @@ func (addr *AddressPubKeySchnorrSecp256k1V0) PaymentScript() (uint16, []byte) {
 	//
 	// Since the signature type is 2, it is pushed as a small integer.
 	var script [36]byte
-	script[0] = opData33
+	script[0] = txscript.OP_DATA_33
 	copy(script[1:34], addr.serializedPubKey)
 	script[34] = opPushSTSchnorrSecp256k1
-	script[35] = opCheckSigAlt
+	script[35] = txscript.OP_CHECKSIGALT
 	return 0, script[:]
 }
 
@@ -590,12 +565,12 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) String() string {
 func (addr *AddressPubKeyHashEcdsaSecp256k1V0) putPaymentScript(script []byte) {
 	// A pay-to-pubkey-hash-ecdsa-secp256k1 script is of the form:
 	//  DUP HASH160 <20-byte hash> EQUALVERIFY CHECKSIG
-	script[0] = opDup
-	script[1] = opHash160
-	script[2] = opData20
+	script[0] = txscript.OP_DUP
+	script[1] = txscript.OP_HASH160
+	script[2] = txscript.OP_DATA_20
 	copy(script[3:23], addr.hash[:])
-	script[23] = opEqualVerify
-	script[24] = opCheckSig
+	script[23] = txscript.OP_EQUALVERIFY
+	script[24] = txscript.OP_CHECKSIG
 }
 
 // PaymentScript returns the script version associated with the address along
@@ -620,7 +595,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) VotingRightsScript() (uint16, []b
 	// of the form:
 	//  SSTX [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
 	var script [p2pkhPaymentScriptLen + 1]byte
-	script[0] = opSSTx
+	script[0] = txscript.OP_SSTX
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -669,8 +644,8 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) RewardCommitmentScript(amount, vo
 	// is NOT set for a public key hash.
 	limits := calcRewardCommitScriptLimits(voteFeeLimit, revocationFeeLimit)
 	var script [32]byte
-	script[0] = opReturn
-	script[1] = opData30
+	script[0] = txscript.OP_RETURN
+	script[1] = txscript.OP_DATA_30
 	copy(script[2:22], addr.hash[:])
 	binary.LittleEndian.PutUint64(script[22:30], uint64(amount) & ^commitP2SHFlag)
 	binary.LittleEndian.PutUint16(script[30:32], limits)
@@ -686,7 +661,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) StakeChangeScript() (uint16, []by
 	// A stake change script to this address type is of the form:
 	//  SSTXCHANGE [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
 	var script [p2pkhPaymentScriptLen + 1]byte
-	script[0] = opSSTxChange
+	script[0] = txscript.OP_SSTXCHANGE
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -703,7 +678,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayVoteCommitmentScript() (uint16
 	// type is of the form:
 	//  SSGEN [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
 	var script [p2pkhPaymentScriptLen + 1]byte
-	script[0] = opSSGen
+	script[0] = txscript.OP_SSGEN
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -720,7 +695,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayRevokeCommitmentScript() (uint
 	// A ticket revocation script to this address type is of the form:
 	//  SSRTX [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
 	var script [p2pkhPaymentScriptLen + 1]byte
-	script[0] = opSSRTx
+	script[0] = txscript.OP_SSRTX
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -735,7 +710,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayFromTreasuryScript() (uint16, 
 	// this address type is of the form:
 	//  TGEN [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
 	var script [p2pkhPaymentScriptLen + 1]byte
-	script[0] = opTGen
+	script[0] = txscript.OP_TGEN
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -810,13 +785,13 @@ func (addr *AddressPubKeyHashEd25519V0) PaymentScript() (uint16, []byte) {
 	//
 	// Since the signature type is 1, it is pushed as a small integer.
 	var script [26]byte
-	script[0] = opDup
-	script[1] = opHash160
-	script[2] = opData20
+	script[0] = txscript.OP_DUP
+	script[1] = txscript.OP_HASH160
+	script[2] = txscript.OP_DATA_20
 	copy(script[3:23], addr.hash[:])
-	script[23] = opEqualVerify
+	script[23] = txscript.OP_EQUALVERIFY
 	script[24] = opPushSTEd25519
-	script[25] = opCheckSigAlt
+	script[25] = txscript.OP_CHECKSIGALT
 	return 0, script[:]
 }
 
@@ -897,13 +872,13 @@ func (addr *AddressPubKeyHashSchnorrSecp256k1V0) PaymentScript() (uint16, []byte
 	//
 	// Since the signature type is 2, it is pushed as a small integer.
 	var script [26]byte
-	script[0] = opDup
-	script[1] = opHash160
-	script[2] = opData20
+	script[0] = txscript.OP_DUP
+	script[1] = txscript.OP_HASH160
+	script[2] = txscript.OP_DATA_20
 	copy(script[3:23], addr.hash[:])
-	script[23] = opEqualVerify
+	script[23] = txscript.OP_EQUALVERIFY
 	script[24] = opPushSTSchnorrSecp256k1
-	script[25] = opCheckSigAlt
+	script[25] = txscript.OP_CHECKSIGALT
 	return 0, script[:]
 }
 
@@ -993,10 +968,10 @@ func (addr *AddressScriptHashV0) String() string {
 func (addr *AddressScriptHashV0) putPaymentScript(script []byte) {
 	// A pay-to-script-hash script is of the form:
 	//  HASH160 <20-byte hash> EQUAL
-	script[0] = opHash160
-	script[1] = opData20
+	script[0] = txscript.OP_HASH160
+	script[1] = txscript.OP_DATA_20
 	copy(script[2:22], addr.hash[:])
-	script[22] = opEqual
+	script[22] = txscript.OP_EQUAL
 }
 
 // PaymentScript returns the script version associated with the address along
@@ -1021,7 +996,7 @@ func (addr *AddressScriptHashV0) VotingRightsScript() (uint16, []byte) {
 	// of the form:
 	//  SSTX [standard pay-to-script-hash script]
 	var script [p2shPaymentScriptLen + 1]byte
-	script[0] = opSSTx
+	script[0] = txscript.OP_SSTX
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -1050,8 +1025,8 @@ func (addr *AddressScriptHashV0) RewardCommitmentScript(amount, voteFeeLimit, re
 	// is set for a script hash.
 	limits := calcRewardCommitScriptLimits(voteFeeLimit, revocationFeeLimit)
 	var script [32]byte
-	script[0] = opReturn
-	script[1] = opData30
+	script[0] = txscript.OP_RETURN
+	script[1] = txscript.OP_DATA_30
 	copy(script[2:22], addr.hash[:])
 	binary.LittleEndian.PutUint64(script[22:30], uint64(amount)|commitP2SHFlag)
 	binary.LittleEndian.PutUint16(script[30:32], limits)
@@ -1067,7 +1042,7 @@ func (addr *AddressScriptHashV0) StakeChangeScript() (uint16, []byte) {
 	// A stake change script to this address type is of the form:
 	//  SSTXCHANGE [standard pay-to-script-hash script]
 	var script [p2shPaymentScriptLen + 1]byte
-	script[0] = opSSTxChange
+	script[0] = txscript.OP_SSTXCHANGE
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -1084,7 +1059,7 @@ func (addr *AddressScriptHashV0) PayVoteCommitmentScript() (uint16, []byte) {
 	// type is of the form:
 	//  SSGEN [standard pay-to-script-hash script]
 	var script [p2shPaymentScriptLen + 1]byte
-	script[0] = opSSGen
+	script[0] = txscript.OP_SSGEN
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -1101,7 +1076,7 @@ func (addr *AddressScriptHashV0) PayRevokeCommitmentScript() (uint16, []byte) {
 	// A ticket revocation script to this address type is of the form:
 	//  SSRTX [standard pay-to-script-hash script]
 	var script [p2shPaymentScriptLen + 1]byte
-	script[0] = opSSRTx
+	script[0] = txscript.OP_SSRTX
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
@@ -1116,7 +1091,7 @@ func (addr *AddressScriptHashV0) PayFromTreasuryScript() (uint16, []byte) {
 	// this address type is of the form:
 	//  TGEN [standard pay-to-script-hash script]
 	var script [p2shPaymentScriptLen + 1]byte
-	script[0] = opTGen
+	script[0] = txscript.OP_TGEN
 	addr.putPaymentScript(script[1:])
 	return 0, script[:]
 }
