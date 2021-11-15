@@ -5,10 +5,6 @@
 
 package txscript
 
-import (
-	"github.com/decred/dcrd/dcrec"
-)
-
 const (
 	// MaxDataCarrierSize is the maximum number of bytes allowed in pushed
 	// data to be considered a nulldata transaction.
@@ -63,15 +59,4 @@ func (t ScriptClass) String() string {
 		return "Invalid"
 	}
 	return scriptClassToName[t]
-}
-
-// isStandardAltSignatureType returns whether or not the provided opcode
-// represents a push of a standard alt signature type.
-func isStandardAltSignatureType(op byte) bool {
-	if !IsSmallInt(op) {
-		return false
-	}
-
-	sigType := AsSmallInt(op)
-	return sigType == dcrec.STEd25519 || sigType == dcrec.STSchnorrSecp256k1
 }
