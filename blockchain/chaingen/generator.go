@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -653,9 +654,9 @@ func isTicketPurchaseTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
-		noTreasury)
-	return scriptClass == txscript.StakeSubmissionTy
+	scriptVer, script := txOut.Version, txOut.PkScript
+	return stdscript.IsStakeSubmissionPubKeyHashScript(scriptVer, script) ||
+		stdscript.IsStakeSubmissionScriptHashScript(scriptVer, script)
 }
 
 // isVoteTx returns whether or not the passed tx is a stake vote (ssgen).
@@ -671,9 +672,9 @@ func isVoteTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[2]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
-		noTreasury)
-	return scriptClass == txscript.StakeGenTy
+	scriptVer, script := txOut.Version, txOut.PkScript
+	return stdscript.IsStakeGenPubKeyHashScript(scriptVer, script) ||
+		stdscript.IsStakeGenScriptHashScript(scriptVer, script)
 }
 
 // isRevocationTx returns whether or not the passed tx is a stake ticket
@@ -690,9 +691,9 @@ func isRevocationTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
-		noTreasury)
-	return scriptClass == txscript.StakeRevocationTy
+	scriptVer, script := txOut.Version, txOut.PkScript
+	return stdscript.IsStakeRevocationPubKeyHashScript(scriptVer, script) ||
+		stdscript.IsStakeRevocationScriptHashScript(scriptVer, script)
 }
 
 // VoteCommitmentScript returns a standard provably-pruneable OP_RETURN script
@@ -2657,8 +2658,7 @@ func countBlockSigOps(block *wire.MsgBlock) int {
 			totalSigOps += numSigOps
 		}
 		for _, txOut := range tx.TxOut {
-			numSigOps := txscript.GetSigOpCount(txOut.PkScript,
-				noTreasury)
+			numSigOps := txscript.GetSigOpCount(txOut.PkScript, noTreasury)
 			totalSigOps += numSigOps
 		}
 	}
