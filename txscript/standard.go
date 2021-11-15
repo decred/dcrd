@@ -167,17 +167,6 @@ func isMultisigScript(scriptVersion uint16, script []byte) bool {
 	return details.valid
 }
 
-// IsMultisigScript returns whether or not the passed script is a standard
-// multisignature script.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func IsMultisigScript(script []byte) bool {
-	const scriptVersion = 0
-	return isMultisigScript(scriptVersion, script)
-}
-
 // IsMultisigSigScript returns whether or not the passed script appears to be a
 // signature script which consists of a pay-to-script-hash multi-signature
 // redeem script.  Determining if a signature script is actually a redemption of
