@@ -44,6 +44,7 @@ import (
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -2813,7 +2814,7 @@ func TestHandleDecodeScript(t *testing.T) {
 		Asm: "OP_SSTX OP_DUP OP_HASH160 0000000000000000000000000000" +
 			"000000000000 OP_EQUALVERIFY OP_CHECKSIG",
 		ReqSigs:   1,
-		Type:      "stakesubmission",
+		Type:      "stakesubmission-pubkeyhash",
 		Addresses: []string{"DsQxuVRvS4eaJ42dhQEsCXauMWjvopWgrVg"},
 		P2sh:      "DcaBW1ecMLBzXSS9Q8YRV3aBc5qQeaA1WPo",
 	}
@@ -5218,12 +5219,13 @@ func TestHandleGetTxOut(t *testing.T) {
 	script := txOut.PkScript
 	scriptVersion := txOut.Version
 	disbuf, _ := txscript.DisasmString(script)
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, defaultChainParams, false)
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, script,
+		defaultChainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.String()
 	}
+	reqSigs := stdscript.DetermineRequiredSigs(scriptVersion, script)
 	txOutResultMempool := types.GetTxOutResult{
 		BestBlock:     block432100.BlockHash().String(),
 		Confirmations: 0,
@@ -5232,7 +5234,7 @@ func TestHandleGetTxOut(t *testing.T) {
 			Asm:       disbuf,
 			Hex:       hex.EncodeToString(script),
 			ReqSigs:   int32(reqSigs),
-			Type:      scriptClass.String(),
+			Type:      scriptType.String(),
 			Addresses: addresses,
 		},
 		Coinbase: false,
@@ -5360,18 +5362,6 @@ func TestHandleGetTxOut(t *testing.T) {
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
-		name:            "handleGetTxOut: error fetching treasury agenda status",
-		handler:         handleGetTxOut,
-		cmd:             &cmd,
-		mockTxMempooler: mempoolerWithTx(),
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.treasuryActiveErr = errors.New("error fetching treasury agenda status")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}, {
 		name:    "handleGetTxOut: failed to retrieve utxo entry",
 		handler: handleGetTxOut,
 		cmd:     &cmd,
@@ -5379,28 +5369,6 @@ func TestHandleGetTxOut(t *testing.T) {
 			chain := defaultMockRPCChain()
 			chain.fetchUtxoEntry = nil
 			chain.fetchUtxoEntryErr = errors.New("failed to retrieve utxo entry")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}, {
-		name:    "handleGetTxOut: failed to retrieve header for height",
-		handler: handleGetTxOut,
-		cmd:     &cmd,
-		mockChain: func() *testRPCChain {
-			chain := chainWithTx()
-			chain.headerByHeightErr = errors.New("failed to retrieve header for height")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}, {
-		name:    "handleGetTxOut: tx in chain, error fetching treasury agenda status",
-		handler: handleGetTxOut,
-		cmd:     &cmd,
-		mockChain: func() *testRPCChain {
-			chain := chainWithTx()
-			chain.treasuryActiveErr = errors.New("error fetching treasury agenda status")
 			return chain
 		}(),
 		wantErr: true,

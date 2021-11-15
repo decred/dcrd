@@ -32,8 +32,8 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -671,8 +671,6 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 	// Reusable backing array for a slice of a single address.
 	var scratchAddress [1]stdaddr.Address
 
-	const isTreasuryEnabled = true // No need to look it up here.
-
 	// Local for convenience.
 	params := m.server.cfg.ChainParams
 
@@ -695,15 +693,16 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
-			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, params, isTreasuryEnabled)
-			if err != nil {
-				// Clients are not able to subscribe to
-				// nonstandard or non-address outputs.
+			scriptType, addrs := stdscript.ExtractAddrs(output.Version,
+				output.PkScript, params)
+			if scriptType == stdscript.STNonStandard {
+				// Clients are not able to subscribe to nonstandard or
+				// non-address outputs.
 				continue
 			}
-			if sc == txscript.NullDataTy && i&1 == 1 &&
+			if scriptType == stdscript.STNullData && i&1 == 1 &&
 				(isTicket || stake.IsSStx(msgTx)) {
+
 				isTicket = true
 				// OP_RETURN ticket commitments may contain relevant
 				// P2PKH or P2SH HASH160s.
@@ -1191,8 +1190,6 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 
 	var clientsToNotify map[chan struct{}]*wsClient
 
-	const isTreasuryEnabled = true // No need to look it up here.
-
 	msgTx := tx.MsgTx()
 	for q, c := range clients {
 		c.Lock()
@@ -1213,9 +1210,9 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams, isTreasuryEnabled)
-			if err != nil {
+			scriptType, addrs := stdscript.ExtractAddrs(output.Version,
+				output.PkScript, m.server.cfg.ChainParams)
+			if scriptType == stdscript.STNonStandard {
 				continue
 			}
 			for _, a := range addrs {
@@ -2337,9 +2334,9 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 
 	LoopOutputs:
 		for i, output := range tx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, params, isTreasuryEnabled)
-			if err != nil {
+			scriptType, addrs := stdscript.ExtractAddrs(output.Version,
+				output.PkScript, params)
+			if scriptType == stdscript.STNonStandard {
 				continue
 			}
 			for _, a := range addrs {

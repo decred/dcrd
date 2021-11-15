@@ -52,6 +52,7 @@ import (
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
 )
@@ -1182,11 +1183,11 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 		// contain a commitment address, so detect that case
 		// accordingly.
 		var addrs []stdaddr.Address
-		var scriptClass string
-		var reqSigs int
+		var scriptType string
+		var reqSigs uint16
 		var commitAmt *dcrutil.Amount
 		if txType == stake.TxTypeSStx && (i%2 != 0) {
-			scriptClass = sstxCommitmentString
+			scriptType = sstxCommitmentString
 			addr, err := stake.AddrFromSStxPkScrCommitment(v.PkScript,
 				chainParams)
 			if err != nil {
@@ -1205,13 +1206,14 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 				commitAmt = &amt
 			}
 		} else {
-			// Ignore the error here since an error means the script
-			// couldn't parse and there is no additional information
-			// about it anyways.
-			var sc txscript.ScriptClass
-			sc, addrs, reqSigs, _ = txscript.ExtractPkScriptAddrs(v.Version,
-				v.PkScript, chainParams, isTreasuryEnabled)
-			scriptClass = sc.String()
+			// Attempt to extract known addresses associated with the script.
+			var st stdscript.ScriptType
+			st, addrs = stdscript.ExtractAddrs(v.Version, v.PkScript, chainParams)
+			scriptType = st.String()
+
+			// Determine the number of required signatures for known standard
+			// types.
+			reqSigs = stdscript.DetermineRequiredSigs(v.Version, v.PkScript)
 		}
 
 		// Encode the addresses while checking if the address passes the
@@ -1244,7 +1246,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 		voutSPK.Addresses = encodedAddrs
 		voutSPK.Asm = disbuf
 		voutSPK.Hex = hex.EncodeToString(v.PkScript)
-		voutSPK.Type = scriptClass
+		voutSPK.Type = scriptType
 		voutSPK.ReqSigs = int32(reqSigs)
 		if commitAmt != nil {
 			voutSPK.CommitAmt = dcrjson.Float64(commitAmt.ToCoin())
@@ -1368,18 +1370,9 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	// doesn't fully parse, so ignore the error here.
 	disbuf, _ := txscript.DisasmString(script)
 
-	// Determine if the treasury rules are active as of the current best tip.
-	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
-	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get information about the script.
-	// Ignore the error here since an error means the script couldn't parse
-	// and there is no additional information about it anyways.
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
+	// Attempt to extract known addresses associated with the script.
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, script,
+		s.cfg.ChainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		if pkHasher, ok := addr.(stdaddr.AddressPubKeyHasher); ok {
@@ -1387,6 +1380,9 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 		}
 		addresses[i] = addr.String()
 	}
+
+	// Determine the number of required signatures for known standard types.
+	reqSigs := stdscript.DetermineRequiredSigs(scriptVersion, script)
 
 	// Convert the script itself to a pay-to-script-hash address.
 	p2sh, err := stdaddr.NewAddressScriptHash(scriptVersion, script,
@@ -1400,10 +1396,10 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	reply := types.DecodeScriptResult{
 		Asm:       disbuf,
 		ReqSigs:   int32(reqSigs),
-		Type:      scriptClass.String(),
+		Type:      scriptType.String(),
 		Addresses: addresses,
 	}
-	if scriptClass != txscript.ScriptHashTy {
+	if scriptType != stdscript.STScriptHash {
 		reply.P2sh = p2sh.String()
 	}
 	return reply, nil
@@ -3636,19 +3632,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 			return nil, nil
 		}
 
-		// Determine if the treasury rules are active for the block containing
-		// the txout in question.
-		header, err := chain.HeaderByHeight(entry.BlockHeight())
-		if err != nil {
-			context := fmt.Sprintf("Failed to retrieve header for height %d",
-				entry.BlockHeight())
-			return nil, rpcInternalError(err.Error(), context)
-		}
-		isTreasuryEnabled, err = s.isTreasuryAgendaActive(&header.PrevBlock)
-		if err != nil {
-			return nil, err
-		}
-
 		bestBlockHash = best.Hash.String()
 		confirmations = 1 + best.Height - entry.BlockHeight()
 		value = entry.Amount()
@@ -3663,15 +3646,16 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	script := pkScript
 	disbuf, _ := txscript.DisasmString(script)
 
-	// Get further info about the script.  Ignore the error here since an
-	// error means the script couldn't parse and there is no additional
-	// information about it anyways.
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
+	// Attempt to extract known addresses associated with the script.
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, script,
+		s.cfg.ChainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.String()
 	}
+
+	// Determine the number of required signatures for known standard types.
+	reqSigs := stdscript.DetermineRequiredSigs(scriptVersion, script)
 
 	txOutReply := &types.GetTxOutResult{
 		BestBlock:     bestBlockHash,
@@ -3681,7 +3665,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 			Asm:       disbuf,
 			Hex:       hex.EncodeToString(pkScript),
 			ReqSigs:   int32(reqSigs),
-			Type:      scriptClass.String(),
+			Type:      scriptType.String(),
 			Addresses: addresses,
 			Version:   scriptVersion,
 		},
@@ -4410,11 +4394,9 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 			continue
 		}
 
-		// Ignore the error here since an error means the script
-		// couldn't parse and there is no additional information about
-		// it anyways.
-		_, addrs, _, _ := txscript.ExtractPkScriptAddrs(originTxOut.Version,
-			originTxOut.PkScript, chainParams, isTreasuryEnabled)
+		// Attempt to extract known addresses associated with the script.
+		_, addrs := stdscript.ExtractAddrs(originTxOut.Version,
+			originTxOut.PkScript, chainParams)
 
 		// Encode the addresses while checking if the address passes
 		// the filter when needed.
