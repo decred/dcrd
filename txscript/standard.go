@@ -297,21 +297,3 @@ func extractStakeScriptHash(script []byte, stakeOpcode byte) []byte {
 
 	return ExtractScriptHash(script[1:])
 }
-
-// isStakeSubmissionScript returns whether or not the passed script is a
-// supported stake submission script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isStakeSubmissionScript(scriptVersion uint16, script []byte) bool {
-	// The only currently supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// The only supported stake submission scripts are pay-to-pubkey-hash and
-	// pay-to-script-hash tagged with the stake submission opcode.
-	const stakeOpcode = OP_SSTX
-	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
-		extractStakeScriptHash(script, stakeOpcode) != nil
-}
