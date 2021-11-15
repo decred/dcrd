@@ -104,10 +104,3 @@ func extractPubKeyHashAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 
 	return nil, 0
 }
-
-// isPubKeyHashAltScript returns whether or not the passed script is a standard
-// pay-to-alt-pubkey-hash script.
-func isPubKeyHashAltScript(script []byte) bool {
-	pk, _ := extractPubKeyHashAltDetails(script)
-	return pk != nil
-}
