@@ -942,6 +942,27 @@ func TestExtractPubKeyHashEd25519V0(t *testing.T) {
 	}
 }
 
+// TestExtractPubKeyHashSchnorrSecp256k1V0 ensures that extracting a public key
+// hash from version 0 pay-to-pubkey-hash-schnor-secp256k1 scripts works as
+// intended for all of the version 0 test scripts.
+func TestExtractPubKeyHashSchnorrSecp256k1V0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STPubKeyHashSchnorrSecp256k1 {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractPubKeyHashSchnorrSecp256k1V0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
 // TestExtractScriptHashV0 ensures that extracting a script hash from the
 // various version 0 pay-to-script-hash scripts works as intended for all of the
 // version 0 test scripts.
