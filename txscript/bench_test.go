@@ -489,22 +489,6 @@ func BenchmarkExtractPkScriptAddrs(b *testing.B) {
 	}
 }
 
-// BenchmarkExtractAltSigType benchmarks how long it takes to analyze and
-// potentially extract the signature type from a typical script.
-func BenchmarkExtractAltSigType(b *testing.B) {
-	script := mustParseShortFormV0("DUP HASH160 " +
-		"DATA_20 0x0102030405060708090a0b0c0d0e0f1011121314 " +
-		"EQUALVERIFY OP_1 CHECKSIGALT")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := ExtractPkScriptAltSigType(script)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-	}
-}
-
 // BenchmarkCheckSignatureEncoding benchmarks how long it takes to check the
 // signature encoding for correctness of a typical DER-encoded ECDSA signature.
 func BenchmarkCheckSignatureEncoding(b *testing.B) {

@@ -826,22 +826,3 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams stdaddr.A
 	// transactions.
 	return NonStandardTy, nil, 0, nil
 }
-
-// ExtractPkScriptAltSigType returns the signature scheme to use for an
-// alternative check signature script.
-//
-// NOTE: This function only attempts to identify version 0 scripts.  Since the
-// function does not accept a script version, the results are undefined for
-// other script versions.
-func ExtractPkScriptAltSigType(pkScript []byte) (dcrec.SignatureType, error) {
-	if pk, sigType := extractPubKeyAltDetails(pkScript); pk != nil {
-		return sigType, nil
-	}
-
-	if pk, sigType := extractPubKeyHashAltDetails(pkScript); pk != nil {
-		return sigType, nil
-	}
-
-	return -1, fmt.Errorf("not a standard pay-to-alt-pubkey or " +
-		"pay-to-alt-pubkey-hash script")
-}
