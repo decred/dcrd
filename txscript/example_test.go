@@ -6,50 +6,11 @@
 package txscript_test
 
 import (
-	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
-
-const (
-	// noTreasury signifies the treasury agenda should be treated as though
-	// it is inactive.  It is used to increase the readability of the
-	// tests.
-	noTreasury = false
-)
-
-// This example demonstrates extracting information from a standard public key
-// script.
-func ExampleExtractPkScriptAddrs() {
-	// Start with a standard pay-to-pubkey-hash script.
-	const scriptVersion = 0
-	scriptHex := "76a914128004ff2fcaf13b2b91eb654b1dc2b674f7ec6188ac"
-	script, err := hex.DecodeString(scriptHex)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// Extract and print details from the script.
-	mainNetParams := chaincfg.MainNetParams()
-	scriptClass, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, mainNetParams, noTreasury)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Script Class:", scriptClass)
-	fmt.Println("Addresses:", addresses)
-	fmt.Println("Required Signatures:", reqSigs)
-
-	// Output:
-	// Script Class: pubkeyhash
-	// Addresses: [DsSej1qR3Fyc8kV176DCh9n9cY9nqf9Quxk]
-	// Required Signatures: 1
-}
 
 // This example demonstrates creating a script tokenizer instance and using it
 // to count the number of opcodes a script contains.

@@ -24,14 +24,6 @@ the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 
-* [Standard Pay-to-pubkey-hash Script](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-PayToAddrScript)
-  Demonstrates creating a script which pays to a Decred address.  It also
-  prints the created script hex and uses the DisasmString function to display
-  the disassembled script.
-
-* [Extracting Details from Standard Scripts](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-ExtractPkScriptAddrs)
-  Demonstrates extracting information from a standard public key script.
-
 * [Counting Opcodes in Scripts](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-ScriptTokenizer)
   Demonstrates creating a script tokenizer instance and using it to count the
   number of opcodes a script contains.

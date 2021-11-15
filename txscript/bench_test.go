@@ -435,45 +435,6 @@ func BenchmarkIsUnspendable(b *testing.B) {
 	}
 }
 
-// BenchmarkExtractPkScriptAddrsLarge benchmarks how long it takes to analyze
-// and potentially extract addresses from a very large non-standard script.
-func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
-	script, err := genComplexScript()
-	if err != nil {
-		b.Fatalf("failed to create benchmark script: %v", err)
-	}
-
-	const scriptVersion = 0
-	params := mainNetParams
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
-			params, noTreasury)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-	}
-}
-
-// BenchmarkExtractPkScriptAddrs benchmarks how long it takes to analyze and
-// potentially extract addresses from a typical script.
-func BenchmarkExtractPkScriptAddrs(b *testing.B) {
-	script := mustParseShortFormV0("OP_SSTX HASH160 " +
-		"DATA_20 0x0102030405060708090a0b0c0d0e0f1011121314 " +
-		"EQUAL")
-
-	const scriptVersion = 0
-	params := mainNetParams
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
-			params, noTreasury)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-	}
-}
-
 // BenchmarkCheckSignatureEncoding benchmarks how long it takes to check the
 // signature encoding for correctness of a typical DER-encoded ECDSA signature.
 func BenchmarkCheckSignatureEncoding(b *testing.B) {
