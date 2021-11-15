@@ -125,6 +125,7 @@ type IndexSubscriber struct {
 	mtx           sync.Mutex
 	ctx           context.Context
 	cancel        context.CancelFunc
+	quit          chan struct{}
 }
 
 // NewIndexSubscriber creates a new index subscriber. It also starts the
@@ -136,6 +137,7 @@ func NewIndexSubscriber(sCtx context.Context) *IndexSubscriber {
 		subscriptions: make(map[string]*IndexSubscription),
 		ctx:           ctx,
 		cancel:        cancel,
+		quit:          make(chan struct{}),
 	}
 	return s
 }
@@ -188,7 +190,10 @@ func (s *IndexSubscriber) Notify(ntfn *IndexNtfn) {
 	// Only relay notifications when there are subscribed indexes
 	// to be notified.
 	if subscribers > 0 {
-		s.c <- *ntfn
+		select {
+		case <-s.quit:
+		case s.c <- *ntfn:
+		}
 	}
 }
 
@@ -366,10 +371,15 @@ func (s *IndexSubscriber) Run(ctx context.Context) {
 		case <-ctx.Done():
 			log.Infof("Index subscriber shutting down")
 
+			close(s.quit)
+
 			// Stop all updates to subscribed indexes and terminate their
 			// processes.
 			for _, sub := range s.subscriptions {
-				_ = sub.stop()
+				err := sub.stop()
+				if err != nil {
+					log.Error("unable to stop index subscription: %v", err)
+				}
 			}
 
 			s.cancel()
