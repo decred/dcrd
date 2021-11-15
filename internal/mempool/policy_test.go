@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -202,8 +203,8 @@ func TestCheckPkScriptStandard(t *testing.T) {
 				"failed: %v", test.name, err)
 			continue
 		}
-		scriptClass := txscript.GetScriptClass(0, script, noTreasury)
-		got := checkPkScriptStandard(0, script, scriptClass)
+		scriptType := stdscript.DetermineScriptType(0, script)
+		got := checkPkScriptStandard(0, script, scriptType)
 		if (test.isStandard && got != nil) ||
 			(!test.isStandard && got == nil) {
 

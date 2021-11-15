@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -127,12 +128,10 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		originPkScriptVer := entry.ScriptVersion()
 		originPkScript := entry.PkScript()
-		switch txscript.GetScriptClass(originPkScriptVer,
-			originPkScript, isTreasuryEnabled) {
-		case txscript.ScriptHashTy:
-			numSigOps := txscript.GetPreciseSigOpCount(
-				txIn.SignatureScript, originPkScript,
-				isTreasuryEnabled)
+		switch stdscript.DetermineScriptType(originPkScriptVer, originPkScript) {
+		case stdscript.STScriptHash:
+			numSigOps := txscript.GetPreciseSigOpCount(txIn.SignatureScript,
+				originPkScript, isTreasuryEnabled)
 			if numSigOps > maxStandardP2SHSigOps {
 				str := fmt.Sprintf("transaction input #%d has "+
 					"%d signature operations which is more "+
@@ -141,7 +140,7 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 				return txRuleError(ErrNonStandard, str)
 			}
 
-		case txscript.NonStandardTy:
+		case stdscript.STNonStandard:
 			str := fmt.Sprintf("transaction input #%d has a "+
 				"non-standard script form", i)
 			return txRuleError(ErrNonStandard, str)
@@ -160,9 +159,9 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 // Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
 // instance.
 func checkPkScriptStandard(version uint16, pkScript []byte,
-	scriptClass txscript.ScriptClass) error {
-	// Only default Bitcoin-style script is standard except for
-	// null data outputs.
+	scriptType stdscript.ScriptType) error {
+
+	// Only version 0 scripts are standard at the current time.
 	if version != wire.DefaultPkScriptVersion {
 		str := fmt.Sprintf("versions other than default pkscript version " +
 			"are currently non-standard except for provably unspendable " +
@@ -170,17 +169,12 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 		return txRuleError(ErrNonStandard, str)
 	}
 
-	switch scriptClass {
-	case txscript.MultiSigTy:
-		numPubKeys, numSigs, err := txscript.CalcMultiSigStats(pkScript)
-		if err != nil {
-			str := fmt.Sprintf("multi-signature script parse "+
-				"failure: %v", err)
-			return txRuleError(ErrNonStandard, str)
-		}
-
+	switch {
+	case scriptType == stdscript.STMultiSig && version == 0:
 		// A standard multi-signature public key script must contain
 		// from 1 to maxStandardMultiSigKeys public keys.
+		details := stdscript.ExtractMultiSigScriptDetailsV0(pkScript, false)
+		numPubKeys := details.NumPubKeys
 		if numPubKeys < 1 {
 			str := "multi-signature script with no pubkeys"
 			return txRuleError(ErrNonStandard, str)
@@ -192,21 +186,26 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 			return txRuleError(ErrNonStandard, str)
 		}
 
-		// A standard multi-signature public key script must have at
-		// least 1 signature and no more signatures than available
-		// public keys.
+		// A standard multi-signature public key script must have at least 1
+		// signature and no more signatures than available public keys.
+		//
+		// NOTE: Due to recent updates in the standardness identification code,
+		// the script should not have been identified as standard when there is
+		// not at least a 1 signature, but be paranoid and double check it here
+		// in case the standardness code changes in the future.
+		numSigs := details.RequiredSigs
 		if numSigs < 1 {
 			return txRuleError(ErrNonStandard,
 				"multi-signature script with no signatures")
 		}
 		if numSigs > numPubKeys {
 			str := fmt.Sprintf("multi-signature script with %d "+
-				"signatures which is more than the available "+
-				"%d public keys", numSigs, numPubKeys)
+				"signatures which is more than the available %d "+
+				"public keys", numSigs, numPubKeys)
 			return txRuleError(ErrNonStandard, str)
 		}
 
-	case txscript.NonStandardTy:
+	case scriptType == stdscript.STNonStandard:
 		return txRuleError(ErrNonStandard, "non-standard script form")
 	}
 
@@ -352,16 +351,15 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 				"script is not push only", i)
 			return txRuleError(ErrNonStandard, str)
 		}
-
 	}
 
 	// None of the output public key scripts can be a non-standard script or
 	// be "dust" (except when the script is a null data script).
 	numNullDataOutputs := 0
 	for i, txOut := range msgTx.TxOut {
-		scriptClass := txscript.GetScriptClass(txOut.Version,
-			txOut.PkScript, isTreasuryEnabled)
-		err := checkPkScriptStandard(txOut.Version, txOut.PkScript, scriptClass)
+		scriptType := stdscript.DetermineScriptType(txOut.Version,
+			txOut.PkScript)
+		err := checkPkScriptStandard(txOut.Version, txOut.PkScript, scriptType)
 		if err != nil {
 			str := fmt.Sprintf("transaction output %d: %v", i, err)
 			return wrapTxRuleError(ErrNonStandard, str, err)
@@ -370,7 +368,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 		// Accumulate the number of outputs which only carry data.  For
 		// all other script types, ensure the output value is not
 		// "dust".
-		if scriptClass == txscript.NullDataTy {
+		if scriptType == stdscript.STNullData {
 			numNullDataOutputs++
 		} else if txType == stake.TxTypeRegular && isDust(txOut, minRelayTxFee) {
 			str := fmt.Sprintf("transaction output %d: payment "+
