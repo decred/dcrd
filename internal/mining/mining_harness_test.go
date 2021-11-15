@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1199,7 +1200,7 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 	b := make([]byte, 2+len(voteBits.ExtendedBits))
 	binary.LittleEndian.PutUint16(b[0:2], voteBits.Bits)
 	copy(b[2:], voteBits.ExtendedBits)
-	return txscript.GenerateProvablyPruneableOut(b)
+	return stdscript.ProvablyPruneableScriptV0(b)
 }
 
 // CreateVote creates a vote transaction using the provided ticket.  The vote
