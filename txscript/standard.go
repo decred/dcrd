@@ -718,39 +718,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	return finalOpcodeData(scriptVersion, script)
 }
 
-// MultiSigScript returns a valid script for a multisignature redemption where
-// the specified threshold number of the keys in the given public keys are
-// required to have signed the transaction for success.
-//
-// The provided public keys must be serialized in the compressed format or an
-// error with kind ErrPubKeyType will be returned.
-//
-// An Error with kind ErrTooManyRequiredSigs will be returned if the threshold
-// is larger than the number of keys provided.
-func MultiSigScript(threshold int, pubKeys ...[]byte) ([]byte, error) {
-	if len(pubKeys) < threshold {
-		str := fmt.Sprintf("unable to generate multisig script with "+
-			"%d required signatures when there are only %d public "+
-			"keys available", threshold, len(pubKeys))
-		return nil, scriptError(ErrTooManyRequiredSigs, str)
-	}
-
-	builder := NewScriptBuilder().AddInt64(int64(threshold))
-	for _, pubKey := range pubKeys {
-		if !IsStrictCompressedPubKeyEncoding(pubKey) {
-			str := fmt.Sprintf("unable to generate multisig script with "+
-				"unsupported public key %x", pubKey)
-			return nil, scriptError(ErrPubKeyType, str)
-		}
-
-		builder.AddData(pubKey)
-	}
-	builder.AddInt64(int64(len(pubKeys)))
-	builder.AddOp(OP_CHECKMULTISIG)
-
-	return builder.Script()
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.

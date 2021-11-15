@@ -36,8 +36,8 @@ func (e ErrScriptNotCanonical) Error() string {
 // the Script function returning an error.
 //
 // For example, the following would build a 2-of-3 multisig script for usage in
-// a pay-to-script-hash (although in this situation MultiSigScript() would be a
-// better choice to generate the script):
+// a pay-to-script-hash (although in this situation stdscript.MultiSigScript()
+// would be a better choice to generate the script):
 // 	builder := txscript.NewScriptBuilder()
 // 	builder.AddOp(txscript.OP_2).AddData(pubKey1).AddData(pubKey2)
 // 	builder.AddData(pubKey3).AddOp(txscript.OP_3)
