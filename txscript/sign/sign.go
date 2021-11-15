@@ -496,7 +496,7 @@ func finalOpcodeData(scriptVersion uint16, script []byte) []byte {
 // versions.
 func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
 	pkScript []byte, scriptType stdscript.ScriptType, addresses []stdaddr.Address,
-	sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
+	sigScript, prevScript []byte) []byte {
 
 	// TODO(oga) the scripthash and multisig paths here are overly
 	// inefficient in that they will recompute already known data.
@@ -530,7 +530,7 @@ func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
 		scriptType, addresses := stdscript.ExtractAddrs(scriptVersion, script,
 			chainParams)
 		mergedScript := mergeScripts(chainParams, tx, idx, script, scriptType,
-			addresses, sigScript, prevScript, isTreasuryEnabled)
+			addresses, sigScript, prevScript)
 
 		// Reappend the script and return the result.
 		builder := txscript.NewScriptBuilder()
@@ -627,7 +627,7 @@ func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
 
 	// Merge scripts. with any previous data, if any.
 	mergedScript := mergeScripts(chainParams, tx, idx, pkScript, scriptType,
-		addresses, sigScript, previousScript, isTreasuryEnabled)
+		addresses, sigScript, previousScript)
 	return mergedScript, nil
 }
 
