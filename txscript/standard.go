@@ -164,24 +164,6 @@ func isPubKeyAltScript(script []byte) bool {
 	return pk != nil
 }
 
-// extractPubKeyHash extracts the public key hash from the passed script if it
-// is a standard pay-to-pubkey-hash script.  It will return nil otherwise.
-func extractPubKeyHash(script []byte) []byte {
-	// A pay-to-pubkey-hash script is of the form:
-	//  OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
-	if len(script) == 25 &&
-		script[0] == OP_DUP &&
-		script[1] == OP_HASH160 &&
-		script[2] == OP_DATA_20 &&
-		script[23] == OP_EQUALVERIFY &&
-		script[24] == OP_CHECKSIG {
-
-		return script[3:23]
-	}
-
-	return nil
-}
-
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
