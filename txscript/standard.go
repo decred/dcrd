@@ -5,12 +5,6 @@
 
 package txscript
 
-const (
-	// MaxDataCarrierSize is the maximum number of bytes allowed in pushed
-	// data to be considered a nulldata transaction.
-	MaxDataCarrierSize = 256
-)
-
 // ScriptClass is an enumeration for the list of standard types of script.
 type ScriptClass byte
 
