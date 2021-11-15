@@ -270,20 +270,6 @@ func BenchmarkIsPubKeyScript(b *testing.B) {
 	}
 }
 
-// BenchmarkIsAltPubKeyScript benchmarks how long it takes to analyze a very
-// large script to determine if it is a standard pay-to-alt-pubkey script.
-func BenchmarkIsAltPubKeyScript(b *testing.B) {
-	script, err := genComplexScript()
-	if err != nil {
-		b.Fatalf("failed to create benchmark script: %v", err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = isPubKeyAltScript(script)
-	}
-}
-
 // BenchmarkIsAltPubKeyHashScript benchmarks how long it takes to analyze a very
 // large script to determine if it is a standard pay-to-alt-pubkey-hash script.
 func BenchmarkIsAltPubKeyHashScript(b *testing.B) {

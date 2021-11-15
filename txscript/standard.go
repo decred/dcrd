@@ -157,13 +157,6 @@ func extractPubKeyAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 	return nil, 0
 }
 
-// isPubKeyAltScript returns whether or not the passed script is a standard
-// pay-to-alt-pubkey script.
-func isPubKeyAltScript(script []byte) bool {
-	pk, _ := extractPubKeyAltDetails(script)
-	return pk != nil
-}
-
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
