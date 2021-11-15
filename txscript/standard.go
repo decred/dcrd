@@ -155,18 +155,6 @@ func extractMultisigScriptDetails(scriptVersion uint16, script []byte, extractPu
 	}
 }
 
-// isMultisigScript returns whether or not the passed script is a standard
-// multisig script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isMultisigScript(scriptVersion uint16, script []byte) bool {
-	// Since this is only checking the form of the script, don't extract the
-	// public keys to avoid the allocation.
-	details := extractMultisigScriptDetails(scriptVersion, script, false)
-	return details.valid
-}
-
 // extractCompressedPubKey extracts a compressed public key from the passed
 // script if it is a standard pay-to-compressed-secp256k1-pubkey script.  It
 // will return nil otherwise.
