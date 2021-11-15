@@ -547,54 +547,6 @@ func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
-// typeOfScript returns the type of the script being inspected from the known
-// standard types. It is important to note that this function will only be
-// called with output scripts.
-//
-// NOTE:  All scripts that are not version 0 are currently considered non
-// standard.
-func typeOfScript(scriptVersion uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
-	if scriptVersion != 0 {
-		return NonStandardTy
-	}
-
-	switch {
-	case isPubKeyScript(script):
-		return PubKeyTy
-	case isPubKeyAltScript(script):
-		return PubkeyAltTy
-	case isPubKeyHashScript(script):
-		return PubKeyHashTy
-	case isPubKeyHashAltScript(script):
-		return PubkeyHashAltTy
-	case isScriptHashScript(script):
-		return ScriptHashTy
-	case isMultisigScript(scriptVersion, script):
-		return MultiSigTy
-	case isNullDataScript(scriptVersion, script):
-		return NullDataTy
-	case isStakeSubmissionScript(scriptVersion, script):
-		return StakeSubmissionTy
-	case isStakeGenScript(scriptVersion, script):
-		return StakeGenTy
-	case isStakeRevocationScript(scriptVersion, script):
-		return StakeRevocationTy
-	case isStakeChangeScript(scriptVersion, script):
-		return StakeSubChangeTy
-	}
-
-	if isTreasuryEnabled {
-		switch {
-		case isTreasuryAddScript(scriptVersion, script):
-			return TreasuryAddTy
-		case isTreasurySpendScript(scriptVersion, script):
-			return TreasuryGenTy
-		}
-	}
-
-	return NonStandardTy
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
