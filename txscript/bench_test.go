@@ -536,23 +536,6 @@ func BenchmarkCalcMultiSigStats(b *testing.B) {
 	}
 }
 
-// BenchmarkMultisigRedeemScript benchmarks how long it takes to extract the
-// redeem script for a very large script.
-func BenchmarkMultisigRedeemScript(b *testing.B) {
-	// NOTE: This isn't actually a p2sh multisig which the function being
-	// benchmarked expects, but it is acceptable for the purposes of the
-	// benchmark.
-	script, err := genComplexScript()
-	if err != nil {
-		b.Fatalf("failed to create benchmark script: %v", err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = MultisigRedeemScriptFromScriptSig(script)
-	}
-}
-
 // BenchmarkIsUnspendable benchmarks how long it takes IsUnspendable to analyze
 // a very large script.
 func BenchmarkIsUnspendable(b *testing.B) {

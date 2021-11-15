@@ -704,20 +704,6 @@ func CalcMultiSigStats(script []byte) (int, int, error) {
 	return details.numPubKeys, details.requiredSigs, nil
 }
 
-// MultisigRedeemScriptFromScriptSig attempts to extract a multi-signature
-// redeem script from a P2SH-redeeming input.  The script is expected to already
-// have been checked to be a multisignature script prior to calling this
-// function.  The results are undefined for other script types.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
-	// The redeemScript is always the last item on the stack of the script sig.
-	const scriptVersion = 0
-	return finalOpcodeData(scriptVersion, script)
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
