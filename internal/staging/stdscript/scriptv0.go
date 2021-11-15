@@ -209,11 +209,21 @@ func ExtractPubKeyHashAltDetailsV0(script []byte) ([]byte, dcrec.SignatureType) 
 	return nil, 0
 }
 
+// ExtractPubKeyHashEd25519V0 extracts the public key hash from the passed
+// script if it is a standard version 0 pay-to-pubkey-hash-ed25519 script.  It
+// will return nil otherwise.
+func ExtractPubKeyHashEd25519V0(script []byte) []byte {
+	pkHash, sigType := ExtractPubKeyHashAltDetailsV0(script)
+	if pkHash == nil || sigType != dcrec.STEd25519 {
+		return nil
+	}
+	return pkHash
+}
+
 // IsPubKeyHashEd25519ScriptV0 returns whether or not the passed script is a
 // standard version 0 pay-to-pubkey-hash-ed25519 script.
 func IsPubKeyHashEd25519ScriptV0(script []byte) bool {
-	pk, sigType := ExtractPubKeyHashAltDetailsV0(script)
-	return pk != nil && sigType == dcrec.STEd25519
+	return ExtractPubKeyHashEd25519V0(script) != nil
 }
 
 // IsPubKeyHashSchnorrSecp256k1ScriptV0 returns whether or not the passed script
