@@ -27,10 +27,6 @@ const (
 	// index that is greater than or equal to the number of outputs.
 	ErrInvalidSigHashSingleIndex = ErrorKind("ErrInvalidSigHashSingleIndex")
 
-	// ErrTooMuchNullData is returned from NullDataScript when the length of
-	// the provided data exceeds MaxDataCarrierSize.
-	ErrTooMuchNullData = ErrorKind("ErrTooMuchNullData")
-
 	// ErrUnsupportedScriptVersion is returned when an unsupported script
 	// version is passed to a function which deals with script analysis.
 	ErrUnsupportedScriptVersion = ErrorKind("ErrUnsupportedScriptVersion")

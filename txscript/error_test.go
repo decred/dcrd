@@ -19,7 +19,6 @@ func TestErrorKindStringer(t *testing.T) {
 	}{
 		{ErrInvalidIndex, "ErrInvalidIndex"},
 		{ErrInvalidSigHashSingleIndex, "ErrInvalidSigHashSingleIndex"},
-		{ErrTooMuchNullData, "ErrTooMuchNullData"},
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
 		{ErrEarlyReturn, "ErrEarlyReturn"},
 		{ErrEmptyStack, "ErrEmptyStack"},
