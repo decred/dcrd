@@ -3637,14 +3637,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		srvrLog.Info("Checkpoints are disabled")
 	}
 	s.syncManager = netsync.New(&netsync.Config{
-		PeerNotifier: &s,
-		Chain:        s.chain,
-		ChainParams:  s.chainParams,
-		TimeSource:   s.timeSource,
-		TxMemPool:    s.txMemPool,
-		RpcServer: func() *rpcserver.Server {
-			return s.rpcServer
-		},
+		PeerNotifier:          &s,
+		Chain:                 s.chain,
+		ChainParams:           s.chainParams,
+		TimeSource:            s.timeSource,
+		TxMemPool:             s.txMemPool,
 		NoMiningStateSync:     cfg.NoMiningStateSync,
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,

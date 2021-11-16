@@ -23,7 +23,6 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
-	"github.com/decred/dcrd/internal/rpcserver"
 	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -1742,10 +1741,6 @@ type Config struct {
 
 	// TxMemPool specifies the mempool to use for processing transactions.
 	TxMemPool *mempool.TxPool
-
-	// RpcServer returns an instance of an RPC server to use for notifications.
-	// It may return nil if there is no active RPC server.
-	RpcServer func() *rpcserver.Server
 
 	// NoMiningStateSync indicates whether or not the sync manager should
 	// perform an initial mining state synchronization with peers once they are
