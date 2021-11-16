@@ -502,6 +502,14 @@ func (m *SyncManager) startSync() {
 	}
 }
 
+// onInitialChainSyncDone is invoked when the initial chain sync process
+// completes.
+func (m *SyncManager) onInitialChainSyncDone() {
+	best := m.cfg.Chain.BestSnapshot()
+	log.Infof("Initial chain sync complete (hash %s, height %d)",
+		best.Hash, best.Height)
+}
+
 // isSyncCandidate returns whether or not the peer is a candidate to consider
 // syncing from.
 func (m *SyncManager) isSyncCandidate(peer *peerpkg.Peer) bool {
@@ -791,9 +799,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		forceLog := int64(header.Height) >= m.SyncHeight()
 		m.progressLogger.LogProgress(msgBlock, forceLog, chain.VerifyProgress)
 		if chain.IsCurrent() {
-			best := chain.BestSnapshot()
-			log.Infof("Initial chain sync complete (hash %s, height %d)",
-				best.Hash, best.Height)
+			m.onInitialChainSyncDone()
 		}
 	} else {
 		var interval string
@@ -1103,9 +1109,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			chain.MaybeUpdateIsCurrent()
 			isChainCurrent = chain.IsCurrent()
 			if isChainCurrent {
-				best := chain.BestSnapshot()
-				log.Infof("Initial chain sync complete (hash %s, height %d)",
-					best.Hash, best.Height)
+				m.onInitialChainSyncDone()
 			}
 		}
 	}
