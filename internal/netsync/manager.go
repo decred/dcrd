@@ -318,7 +318,7 @@ type SyncManager struct {
 func lookupPeer(peer *peerpkg.Peer, peers map[*peerpkg.Peer]*syncMgrPeer) *syncMgrPeer {
 	sp, ok := peers[peer]
 	if !ok {
-		log.Warnf("Attempt to lookup unknown peer %s\nStake: %v", peer,
+		log.Warnf("Attempt to lookup unknown peer %s\nStack: %v", peer,
 			string(debug.Stack()))
 		return nil
 	}
