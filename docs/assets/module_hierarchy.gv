@@ -19,7 +19,7 @@ digraph {
 	dcrutil [label="dcrutil/v3" fillcolor=burlywood]
 	database [label="database/v2" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
-	txscript [label="txscript/v3" fillcolor=mediumspringgreen]
+	txscript [label="txscript/v4" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake/v3" fillcolor=bisque]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
@@ -30,11 +30,14 @@ digraph {
 	apbf [label="container/apbf" fillcolor=goldenrod]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
+	{rank=same blake256 chainhash}
+	{rank=same dcrec secp256k1}
 	{rank=same connmgr addrmgr hdkeychain peer blockchain rpcclient}
 
 	certgen
 	bech32
 	blake256 -> chainhash [dir=back color=cornflowerblue]
+	blake256 -> secp256k1 [dir=back color=cornflowerblue]
 	chaincfg -> txscript [dir=back color=cadetblue]
 	chainhash -> dcrjson [dir=back color=aquamarine]
 	chainhash -> wire [dir=back color=aquamarine]
@@ -42,16 +45,16 @@ digraph {
 	wire -> chaincfg [dir=back color=coral]
 	wire -> connmgr [dir=back color=coral]
 	wire -> standalone [dir=back color=coral]
-	ripemd160 -> dcrutil [dir=back color=darkturquoise]
-	dcrec -> dcrutil [dir=back color=mediumpurple]
-	edwards -> dcrutil [dir=back color=lightseagreen]
-	secp256k1 -> dcrutil [dir=back color=mediumvioletred]
-	dcrutil -> database [dir=back color=burlywood]
-	dcrutil -> hdkeychain [dir=back color=burlywood]
-	dcrutil -> txscript [dir=back color=burlywood]
-	database -> stake [dir=back color=dodgerblue]
+	ripemd160 -> txscript [dir=back color=darkturquoise]
+	dcrec -> txscript [dir=back color=mediumpurple]
+	edwards -> txscript [dir=back color=lightseagreen]
+	secp256k1 -> txscript [dir=back color=mediumvioletred]
+	txscript -> dcrutil [dir=back color=mediumspringgreen]
+	txscript -> hdkeychain [dir=back color=mediumspringgreen]
 	txscript -> stake [dir=back color=mediumspringgreen]
-	txscript -> peer [dir=back color=mediumspringgreen]
+	dcrutil -> peer [dir=back color=burlywood]
+	dcrutil -> database [dir=back color=burlywood]
+	database -> stake [dir=back color=dodgerblue]
 	stake -> gcs [dir=back color=bisque]
 	standalone -> blockchain [dir=back color=firebrick4]
 	gcs -> blockchain [dir=back color=gold]

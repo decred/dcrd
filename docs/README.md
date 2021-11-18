@@ -190,7 +190,7 @@ The following versioned modules are provided by dcrd repository:
   * [standalone/v2](https://github.com/decred/dcrd/tree/master/blockchain/standalone) -
     Provides standalone functions useful for working with the Decred blockchain
     consensus rules
-* [txscript/v3](https://github.com/decred/dcrd/tree/master/txscript) -
+* [txscript/v4](https://github.com/decred/dcrd/tree/master/txscript) -
   Implements the Decred transaction scripting language
 * [dcrec](https://github.com/decred/dcrd/tree/master/dcrec) - Provides constants
   for the supported cryptographic signatures supported by Decred scripts
