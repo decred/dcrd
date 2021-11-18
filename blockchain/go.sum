@@ -15,8 +15,8 @@ github.com/decred/dcrd/chaincfg/chainhash v1.0.2/go.mod h1:BpbrGgrPTr3YJYRN3Bm+D
 github.com/decred/dcrd/chaincfg/chainhash v1.0.3 h1:PF2czcYZGW3dz4i/35AUfVAgnqHl9TMNQt1ADTYGOoE=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.3/go.mod h1:BpbrGgrPTr3YJYRN3Bm+D9NuaFd+zGyNeIKgrhCXK60=
 github.com/decred/dcrd/chaincfg/v3 v3.0.0/go.mod h1:EspyubQ7D2w6tjP7rBGDIE7OTbuMgBjR2F2kZFnh31A=
-github.com/decred/dcrd/chaincfg/v3 v3.0.1-0.20210906134819-8c0e8616ebda h1:pWnFm8k3S/sQ9eEWaL9tw0Ggru1a2SXbg9JQoofnsBM=
-github.com/decred/dcrd/chaincfg/v3 v3.0.1-0.20210906134819-8c0e8616ebda/go.mod h1:EspyubQ7D2w6tjP7rBGDIE7OTbuMgBjR2F2kZFnh31A=
+github.com/decred/dcrd/chaincfg/v3 v3.1.0 h1:u8l+E6ryv8E0WY69pM/lUI36UeAVcLKBwD/Q3xPiuog=
+github.com/decred/dcrd/chaincfg/v3 v3.1.0/go.mod h1:4XF9nlx2NeGD4xzw1+L0DGICZMl0a5rKV8nnuHLgk8o=
 github.com/decred/dcrd/crypto/blake256 v1.0.0 h1:/8DMNYp9SGi5f0w7uCm6d6M4OU2rGFK09Y2A4Xv7EE0=
 github.com/decred/dcrd/crypto/blake256 v1.0.0/go.mod h1:sQl2p6Y26YV+ZOcSTP6thNdn47hh8kt6rqSlvmrXFAc=
 github.com/decred/dcrd/crypto/ripemd160 v1.0.1 h1:TjRL4LfftzTjXzaufov96iDAkbY2R3aTvH2YMYa1IOc=
@@ -28,8 +28,9 @@ github.com/decred/dcrd/dcrec v1.0.0 h1:W+z6Es+Rai3MXYVoPAxYr5U1DGis0Co33scJ6uH2J
 github.com/decred/dcrd/dcrec v1.0.0/go.mod h1:HIaqbEJQ+PDzQcORxnqen5/V1FR3B4VpIfmePklt8Q8=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1 h1:V6eqU1crZzuoFT4KG2LhaU5xDSdkHuvLQsj25wd7Wb4=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1/go.mod h1:d0H8xGMWbiIQP7gN3v2rByWUcuZPm9YsgmnfoxgbINc=
-github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24 h1:L718+uXQkWq02GqdBdEAUIbBPh/Il/kudTsOEf0pItQ=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24/go.mod h1:UkVqoxmJlLgUvBjJD+GdJz6mgdSdf3UjX83xfwUAYDk=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 h1:YLtO71vCjJRCBcrPMtQ9nqBsqpA1m5sE92cU+pd5Mcc=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1/go.mod h1:hyedUtir6IdtD/7lIxGeCxkaw7y45JueMRL4DIyJDKs=
 github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28 h1:KrZXi4s+2wyCkjREQMkoT+C4eB4yVLUU/Xtos+8n7Sc=
 github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28/go.mod h1:xe59jKcMx5G/dbRmsZ8+FzY+WQDE/7YBP3k3uzJTtmI=
 github.com/decred/dcrd/gcs/v3 v3.0.0-20210916172859-ca03de05ecd0 h1:TJQ2ttZCGtmhCOOH98GWAE681jo0ICutu12taaPodNY=
@@ -42,8 +43,9 @@ github.com/decred/dcrd/txscript/v4 v4.0.0-20211118182953-7d97fd5ff83c/go.mod h1:
 github.com/decred/dcrd/wire v1.4.0/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
 github.com/decred/dcrd/wire v1.5.0 h1:3SgcEzSjqAMQvOugP0a8iX7yQSpiVT1yNi9bc4iOXVg=
 github.com/decred/dcrd/wire v1.5.0/go.mod h1:fzAjVqw32LkbAZIt5mnrvBR751GTa3e0rRQdOIhPY3w=
-github.com/decred/slog v1.1.0 h1:uz5ZFfmaexj1rEDgZvzQ7wjGkoSPjw2LCh8K+K1VrW4=
 github.com/decred/slog v1.1.0/go.mod h1:kVXlGnt6DHy2fV5OjSeuvCJ0OmlmTF6LFpEPMu/fOY0=
+github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
+github.com/decred/slog v1.2.0/go.mod h1:kVXlGnt6DHy2fV5OjSeuvCJ0OmlmTF6LFpEPMu/fOY0=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9 h1:hsms1Qyu0jgnwNXIxa+/V/PDsU6CfLf6CNO8H7IWoS4=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
