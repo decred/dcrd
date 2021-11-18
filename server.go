@@ -495,6 +495,7 @@ type server struct {
 	db                   database.DB
 	timeSource           blockchain.MedianTimeSource
 	services             wire.ServiceFlag
+	quit                 chan struct{}
 
 	// The following fields are used for optional indexes.  They will be nil
 	// if the associated index is not enabled.  These fields are set during
@@ -1516,34 +1517,28 @@ func randomUint16Number(max uint16) uint16 {
 // AddRebroadcastInventory adds 'iv' to the list of inventories to be
 // rebroadcasted at random intervals until they show up in a block.
 func (s *server) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
-	// Ignore if shutting down.
-	if atomic.LoadInt32(&s.shutdown) != 0 {
-		return
+	select {
+	case <-s.quit:
+	case s.modifyRebroadcastInv <- broadcastInventoryAdd{invVect: iv, data: data}:
 	}
-
-	s.modifyRebroadcastInv <- broadcastInventoryAdd{invVect: iv, data: data}
 }
 
 // RemoveRebroadcastInventory removes 'iv' from the list of items to be
 // rebroadcasted if present.
 func (s *server) RemoveRebroadcastInventory(iv *wire.InvVect) {
-	// Ignore if shutting down.
-	if atomic.LoadInt32(&s.shutdown) != 0 {
-		return
+	select {
+	case <-s.quit:
+	case s.modifyRebroadcastInv <- broadcastInventoryDel(iv):
 	}
-
-	s.modifyRebroadcastInv <- broadcastInventoryDel(iv)
 }
 
 // PruneRebroadcastInventory filters and removes rebroadcast inventory entries
 // where necessary.
 func (s *server) PruneRebroadcastInventory() {
-	// Ignore if shutting down.
-	if atomic.LoadInt32(&s.shutdown) != 0 {
-		return
+	select {
+	case <-s.quit:
+	case s.modifyRebroadcastInv <- broadcastPruneInventory{}:
 	}
-
-	s.modifyRebroadcastInv <- broadcastPruneInventory{}
 }
 
 // relayTransactions generates and relays inventory vectors for all of the
@@ -2939,7 +2934,7 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 	// Wait 5 min before first tx rebroadcast.
 	timer := time.NewTimer(5 * time.Minute)
 	pendingInvs := make(map[wire.InvVect]interface{})
-out:
+
 	for {
 		select {
 		case riv := <-s.modifyRebroadcastInv:
@@ -3029,24 +3024,12 @@ out:
 				time.Duration(randomUint16Number(1800)))
 
 		case <-ctx.Done():
-			break out
+			close(s.quit)
+			timer.Stop()
+			s.wg.Done()
+			return
 		}
 	}
-
-	timer.Stop()
-
-	// Drain channels before exiting so nothing is left waiting around
-	// to send.
-cleanup:
-	for {
-		select {
-		case <-s.modifyRebroadcastInv:
-		default:
-			break cleanup
-		}
-	}
-
-	s.wg.Done()
 }
 
 // querySeeders queries the configured seeders to discover peers that supported
@@ -3464,6 +3447,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		recentlyConfirmedTxns: apbf.NewFilter(maxRecentlyConfirmedTxns,
 			recentlyConfirmedTxnsFPRate),
 		indexSubscriber: indexers.NewIndexSubscriber(ctx),
+		quit:            make(chan struct{}),
 	}
 
 	feC := fees.EstimatorConfig{
