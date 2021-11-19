@@ -8,10 +8,5 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
-	github.com/decred/dcrd/txscript/v4 v4.0.0-20210330065944-a2366e6e0b3b
-)
-
-replace (
-	github.com/decred/dcrd/dcrec/secp256k1/v4 => ../dcrec/secp256k1
-	github.com/decred/dcrd/txscript/v4 => ../txscript
+	github.com/decred/dcrd/txscript/v4 v4.0.0
 )
