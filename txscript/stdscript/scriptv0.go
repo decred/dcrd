@@ -494,8 +494,8 @@ func extractStakePubKeyHashV0(script []byte, stakeOpcode byte) []byte {
 	return ExtractPubKeyHashV0(script[1:])
 }
 
-// ExtractStakeSubmissionPubKeyHashV0 extracts the public key hash from
-// the passed script if it is a standard version 0 stake submission
+// ExtractStakeSubmissionPubKeyHashV0 extracts the public key hash from the
+// passed script if it is a standard version 0 stake submission
 // pay-to-pubkey-hash script.  It will return nil otherwise.
 func ExtractStakeSubmissionPubKeyHashV0(script []byte) []byte {
 	// A stake submission pay-to-pubkey-hash script is of the form:
@@ -508,6 +508,29 @@ func ExtractStakeSubmissionPubKeyHashV0(script []byte) []byte {
 // is a standard version 0 stake submission pay-to-pubkey-hash script.
 func IsStakeSubmissionPubKeyHashScriptV0(script []byte) bool {
 	return ExtractStakeSubmissionPubKeyHashV0(script) != nil
+}
+
+// ExtractStakePubKeyHashV0 extracts the public key hash from the passed script
+// if it is any one of the supported standard version 0 stake-tagged
+// pay-to-pubkey-hash scripts.  It will return nil otherwise.
+func ExtractStakePubKeyHashV0(script []byte) []byte {
+	if h := ExtractStakeSubmissionPubKeyHashV0(script); h != nil {
+		return h
+	}
+	if h := ExtractStakeGenPubKeyHashV0(script); h != nil {
+		return h
+	}
+	if h := ExtractStakeRevocationPubKeyHashV0(script); h != nil {
+		return h
+	}
+	if h := ExtractStakeChangePubKeyHashV0(script); h != nil {
+		return h
+	}
+	if h := ExtractTreasuryGenPubKeyHashV0(script); h != nil {
+		return h
+	}
+
+	return nil
 }
 
 // extractStakeScriptHashV0 extracts the script hash from the passed script if
