@@ -662,20 +662,6 @@ func TestOutboundPeer(t *testing.T) {
 	}
 	p1.AssociateConnection(c1)
 
-	// Test update latest block
-	latestBlockHash, err := chainhash.NewHashFromStr("1a63f9cdff1752e6375c8c76e543a71d239e1a2e5c6db1aa679")
-	if err != nil {
-		t.Errorf("NewHashFromStr: unexpected err %v\n", err)
-		return
-	}
-	p1.UpdateLastAnnouncedBlock(latestBlockHash)
-	p1.UpdateLastBlockHeight(234440)
-	if p1.LastAnnouncedBlock() != latestBlockHash {
-		t.Errorf("LastAnnouncedBlock: wrong block - got %v, want %v",
-			p1.LastAnnouncedBlock(), latestBlockHash)
-		return
-	}
-
 	// Test Queue Inv after connection
 	p1.QueueInventory(fakeInv)
 	p1.Disconnect()

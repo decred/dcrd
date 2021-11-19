@@ -452,15 +452,14 @@ type Peer struct {
 
 	// These fields keep track of statistics for the peer and are protected
 	// by the statsMtx mutex.
-	statsMtx           sync.RWMutex
-	timeOffset         int64
-	timeConnected      time.Time
-	startingHeight     int64
-	lastBlock          int64
-	lastAnnouncedBlock *chainhash.Hash
-	lastPingNonce      uint64    // Set to nonce if we have a pending ping.
-	lastPingTime       time.Time // Time we sent last ping.
-	lastPingMicros     int64     // Time for last ping to return.
+	statsMtx       sync.RWMutex
+	timeOffset     int64
+	timeConnected  time.Time
+	startingHeight int64
+	lastBlock      int64
+	lastPingNonce  uint64    // Set to nonce if we have a pending ping.
+	lastPingTime   time.Time // Time we sent last ping.
+	lastPingMicros int64     // Time for last ping to return.
 
 	stallControl  chan stallControlMsg
 	outputQueue   chan outMsg
@@ -493,18 +492,6 @@ func (p *Peer) UpdateLastBlockHeight(newHeight int64) {
 	log.Tracef("Updating last block height of peer %v from %v to %v",
 		p.addr, p.lastBlock, newHeight)
 	p.lastBlock = newHeight
-	p.statsMtx.Unlock()
-}
-
-// UpdateLastAnnouncedBlock updates meta-data about the last block hash this
-// peer is known to have announced.
-//
-// This function is safe for concurrent access.
-func (p *Peer) UpdateLastAnnouncedBlock(blkHash *chainhash.Hash) {
-	log.Tracef("Updating last blk for peer %v, %v", p.addr, blkHash)
-
-	p.statsMtx.Lock()
-	p.lastAnnouncedBlock = blkHash
 	p.statsMtx.Unlock()
 }
 
@@ -625,17 +612,6 @@ func (p *Peer) UserAgent() string {
 	p.flagsMtx.Unlock()
 
 	return userAgent
-}
-
-// LastAnnouncedBlock returns the last announced block of the remote peer.
-//
-// This function is safe for concurrent access.
-func (p *Peer) LastAnnouncedBlock() *chainhash.Hash {
-	p.statsMtx.RLock()
-	lastAnnouncedBlock := p.lastAnnouncedBlock
-	p.statsMtx.RUnlock()
-
-	return lastAnnouncedBlock
 }
 
 // LastPingNonce returns the last ping nonce of the remote peer.

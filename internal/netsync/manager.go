@@ -216,6 +216,8 @@ type syncMgrPeer struct {
 	// is used to detect peers that have either diverged so far they are no
 	// longer useful or are otherwise being malicious.
 	numConsecutiveOrphanHeaders int32
+
+	lastAnnouncedBlock *chainhash.Hash
 }
 
 // headerSyncState houses the state used to track the header sync progress and
@@ -848,10 +850,10 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 				continue
 			}
 
-			lastAnnBlock := p.LastAnnouncedBlock()
+			lastAnnBlock := p.lastAnnouncedBlock
 			if lastAnnBlock != nil && *lastAnnBlock == *blockHash {
 				p.UpdateLastBlockHeight(blockHeight)
-				p.UpdateLastAnnouncedBlock(nil)
+				p.lastAnnouncedBlock = nil
 			}
 		}
 	}
@@ -1043,7 +1045,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// above and update the height for the peer too.
 	finalHeader := headers[len(headers)-1]
 	finalReceivedHash := &headerHashes[len(headerHashes)-1]
-	peer.UpdateLastAnnouncedBlock(finalReceivedHash)
+	peer.lastAnnouncedBlock = finalReceivedHash
 	peer.UpdateLastBlockHeight(int64(finalHeader.Height))
 
 	// Update the sync height if the new best known header height exceeds it.
@@ -1265,7 +1267,7 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 		// inventory above (if any).  In the case the header for that block is
 		// already known, use that information to update the height for the peer
 		// too.
-		peer.UpdateLastAnnouncedBlock(&lastBlock.Hash)
+		peer.lastAnnouncedBlock = &lastBlock.Hash
 		if isCurrent {
 			header, err := m.cfg.Chain.HeaderByHash(&lastBlock.Hash)
 			if err == nil {
