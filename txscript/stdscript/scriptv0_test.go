@@ -1368,6 +1368,31 @@ func TestExtractStakePubKeyHashV0(t *testing.T) {
 	}
 }
 
+// TestExtractStakeScriptHashV0 ensures that extracting a script hash from the
+// supported standard version 0 stake-tagged pay-to-script-hash scripts works as
+// intended for all of the version 0 test scripts.
+func TestExtractStakeScriptHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		switch test.wantType {
+		case STStakeSubmissionScriptHash, STStakeGenScriptHash,
+			STStakeRevocationScriptHash, STStakeChangeScriptHash,
+			STTreasuryGenScriptHash:
+
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractStakeScriptHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
+				got, want)
+			continue
+		}
+	}
+}
+
 // TestProvablyPruneableScriptV0 ensures generating a version 0
 // provably-pruneable nulldata script works as intended.
 func TestProvablyPruneableScriptV0(t *testing.T) {
