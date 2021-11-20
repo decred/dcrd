@@ -27,6 +27,8 @@ The provided functions fall into the following categories:
   - Calculating work values based on the target difficulty bits
   - Checking that a block hash satisfies a target difficulty and that the target
     difficulty is within a valid range
+- Merkle root calculation
+  - Calculation from individual leaf hashes
 
 ## Maintainer Note
 
