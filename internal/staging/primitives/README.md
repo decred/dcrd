@@ -29,6 +29,9 @@ The provided functions fall into the following categories:
     difficulty is within a valid range
 - Merkle root calculation
   - Calculation from individual leaf hashes
+- Inclusion proofs
+  - Generating Merkle tree inclusion proofs
+  - Verifying Merkle tree inclusion proofs
 
 ## Maintainer Note
 
