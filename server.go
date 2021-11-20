@@ -933,8 +933,22 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 // OnMiningState is invoked when a peer receives a miningstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
-	err := sp.server.syncManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
-		msg.VoteHashes, nil)
+	var blockHashes, voteHashes []chainhash.Hash
+	if len(msg.BlockHashes) > 0 {
+		blockHashes = make([]chainhash.Hash, 0, len(msg.BlockHashes))
+		for _, hash := range msg.BlockHashes {
+			blockHashes = append(blockHashes, *hash)
+		}
+	}
+	if len(msg.VoteHashes) > 0 {
+		voteHashes = make([]chainhash.Hash, 0, len(msg.VoteHashes))
+		for _, hash := range msg.VoteHashes {
+			voteHashes = append(voteHashes, *hash)
+		}
+	}
+
+	err := sp.server.syncManager.RequestFromPeer(sp.Peer, blockHashes,
+		voteHashes, nil)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
 			err.Error())
@@ -1025,22 +1039,8 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 // OnInitState is invoked when a peer receives a initstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(p *peer.Peer, msg *wire.MsgInitState) {
-	blockHashes := make([]*chainhash.Hash, 0, len(msg.BlockHashes))
-	voteHashes := make([]*chainhash.Hash, 0, len(msg.VoteHashes))
-	tSpendHashes := make([]*chainhash.Hash, 0, len(msg.TSpendHashes))
-
-	for i := range msg.BlockHashes {
-		blockHashes = append(blockHashes, &msg.BlockHashes[i])
-	}
-	for i := range msg.VoteHashes {
-		voteHashes = append(voteHashes, &msg.VoteHashes[i])
-	}
-	for i := range msg.TSpendHashes {
-		tSpendHashes = append(tSpendHashes, &msg.TSpendHashes[i])
-	}
-
-	err := sp.server.syncManager.RequestFromPeer(sp.Peer, blockHashes,
-		voteHashes, tSpendHashes)
+	err := sp.server.syncManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
+		msg.VoteHashes, msg.TSpendHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}

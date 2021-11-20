@@ -150,9 +150,9 @@ type getSyncPeerMsg struct {
 // when it sends this information back.
 type requestFromPeerMsg struct {
 	peer         *peerpkg.Peer
-	blocks       []*chainhash.Hash
-	voteHashes   []*chainhash.Hash
-	tSpendHashes []*chainhash.Hash
+	blocks       []chainhash.Hash
+	voteHashes   []chainhash.Hash
+	tSpendHashes []chainhash.Hash
 	reply        chan requestFromPeerResponse
 }
 
@@ -1511,7 +1511,7 @@ func (m *SyncManager) SyncPeerID() int32 {
 // from a peer.  The requests are logged in the internal map of requests so the
 // peer is not later banned for sending the respective data.
 func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
-	tSpendHashes []*chainhash.Hash) error {
+	tSpendHashes []chainhash.Hash) error {
 
 	reply := make(chan requestFromPeerResponse, 1)
 	request := requestFromPeerMsg{
@@ -1535,7 +1535,7 @@ func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 }
 
 func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
-	tSpendHashes []*chainhash.Hash) error {
+	tSpendHashes []chainhash.Hash) error {
 
 	peer := lookupPeer(p, m.peers)
 	if peer == nil {
@@ -1544,8 +1544,9 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 
 	// Add the blocks to the request.
 	msgResp := wire.NewMsgGetData()
-	for _, bh := range blocks {
+	for i := range blocks {
 		// If we've already requested this block, skip it.
+		bh := &blocks[i]
 		_, alreadyReqP := peer.requestedBlocks[*bh]
 		_, alreadyReqB := m.requestedBlocks[*bh]
 
@@ -1569,14 +1570,15 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 		m.requestedBlocks[*bh] = struct{}{}
 	}
 
-	addTxsToRequest := func(txs []*chainhash.Hash, txType stake.TxType) error {
+	addTxsToRequest := func(txs []chainhash.Hash, txType stake.TxType) error {
 		// Return immediately if txs is nil.
 		if txs == nil {
 			return nil
 		}
 
-		for _, tx := range txs {
+		for i := range txs {
 			// If we've already requested this transaction, skip it.
+			tx := &txs[i]
 			_, alreadyReqP := peer.requestedTxns[*tx]
 			_, alreadyReqB := m.requestedTxns[*tx]
 
