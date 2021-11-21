@@ -312,6 +312,27 @@ type SyncManager struct {
 	// believes it is fully synced to the network.
 	isCurrentMtx sync.Mutex
 	isCurrent    bool
+
+	// The following fields are used to track the list of the next blocks to
+	// download in the branch leading up to the best known header.
+	//
+	// nextBlocksHeader is the hash of the best known header when the list was
+	// last updated.
+	//
+	// nextBlocksBuf houses an overall list of blocks needed (up to the size of
+	// the array) regardless of whether or not they have been requested and
+	// provides what is effectively a reusable lookahead buffer.  Note that
+	// since it is a fixed size and acts as a backing array, not all entries
+	// will necessarily refer to valid data, especially once the chain is
+	// synced.  nextNeededBlocks slices into the valid part of the array.
+	//
+	// nextNeededBlocks subslices into nextBlocksBuf such that it provides an
+	// upper bound on the entries of the backing array that are valid and also
+	// acts as a list of needed blocks that are not already known to be in
+	// flight.
+	nextBlocksHeader chainhash.Hash
+	nextBlocksBuf    [512]chainhash.Hash
+	nextNeededBlocks []chainhash.Hash
 }
 
 // lookupPeer returns the sync manager peer that maintains additional state for
@@ -349,6 +370,27 @@ func chainBlockLocatorToHashes(locator blockchain.BlockLocator) []chainhash.Hash
 	return result
 }
 
+// maybeUpdateNextNeededBlocks potentially updates the list of the next blocks
+// to download in the branch leading up to the best known header.
+//
+// This function is NOT safe for concurrent access.  It must be called from the
+// event handler goroutine.
+func (m *SyncManager) maybeUpdateNextNeededBlocks() {
+	// Update the list if the best known header changed since the last time it
+	// was updated or it is not empty, is getting short, and does not already
+	// end at the best known header.
+	chain := m.cfg.Chain
+	bestHeader, _ := chain.BestHeader()
+	numNeeded := len(m.nextNeededBlocks)
+	needsUpdate := m.nextBlocksHeader != bestHeader || (numNeeded > 0 &&
+		numNeeded < minInFlightBlocks &&
+		m.nextNeededBlocks[numNeeded-1] != bestHeader)
+	if needsUpdate {
+		m.nextNeededBlocks = chain.PutNextNeededBlocks(m.nextBlocksBuf[:])
+		m.nextBlocksHeader = bestHeader
+	}
+}
+
 // fetchNextBlocks creates and sends a request to the provided peer for the next
 // blocks to be downloaded based on the current headers.
 func (m *SyncManager) fetchNextBlocks(peer *syncMgrPeer) {
@@ -359,36 +401,42 @@ func (m *SyncManager) fetchNextBlocks(peer *syncMgrPeer) {
 		return
 	}
 
-	// Determine the next blocks to download based on the final block that has
-	// already been requested and the next blocks in the branch leading up to
-	// best known header.
-	chain := m.cfg.Chain
-	maxNeeded := uint8(maxInFlightBlocks - numInFlight)
-	neededBlocks := chain.NextNeededBlocks(maxNeeded, m.requestedBlocks)
-	if len(neededBlocks) == 0 {
+	// Potentially update the list of the next blocks to download in the branch
+	// leading up to the best known header.
+	m.maybeUpdateNextNeededBlocks()
+
+	// Build and send a getdata request for the needed blocks.
+	numNeeded := len(m.nextNeededBlocks)
+	if numNeeded == 0 {
 		return
 	}
-
-	// Ensure the number of needed blocks does not exceed the max inventory
-	// per message.  This should never happen because the constants above limit
-	// it to relatively small values.  However, the code below relies on this
-	// assumption, so assert it.
-	if len(neededBlocks) > wire.MaxInvPerMsg {
-		log.Warnf("%d needed blocks exceeds max allowed per message",
-			len(neededBlocks))
-		return
+	maxNeeded := maxInFlightBlocks - numInFlight
+	if numNeeded > maxNeeded {
+		numNeeded = maxNeeded
 	}
+	gdmsg := wire.NewMsgGetDataSizeHint(uint(numNeeded))
+	for i := 0; i < numNeeded && len(gdmsg.InvList) < wire.MaxInvPerMsg; i++ {
+		// The block is either going to be skipped because it has already been
+		// requested or it will be requested, but in either case, the block is
+		// no longer needed for future iterations.
+		hash := &m.nextNeededBlocks[0]
+		m.nextNeededBlocks = m.nextNeededBlocks[1:]
 
-	// Build and send a getdata request for needed blocks.
-	gdmsg := wire.NewMsgGetDataSizeHint(uint(len(neededBlocks)))
-	for i := range neededBlocks {
-		hash := neededBlocks[i]
+		// Skip blocks that have already been requested.  The needed blocks
+		// might have been updated above thereby potentially repopulating some
+		// blocks that are still in flight.
+		if _, ok := m.requestedBlocks[*hash]; ok {
+			continue
+		}
+
 		iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 		m.requestedBlocks[*hash] = struct{}{}
 		peer.requestedBlocks[*hash] = struct{}{}
 		gdmsg.AddInvVect(iv)
 	}
-	peer.QueueMessage(gdmsg, nil)
+	if len(gdmsg.InvList) > 0 {
+		peer.QueueMessage(gdmsg, nil)
+	}
 }
 
 // startSync will choose the best peer among the available candidate peers to
@@ -739,7 +787,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// If we didn't ask for this block then the peer is misbehaving.
+	// The remote peer is misbehaving when the block was not requested.
 	blockHash := bmsg.block.Hash()
 	if _, exists := peer.requestedBlocks[*blockHash]; !exists {
 		log.Warnf("Got unrequested block %v from %s -- disconnecting",

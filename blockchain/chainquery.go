@@ -156,83 +156,81 @@ func (b *BlockChain) BestInvalidHeader() chainhash.Hash {
 	return hash
 }
 
-// NextNeededBlocks returns hashes for the next blocks after the current best
-// chain tip that are needed to make progress towards the current best known
-// header skipping any blocks that are already known or in the provided map of
-// blocks to exclude.  Typically the caller would want to exclude all blocks
-// that have outstanding requests.
+// PutNextNeededBlocks populates the provided slice with hashes for the next
+// blocks after the current best chain tip that are needed to make progress
+// towards the current best known header skipping any blocks that already have
+// their data available.
 //
-// The maximum number of results is limited to the provided value or the maximum
-// allowed by the internal lookahead buffer in the case the requested number of
-// max results exceeds that value.
+// The provided slice will be populated with either as many hashes as it will
+// fit per its length or as many hashes it takes to reach best header, whichever
+// is smaller.
+//
+// It returns a sub slice of the provided one with its bounds adjusted to the
+// number of entries populated.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) NextNeededBlocks(maxResults uint8, exclude map[chainhash.Hash]struct{}) []*chainhash.Hash {
+func (b *BlockChain) PutNextNeededBlocks(out []chainhash.Hash) []chainhash.Hash {
 	// Nothing to do when no results are requested.
+	maxResults := len(out)
 	if maxResults == 0 {
-		return nil
+		return out[:0]
 	}
 
-	// Determine the common ancestor between the current best chain tip and the
-	// current best known header.  In practice this should never be nil because
-	// orphan headers are not allowed into the block index, but be paranoid and
-	// check anyway in case things change in the future.
 	b.index.RLock()
+	defer b.index.RUnlock()
+
+	// Populate the provided slice by making use of a sliding window.  Note that
+	// the needed block hashes are populated in forwards order while it is
+	// necessary to walk the block index backwards to determine them.  Further,
+	// an unknown number of blocks may already have their data and need to be
+	// skipped, so it's not possible to determine the precise height after the
+	// fork point to start iterating from.  Using a sliding window efficiently
+	// handles these conditions without needing additional allocations.
+	//
+	// The strategy is to initially determine the common ancestor between the
+	// current best chain tip and the current best known header as the starting
+	// fork point and move the fork point forward by the window size after
+	// populating the output slice with all relevant nodes in the window until
+	// either there are no more results or the desired number of results have
+	// been populated.
+	const windowSize = 32
+	var outputIdx int
+	var window [windowSize]chainhash.Hash
 	bestHeader := b.index.bestHeader
 	fork := b.bestChain.FindFork(bestHeader)
-	if fork == nil {
-		b.index.RUnlock()
-		return nil
-	}
-
-	// Determine the final block to consider for determining the next needed
-	// blocks by determining the descendants of the current best chain tip on
-	// the branch that leads to the best known header while clamping the number
-	// of descendants to consider to a lookahead buffer.
-	const lookaheadBuffer = 512
-	numBlocksToConsider := bestHeader.height - fork.height
-	if numBlocksToConsider == 0 {
-		b.index.RUnlock()
-		return nil
-	}
-	if numBlocksToConsider > lookaheadBuffer {
-		bestHeader = bestHeader.Ancestor(fork.height + lookaheadBuffer)
-		numBlocksToConsider = lookaheadBuffer
-	}
-
-	// Walk backwards from the final block to consider to the current best chain
-	// tip excluding any blocks that already have their data available or that
-	// the caller asked to be excluded (likely because they've already been
-	// requested).
-	neededBlocks := make([]*chainhash.Hash, 0, numBlocksToConsider)
-	for node := bestHeader; node != nil && node != fork; node = node.parent {
-		_, isExcluded := exclude[node.hash]
-		if isExcluded || node.status.HaveData() {
-			continue
+	for outputIdx < maxResults && fork != nil && fork != bestHeader {
+		// Determine the final descendant block on the branch that leads to the
+		// best known header in this window by clamping the number of
+		// descendants to consider to the window size.
+		endNode := bestHeader
+		numBlocksToConsider := endNode.height - fork.height
+		if numBlocksToConsider > windowSize {
+			endNode = endNode.Ancestor(fork.height + windowSize)
 		}
 
-		neededBlocks = append(neededBlocks, &node.hash)
-	}
-	b.index.RUnlock()
+		// Populate the blocks in this window from back to front by walking
+		// backwards from the final block to consider in the window to the first
+		// one excluding any blocks that already have their data available.
+		windowIdx := windowSize
+		for node := endNode; node != nil && node != fork; node = node.parent {
+			if node.status.HaveData() {
+				continue
+			}
 
-	// Reverse the needed blocks so they are in forwards order.
-	reverse := func(s []*chainhash.Hash) {
-		slen := len(s)
-		for i := 0; i < slen/2; i++ {
-			s[i], s[slen-1-i] = s[slen-1-i], s[i]
+			windowIdx--
+			window[windowIdx] = node.hash
 		}
-	}
-	reverse(neededBlocks)
 
-	// Clamp the number of results to the lower of the requested max or number
-	// available.
-	if int64(maxResults) > numBlocksToConsider {
-		maxResults = uint8(numBlocksToConsider)
+		// Populate the outputs with as many from the back of the window as
+		// possible (since the window might not have been fully populated due to
+		// skipped blocks) and move the output index forward to match.
+		outputIdx += copy(out[outputIdx:], window[windowIdx:])
+
+		// Move the fork point forward to the final block of the window.
+		fork = endNode
 	}
-	if uint16(len(neededBlocks)) > uint16(maxResults) {
-		neededBlocks = neededBlocks[:maxResults]
-	}
-	return neededBlocks
+
+	return out[:outputIdx]
 }
 
 // VerifyProgress returns a percentage that is a guess of the progress of the
