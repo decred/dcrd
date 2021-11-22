@@ -323,13 +323,13 @@ func (c *chainView) findFork(node *blockNode) *blockNode {
 }
 
 // FindFork returns the final common block between the provided node and the
-// the chain view.  It will return nil if there is no common block.
+// chain view.  It will return nil if there is no common block.
 //
 // For example, assume a block chain with a side chain as depicted below:
 //   genesis -> 1 -> 2 -> ... -> 5 -> 6  -> 7  -> 8
 //                                \-> 6a -> 7a
 //
-// Further, assume the view is for the longer chain depicted above.  That is to
+// Further, assume the view is for the longer branch depicted above.  That is to
 // say it consists of:
 //   genesis -> 1 -> 2 -> ... -> 5 -> 6 -> 7 -> 8.
 //
