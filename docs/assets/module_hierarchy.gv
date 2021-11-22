@@ -22,7 +22,7 @@ digraph {
 	txscript [label="txscript/v4" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake/v4" fillcolor=bisque]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
-	gcs [label="gcs" fillcolor=gold]
+	gcs [label="gcs/v3" fillcolor=gold]
 	blockchain [label="blockchain/v3" fillcolor=orchid]
 	lru [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]

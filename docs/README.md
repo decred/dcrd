@@ -218,7 +218,7 @@ The following versioned modules are provided by dcrd repository:
 * [hdkeychain/v3](https://github.com/decred/dcrd/tree/master/hdkeychain) -
   Provides an API for working with  Decred hierarchical deterministic extended
   keys
-* [gcs](https://github.com/decred/dcrd/tree/master/gcs) - Provides an API for
+* [gcs/v3](https://github.com/decred/dcrd/tree/master/gcs) - Provides an API for
   building and using Golomb-coded set filters useful for light clients such as
   SPV wallets
 * [lru](https://github.com/decred/dcrd/tree/master/lru) - Implements a generic
