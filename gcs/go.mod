@@ -4,17 +4,9 @@ go 1.13
 
 require (
 	github.com/dchest/siphash v1.2.2
-	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20210906140327-598bf66f24a6
+	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
-)
-
-replace (
-	github.com/decred/dcrd/blockchain/stake/v4 => ../blockchain/stake
-	github.com/decred/dcrd/database/v3 => ../database
-	github.com/decred/dcrd/dcrec/secp256k1/v4 => ../dcrec/secp256k1
-	github.com/decred/dcrd/dcrutil/v4 => ../dcrutil
-	github.com/decred/dcrd/txscript/v4 => ../txscript
 )
