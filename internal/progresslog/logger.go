@@ -63,6 +63,8 @@ func New(progressAction string, logger slog.Logger) *Logger {
 //  ({numTxs} {transactions|transaction}, {numTickets} {tickets|ticket},
 //  {numVotes} {votes|vote}, {numRevocations} {revocations|revocation},
 //  height {lastBlockHeight}, progress {progress}%)
+//
+// This function is safe for concurrent access.
 func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool, progressFn func() float64) {
 	l.Lock()
 	defer l.Unlock()
@@ -108,7 +110,12 @@ func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool, progressFn fun
 // The progress message is templated as follows:
 //  {progressAction} {numProcessed} {headers|header} in the last {timePeriod}
 //  (progress {progress}%)
+//
+// This function is safe for concurrent access.
 func (l *Logger) LogHeaderProgress(processedHeaders uint64, forceLog bool, progressFn func() float64) {
+	l.Lock()
+	defer l.Unlock()
+
 	l.receivedHeaders += processedHeaders
 
 	now := time.Now()
@@ -128,6 +135,8 @@ func (l *Logger) LogHeaderProgress(processedHeaders uint64, forceLog bool, progr
 }
 
 // SetLastLogTime updates the last time data was logged to the provided time.
+//
+// This function is safe for concurrent access.
 func (l *Logger) SetLastLogTime(time time.Time) {
 	l.Lock()
 	l.lastLogTime = time
