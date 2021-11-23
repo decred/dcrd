@@ -51,7 +51,7 @@ const (
 	// aforementioned 117 max inbound connections while still providing for the
 	// possibility of a few happenstance malicious outbound connections as well.
 	//
-	// It's also worth noting that even if attackers were to manage to exceeed
+	// It's also worth noting that even if attackers were to manage to exceed
 	// the configured value, the result is not catastrophic as it would only
 	// result in increased bandwidth usage versus not exceeding it.
 	//
@@ -1122,7 +1122,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// Ultimately, it would likely be better for this functionality to be moved
 	// to the code which determines the next blocks to request based on the
 	// available headers once that code supports downloading from multiple peers
-	// and associated infrastructure to efficiently determinine which peers have
+	// and associated infrastructure to efficiently determine which peers have
 	// the associated block(s).
 	if isChainCurrent {
 		gdmsg := wire.NewMsgGetDataSizeHint(uint(len(headers)))
