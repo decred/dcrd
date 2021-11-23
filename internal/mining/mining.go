@@ -225,7 +225,7 @@ type TxDesc struct {
 }
 
 // TxAncestorStats is a descriptor that stores aggregated statistics for the
-// unconfirmed ancestors of a transasction.
+// unconfirmed ancestors of a transaction.
 type TxAncestorStats struct {
 	// Fees is the sum of all fees of unconfirmed ancestors.
 	Fees int64
