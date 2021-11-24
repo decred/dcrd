@@ -962,7 +962,7 @@ func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainPa
 //
 // The blocks that violated DCP0005 due to specifying the old version were
 // otherwise valid and are whitelisted by this function so that they will be
-// accepted when fully syncing the chain without checkpoints.
+// accepted when fully syncing the chain with assume valid disabled.
 func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, blockHash *chainhash.Hash) bool {
 	switch network {
 	case wire.MainNet:

@@ -80,18 +80,6 @@ func (b *BlockChain) maybeUpdateMostRecentCheckpoint(node *blockNode) {
 	}
 }
 
-// isKnownCheckpointAncestor determines whether the provided node is an ancestor
-// of the most recently-known checkpoint.  False is returned when no checkpoint
-// is known or checkpoints are disabled.
-//
-// This function MUST be called with the chain lock held (for reads).
-func (b *BlockChain) isKnownCheckpointAncestor(node *blockNode) bool {
-	if b.checkpointNode == nil {
-		return false
-	}
-	return node.IsAncestorOf(b.checkpointNode)
-}
-
 // isNonstandardTransaction determines whether a transaction contains any
 // scripts which are not one of the standard types.
 func isNonstandardTransaction(tx *dcrutil.Tx) bool {
