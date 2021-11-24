@@ -335,6 +335,13 @@ type Params struct {
 	// will likely be changed to only allow a single checkpoint in the future.
 	Checkpoints []Checkpoint
 
+	// AssumeValid is the hash of a block that has been externally verified to
+	// be valid.  It allows several validation checks to be skipped for blocks
+	// that are both an ancestor of the assumed valid block and an ancestor of
+	// the best header.  This is intended to be updated periodically with new
+	// releases.  It may not be set for networks that do not require it.
+	AssumeValid chainhash.Hash
+
 	// MinKnownChainWork is the minimum amount of known total work for the chain
 	// at a given point in time.  This is intended to be updated periodically
 	// with new releases.  It may be nil for networks that do not require it.

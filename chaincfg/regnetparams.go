@@ -112,6 +112,12 @@ func RegNetParams() *Params {
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints: nil,
 
+		// AssumeValid is the hash of a block that has been externally verified
+		// to be valid.
+		//
+		// Not set for regression test network since its chain is dynamic.
+		AssumeValid: chainhash.Hash{},
+
 		// MinKnownChainWork is the minimum amount of known total work for the
 		// chain at a given point in time.
 		//
