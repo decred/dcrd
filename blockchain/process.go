@@ -56,6 +56,20 @@ func (b *BlockChain) checkKnownInvalidBlock(node *blockNode) error {
 	return nil
 }
 
+// maybeUpdateAssumeValid potentially updates the assumed valid node to the
+// provided block node.
+//
+// This function MUST be called with the chain lock held (for writes).
+func (b *BlockChain) maybeUpdateAssumeValid(node *blockNode) {
+	if b.assumeValid == *zeroHash || b.assumeValid != node.hash {
+		return
+	}
+
+	b.assumeValidNode = node
+	log.Debugf("Assumed valid node updated to %s (height %d)", node.hash,
+		node.height)
+}
+
 // maybeAcceptBlockHeader potentially accepts the header to the block index and,
 // if accepted, returns the block node associated with the header.  It performs
 // several context independent checks as well as those which depend on its
@@ -135,6 +149,9 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeade
 	// Potentially update the most recently known checkpoint to this block
 	// header.
 	b.maybeUpdateMostRecentCheckpoint(newNode)
+
+	// Potentially update the assumed valid node to this block header.
+	b.maybeUpdateAssumeValid(newNode)
 
 	return newNode, nil
 }
