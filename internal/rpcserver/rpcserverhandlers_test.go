@@ -2237,10 +2237,10 @@ func TestHandleCreateRawSStx(t *testing.T) {
 func TestHandleCreateRawSSRtx(t *testing.T) {
 	t.Parallel()
 
-	defaultTxId := "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39"
+	defaultTxID := "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39"
 	defaultCmdInputs := []types.TransactionInput{{
 		Amount: 1,
-		Txid:   defaultTxId,
+		Txid:   defaultTxID,
 		Vout:   0,
 		Tree:   1,
 	}}
@@ -2378,7 +2378,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: 1,
-				Txid:   defaultTxId,
+				Txid:   defaultTxID,
 				Vout:   1,
 				Tree:   1,
 			}},
@@ -2393,7 +2393,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: 100,
-				Txid:   defaultTxId,
+				Txid:   defaultTxID,
 				Vout:   0,
 				Tree:   1,
 			}},
@@ -2464,7 +2464,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: 100,
-				Txid:   defaultTxId,
+				Txid:   defaultTxID,
 				Vout:   0,
 				Tree:   0,
 			}},
@@ -2478,7 +2478,7 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: []types.TransactionInput{{
 				Amount: math.Inf(1),
-				Txid:   defaultTxId,
+				Txid:   defaultTxID,
 				Vout:   0,
 				Tree:   1,
 			}},
