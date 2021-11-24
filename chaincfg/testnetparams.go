@@ -111,6 +111,16 @@ func TestNet3Params() *Params {
 			{803810, newHashFromStr("000000016e841f4d94c3b253bc7bdf3a13217c7f28a5935bbaec37c7752678e9")},
 		},
 
+		// AssumeValid is the hash of a block that has been externally verified
+		// to be valid.  It allows several validation checks to be skipped for
+		// blocks that are both an ancestor of the assumed valid block and an
+		// ancestor of the best header.  This is intended to be updated
+		// periodically with new releases.
+		//
+		// Block 00000000d64ceb1a686315ed56235e9a6838e3a22e9ec9bd92c2e04c09e0778b
+		// Height: 807905
+		AssumeValid: *newHashFromStr("00000000d64ceb1a686315ed56235e9a6838e3a22e9ec9bd92c2e04c09e0778b"),
+
 		// MinKnownChainWork is the minimum amount of known total work for the
 		// chain at a given point in time.  This is intended to be updated
 		// periodically with new releases.
