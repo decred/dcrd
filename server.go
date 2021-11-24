@@ -3470,6 +3470,14 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.feeEstimator = fe
 
+	// Only set the assumed valid block when checkpoints are enabled.  A new
+	// config option to disable assume valid will be introduced in a future
+	// commit and will be used instead of the disable checkpoints option.
+	var assumeValid chainhash.Hash
+	if !cfg.DisableCheckpoints {
+		assumeValid = s.chainParams.AssumeValid
+	}
+
 	// Only configure checkpoints when enabled.
 	var latestCheckpoint *chaincfg.Checkpoint
 	numCheckpoints := len(s.chainParams.Checkpoints)
@@ -3491,6 +3499,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			DB:               s.db,
 			UtxoBackend:      utxoBackend,
 			ChainParams:      s.chainParams,
+			AssumeValid:      assumeValid,
 			LatestCheckpoint: latestCheckpoint,
 			TimeSource:       s.timeSource,
 			Notifications:    s.handleBlockchainNotification,

@@ -135,6 +135,7 @@ type BlockChain struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
+	assumeValid      chainhash.Hash
 	latestCheckpoint *chaincfg.Checkpoint
 	deploymentVers   map[string]uint32
 	db               database.DB
@@ -2292,6 +2293,14 @@ type Config struct {
 	// This field is required.
 	ChainParams *chaincfg.Params
 
+	// AssumeValid is the hash of a block that has been externally verified to
+	// be valid.  It allows several validation checks to be skipped for blocks
+	// that are both an ancestor of the assumed valid block and an ancestor of
+	// the best header.
+	//
+	// This field may not be set for networks that do not require it.
+	AssumeValid chainhash.Hash
+
 	// LatestCheckpoint specifies the most recent known checkpoint that is
 	// typically the default checkpoint in ChainParams.
 	//
@@ -2371,6 +2380,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 
 	b := BlockChain{
+		assumeValid:                   config.AssumeValid,
 		latestCheckpoint:              config.LatestCheckpoint,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,
