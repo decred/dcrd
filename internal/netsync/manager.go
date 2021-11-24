@@ -179,25 +179,6 @@ type processBlockMsg struct {
 	reply chan processBlockResponse
 }
 
-// processTransactionResponse is a response sent to the reply channel of a
-// processTransactionMsg.
-type processTransactionResponse struct {
-	acceptedTxs []*dcrutil.Tx
-	err         error
-}
-
-// processTransactionMsg is a message type to be sent across the message
-// channel for requesting a transaction to be processed through the block
-// manager.
-type processTransactionMsg struct {
-	tx            *dcrutil.Tx
-	allowOrphans  bool
-	rateLimit     bool
-	allowHighFees bool
-	tag           mempool.Tag
-	reply         chan processTransactionResponse
-}
-
 // syncMgrPeer extends a peer to maintain additional state maintained by the
 // sync manager.
 type syncMgrPeer struct {
@@ -1444,14 +1425,6 @@ out:
 					err: nil,
 				}
 
-			case processTransactionMsg:
-				acceptedTxs, err := m.cfg.TxMemPool.ProcessTransaction(msg.tx,
-					msg.allowOrphans, msg.rateLimit, msg.allowHighFees, msg.tag)
-				msg.reply <- processTransactionResponse{
-					acceptedTxs: acceptedTxs,
-					err:         err,
-				}
-
 			default:
 				log.Warnf("Invalid message type in event handler: %T", msg)
 			}
@@ -1717,27 +1690,6 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 		return response.err
 	case <-m.quit:
 		return fmt.Errorf("sync manager stopped")
-	}
-}
-
-// ProcessTransaction makes use of ProcessTransaction on an internal instance of
-// a block chain.  It is funneled through the sync manager since blockchain is
-// not safe for concurrent access.
-func (m *SyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
-
-	reply := make(chan processTransactionResponse, 1)
-	select {
-	case m.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit,
-		allowHighFees, tag, reply}:
-	case <-m.quit:
-	}
-
-	select {
-	case response := <-reply:
-		return response.acceptedTxs, response.err
-	case <-m.quit:
-		return nil, fmt.Errorf("sync manager stopped")
 	}
 }
 
