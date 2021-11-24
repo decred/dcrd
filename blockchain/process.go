@@ -8,6 +8,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -23,8 +24,8 @@ type BehaviorFlags uint32
 const (
 	// BFFastAdd may be set to indicate that several checks can be avoided
 	// for the block since it is already known to fit into the chain due to
-	// already proving it correctly links into the chain up to a known
-	// checkpoint.  This is primarily used for headers-first mode.
+	// already proving it correctly links into the chain up to an assumed valid
+	// block.  This is primarily used for headers-first mode.
 	BFFastAdd BehaviorFlags = 1 << iota
 
 	// BFNoPoWCheck may be set to indicate the proof of work check which
@@ -68,6 +69,53 @@ func (b *BlockChain) maybeUpdateAssumeValid(node *blockNode) {
 	b.assumeValidNode = node
 	log.Debugf("Assumed valid node updated to %s (height %d)", node.hash,
 		node.height)
+}
+
+// isAssumeValidAncestor determines whether the provided node is both an
+// ancestor of the assumed valid node and an ancestor of the best header.  False
+// is returned when the assumed valid node has not been discovered or when
+// assume valid is disabled.
+//
+// Note: The assumed valid node is clamped back as needed to ensure that it is
+// at least 2 weeks worth of blocks behind the best header.  This protects
+// against malicious actors trying to play games by tricking users into using an
+// assumed valid hash near the tip.
+//
+// This function MUST be called with the chain lock held (for reads).
+func (b *BlockChain) isAssumeValidAncestor(node *blockNode) bool {
+	// Return false immediately if the assumed valid node is not set.
+	if b.assumeValidNode == nil {
+		return false
+	}
+
+	// Return false if the node is not an ancestor of the best header.
+	b.index.RLock()
+	bestHeader := b.index.bestHeader
+	b.index.RUnlock()
+	if !node.IsAncestorOf(bestHeader) {
+		return false
+	}
+
+	// Calculate the expected number of blocks in 2 weeks.
+	const timeInTwoWeeks = time.Hour * 24 * 14
+	targetTimePerBlock := b.chainParams.TargetTimePerBlock
+	expectedBlocksInTwoWeeks := int64(timeInTwoWeeks / targetTimePerBlock)
+
+	// Return false if the best header height is less than the number of blocks
+	// expected in 2 weeks.
+	if bestHeader.height < expectedBlocksInTwoWeeks {
+		return false
+	}
+
+	// Clamp the assumed valid node back as needed to ensure that it is at least
+	// 2 weeks worth of blocks behind the best header.
+	assumeValidNode := b.assumeValidNode
+	clampToHeight := bestHeader.height - expectedBlocksInTwoWeeks
+	if assumeValidNode.height > clampToHeight {
+		assumeValidNode = assumeValidNode.Ancestor(clampToHeight)
+	}
+
+	return node.IsAncestorOf(assumeValidNode)
 }
 
 // maybeAcceptBlockHeader potentially accepts the header to the block index and,
@@ -441,9 +489,10 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 	}
 
 	// Enable skipping some of the more expensive validation checks when the
-	// block is an ancestor of a known good checkpoint.
+	// block is both an ancestor of the assumed valid block and an ancestor of
+	// the best header.
 	flags := BFNone
-	if b.bulkImportMode || b.isKnownCheckpointAncestor(node) {
+	if b.bulkImportMode || b.isAssumeValidAncestor(node) {
 		b.index.SetStatusFlags(node, statusValidated)
 		flags |= BFFastAdd
 	}
