@@ -3807,15 +3807,14 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		}
 	}
 
-	// Don't run scripts if this node is before the latest known good
-	// checkpoint since the validity is verified via the checkpoints (all
-	// transactions are included in the merkle root hash and any changes
-	// will therefore be detected by the next checkpoint).  This is a huge
-	// optimization because running the scripts is the most time consuming
-	// portion of block handling.
-	checkpoint := b.LatestCheckpoint()
+	// Don't run scripts if this node is both an ancestor of the assumed valid
+	// block and an ancestor of the best header since the validity is verified
+	// via the assumed valid node (all transactions are included in the merkle
+	// root hash and any changes will therefore be detected by the assumed valid
+	// node).  This is a huge optimization because running the scripts is the
+	// most time consuming portion of block handling.
 	runScripts := !b.noVerify
-	if checkpoint != nil && node.height <= checkpoint.Height {
+	if b.isAssumeValidAncestor(node) {
 		runScripts = false
 	}
 	var scriptFlags txscript.ScriptFlags
