@@ -351,7 +351,8 @@ func (b *rpcSyncMgr) SyncHeight() int64 {
 // into the memory pool.
 func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
-	return b.syncMgr.ProcessTransaction(tx, allowOrphans,
+
+	return b.server.txMemPool.ProcessTransaction(tx, allowOrphans,
 		rateLimit, allowHighFees, tag)
 }
 
