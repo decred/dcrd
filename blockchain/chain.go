@@ -204,6 +204,11 @@ type BlockChain struct {
 	disapprovedViewLock sync.Mutex
 	disapprovedView     *UtxoViewpoint
 
+	// assumeValidNode tracks the assumed valid block.  It will be nil when a
+	// block header with the assumed valid block hash has not been discovered or
+	// when assume valid is disabled.  It is protected by the chain lock.
+	assumeValidNode *blockNode
+
 	// checkpointNode tracks the most recently known checkpoint.  It will be nil
 	// when no checkpoints are known or are disabled.  It is protected by the
 	// chain lock.

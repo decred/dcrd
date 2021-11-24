@@ -1479,6 +1479,16 @@ func (b *BlockChain) initChainState(ctx context.Context,
 			}
 		}
 
+		// Find the assumed valid node.
+		if b.assumeValid != *zeroHash {
+			node := b.index.lookupNode(&b.assumeValid)
+			if node != nil {
+				log.Debugf("Assumed valid node is %s (height %d)", node.hash,
+					node.height)
+				b.assumeValidNode = node
+			}
+		}
+
 		b.stateSnapshot = newBestState(tip, blockSize, numTxns,
 			state.totalTxns, tip.CalcPastMedianTime(),
 			state.totalSubsidy, uint32(tip.stakeNode.PoolSize()),
