@@ -121,6 +121,11 @@ Application Options:
                                unless you know what you're doing
       --dumpblockchain=        Write blockchain as a flat file of blocks for use
                                with addblock, to the specified filename
+      --assumevalid=           Hash of an assumed valid block. Defaults to the
+                               hard-coded assumed valid block that is updated
+                               periodically with new releases. Don't use a
+                               different hash unless you understand the
+                               implications. Set to 0 to disable
       --minrelaytxfee=         The minimum transaction fee in DCR/kB to be
                                considered a non-zero fee (default: 0.0001)
       --limitfreerelay=        Limit relay of transactions with no transaction

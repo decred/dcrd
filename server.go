@@ -3470,12 +3470,24 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.feeEstimator = fe
 
-	// Only set the assumed valid block when checkpoints are enabled.  A new
-	// config option to disable assume valid will be introduced in a future
-	// commit and will be used instead of the disable checkpoints option.
+	// Set assume valid when enabled.
 	var assumeValid chainhash.Hash
-	if !cfg.DisableCheckpoints {
+	if cfg.AssumeValid != "0" {
+		// Default assume valid to the value specified by chain params.
 		assumeValid = s.chainParams.AssumeValid
+
+		// Override assume valid if specified by the config option.
+		if cfg.AssumeValid != "" {
+			hash, err := chainhash.NewHashFromStr(cfg.AssumeValid)
+			if err != nil {
+				err = fmt.Errorf("invalid hex for --assumevalid: %w", err)
+				return nil, err
+			}
+			assumeValid = *hash
+			srvrLog.Infof("Assume valid set to %v", assumeValid)
+		}
+	} else {
+		srvrLog.Info("Assume valid is disabled")
 	}
 
 	// Only configure checkpoints when enabled.
