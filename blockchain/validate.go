@@ -3814,7 +3814,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// node).  This is a huge optimization because running the scripts is the
 	// most time consuming portion of block handling.
 	runScripts := !b.noVerify
-	if b.isAssumeValidAncestor(node) {
+	if b.bulkImportMode || b.isAssumeValidAncestor(node) {
 		runScripts = false
 	}
 	var scriptFlags txscript.ScriptFlags
