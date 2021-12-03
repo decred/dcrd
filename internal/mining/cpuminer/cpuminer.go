@@ -109,6 +109,11 @@ type Config struct {
 	// not current since any solved blocks would be on a side chain and
 	// up orphaned anyways.
 	IsCurrent func() bool
+
+	// IsKnownInvalidBlock defines the function to use to obtain whether or
+	// not either the provided block is itself known to be invalid or is
+	// known to have an invalid ancestor.
+	IsKnownInvalidBlock func(*chainhash.Hash) bool
 }
 
 // CPUMiner provides facilities for solving blocks (mining) using the CPU in a
@@ -131,7 +136,6 @@ type CPUMiner struct {
 	cfg               *Config
 	normalMining      bool
 	discreteMining    bool
-	discretePrevHash  chainhash.Hash
 	submitBlockLock   sync.Mutex
 	wg                sync.WaitGroup
 	workerWg          sync.WaitGroup
@@ -139,6 +143,18 @@ type CPUMiner struct {
 	queryHashesPerSec chan float64
 	speedStats        speedStats
 	quit              chan struct{}
+
+	// These fields are used to provide a better user experience for the
+	// discrete mining process used in testing.  They are protected by the
+	// embedded mutex.
+	//
+	// discretePrevHash is the hash of the parent of the block that was most
+	// recently submitted by the discrete mining process.
+	//
+	// discreteBlockHash is the hash of the block that was most recently
+	// submitted by the discrete mining process.
+	discretePrevHash  chainhash.Hash
+	discreteBlockHash chainhash.Hash
 
 	// This is a map that keeps track of how many blocks have
 	// been mined on each parent by the CPUMiner. It is only
@@ -710,11 +726,17 @@ out:
 		// Since callers might call this method in rapid succession and the
 		// subscription immediately sends the current template, the template
 		// might not have been updated yet (for example, it might be waiting on
-		// votes).  In that case, wait for the updated template.
+		// votes).  In that case, wait for the updated template.  However, allow
+		// the current template anyway when the block previously mined via this
+		// process is no longer valid, most likely as the result of manual
+		// invalidation.
 		m.Lock()
 		discretePrev := m.discretePrevHash
+		discreteBlockHash := m.discreteBlockHash
 		m.Unlock()
-		if templateNtfn.Template.Block.Header.PrevBlock == discretePrev {
+		if templateNtfn.Template.Block.Header.PrevBlock == discretePrev &&
+			!m.cfg.IsKnownInvalidBlock(&discreteBlockHash) {
+
 			continue
 		}
 
@@ -739,6 +761,7 @@ out:
 			if m.submitBlock(block) {
 				m.Lock()
 				m.discretePrevHash = shallowBlockCopy.Header.PrevBlock
+				m.discreteBlockHash = *block.Hash()
 				m.Unlock()
 				blockHashes = append(blockHashes, block.Hash())
 			}

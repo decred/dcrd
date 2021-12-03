@@ -248,3 +248,22 @@ func (b *BlockChain) VerifyProgress() float64 {
 	tip := b.bestChain.Tip()
 	return math.Min(float64(tip.height)/float64(bestHdr.height), 1.0) * 100
 }
+
+// IsKnownInvalidBlock returns whether either the provided block is itself known
+// to be invalid or to have an invalid ancestor.  A return value of false in no
+// way implies the block is valid or only has valid ancestors.  Thus, this will
+// return false for invalid blocks that have not been proven invalid yet as well
+// as return false for blocks with invalid ancestors that have not been proven
+// invalid yet.
+//
+// It will also return false when the provided block is unknown.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsKnownInvalidBlock(hash *chainhash.Hash) bool {
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return false
+	}
+
+	return b.index.NodeStatus(node).KnownInvalid()
+}
