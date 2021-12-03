@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -1876,4 +1877,198 @@ func TestInvalidateReconsider(t *testing.T) {
 	g.ExpectBestHeader("b11")
 	g.ExpectBestInvalidHeader("b9c")
 	g.ExpectIsCurrent(true)
+}
+
+// TestAssumeValid validates that it is correctly determined whether or not a
+// node is an ancestor of an assumed valid node under a variety of conditions.
+func TestAssumeValid(t *testing.T) {
+	// Clone the parameters so that they can be mutated.
+	params := cloneParams(quickVoteActivationParams())
+	stakeValidationHeight := params.StakeValidationHeight
+
+	// Set the target time per block to 1 day so that less blocks are needed to
+	// test against a 2 week threshold.
+	params.TargetTimePerBlock = time.Hour * 24
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "testassumevalid")
+	defer teardownFunc()
+
+	// Calculate the expected number of blocks in 2 weeks.
+	const timeInTwoWeeks = time.Hour * 24 * 14
+	targetTimePerBlock := params.TargetTimePerBlock
+	expectedBlocksInTwoWeeks := int64(timeInTwoWeeks / targetTimePerBlock)
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AssertTipHeight(uint32(stakeValidationHeight))
+
+	// ---------------------------------------------------------------------
+	// Generate additional blocks until there is 1 less than the number of
+	// blocks expected in 2 weeks.
+	// ---------------------------------------------------------------------
+
+	numBlocksToGen := expectedBlocksInTwoWeeks - stakeValidationHeight - 1
+	i := int64(0)
+	for ; i < numBlocksToGen; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bbav%d", i)
+		g.NextBlock(blockName, nil, outs[1:])
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+	g.AssertTipHeight(uint32(expectedBlocksInTwoWeeks - 1))
+
+	// Set the assumed valid node to the tip.
+	tipHash := &g.chain.BestSnapshot().Hash
+	assumeValidNode := g.chain.index.LookupNode(tipHash)
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The tip height is less than the number of blocks expected in 2 weeks
+	node := assumeValidNode.parent
+	if g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return false since the " +
+			"tip height is less than the number of blocks expected in 2 weeks")
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate an additional block so that there is exactly the number of
+	// blocks expected in 2 weeks.
+	// ---------------------------------------------------------------------
+
+	outs := g.OldestCoinbaseOuts()
+	blockName := fmt.Sprintf("bbav%d", i)
+	g.NextBlock(blockName, nil, outs[1:])
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	i++
+	g.AssertTipHeight(uint32(expectedBlocksInTwoWeeks))
+
+	// Set the assumed valid node to the tip.
+	tipHash = &g.chain.BestSnapshot().Hash
+	assumeValidNode = g.chain.index.LookupNode(tipHash)
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The assumed valid node is clamped back to be 2 weeks behind the tip
+	//   - The node that is only 1 block behind the assumed valid node is not an
+	//     ancestor of the clamped back assumed valid node
+	node = assumeValidNode.parent
+	if g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return false since the " +
+			"node is not an ancestor of the clamped back assumed valid node")
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate an additional 2 weeks worth of blocks + 2.  In addition to
+	// the main chain, generate a side chain of the same length.
+	// ---------------------------------------------------------------------
+	bestSideBlockName := g.TipName()
+	numBlocksToGen = i + expectedBlocksInTwoWeeks + 2
+	for ; i < numBlocksToGen; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bbav%d", i)
+		g.NextBlock(blockName, nil, outs[1:])
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		tipName := g.TipName()
+
+		g.SetTip(bestSideBlockName)
+		bestSideBlockName = fmt.Sprintf("bbava%d", i)
+		g.NextBlock(bestSideBlockName, nil, outs[1:])
+		g.AcceptedToSideChainWithExpectedTip(tipName)
+		g.SetTip(tipName)
+	}
+	g.AssertTipHeight(2*uint32(expectedBlocksInTwoWeeks) + 2)
+
+	// Set the assumed valid node to 2 weeks - 1 block behind the best side
+	// chain block.
+	sideBlockHash := g.BlockByName(bestSideBlockName).BlockHash()
+	sideNode := g.chain.index.LookupNode(&sideBlockHash)
+	assumeValidNode = sideNode.RelativeAncestor(expectedBlocksInTwoWeeks - 1)
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The node is not an ancestor of the best header
+	if g.chain.isAssumeValidAncestor(assumeValidNode) {
+		t.Fatal("expected isAssumeValidAncestor to return false when the " +
+			"node is not an ancestor of the best header")
+	}
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The node is an ancestor of the best header, and is at a height below
+	//     the clamped back height, but is not an ancestor of the assumed valid
+	//     block
+	tipHash = &g.chain.BestSnapshot().Hash
+	tip := g.chain.index.LookupNode(tipHash)
+	node = tip.RelativeAncestor(expectedBlocksInTwoWeeks + 1)
+	if g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return false when the " +
+			"node is not an ancestor of the assumed valid block")
+	}
+
+	// Set the assumed valid node to 2 weeks - 1 block behind the tip
+	assumeValidNode = tip.RelativeAncestor(expectedBlocksInTwoWeeks - 1)
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The assumed valid node is 2 weeks - 1 block behind the tip
+	//   - The assumed valid node is not an ancestor of the clamped back assumed
+	//     valid node
+	if g.chain.isAssumeValidAncestor(assumeValidNode) {
+		t.Fatal("expected isAssumeValidAncestor to return false when the " +
+			"assumed valid node is 2 weeks - 1 block behind the tip")
+	}
+
+	// Validate that isAssumeValidAncestor returns true for this scenario:
+	//   - The assumed valid node is 2 weeks - 1 block behind the tip
+	//   - The node that is 1 block behind the assumed valid node is an ancestor
+	//     of the clamped back assumed valid node
+	node = assumeValidNode.parent
+	if !g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return true when the " +
+			"assumed valid node is 2 weeks - 1 block behind the tip and the " +
+			"node is an ancestor of the clamped back assumed valid node")
+	}
+
+	// Set the assumed valid node to its parent so that it is exactly 2 weeks
+	// behind the tip.
+	assumeValidNode = assumeValidNode.parent
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns true for this scenario:
+	//   - The assumed valid node is exactly 2 weeks behind the tip
+	node = assumeValidNode.parent
+	if !g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return true when the " +
+			"assumed valid node is exactly 2 weeks behind the tip")
+	}
+
+	// Set the assumed valid node to its parent so that it is 2 weeks + 1 block
+	// behind the tip.
+	assumeValidNode = assumeValidNode.parent
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns true for this scenario:
+	//   - The assumed valid node is 2 weeks + 1 block behind the tip
+	node = assumeValidNode.parent
+	if !g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return true when the " +
+			"assumed valid node is 2 weeks + 1 block behind the tip")
+	}
+
+	// Set the assumed valid node to nil.
+	assumeValidNode = nil
+	g.chain.assumeValidNode = assumeValidNode
+
+	// Validate that isAssumeValidAncestor returns false for this scenario:
+	//   - The assumed valid node is nil
+	if g.chain.isAssumeValidAncestor(node) {
+		t.Fatal("expected isAssumeValidAncestor to return false when the " +
+			"assumed valid node is nil")
+	}
 }
