@@ -285,25 +285,25 @@ other issues, PRs, or discussion threads.
 
 ### 4.5 Handling Module Breaking Changes
 
-Pull requests that introduce breaking changes to modules must ensure dependent 
-modules on the change are updated to referrence newly bumped module versions.  
-The purpose of this is to improve the release process by handling version 
-updates with the pull request that introduces it instead of waiting until 
-release.
+Pull requests that introduce breaking changes to modules must ensure that
+modules that depend on the change are updated to reference newly bumped module
+versions.  The purpose of this is to improve the release process by handling
+version updates with the pull request that introduces it instead of waiting
+until release.
 
-The request submitter should ensure the following steps are covered whenever a 
+The request submitter should ensure the following steps are covered whenever a
 new breaking change to a module's API is introduced:
 
-- Bump the major version in the `go.mod` of the affected module if not already 
-  done since the last release tag. Note that v1 modules are stablilized even 
-  without a release, breaking changes to such modules will require a major 
+- Bump the major version in the `go.mod` of the affected module if not already
+  done since the last release tag. Note that v1 modules are stabilized even
+  without a release, breaking changes to such modules will require a major
   version bump as well.
-- Add a replacement to the `go.mod` in the main module if not already done since 
+- Add a replacement to the `go.mod` in the main module if not already done since
   the last release tag.
 - Update all imports in the repo to use the new major version as necessary.
-  - Make necessary modifications to allow all other modules to use the new 
+  - Make necessary modifications to allow all other modules to use the new
   version in the same commit.
-- Repeat the process for any other modules the require a new major as a result 
+- Repeat the process for any other modules the require a new major as a result
   of consuming the new major(s).
 
 <a name="CodeApproval" />

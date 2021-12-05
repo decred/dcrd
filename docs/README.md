@@ -204,7 +204,7 @@ The following versioned modules are provided by dcrd repository:
   Decred-specific convenience functions and types
 * [chaincfg/v3](https://github.com/decred/dcrd/tree/master/chaincfg) - Defines
   chain configuration parameters for the standard Decred networks and allows
-  callers to define their own custom Decred networks for testing puproses
+  callers to define their own custom Decred networks for testing purposes
   * [chainhash](https://github.com/decred/dcrd/tree/master/chaincfg/chainhash) -
     Provides a generic hash type and associated functions that allows the
     specific hash algorithm to be abstracted
