@@ -28,6 +28,7 @@ digraph {
 	peer [label="peer/v3" fillcolor=khaki]
 	rpcclient [label="rpcclient/v6" fillcolor=mediumseagreen]
 	apbf [label="container/apbf" fillcolor=goldenrod]
+	uint256  [label="math/uint256" fillcolor=lightgreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same blake256 chainhash}
@@ -72,4 +73,5 @@ digraph {
 	rpcclient -> dcrd [dir=back color=mediumseagreen]
 	peer -> dcrd [dir=back color=khaki]
 	apbf -> dcrd [dir=back color=goldenrod]
+	uint256 -> dcrd [dir=back color=lightgreen]
 }
