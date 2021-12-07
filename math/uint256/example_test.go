@@ -7,7 +7,7 @@ package uint256_test
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/internal/staging/primitives/uint256"
+	"github.com/decred/dcrd/math/uint256"
 )
 
 // This example demonstrates calculating the result of dividing a max unsigned
