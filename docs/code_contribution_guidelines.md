@@ -8,6 +8,7 @@
 4.3. [Code Documentation and Commenting](#CodeDocumentation)<br />
 4.4. [Model Git Commit Messages](#ModelGitCommitMessages)<br />
 4.5. [Handling Module Breaking Changes](#HandlingModuleBreakingChanges)<br />
+4.6. [Maximum Line Length and Wrapping](#MaximumLineLengthAndWrapping)<br />
 5. [Code Approval Process](#CodeApproval)<br />
 5.1 [Code Review](#CodeReview)<br />
 5.2 [Rework Code (if needed)](#CodeRework)<br />
@@ -305,6 +306,14 @@ new breaking change to a module's API is introduced:
   version in the same commit.
 - Repeat the process for any other modules the require a new major as a result
   of consuming the new major(s).
+
+<a name="MaximumLineLengthAndWrapping" />
+
+### 4.6 Maximum Line Length and Wrapping
+
+Lines are generally wrapped at 80 columns, with tabs counted as 4 columns,
+unless it makes sense to be longer for readability purposes.  This is a
+guideline for consistency among contributors and is not strictly enforced.
 
 <a name="CodeApproval" />
 
