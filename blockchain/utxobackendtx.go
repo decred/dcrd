@@ -35,20 +35,22 @@ type UtxoBackendTx interface {
 	// It is safe to modify the slice passed as an argument after Has returns.
 	Has(key []byte) (bool, error)
 
-	// Put sets the value for the given key.  It overwrites any previous value for
-	// that key.
+	// Put sets the value for the given key.  It overwrites any previous value
+	// for that key.
 	//
 	// It is safe to modify the slice passed as an argument after Put returns.
 	Put(key, value []byte) error
 
 	// Delete removes the given key.
 	//
-	// It is safe to modify the slice passed as an argument after Delete returns.
+	// It is safe to modify the slice passed as an argument after Delete
+	// returns.
 	Delete(key []byte) error
 
-	// NewIterator returns an iterator for the latest snapshot of the transaction.
-	// The returned iterator is NOT safe for concurrent use, but it is safe to use
-	// multiple iterators concurrently, with each in a dedicated goroutine.
+	// NewIterator returns an iterator for the latest snapshot of the
+	// transaction.  The returned iterator is NOT safe for concurrent use, but
+	// it is safe to use multiple iterators concurrently, with each in a
+	// dedicated goroutine.
 	//
 	// The prefix parameter allows for slicing the iterator to only contain keys
 	// with the given prefix.  A nil prefix is treated as a key BEFORE all keys.
@@ -59,8 +61,8 @@ type UtxoBackendTx interface {
 	// The iterator must be released after use, by calling the Release method.
 	NewIterator(prefix []byte) UtxoBackendIterator
 
-	// Commit commits the transaction.  If the returned error is not nil, then the
-	// transaction is not committed and can either be retried or discarded.
+	// Commit commits the transaction.  If the returned error is not nil, then
+	// the transaction is not committed and can either be retried or discarded.
 	//
 	// Other methods should not be called after the transaction has been
 	// committed.
@@ -121,8 +123,8 @@ func (tx *levelDbUtxoBackendTx) Has(key []byte) (bool, error) {
 func (tx *levelDbUtxoBackendTx) Put(key, value []byte) error {
 	err := tx.Transaction.Put(key, value, nil)
 	if err != nil {
-		str := fmt.Sprintf("failed to put key %x (value %x) to leveldb transaction",
-			key, value)
+		str := fmt.Sprintf("failed to put key %x (value %x) to leveldb "+
+			"transaction", key, value)
 		return convertLdbErr(err, str)
 	}
 	return nil
@@ -134,7 +136,8 @@ func (tx *levelDbUtxoBackendTx) Put(key, value []byte) error {
 func (tx *levelDbUtxoBackendTx) Delete(key []byte) error {
 	err := tx.Transaction.Delete(key, nil)
 	if err != nil {
-		str := fmt.Sprintf("failed to delete key %x from leveldb transaction", key)
+		str := fmt.Sprintf("failed to delete key %x from leveldb transaction",
+			key)
 		return convertLdbErr(err, str)
 	}
 	return nil

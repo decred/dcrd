@@ -64,9 +64,9 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	}
 
 	// Update existing entries.  All fields are updated because it's possible
-	// (although extremely unlikely) that the existing entry is being replaced by
-	// a different transaction with the same hash.  This is allowed so long as the
-	// previous transaction is fully spent.
+	// (although extremely unlikely) that the existing entry is being replaced
+	// by a different transaction with the same hash.  This is allowed so long
+	// as the previous transaction is fully spent.
 	entry := view.LookupEntry(outpoint)
 	if entry == nil {
 		entry = new(UtxoEntry)
@@ -88,8 +88,9 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	// Deep copy the script.  This is required since the tx out script is a
 	// subslice of the overall contiguous buffer that the msg tx houses for all
 	// scripts within the tx.  It is deep copied here since this entry may be
-	// added to the utxo cache, and we don't want the utxo cache holding the entry
-	// to prevent all of the other tx scripts from getting garbage collected.
+	// added to the utxo cache, and we don't want the utxo cache holding the
+	// entry to prevent all of the other tx scripts from getting garbage
+	// collected.
 	scriptLen := len(txOut.PkScript)
 	if scriptLen != 0 {
 		entry.pkScript = make([]byte, scriptLen)
@@ -123,9 +124,9 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
 
 	// Update existing entries.  All fields are updated because it's possible
-	// (although extremely unlikely) that the existing entry is being replaced by
-	// a different transaction with the same hash.  This is allowed so long as the
-	// previous transaction is fully spent.
+	// (although extremely unlikely) that the existing entry is being replaced
+	// by a different transaction with the same hash.  This is allowed so long
+	// as the previous transaction is fully spent.
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Index: txOutIdx, Tree: tree}
 	txOut := msgTx.TxOut[txOutIdx]
 	var ticketMinOuts *ticketMinimalOutputs
@@ -135,7 +136,8 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 		}
 		putTxToMinimalOutputs(ticketMinOuts.data, tx)
 	}
-	view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex, ticketMinOuts)
+	view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex,
+		ticketMinOuts)
 }
 
 // AddTxOuts adds all outputs in the passed transaction which are not provably
@@ -162,10 +164,10 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 	// provably unspendable.
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
 	for txOutIdx, txOut := range msgTx.TxOut {
-		// Update existing entries.  All fields are updated because it's possible
-		// (although extremely unlikely) that the existing entry is being replaced
-		// by a different transaction with the same hash.  This is allowed so long
-		// as the previous transaction is fully spent.
+		// Update existing entries.  All fields are updated because it's
+		// possible (although extremely unlikely) that the existing entry is
+		// being replaced by a different transaction with the same hash.  This
+		// is allowed so long as the previous transaction is fully spent.
 		outpoint.Index = uint32(txOutIdx)
 		var ticketMinOuts *ticketMinimalOutputs
 		if isTicketSubmissionOutput(txType, uint32(txOutIdx)) {
@@ -248,8 +250,8 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 			continue
 		}
 
-		// Ensure the referenced utxo exists in the view.  This should never happen
-		// unless there is a bug is introduced in the code.
+		// Ensure the referenced utxo exists in the view.  This should never
+		// happen unless there is a bug is introduced in the code.
 		entry := view.entries[txIn.PreviousOutPoint]
 		if entry == nil {
 			return AssertError(fmt.Sprintf("view missing input %v",
@@ -274,8 +276,8 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 		}
 
 		// Mark the entry as spent.  This is not done until after the relevant
-		// details have been accessed since spending it might clear the fields from
-		// memory in the future.
+		// details have been accessed since spending it might clear the fields
+		// from memory in the future.
 		entry.Spend()
 	}
 
@@ -296,8 +298,8 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 
 	// Choose which transaction tree to use and the appropriate offset into the
 	// spent transaction outputs that corresponds to them depending on the flag.
-	// Transactions in the stake tree are spent before transactions in the regular
-	// tree, thus skip all of the outputs spent by the regular tree when
+	// Transactions in the stake tree are spent before transactions in the
+	// regular tree, thus skip all of the outputs spent by the regular tree when
 	// disconnecting stake transactions.
 	stxoIdx := len(stxos) - 1
 	transactions := block.Transactions()
@@ -333,12 +335,12 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 		isCoinBase := !stakeTree && txIdx == 0
 		hasExpiry := msgTx.Expiry != wire.NoExpiryValue
 
-		// It is instructive to note that there is no practical difference between
-		// a utxo that does not exist and one that has been spent with a pruned
-		// utxo set. So, even though the outputs here technically no longer exist,
-		// any missing entries are added to the view and marked spent because the
-		// code relies on their existence in the view in order to signal
-		// modifications have happened.
+		// It is instructive to note that there is no practical difference
+		// between a utxo that does not exist and one that has been spent with a
+		// pruned utxo set. So, even though the outputs here technically no
+		// longer exist, any missing entries are added to the view and marked
+		// spent because the code relies on their existence in the view in order
+		// to signal modifications have happened.
 		outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
 		for txOutIdx, txOut := range msgTx.TxOut {
 			// Don't add provably unspendable outputs.
@@ -355,15 +357,16 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 					blockIndex:    uint32(txIdx),
 					scriptVersion: txOut.Version,
 					state:         utxoStateModified,
-					packedFlags:   encodeUtxoFlags(isCoinBase, hasExpiry, txType),
+					packedFlags: encodeUtxoFlags(isCoinBase, hasExpiry,
+						txType),
 				}
 
-				// Deep copy the script.  This is required since the tx out script is a
-				// subslice of the overall contiguous buffer that the msg tx houses for
-				// all scripts within the tx.  It is deep copied here since this entry
-				// may be added to the utxo cache, and we don't want the utxo cache
-				// holding the entry to prevent all of the other tx scripts from getting
-				// garbage collected.
+				// Deep copy the script.  This is required since the tx out
+				// script is a subslice of the overall contiguous buffer that
+				// the msg tx houses for all scripts within the tx.  It is deep
+				// copied here since this entry may be added to the utxo cache,
+				// and we don't want the utxo cache holding the entry to prevent
+				// all of the other tx scripts from getting garbage collected.
 				scriptLen := len(txOut.PkScript)
 				if scriptLen != 0 {
 					entry.pkScript = make([]byte, scriptLen)
@@ -385,8 +388,8 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 
 		// Loop backwards through all of the transaction inputs (except for the
 		// coinbase and treasurybase which have no inputs) and unspend the
-		// referenced txos.  This is necessary to match the order of the spent txout
-		// entries.
+		// referenced txos.  This is necessary to match the order of the spent
+		// txout entries.
 		if isCoinBase || isTreasuryBase || isTSpend {
 			continue
 		}
@@ -396,14 +399,14 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 				continue
 			}
 
-			// Ensure the spent txout index is decremented to stay in sync with the
-			// transaction input.
+			// Ensure the spent txout index is decremented to stay in sync with
+			// the transaction input.
 			stxo := &stxos[stxoIdx]
 			stxoIdx--
 
-			// When there is not already an entry for the referenced output in the
-			// view, it means it was previously spent, so create a new utxo entry in
-			// order to resurrect it.
+			// When there is not already an entry for the referenced output in
+			// the view, it means it was previously spent, so create a new utxo
+			// entry in order to resurrect it.
 			txIn := msgTx.TxIn[txInIdx]
 			entry := view.entries[txIn.PreviousOutPoint]
 			if entry == nil {
@@ -415,8 +418,8 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 					blockIndex:    stxo.blockIndex,
 					scriptVersion: stxo.scriptVersion,
 					state:         utxoStateModified,
-					packedFlags: encodeUtxoFlags(stxo.IsCoinBase(), stxo.HasExpiry(),
-						stxo.TransactionType()),
+					packedFlags: encodeUtxoFlags(stxo.IsCoinBase(),
+						stxo.HasExpiry(), stxo.TransactionType()),
 				}
 
 				view.entries[txIn.PreviousOutPoint] = entry
@@ -871,8 +874,9 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	}
 
 	// Create a set of needed transactions based on those referenced by the
-	// inputs of the passed transaction.  Also, add the outputs of the transaction
-	// as a way for the caller to detect duplicates that are not fully spent.
+	// inputs of the passed transaction.  Also, add the outputs of the
+	// transaction as a way for the caller to detect duplicates that are not
+	// fully spent.
 	filteredSet := make(ViewFilteredSet)
 	msgTx := tx.MsgTx()
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,

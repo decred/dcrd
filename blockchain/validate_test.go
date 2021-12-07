@@ -1362,12 +1362,12 @@ func TestCalcTicketReturnAmounts(t *testing.T) {
 	t.Parallel()
 
 	// Default header bytes for tests.
-	prevHeaderBytes, _ := hex.DecodeString("07000000dc02335daa073d293e1b150648f" +
-		"0444a60b9c97604abd01e00000000000000003c449b2321c4bd0d1fa76ed59f80ebaf46f" +
-		"16cfb2d17ba46948f09f21861095566482410a463ed49473c27278cd7a2a3712a3b19ff1" +
-		"f6225717d3eb71cc2b5590100012c7312a3c30500050095a100000cf42418f1820a87030" +
-		"0000020a10700091600005b32a55f5bcce31078832100007469943958002e00000000000" +
-		"0000000000000000000000000000007000000")
+	prevHeaderBytes, _ := hex.DecodeString("07000000dc02335daa073d293e1b15064" +
+		"8f0444a60b9c97604abd01e00000000000000003c449b2321c4bd0d1fa76ed59f80e" +
+		"baf46f16cfb2d17ba46948f09f21861095566482410a463ed49473c27278cd7a2a37" +
+		"12a3b19ff1f6225717d3eb71cc2b5590100012c7312a3c30500050095a100000cf42" +
+		"418f1820a870300000020a10700091600005b32a55f5bcce31078832100007469943" +
+		"958002e000000000000000000000000000000000000000007000000")
 
 	// Default ticket commitment script hex for tests.
 	p2pkhCommitScriptHex := "ba76a914097e847d49c6806f6933e806a350f43b97ac70d088ac"
@@ -1644,8 +1644,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		winners:          testTicketHashes[1:6],
 		wantErr:          ErrTicketUnavailable,
 	}, {
-		name: "block contains revocation of ineligible ticket (auto revocations " +
-			"disabled)",
+		name: "block contains revocation of ineligible ticket (auto " +
+			"revocations disabled)",
 		voteTicketHashes:       testTicketHashes[:5],
 		revocationTicketHashes: testTicketHashes[5:6],
 		winners:                testTicketHashes[:5],
@@ -1691,8 +1691,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		isAutoRevocationsEnabled: true,
 	}, {
 		name: "ok with revocations for previously missed tickets, tickets " +
-			"missed this block, and tickets expired this block (auto revocations " +
-			"enabled)",
+			"missed this block, and tickets expired this block (auto " +
+			"revocations enabled)",
 		voteTicketHashes:       testTicketHashes[:3],
 		revocationTicketHashes: testTicketHashes[3:9],
 		winners:                testTicketHashes[:5],
@@ -1717,15 +1717,15 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		isAutoRevocationsEnabled: true,
 		wantErr:                  ErrInvalidSSRtx,
 	}, {
-		name: "block does not contain a revocation for ticket that is becoming " +
-			"missed as of this block (auto revocations enabled)",
+		name: "block does not contain a revocation for ticket that is " +
+			"becoming missed as of this block (auto revocations enabled)",
 		voteTicketHashes:         testTicketHashes[:4],
 		winners:                  testTicketHashes[:5],
 		isAutoRevocationsEnabled: true,
 		wantErr:                  ErrNoMissedTicketRevocation,
 	}, {
-		name: "block does not contain a revocation for ticket that is becoming " +
-			"expired as of this block (auto revocations enabled)",
+		name: "block does not contain a revocation for ticket that is " +
+			"becoming expired as of this block (auto revocations enabled)",
 		voteTicketHashes:         testTicketHashes[:5],
 		winners:                  testTicketHashes[:5],
 		expiringNextBlock:        testTicketHashes[5:6],
@@ -1734,8 +1734,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		// Use the default exists missed ticket function unless its overridden by
-		// the test.
+		// Use the default exists missed ticket function unless its overridden
+		// by the test.
 		existsMissedTicketFunc := defaultExistsMissedTicket
 		if test.existsMissedTicket != nil {
 			existsMissedTicketFunc = test.existsMissedTicket
@@ -1750,8 +1750,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		// Validate that the expected error was returned for negative tests.
 		if test.wantErr != nil {
 			if !errors.Is(err, test.wantErr) {
-				t.Errorf("%q: mismatched error -- got %T, want %T", test.name, err,
-					test.wantErr)
+				t.Errorf("%q: mismatched error -- got %T, want %T", test.name,
+					err, test.wantErr)
 			}
 			continue
 		}
@@ -1766,8 +1766,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 // TestAutoRevocations ensures that all of the validation rules associated with
 // the automatic ticket revocations agenda work as expected.
 func TestAutoRevocations(t *testing.T) {
-	// Use a set of test chain parameters which allow for quicker vote activation
-	// as compared to various existing network params.
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
 	// Clone the parameters so they can be mutated, find the correct
@@ -1794,8 +1794,8 @@ func TestAutoRevocations(t *testing.T) {
 
 	// replaceAutoRevocationsVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, vote, and revocation
-	// transaction versions with the versions associated with the automatic ticket
-	// revocations deployment.
+	// transaction versions with the versions associated with the automatic
+	// ticket revocations deployment.
 	replaceAutoRevocationsVersions := func(b *wire.MsgBlock) {
 		chaingen.ReplaceBlockVersion(int32(version))(b)
 		chaingen.ReplaceStakeVersion(version)(b)
@@ -1876,8 +1876,8 @@ func TestAutoRevocations(t *testing.T) {
 	g.AssertTipNumRevocations(1)
 	g.RejectTipBlock(ErrInvalidRevocationTxVersion)
 
-	// Create a block that misses a vote and contains a revocation with a non-zero
-	// fee.
+	// Create a block that misses a vote and contains a revocation with a
+	// non-zero fee.
 	//
 	//   ...
 	//      \-> b3(0)
@@ -1890,17 +1890,18 @@ func TestAutoRevocations(t *testing.T) {
 					continue
 				}
 
-				// Decrement the first output value to create a non-zero fee and return
-				// so that only a single revocation transaction is modified.
+				// Decrement the first output value to create a non-zero fee and
+				// return so that only a single revocation transaction is
+				// modified.
 				stx.TxOut[0].Value--
 				return
 			}
 		})
 	g.AssertTipNumRevocations(1)
 	// Note that this will fail with ErrRegTxCreateStakeOut rather than hitting
-	// the later error case of ErrBadPayeeValue since a revocation with a non-zero
-	// fee will not be identified as a revocation if the automatic ticket
-	// revocations agenda is active.
+	// the later error case of ErrBadPayeeValue since a revocation with a
+	// non-zero fee will not be identified as a revocation if the automatic
+	// ticket revocations agenda is active.
 	g.RejectTipBlock(ErrRegTxCreateStakeOut)
 
 	// Create a valid block that misses multiple votes and contains revocation
@@ -1913,8 +1914,8 @@ func TestAutoRevocations(t *testing.T) {
 	g.AssertTipNumRevocations(2)
 	g.AcceptTipBlock()
 
-	// Create a slice of the ticket hashes that revocations spent in the tip block
-	// that was just connected.
+	// Create a slice of the ticket hashes that revocations spent in the tip
+	// block that was just connected.
 	revocationTicketHashes := make([]chainhash.Hash, 0, params.TicketsPerBlock)
 	for _, stx := range g.Tip().STransactions {
 		// Append revocation ticket hashes.

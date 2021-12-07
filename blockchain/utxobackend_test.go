@@ -73,8 +73,8 @@ func TestConvertLdbErr(t *testing.T) {
 
 		// Validate the error kind.
 		if gotErr.Err != test.want {
-			t.Errorf("%q: mismatched error kind:\nwant: %v\n got: %v\n", test.name,
-				test.want, gotErr.Err)
+			t.Errorf("%q: mismatched error kind:\nwant: %v\n got: %v\n",
+				test.name, test.want, gotErr.Err)
 			continue
 		}
 
@@ -87,8 +87,8 @@ func TestConvertLdbErr(t *testing.T) {
 
 		// Validate the raw error.
 		if gotErr.RawErr != test.ldbErr {
-			t.Errorf("%q: mismatched raw error:\nwant: %v\n got: %v\n", test.name,
-				test.ldbErr, gotErr.RawErr)
+			t.Errorf("%q: mismatched raw error:\nwant: %v\n got: %v\n",
+				test.name, test.ldbErr, gotErr.RawErr)
 			continue
 		}
 	}
@@ -118,8 +118,8 @@ func TestFetchEntryFromBackend(t *testing.T) {
 	}, {
 		name: "entry is in the backend",
 		backendEntries: map[wire.OutPoint][]byte{
-			outpoint: hexToBytes("812b010080fba8a41b0000454017705ab80470d089c7f644e" +
-				"39cc9e0fd308e"),
+			outpoint: hexToBytes("812b010080fba8a41b0000454017705ab80470d089c" +
+				"7f644e39cc9e0fd308e"),
 		},
 		outpoint:  outpoint,
 		wantEntry: entry,
@@ -182,10 +182,10 @@ func TestPutUtxos(t *testing.T) {
 	backend := createTestUtxoBackend(t)
 
 	// Create test hashes to be used throughout the tests.
-	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81b1" +
-		"bb75d7f5552aeeedb7012")
-	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcfd0" +
-		"08de596471f11a5aff475")
+	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81" +
+		"b1bb75d7f5552aeeedb7012")
+	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcf" +
+		"d008de596471f11a5aff475")
 
 	// entry299Fresh is from block height 299 and is modified and fresh.
 	outpoint299 := outpoint299()
@@ -267,8 +267,8 @@ func TestPutUtxos(t *testing.T) {
 		for outpoint := range test.utxos {
 			entry, err := backend.FetchEntry(outpoint)
 			if err != nil {
-				t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
-					test.name, err)
+				t.Fatalf("%q: unexpected error fetching entries from test "+
+					"backend: %v", test.name, err)
 			}
 
 			if entry != nil {
@@ -310,8 +310,8 @@ func TestFetchState(t *testing.T) {
 		name: "last flush saved in backend",
 		state: &UtxoSetState{
 			lastFlushHeight: 432100,
-			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
-				"99c6140aa715836cc7e55981"),
+			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e01" +
+				"4dbeea99c6140aa715836cc7e55981"),
 		},
 	}}
 
@@ -370,7 +370,8 @@ func TestPutInfo(t *testing.T) {
 			// Update the UTXO backend info.
 			err := backend.PutInfo(test.backendInfo)
 			if err != nil {
-				t.Fatalf("%q: error putting UTXO backend info: %v", test.name, err)
+				t.Fatalf("%q: error putting UTXO backend info: %v", test.name,
+					err)
 			}
 		}
 

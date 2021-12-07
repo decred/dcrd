@@ -11,7 +11,8 @@ import (
 const (
 	// baseEntrySize is the base size of a utxo entry on a 64-bit platform,
 	// excluding the contents of the script and ticket minimal outputs.  It is
-	// equivalent to what unsafe.Sizeof(UtxoEntry{}) returns on a 64-bit platform.
+	// equivalent to what unsafe.Sizeof(UtxoEntry{}) returns on a 64-bit
+	// platform.
 	baseEntrySize = 56
 )
 
@@ -32,8 +33,8 @@ const (
 	// loaded.
 	utxoStateModified
 
-	// utxoStateFresh indicates that a txout is fresh, which means that it exists
-	// in the utxo cache but does not exist in the underlying database.
+	// utxoStateFresh indicates that a txout is fresh, which means that it
+	// exists in the utxo cache but does not exist in the underlying database.
 	utxoStateFresh
 )
 
@@ -120,9 +121,9 @@ type UtxoEntry struct {
 	// utxoState.
 	state utxoState
 
-	// packedFlags contains additional info for the containing transaction of the
-	// output as defined by utxoFlags.  This approach is used in order to reduce
-	// memory usage since there will be a lot of these in memory.
+	// packedFlags contains additional info for the containing transaction of
+	// the output as defined by utxoFlags.  This approach is used in order to
+	// reduce memory usage since there will be a lot of these in memory.
 	packedFlags utxoFlags
 }
 
