@@ -29,8 +29,8 @@ const (
 // throughout the tests.
 func outpoint299() wire.OutPoint {
 	return wire.OutPoint{
-		Hash: *mustParseHash("e299d2cc5deb5b39d230ad2a6046ff9cc164064f431a2893eb6" +
-			"28b467d018452"),
+		Hash: *mustParseHash("e299d2cc5deb5b39d230ad2a6046ff9cc164064f431a289" +
+			"3eb628b467d018452"),
 		Index: 0,
 		Tree:  wire.TxTreeRegular,
 	}
@@ -58,8 +58,8 @@ func entry299() *UtxoEntry {
 // throughout the tests.
 func outpoint1100() wire.OutPoint {
 	return wire.OutPoint{
-		Hash: *mustParseHash("ce1d0f74440c391d15516015224755a8661e56e796ac25490f3" +
-			"0ad1081c5d638"),
+		Hash: *mustParseHash("ce1d0f74440c391d15516015224755a8661e56e796ac254" +
+			"90f30ad1081c5d638"),
 		Index: 1,
 		Tree:  wire.TxTreeRegular,
 	}
@@ -87,8 +87,8 @@ func entry1100() *UtxoEntry {
 // throughout the tests.
 func outpoint1200() wire.OutPoint {
 	return wire.OutPoint{
-		Hash: *mustParseHash("72914cae2d4bc75f7777373b7c085c4b92d59f3e059fc7fd39d" +
-			"ef71c9fe188b5"),
+		Hash: *mustParseHash("72914cae2d4bc75f7777373b7c085c4b92d59f3e059fc7f" +
+			"d39def71c9fe188b5"),
 		Index: 2,
 		Tree:  wire.TxTreeRegular,
 	}
@@ -116,8 +116,8 @@ func entry1200() *UtxoEntry {
 // used throughout the tests.
 func outpoint85314() wire.OutPoint {
 	return wire.OutPoint{
-		Hash: *mustParseHash("d3bce77da2747baa85fb7ca4f6f8e123f31cd15ac691b2f8254" +
-			"3780158587d3a"),
+		Hash: *mustParseHash("d3bce77da2747baa85fb7ca4f6f8e123f31cd15ac691b2f" +
+			"82543780158587d3a"),
 		Index: 0,
 		Tree:  wire.TxTreeStake,
 	}
@@ -139,10 +139,10 @@ func entry85314() *UtxoEntry {
 			stake.TxTypeSStx,
 		),
 		ticketMinOuts: &ticketMinimalOutputs{
-			data: hexToBytes("03808efefade57001aba76a914a13afb81d54c9f8bb0c5e08" +
-				"2d56fd563ab9b359688ac0000206a1e9ac39159847e259c9162405b5f6c8135d" +
-				"2c7eaf1a375040001000000005800001abd76a91400000000000000000000000" +
-				"0000000000000000088ac"),
+			data: hexToBytes("03808efefade57001aba76a914a13afb81d54c9f8bb0c5e" +
+				"082d56fd563ab9b359688ac0000206a1e9ac39159847e259c9162405b5f6" +
+				"c8135d2c7eaf1a375040001000000005800001abd76a9140000000000000" +
+				"00000000000000000000000000088ac"),
 		},
 	}
 }
@@ -190,17 +190,17 @@ func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *Ut
 		},
 	})
 	for outpoint, entry := range entries {
-		// Add the entry to the cache.  The entry is cloned before being added so
-		// that any modifications that the cache makes to the entry are not
+		// Add the entry to the cache.  The entry is cloned before being added
+		// so that any modifications that the cache makes to the entry are not
 		// reflected in the provided test entry.
 		err := utxoCache.AddEntry(outpoint, entry.Clone())
 		if err != nil {
 			t.Fatalf("unexpected error when adding entry: %v", err)
 		}
 
-		// Set the state of the cached entries based on the provided entries.  This
-		// is allowed for tests to easily simulate entries in the cache that are not
-		// fresh without having to fetch them from the backend.
+		// Set the state of the cached entries based on the provided entries.
+		// This is allowed for tests to easily simulate entries in the cache
+		// that are not fresh without having to fetch them from the backend.
 		cachedEntry := utxoCache.entries[outpoint]
 		if cachedEntry != nil {
 			cachedEntry.state = entry.state
@@ -235,8 +235,9 @@ func TestTotalSize(t *testing.T) {
 			outpointTicket:  entryTicket,
 		},
 		// mapOverhead*numEntries + outpointSize*numEntries +
-		// pointerSize*numEntries + (first entry: base entry size + len(pkScript)) +
-		// (second entry: base entry size + len(pkScript) + len(ticketMinOuts.data))
+		// pointerSize*numEntries + (first entry: base entry size +
+		// len(pkScript)) + (second entry: base entry size + len(pkScript) +
+		// len(ticketMinOuts.data))
 		want: mapOverhead*2 + outpointSize*2 + pointerSize*2 +
 			(baseEntrySize + 25) + (baseEntrySize + 26 + 99),
 	}}
@@ -333,8 +334,9 @@ func TestAddEntry(t *testing.T) {
 		utxoCache := createTestUtxoCache(t, test.existingEntries)
 		wantTotalEntrySize := utxoCache.totalEntrySize
 
-		// Attempt to get an existing entry from the cache.  If it exists, subtract
-		// its size from the expected total entry size since it will be overwritten.
+		// Attempt to get an existing entry from the cache.  If it exists,
+		// subtract its size from the expected total entry size since it will be
+		// overwritten.
 		existingEntry := utxoCache.entries[test.outpoint]
 		if existingEntry != nil {
 			wantTotalEntrySize -= test.entry.size()
@@ -343,7 +345,8 @@ func TestAddEntry(t *testing.T) {
 		// Add the entry specified by the test.
 		err := utxoCache.AddEntry(test.outpoint, test.entry)
 		if err != nil {
-			t.Fatalf("%q: unexpected error when adding entry: %v", test.name, err)
+			t.Fatalf("%q: unexpected error when adding entry: %v", test.name,
+				err)
 		}
 		wantTotalEntrySize += test.entry.size()
 
@@ -370,8 +373,8 @@ func TestAddEntry(t *testing.T) {
 
 		// Validate that the total entry size was updated as expected.
 		if utxoCache.totalEntrySize != wantTotalEntrySize {
-			t.Fatalf("%q: unexpected total entry size -- got %v, want %v", test.name,
-				utxoCache.totalEntrySize, wantTotalEntrySize)
+			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
+				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
 		}
 	}
 }
@@ -442,29 +445,29 @@ func TestSpendEntry(t *testing.T) {
 			continue
 		}
 
-		// If the entry is fresh, validate that it was removed from the cache when
-		// spent.
+		// If the entry is fresh, validate that it was removed from the cache
+		// when spent.
 		if entry.isFresh() {
 			wantTotalEntrySize -= test.entry.size()
 			if utxoCache.entries[test.outpoint] != nil {
-				t.Fatalf("%q: entry for outpoint %v was not removed from the cache",
-					test.name, test.outpoint)
+				t.Fatalf("%q: entry for outpoint %v was not removed from the "+
+					"cache", test.name, test.outpoint)
 			}
 		}
 
 		// Validate that the total entry size was updated as expected.
 		if utxoCache.totalEntrySize != wantTotalEntrySize {
-			t.Fatalf("%q: unexpected total entry size -- got %v, want %v", test.name,
-				utxoCache.totalEntrySize, wantTotalEntrySize)
+			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
+				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
 		}
 
-		// If entry is not fresh, validate that it still exists in the cache and is
-		// now marked as spent.
+		// If entry is not fresh, validate that it still exists in the cache and
+		// is now marked as spent.
 		if !entry.isFresh() {
 			cachedEntry := utxoCache.entries[test.outpoint]
 			if cachedEntry == nil || !cachedEntry.IsSpent() {
-				t.Fatalf("%q: expected entry for outpoint %v to exist in the cache "+
-					"and be marked spent", test.name, test.outpoint)
+				t.Fatalf("%q: expected entry for outpoint %v to exist in the "+
+					"cache and be marked spent", test.name, test.outpoint)
 			}
 		}
 	}
@@ -558,8 +561,8 @@ func TestFetchEntry(t *testing.T) {
 			wantTotalEntrySize += cachedEntry.size()
 		}
 		if utxoCache.totalEntrySize != wantTotalEntrySize {
-			t.Fatalf("%q: unexpected total entry size -- got %v, want %v", test.name,
-				utxoCache.totalEntrySize, wantTotalEntrySize)
+			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
+				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
 		}
 	}
 }
@@ -623,14 +626,14 @@ func TestFetchEntries(t *testing.T) {
 		view := NewUtxoViewpoint(utxoCache)
 		err = utxoCache.FetchEntries(test.filteredSet, view)
 		if err != nil {
-			t.Fatalf("%q: unexpected error fetching entries for view: %v", test.name,
-				err)
+			t.Fatalf("%q: unexpected error fetching entries for view: %v",
+				test.name, err)
 		}
 
 		// Ensure that the fetched entries match the expected entries.
 		if !reflect.DeepEqual(view.entries, test.wantEntries) {
-			t.Fatalf("%q: mismatched entries:\nwant: %+v\n got: %+v\n", test.name,
-				test.wantEntries, view.entries)
+			t.Fatalf("%q: mismatched entries:\nwant: %+v\n got: %+v\n",
+				test.name, test.wantEntries, view.entries)
 		}
 	}
 }
@@ -763,10 +766,10 @@ func TestShouldFlush(t *testing.T) {
 	t.Parallel()
 
 	// Create test hashes to be used throughout the tests.
-	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81b1" +
-		"bb75d7f5552aeeedb7012")
-	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcfd0" +
-		"08de596471f11a5aff475")
+	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81" +
+		"b1bb75d7f5552aeeedb7012")
+	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcf" +
+		"d008de596471f11a5aff475")
 
 	tests := []struct {
 		name           string
@@ -819,7 +822,8 @@ func TestShouldFlush(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		// Create a utxo cache and set the field values as specified by the test.
+		// Create a utxo cache and set the field values as specified by the
+		// test.
 		utxoCache := NewUtxoCache(&UtxoCacheConfig{
 			MaxSize: test.maxSize,
 		})
@@ -845,10 +849,10 @@ func TestMaybeFlush(t *testing.T) {
 	backend := createTestUtxoBackend(t)
 
 	// Create test hashes to be used throughout the tests.
-	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81b1" +
-		"bb75d7f5552aeeedb7012")
-	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcfd0" +
-		"08de596471f11a5aff475")
+	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81" +
+		"b1bb75d7f5552aeeedb7012")
+	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcf" +
+		"d008de596471f11a5aff475")
 
 	// entry299Fresh is from block height 299 and is modified and fresh.
 	outpoint299 := outpoint299()
@@ -939,7 +943,8 @@ func TestMaybeFlush(t *testing.T) {
 		},
 		// entry299Fresh should be evicted from the cache due to its height.
 		// entry1100Spent should be evicted since it is spent.
-		// entry1200Fresh should remain in the cache but should now be unmodified.
+		// entry1200Fresh should remain in the cache but should now be
+		// unmodified.
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200Unmodified,
 		},
@@ -964,9 +969,9 @@ func TestMaybeFlush(t *testing.T) {
 		utxoCache.lastEvictionHeight = test.lastEvictionHeight
 		utxoCache.lastFlushHash = *test.lastFlushHash
 
-		// Mock the current time as 1 minute after the last flush time.  This allows
-		// for validating that the last flush time is correctly updated to the
-		// current time when a flush occurs.
+		// Mock the current time as 1 minute after the last flush time.  This
+		// allows for validating that the last flush time is correctly updated
+		// to the current time when a flush occurs.
 		mockedCurrentTime := utxoCache.lastFlushTime.Add(time.Minute)
 		utxoCache.timeNow = func() time.Time {
 			return mockedCurrentTime
@@ -983,8 +988,8 @@ func TestMaybeFlush(t *testing.T) {
 		}
 
 		// Conditionally flush the cache based on the test parameters.
-		err = utxoCache.MaybeFlush(test.bestHash, test.bestHeight, test.forceFlush,
-			false)
+		err = utxoCache.MaybeFlush(test.bestHash, test.bestHeight,
+			test.forceFlush, false)
 		if err != nil {
 			t.Fatalf("%q: unexpected error flushing cache: %v", test.name, err)
 		}
@@ -1002,8 +1007,8 @@ func TestMaybeFlush(t *testing.T) {
 		for outpoint := range test.cachedEntries {
 			entry, err := backend.FetchEntry(outpoint)
 			if err != nil {
-				t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
-					test.name, err)
+				t.Fatalf("%q: unexpected error fetching entries from test "+
+					"backend: %v", test.name, err)
 			}
 
 			if entry != nil {
@@ -1011,29 +1016,32 @@ func TestMaybeFlush(t *testing.T) {
 			}
 		}
 		if err != nil {
-			t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
-				test.name, err)
+			t.Fatalf("%q: unexpected error fetching entries from test "+
+				"backend: %v", test.name, err)
 		}
 		if !reflect.DeepEqual(backendEntries, test.wantBackendEntries) {
 			t.Fatalf("%q: mismatched backend entries:\nwant: %+v\n got: %+v\n",
 				test.name, test.wantBackendEntries, backendEntries)
 		}
 
-		// Validate that the last flush hash and time have been updated as expected.
+		// Validate that the last flush hash and time have been updated as
+		// expected.
 		if utxoCache.lastFlushHash != *test.wantLastFlushHash {
-			t.Fatalf("%q: unexpected last flush hash -- got %x, want %x", test.name,
-				utxoCache.lastFlushHash, *test.wantLastFlushHash)
+			t.Fatalf("%q: unexpected last flush hash -- got %x, want %x",
+				test.name, utxoCache.lastFlushHash, *test.wantLastFlushHash)
 		}
 		updatedLastFlushTime := utxoCache.lastFlushTime == mockedCurrentTime
 		if updatedLastFlushTime != test.wantUpdatedLastFlushTime {
-			t.Fatalf("%q: unexpected updated last flush time -- got %v, want %v",
-				test.name, updatedLastFlushTime, test.wantUpdatedLastFlushTime)
+			t.Fatalf("%q: unexpected updated last flush time -- got %v, want "+
+				" %v", test.name, updatedLastFlushTime,
+				test.wantUpdatedLastFlushTime)
 		}
 
 		// Validate the updated last eviction height.
 		if utxoCache.lastEvictionHeight != test.wantLastEvictionHeight {
 			t.Fatalf("%q: unexpected last eviction height -- got %d, want %d",
-				test.name, utxoCache.lastEvictionHeight, test.wantLastEvictionHeight)
+				test.name, utxoCache.lastEvictionHeight,
+				test.wantLastEvictionHeight)
 		}
 
 		// Validate the updated total entry size of the cache.
@@ -1042,8 +1050,8 @@ func TestMaybeFlush(t *testing.T) {
 			wantTotalEntrySize += entry.size()
 		}
 		if utxoCache.totalEntrySize != wantTotalEntrySize {
-			t.Fatalf("%q: unexpected total entry size -- got %v, want %v", test.name,
-				utxoCache.totalEntrySize, wantTotalEntrySize)
+			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
+				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
 		}
 	}
 }
@@ -1056,13 +1064,13 @@ func TestInitialize(t *testing.T) {
 	g, teardownFunc := newChaingenHarness(t, params, "initializetest")
 	defer teardownFunc()
 
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Create some convenience functions to improve test readability.
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 
 	// resetTestUtxoCache replaces the current utxo cache with a new test utxo
-	// cache and calls initialize on it.  This simulates an empty utxo cache that
-	// gets created and initialized at startup.
+	// cache and calls initialize on it.  This simulates an empty utxo cache
+	// that gets created and initialized at startup.
 	backend := createTestUtxoBackend(t)
 	err := backend.InitInfo(g.chain.dbInfo.version)
 	if err != nil {
@@ -1089,13 +1097,13 @@ func TestInitialize(t *testing.T) {
 		utxoCache.MaybeFlush(&tip.hash, uint32(tip.height), true, false)
 	}
 
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Generate and accept enough blocks to reach stake validation height.
 	//
 	// Disable flushing of the cache while advancing the chain.  After reaching
-	// stake validation height, reset the cache and validate that it recovers and
-	// properly catches up to the tip.
-	// ---------------------------------------------------------------------------
+	// stake validation height, reset the cache and validate that it recovers
+	// and properly catches up to the tip.
+	// -------------------------------------------------------------------------
 
 	// Replace the utxo cache in the test chain with a test utxo cache so that
 	// flushing can be toggled on and off for testing.
@@ -1110,8 +1118,8 @@ func TestInitialize(t *testing.T) {
 	testUtxoCache.disableFlush = true
 	g.AdvanceToStakeValidationHeight()
 
-	// Validate that the tip is at stake validation height but the utxo set state
-	// is still at the genesis block.
+	// Validate that the tip is at stake validation height but the utxo set
+	// state is still at the genesis block.
 	g.AssertTipHeight(uint32(params.StakeValidationHeight))
 	g.ExpectUtxoSetState("genesis")
 
@@ -1122,11 +1130,11 @@ func TestInitialize(t *testing.T) {
 	// Validate that the utxo cache is now caught up to the tip.
 	g.ExpectUtxoSetState(g.TipName())
 
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Create a few blocks to use as a base for the tests below.
 	//
 	//   ... -> b0 -> b1
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
 	g.NextBlock("b0", &outs[0], outs[1:])
@@ -1140,7 +1148,7 @@ func TestInitialize(t *testing.T) {
 	forceFlush(testUtxoCache)
 	g.ExpectUtxoSetState("b1")
 
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Simulate the following scenario:
 	//   - The utxo cache was last flushed at the tip block
 	//   - A reorg to a side chain is triggered
@@ -1158,14 +1166,14 @@ func TestInitialize(t *testing.T) {
 	//            \-> b1a
 	//                ^^^
 	//              new tip
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 
 	// Disable flushing to simulate a failure resulting in the cache not being
 	// flushed after disconnecting a block.
 	testUtxoCache.disableFlush = true
 
-	// Save the spend journal entry for b1.  The spend journal entry for block b1
-	// needs to be restored after the reorg to properly simulate the failure
+	// Save the spend journal entry for b1.  The spend journal entry for block
+	// b1 needs to be restored after the reorg to properly simulate the failure
 	// scenario described above.
 	var serialized []byte
 	b1Hash := b1.BlockHash()
@@ -1233,13 +1241,13 @@ func TestShutdownUtxoCache(t *testing.T) {
 	}
 	g.chain.utxoCache = testUtxoCache
 
-	// ---------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Generate and accept enough blocks to reach stake validation height.
 	//
 	// Disable flushing of the cache while advancing the chain.  After reaching
-	// stake validation height, call shutdown and validate that it forces a flush
-	// and properly catches up to the tip.
-	// ---------------------------------------------------------------------------
+	// stake validation height, call shutdown and validate that it forces a
+	// flush and properly catches up to the tip.
+	// -------------------------------------------------------------------------
 
 	// Validate that the tip and utxo set state are currently at the genesis
 	// block.
@@ -1250,8 +1258,8 @@ func TestShutdownUtxoCache(t *testing.T) {
 	testUtxoCache.disableFlush = true
 	g.AdvanceToStakeValidationHeight()
 
-	// Validate that the tip is at stake validation height but the utxo set state
-	// is still at the genesis block.
+	// Validate that the tip is at stake validation height but the utxo set
+	// state is still at the genesis block.
 	g.AssertTipHeight(uint32(params.StakeValidationHeight))
 	g.ExpectUtxoSetState("genesis")
 

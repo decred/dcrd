@@ -17,9 +17,10 @@ package blockchain
 // The interface contract does NOT require that these methods are safe for
 // concurrent access.
 type UtxoBackendIterator interface {
-	// First moves the iterator to the first key/value pair.  If the iterator only
-	// contains one key/value pair then First and Last would move to the same
-	// key/value pair.  It returns whether the pair that is moved to exists.
+	// First moves the iterator to the first key/value pair.  If the iterator
+	// only contains one key/value pair then First and Last would move to the
+	// same key/value pair.  It returns whether the pair that is moved to
+	// exists.
 	First() bool
 
 	// Last moves the iterator to the last key/value pair.  If the iterator only
@@ -28,8 +29,8 @@ type UtxoBackendIterator interface {
 	Last() bool
 
 	// Seek moves the iterator to the first key/value pair whose key is greater
-	// than or equal to the given key.  It returns whether the pair that is moved
-	// to exists.
+	// than or equal to the given key.  It returns whether the pair that is
+	// moved to exists.
 	//
 	// It is safe to modify the contents of the argument after Seek returns.
 	Seek(key []byte) bool
@@ -42,8 +43,8 @@ type UtxoBackendIterator interface {
 	// if the iterator is exhausted.
 	Prev() bool
 
-	// Error returns any accumulated error.  Exhausting all of the key/value pairs
-	// is not considered to be an error.
+	// Error returns any accumulated error.  Exhausting all of the key/value
+	// pairs is not considered to be an error.
 	Error() error
 
 	// Key returns the key of the current key/value pair, or nil if done.  The
@@ -51,8 +52,8 @@ type UtxoBackendIterator interface {
 	// contents may change on the next call to any iteration method.
 	Key() []byte
 
-	// Value returns the value of the current key/value pair, or nil if done.  The
-	// caller should not modify the contents of the returned slice, and its
+	// Value returns the value of the current key/value pair, or nil if done.
+	// The caller should not modify the contents of the returned slice, and its
 	// contents may change on the next call to any iteration method.
 	Value() []byte
 

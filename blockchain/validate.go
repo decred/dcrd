@@ -332,8 +332,8 @@ const (
 
 	// AFAutoRevocationsEnabled may be set to indicate that the automatic ticket
 	// revocations agenda should be considered as active when checking a
-	// transaction so that any additional checks which depend on the agenda being
-	// active are applied.
+	// transaction so that any additional checks which depend on the agenda
+	// being active are applied.
 	AFAutoRevocationsEnabled
 
 	// AFNone is a convenience value to specifically indicate no flags.
@@ -485,8 +485,8 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		if isAutoRevocationsEnabled &&
 			tx.Version != stake.TxVersionAutoRevocations {
 
-			str := fmt.Sprintf("revocation transaction version is %d instead of %d",
-				tx.Version, stake.TxVersionAutoRevocations)
+			str := fmt.Sprintf("revocation transaction version is %d instead "+
+				"of %d", tx.Version, stake.TxVersionAutoRevocations)
 			return ruleError(ErrInvalidRevocationTxVersion, str)
 		}
 
@@ -1080,8 +1080,8 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			dcp0005Version++
 		}
 		for version := latestBlockVersion; version > 1; version-- {
-			// Skip the version check for blocks that are known to violate DCP0005.
-			// See isDCP0005Violation for more details.
+			// Skip the version check for blocks that are known to violate
+			// DCP0005.  See isDCP0005Violation for more details.
 			if version == dcp0005Version &&
 				isDCP0005Violation(b.chainParams.Net, header, &blockHash) {
 
@@ -1450,10 +1450,11 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	}
 
 	// Iterate through all votes in the block, validate that they are spending
-	// tickets that are eligible to vote, and mark the corresponding winning hash
-	// as voted in the winning hashes map.
+	// tickets that are eligible to vote, and mark the corresponding winning
+	// hash as voted in the winning hashes map.
 	for _, voteTicketHash := range voteTicketHashes {
-		// Ensure the ticket being spent is actually eligible to vote in this block.
+		// Ensure the ticket being spent is actually eligible to vote in this
+		// block.
 		if _, ok := winningHashes[voteTicketHash]; !ok {
 			errStr := fmt.Sprintf("block contains vote for "+
 				"ineligible ticket %s (eligible tickets: %s)",
@@ -1465,7 +1466,8 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 		winningHashes[voteTicketHash] = true
 	}
 
-	// Create a map of the ticket hashes that will become missed as of the block.
+	// Create a map of the ticket hashes that will become missed as of the
+	// block.
 	missedTicketHashes := make(map[chainhash.Hash]struct{}, len(winningHashes))
 	for ticketHash, hasVote := range winningHashes {
 		// If a winning ticket does not have a vote in this block, it will be
@@ -1476,7 +1478,8 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	}
 	numMissed := len(missedTicketHashes)
 
-	// Create a map of the ticket hashes that will become expired as of the block.
+	// Create a map of the ticket hashes that will become expired as of the
+	// block.
 	numExpiring := len(expiringNextBlock)
 	expiringTicketHashes := make(map[chainhash.Hash]struct{}, numExpiring)
 	for _, ticketHash := range expiringNextBlock {
@@ -1491,16 +1494,16 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	// spending tickets that are eligible to be revoked, and add the revocation
 	// to the revocations map.
 	for _, revocationTicketHash := range revocationTicketHashes {
-		// Determine if the ticket being revoked will become missed or expired as of
-		// this block.
+		// Determine if the ticket being revoked will become missed or expired
+		// as of this block.
 		_, missedInBlock := missedTicketHashes[revocationTicketHash]
 		_, expiringInBlock := expiringTicketHashes[revocationTicketHash]
 		missedOrExpiredInBlock := missedInBlock || expiringInBlock
 
-		// Ensure the ticket being spent is actually eligible to be revoked in this
-		// block.  If the automatic ticket revocations agenda is active, then
-		// revocations are allowed if the ticket will become missed or expired as of
-		// this block.
+		// Ensure the ticket being spent is actually eligible to be revoked in
+		// this block.  If the automatic ticket revocations agenda is active,
+		// then revocations are allowed if the ticket will become missed or
+		// expired as of this block.
 		eligible := (isAutoRevocationsEnabled && missedOrExpiredInBlock) ||
 			existsMissedTicket(revocationTicketHash)
 		if !eligible {
@@ -1514,8 +1517,8 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	}
 
 	// If the automatic ticket revocations agenda is active, then the block MUST
-	// contain revocation transactions for all tickets that will become missed or
-	// expired as of this block.
+	// contain revocation transactions for all tickets that will become missed
+	// or expired as of this block.
 	if isAutoRevocationsEnabled {
 		// Check that the block contains revocations for the tickets that will
 		// become missed as of this block.
@@ -1986,8 +1989,8 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				}
 			}
 
-			// Validate that all votes and revocations in the block are redeeming
-			// tickets according to consensus rules.
+			// Validate that all votes and revocations in the block are
+			// redeeming tickets according to consensus rules.
 			err = checkTicketRedeemers(voteTicketHashes, revocationTicketHashes,
 				parentStakeNode.Winners(), parentStakeNode.ExpiringNextBlock(),
 				parentStakeNode.ExistsMissedTicket, isTreasuryEnabled,
@@ -2317,8 +2320,8 @@ func calcTicketReturnAmounts(ticketOuts []*stake.MinimalOutput,
 		// return amount =  ------------------- * contribution amount
 		//                  total contributions
 		//
-		// However, in order to avoid floating point math, it uses 64.32 fixed point
-		// integer division to perform:
+		// However, in order to avoid floating point math, it uses 64.32 fixed
+		// point integer division to perform:
 		//
 		//                   --                                              --
 		//                  | total output amount * contribution amount * 2^32 |
@@ -2349,8 +2352,8 @@ func calcTicketReturnAmounts(ticketOuts []*stake.MinimalOutput,
 		return returnAmounts
 	}
 
-	// For revocations, if the automatic ticket revocations agenda is active, and
-	// there is a remainder after distributing the returns, then select a
+	// For revocations, if the automatic ticket revocations agenda is active,
+	// and there is a remainder after distributing the returns, then select a
 	// uniformly pseudorandom output index to receive each remaining atom.
 	if isAutoRevocationsEnabled && totalReturnAmount < totalOutputAmt {
 		remainder := totalOutputAmt - totalReturnAmount
@@ -2500,10 +2503,10 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 		}
 
 		// Determine the fee limit that is imposed.  If the transaction is a
-		// revocation, the version is greater than or equal to 2, and the automatic
-		// ticket revocation agenda is active, then the fee MUST be zero.
-		// Otherwise, the encoded fee limit from the ticket output commitment script
-		// should be used.
+		// revocation, the version is greater than or equal to 2, and the
+		// automatic ticket revocation agenda is active, then the fee MUST be
+		// zero.  Otherwise, the encoded fee limit from the ticket output
+		// commitment script should be used.
 		var feeLimitsEncoded uint16
 		var hasFeeLimit bool
 		if isVote || !isAutoRevocationsEnabled ||
@@ -2693,7 +2696,8 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 
 	// Ensure the outputs adhere to the ticket commitments.
 	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
-		true, voteSubsidy, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
+		true, voteSubsidy, prevHeader, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 }
 
 // checkRevocationInputs performs a series of checks on the inputs to a
@@ -2751,9 +2755,9 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 	// in the block AFTER the entire ticket maturity has passed, and, in order
 	// to be revoked, the ticket must have been missed which can't possibly
 	// happen for another block after that, hence the +2.  However, if the
-	// automatic ticket revocations agenda is active, +1 is used since revocations
-	// are allowed (and in fact, are required) in the block in which the ticket is
-	// missed or expired.
+	// automatic ticket revocations agenda is active, +1 is used since
+	// revocations are allowed (and in fact, are required) in the block in which
+	// the ticket is missed or expired.
 	originHeight := ticketUtxo.BlockHeight()
 	blocksSincePrev := txHeight - originHeight
 	revocationAdditionalMaturity := int64(2)
@@ -2851,7 +2855,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
 	if isVote {
 		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
-			chainParams, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
+			chainParams, prevHeader, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -2865,8 +2870,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// need to be skipped later.
 	isRevocation := stake.IsSSRtx(msgTx, isAutoRevocationsEnabled)
 	if isRevocation {
-		err := checkRevocationInputs(tx, txHeight, view, chainParams, prevHeader,
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		err := checkRevocationInputs(tx, txHeight, view, chainParams,
+			prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -3473,7 +3478,8 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// spent, so be aware of this.
 		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
 			node.height, view, true, /* check fraud proofs */
-			b.chainParams, &prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
+			b.chainParams, &prevHeader, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error "+
 				"returned: %v", err)
@@ -3857,7 +3863,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(block, isTreasuryEnabled, isAutoRevocationsEnabled)
+	err = view.fetchInputUtxos(block, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
 	if err != nil {
 		return err
 	}

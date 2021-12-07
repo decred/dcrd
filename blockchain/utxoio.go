@@ -211,7 +211,8 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 	amount, scriptVersion, script, bytesRead, err :=
 		decodeCompressedTxOut(serialized[offset:], true)
 	if err != nil {
-		return nil, errDeserialize(fmt.Sprintf("unable to decode utxo: %v", err))
+		return nil, errDeserialize(fmt.Sprintf("unable to decode utxo: %v",
+			err))
 	}
 	offset += bytesRead
 

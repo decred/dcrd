@@ -96,20 +96,20 @@ func prefixedKey(prefix []byte, key []byte) []byte {
 
 // These variables define keys that are part of the database info key set.
 var (
-	// utxoDbInfoVersionKeyName is the name of the database key used to house the
-	// database version.  It is itself under utxoPrefixDbInfo.
+	// utxoDbInfoVersionKeyName is the name of the database key used to house
+	// the database version.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoVersionKeyName = []byte("version")
 
-	// utxoDbInfoCompVerKeyName is the name of the database key used to house the
-	// database compression version.  It is itself under utxoPrefixDbInfo.
+	// utxoDbInfoCompVerKeyName is the name of the database key used to house
+	// the database compression version.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoCompVerKeyName = []byte("compver")
 
-	// utxoDbInfoUtxoVerKeyName is the name of the database key used to house the
-	// database UTXO set version.  It is itself under utxoPrefixDbInfo.
+	// utxoDbInfoUtxoVerKeyName is the name of the database key used to house
+	// the database UTXO set version.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoUtxoVerKeyName = []byte("utxover")
 
-	// utxoDbInfoCreatedKeyName is the name of the database key used to house the
-	// date the database was created.  It is itself under utxoPrefixDbInfo.
+	// utxoDbInfoCreatedKeyName is the name of the database key used to house
+	// the date the database was created.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoCreatedKeyName = []byte("created")
 
 	// utxoDbInfoVersionKey is the database key used to house the database
@@ -131,13 +131,13 @@ var (
 
 // These variables define keys that are part of the UTXO state key set.
 var (
-	// utxoSetStateKeyName is the name of the database key used to house the state
-	// of the unspent transaction output set.  It is itself under
+	// utxoSetStateKeyName is the name of the database key used to house the
+	// state of the unspent transaction output set.  It is itself under
 	// utxoPrefixUtxoState.
 	utxoSetStateKeyName = []byte("utxosetstate")
 
-	// utxoSetStateKey is the database key used to house the state of the unspent
-	// transaction output set.
+	// utxoSetStateKey is the database key used to house the state of the
+	// unspent transaction output set.
 	utxoSetStateKey = prefixedKey(utxoPrefixUtxoState, utxoSetStateKeyName)
 )
 
@@ -183,7 +183,8 @@ type UtxoBackend interface {
 	// both the entry and the error.
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
 
-	// FetchInfo returns versioning and creation information for the UTXO backend.
+	// FetchInfo returns versioning and creation information for the UTXO
+	// backend.
 	FetchInfo() (*UtxoBackendInfo, error)
 
 	// FetchState returns the current state of the UTXO set.
@@ -217,11 +218,12 @@ type UtxoBackend interface {
 	// The iterator must be released after use, by calling the Release method.
 	NewIterator(prefix []byte) UtxoBackendIterator
 
-	// PutInfo sets the versioning and creation information for the UTXO backend.
+	// PutInfo sets the versioning and creation information for the UTXO
+	// backend.
 	PutInfo(info *UtxoBackendInfo) error
 
-	// PutUtxos atomically updates the UTXO set with the entries from the provided
-	// map along with the current state.
+	// PutUtxos atomically updates the UTXO set with the entries from the
+	// provided map along with the current state.
 	PutUtxos(utxos map[wire.OutPoint]*UtxoEntry, state *UtxoSetState) error
 
 	// Update invokes the passed function in the context of a UTXO Backend
@@ -239,8 +241,8 @@ type UtxoBackend interface {
 // levelDbUtxoBackend implements the UtxoBackend interface using an underlying
 // leveldb database instance.
 type levelDbUtxoBackend struct {
-	// db is the database that contains the UTXO set.  It is set when the instance
-	// is created and is not changed afterward.
+	// db is the database that contains the UTXO set.  It is set when the
+	// instance is created and is not changed afterward.
 	db *leveldb.DB
 }
 
@@ -344,10 +346,11 @@ func LoadUtxoDB(ctx context.Context, params *chaincfg.Params, dataDir string) (*
 		// fail if the directory couldn't be created.
 		//
 		// NOTE: It is important that os.MkdirAll is only called if the database
-		// does not exist.  The documentation states that os.MidirAll does nothing
-		// if the directory already exists.  However, this has proven not to be the
-		// case on some less supported OSes and can lead to creating new directories
-		// with the wrong permissions or otherwise lead to hard to diagnose issues.
+		// does not exist.  The documentation states that os.MidirAll does
+		// nothing if the directory already exists.  However, this has proven
+		// not to be the case on some less supported OSes and can lead to
+		// creating new directories with the wrong permissions or otherwise lead
+		// to hard to diagnose issues.
 		_ = os.MkdirAll(dataDir, 0700)
 	}
 
@@ -452,8 +455,8 @@ func (l *levelDbUtxoBackend) NewIterator(prefix []byte) UtxoBackendIterator {
 // When there is no entry for the provided output, nil will be returned for both
 // the entry and the error.
 func (l *levelDbUtxoBackend) dbFetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
-	// Fetch the unspent transaction output information for the passed transaction
-	// output.  Return now when there is no entry.
+	// Fetch the unspent transaction output information for the passed
+	// transaction output.  Return now when there is no entry.
 	key := outpointKey(outpoint)
 	serializedUtxo, err := l.Get(*key)
 	recycleOutpointKey(key)
@@ -467,15 +470,15 @@ func (l *levelDbUtxoBackend) dbFetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntr
 	// A non-nil zero-length entry means there is an entry in the database for a
 	// spent transaction output which should never be the case.
 	if len(serializedUtxo) == 0 {
-		return nil, AssertError(fmt.Sprintf("database contains entry for spent tx "+
-			"output %v", outpoint))
+		return nil, AssertError(fmt.Sprintf("database contains entry for "+
+			"spent tx output %v", outpoint))
 	}
 
 	// Deserialize the utxo entry and return it.
 	entry, err := deserializeUtxoEntry(serializedUtxo, outpoint.Index)
 	if err != nil {
-		// Ensure any deserialization errors are returned as UTXO backend corruption
-		// errors.
+		// Ensure any deserialization errors are returned as UTXO backend
+		// corruption errors.
 		if isDeserializeErr(err) {
 			str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint, err)
 			return nil, contextError(ErrUtxoBackendCorruption, str)
@@ -540,11 +543,11 @@ func (l *levelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
 		serializedUtxo := iter.Value()
 		entrySize := len(serializedUtxo)
 
-		// A non-nil zero-length entry means there is an entry in the database for a
-		// spent transaction output which should never be the case.
+		// A non-nil zero-length entry means there is an entry in the database
+		// for a spent transaction output which should never be the case.
 		if entrySize == 0 {
-			return nil, AssertError(fmt.Sprintf("database contains entry for spent "+
-				"tx output %v", outpoint))
+			return nil, AssertError(fmt.Sprintf("database contains entry for "+
+				"spent tx output %v", outpoint))
 		}
 
 		stats.Utxos++
@@ -559,7 +562,8 @@ func (l *levelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
 			// Ensure any deserialization errors are returned as UTXO backend
 			// corruption errors.
 			if isDeserializeErr(err) {
-				str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint, err)
+				str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint,
+					err)
 				return nil, contextError(ErrUtxoBackendCorruption, str)
 			}
 
