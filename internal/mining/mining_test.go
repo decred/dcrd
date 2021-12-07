@@ -5,7 +5,9 @@
 package mining
 
 import (
+	"encoding/binary"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/v4"
@@ -516,5 +518,156 @@ func TestNewBlockTemplateAutoRevocationsVotesOnly(t *testing.T) {
 		harness.chainParams)
 	if err != nil {
 		t.Fatalf("unexpected error when checking block sanity: %v", err)
+	}
+}
+
+// TestSortParentsByVotes ensures the function that sorts parent blocks based on
+// the number of votes available for them and the current tip block works as
+// intended, including reorg prevention for an equal number of votes.
+func TestSortParentsByVotes(t *testing.T) {
+	params := chaincfg.MainNetParams()
+
+	tests := []struct {
+		name      string  // test description
+		numBlocks uint8   // number of sibling blocks to generate
+		votes     []uint8 // mock votes to generate per block
+		curTip    uint8   // index of the current tip block
+		want      []uint8 // indexes of expected sorted blocks
+	}{{
+		name:      "0 blocks, 0 votes (sanity check for impossible condition)",
+		numBlocks: 0,
+		votes:     nil,
+		curTip:    0,
+		want:      nil,
+	}, {
+		name:      "1 block, 5 votes",
+		numBlocks: 1,
+		votes:     []uint8{5},
+		curTip:    0,
+		want:      []uint8{0},
+	}, {
+		name:      "1 block, 4 votes",
+		numBlocks: 1,
+		votes:     []uint8{4},
+		curTip:    0,
+		want:      []uint8{0},
+	}, {
+		name:      "1 block, 3 votes",
+		numBlocks: 1,
+		votes:     []uint8{3},
+		curTip:    0,
+		want:      []uint8{0},
+	}, {
+		name:      "1 block, 2 votes (no useful blocks)",
+		numBlocks: 1,
+		votes:     []uint8{2},
+		curTip:    0,
+		want:      nil,
+	}, {
+		name:      "2 blocks, votes{0:5, 1:5}, tip block 0 (no reorg)",
+		numBlocks: 2,
+		votes:     []uint8{5, 5},
+		curTip:    0,
+		want:      []uint8{0, 1},
+	}, {
+		name:      "2 blocks, votes{0:5, 1:5}, tip block 1 (no reorg)",
+		numBlocks: 2,
+		votes:     []uint8{5, 5},
+		curTip:    1,
+		want:      []uint8{1, 0},
+	}, {
+		name:      "2 blocks, votes{0:4, 1:5}, tip block 0",
+		numBlocks: 2,
+		votes:     []uint8{4, 5},
+		curTip:    0,
+		want:      []uint8{1, 0},
+	}, {
+		name:      "2 blocks, votes{0:4, 1:5}, tip block 1",
+		numBlocks: 2,
+		votes:     []uint8{4, 5},
+		curTip:    1,
+		want:      []uint8{1, 0},
+	}, {
+		name:      "3 blocks, votes{0:4, 1:5, 2:2}, tip block 0 (2 not useful)",
+		numBlocks: 3,
+		votes:     []uint8{4, 5, 2},
+		curTip:    0,
+		want:      []uint8{1, 0},
+	}, {
+		name:      "3 blocks, votes{0:3, 1:5, 2:4}, tip block 0",
+		numBlocks: 3,
+		votes:     []uint8{3, 5, 4},
+		curTip:    0,
+		want:      []uint8{1, 2, 0},
+	}, {
+		name:      "3 blocks, votes{0:3, 1:5, 2:4}, tip block 2",
+		numBlocks: 3,
+		votes:     []uint8{3, 5, 4},
+		curTip:    2,
+		want:      []uint8{1, 2, 0},
+	}, {
+		name:      "3 blocks, votes{0:3, 1:3, 2:4}, tip block 1",
+		numBlocks: 3,
+		votes:     []uint8{3, 3, 4},
+		curTip:    1,
+		want:      []uint8{2, 0, 1},
+	}}
+
+	// nextHash is a convenience function that generates a unique hash each time
+	// it is called.
+	var genHashIndex uint32
+	nextHash := func() chainhash.Hash {
+		var buf [4]byte
+		binary.LittleEndian.PutUint32(buf[:], genHashIndex)
+		genHashIndex++
+
+		return chainhash.HashH(buf[:])
+	}
+
+	for _, test := range tests {
+		// Generate mock blocks and votes based on test data.
+		blockHashes := make([]chainhash.Hash, test.numBlocks)
+		for i := uint8(0); i < test.numBlocks; i++ {
+			blockHashes[i] = nextHash()
+		}
+		votes := make(map[chainhash.Hash][]VoteDesc, len(test.votes))
+		for i, numVotes := range test.votes {
+			blockVotedOn := blockHashes[i]
+			voteDescs := make([]VoteDesc, 0, numVotes)
+			for i := uint8(0); i < numVotes; i++ {
+				voteDescs = append(voteDescs, VoteDesc{
+					VoteHash:       nextHash(),
+					TicketHash:     nextHash(),
+					ApprovesParent: true,
+				})
+			}
+			votes[blockVotedOn] = voteDescs
+		}
+		var curTip chainhash.Hash
+		if len(blockHashes) == 0 {
+			curTip = nextHash()
+		} else {
+			curTip = blockHashes[test.curTip]
+		}
+		var want []chainhash.Hash
+		if len(test.want) > 0 {
+			want = make([]chainhash.Hash, 0, len(test.want))
+			for _, blockIndex := range test.want {
+				want = append(want, blockHashes[blockIndex])
+			}
+		}
+
+		// Create a fake transaction source instance populated with the votes.
+		txSource := &fakeTxSource{
+			votes: votes,
+		}
+
+		// Ensure the result matches the expected values.
+		got := SortParentsByVotes(txSource, curTip, blockHashes, params)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name, got,
+				want)
+			continue
+		}
 	}
 }

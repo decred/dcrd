@@ -367,7 +367,10 @@ func SortParentsByVotes(txSource TxSource, currentTopBlock chainhash.Hash, block
 	// point, all blocks listed in sortedUsefulBlocks definitely also have the
 	// minimum number of votes required.
 	curVoteMetadata := txSource.VotesForBlocks([]chainhash.Hash{currentTopBlock})
-	numTopBlockVotes := uint16(len(curVoteMetadata))
+	var numTopBlockVotes uint16
+	if len(curVoteMetadata) > 0 {
+		numTopBlockVotes = uint16(len(curVoteMetadata[0]))
+	}
 	if filtered[0].NumVotes == numTopBlockVotes && filtered[0].Hash !=
 		currentTopBlock {
 
