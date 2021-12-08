@@ -1504,11 +1504,19 @@ func (n *Uint256) toDecimal() []byte {
 	// check, there will always be a nonzero most-significant word.  Also, note
 	// that partial digit handling is needed in this case because the shift
 	// amount does not evenly divide the bits per internal word.
+	const outputDigitsPerDiv = 19
+	var remainingDigitsPerDiv uint8
 	var quo, rem, t Uint256
 	var r uint64
 	outputIdx := maxOutDigits - 1
 	quo = *n
 	for !quo.IsZero() {
+		for i := uint8(0); i < remainingDigitsPerDiv; i++ {
+			result[outputIdx] = '0'
+			outputIdx--
+		}
+		remainingDigitsPerDiv = outputDigitsPerDiv
+
 		rem.Set(&quo)
 		quo.Div(maxPow10ForInternalWord)
 		t.Mul2(&quo, maxPow10ForInternalWord)
@@ -1517,6 +1525,7 @@ func (n *Uint256) toDecimal() []byte {
 			inputWord, r = inputWord/10, inputWord%10
 			result[outputIdx] = '0' + byte(r)
 			outputIdx--
+			remainingDigitsPerDiv--
 		}
 	}
 

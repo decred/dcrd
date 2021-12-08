@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -3646,6 +3647,11 @@ func TestUint256Format(t *testing.T) {
 		fmt:  "%s",
 		want: "1000000000",
 	}, {
+		name: "10^77 decimal via %s",
+		n:    "dd15fe86affad91249ef0eb713f39ebeaa987b6e6fd2a0000000000000000000",
+		fmt:  "%s",
+		want: "1" + strings.Repeat("0", 77),
+	}, {
 		name: "123456789 decimal via %v",
 		n:    "75bcd15",
 		fmt:  "%v",
@@ -4039,6 +4045,59 @@ func TestUint256Format(t *testing.T) {
 		if got != test.want {
 			t.Errorf("%q: unexpected result -- got: %s, want: %s", test.name,
 				got, test.want)
+		}
+	}
+}
+
+// TestUint256FormatRandom ensures that the binary, octal, decimal, and hex
+// output of uint256s created from random values works as expected by also
+// performing the same operation with big ints and comparing the results.
+func TestUint256FormatRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate big integer and uint256 pair.
+		bigN1, n1 := randBigIntAndUint256(t, rng)
+
+		// Ensure base 2 output matches.
+		bigIntBinary := bigN1.Text(2)
+		uint256Binary := n1.Text(OutputBaseBinary)
+		if bigIntBinary != uint256Binary {
+			t.Fatalf("mismatched binary n: %x -- got %s, want %s", bigN1,
+				bigIntBinary, uint256Binary)
+		}
+
+		// Ensure base 8 output matches.
+		bigIntOctal := bigN1.Text(8)
+		uint256Octal := n1.Text(OutputBaseOctal)
+		if bigIntOctal != uint256Octal {
+			t.Fatalf("mismatched octal n: %x -- got %s, want %s", bigN1,
+				bigIntOctal, uint256Octal)
+		}
+
+		// Ensure base 10 output matches.
+		bigIntDecimal := bigN1.Text(10)
+		uint256Decimal := n1.Text(OutputBaseDecimal)
+		if bigIntDecimal != uint256Decimal {
+			t.Fatalf("mismatched decimal n: %x -- got %s, want %s", bigN1,
+				bigIntDecimal, uint256Decimal)
+		}
+
+		// Ensure base 16 output matches.
+		bigIntHex := bigN1.Text(16)
+		uint256Hex := n1.Text(OutputBaseHex)
+		if bigIntHex != uint256Hex {
+			t.Fatalf("mismatched hex n: %x -- got %s, want %s", bigN1,
+				bigIntHex, uint256Hex)
 		}
 	}
 }
