@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -301,11 +301,11 @@ tests:
 		pubKey := extKey.Neuter()
 
 		// Neutering a second time should have no effect.
-		// Test for referencial equality.
+		// Test for referential equality.
 		if pubKey != pubKey.Neuter() {
 			t.Errorf("Neuter of extended public key returned " +
 				"different object address")
-			return
+			continue
 		}
 
 		pubStr := pubKey.String()
@@ -890,6 +890,158 @@ func TestZero(t *testing.T) {
 		neuteredKey.Zero()
 		if !testZeroed(i, test.name+" deserialized neutered", key) {
 			continue
+		}
+	}
+}
+
+// TestBIP0032Vector4 tests the BIP32 test vector 4 against keys derived from
+// the ChildBIP32Std method, which derives keys that retain the leading zeros.
+func TestBIP0032Vector4(t *testing.T) {
+	testVec4MasterHex := "3ddd5602285899a946114506157c7997e5444528f3003f6134712147db19b678"
+	hkStart := uint32(0x80000000)
+
+	mainNetParams := mockMainNetParams()
+	tests := []struct {
+		name         string
+		master       string
+		path         []uint32
+		wantPub      string
+		wantPriv     string
+		wantPrivSer  string
+		leadingZeros int
+		net          NetworkParams
+	}{
+		{
+			name:        "test vector 4 chain m",
+			master:      testVec4MasterHex,
+			path:        []uint32{},
+			wantPub:     "dpubZ9169KDAEUnyovAoD3NuxWgVNvAWqC3eUFUrip8ZnT4emsEvAPCyhVgoymUF6p7gug7K6ewzEaUvy77tT7LStEjj56CaZxLRMSYjypMK1yC",
+			wantPriv:    "dprv3hCznBesA6jBuWH2xXKZSHtEkucFQFTaGhrXyuCCnNU24KDHHRsNcvAnq4596P5sYKTSgqbjUe2UNVxid8J9oDyFsuSWb3L93Jrka3vPtYV",
+			wantPrivSer: "12c0d59c7aa3a10973dbd3f478b65f2516627e3fe61e00c345be9a477ad2e215",
+			net:         mainNetParams,
+		},
+		{ // This test fails when using Child instead of ChildBIP32Std.
+			name:         "test vector 4 chain m/0H -- leading zeros in private key serialization",
+			master:       testVec4MasterHex,
+			path:         []uint32{hkStart},
+			wantPub:      "dpubZBYwK8RvCX3KjyCPhRQ9BYdX1ZYTvcFf67sRtoZGPnEYMCVgVyF5uWToDwePapvd1GtLYHAWGpQWo9ffod84MPvwpHmvKeZnZZf47EJcUmT",
+			wantPriv:     "dprv3jkqwzsd88yXqZJdSuLnfKqGPYzCVffataF79tcuPhdudeU3d1uUpvwn5Btmbai3BoVYhzbsEQ7tcH1XtEJ1BhzNSAtZfqv8BtSpdq5FEpj",
+			wantPrivSer:  "00d948e9261e41362a688b916f297121ba6bfb2274a3575ac0e456551dfd7f7e",
+			leadingZeros: 1, // 1 zero byte
+			net:          mainNetParams,
+		},
+		{
+			name:        "test vector 4 chain m/0H/1H -- completely different key",
+			master:      testVec4MasterHex,
+			path:        []uint32{hkStart, hkStart + 1},
+			wantPub:     "dpubZDVQT3iY5Bz6NtyCE8zfnpgwkN7AEUv5mr6H6vPVPRMupBbjTJojs7qRrvddW9adSJt6obdBgW6DsUAaFD8xRVQfVB4XfWCEYdTYRZ7updr",
+			wantPriv:    "dprv3mhK5vAEzovJUV5RycwKGbth8MYtoYL1aJTxN1T8PLmH6da6aMU8nYKQiC5Zj7mC7pH4G8xPxGZVR51FG9Ssptzx1c39A1JxADS6zDrsLPr",
+			wantPrivSer: "3a2086edd7d9df86c3487a5905a1712a9aa664bce8cc268141e07549eaa8661d",
+			net:         mainNetParams,
+		},
+	}
+
+tests:
+	for i, test := range tests {
+		masterSeed, err := hex.DecodeString(test.master)
+		if err != nil {
+			t.Errorf("DecodeString #%d (%s): unexpected error: %v",
+				i, test.name, err)
+			continue
+		}
+
+		extKey, err := NewMaster(masterSeed, test.net)
+		if err != nil {
+			t.Errorf("NewMaster #%d (%s): unexpected error when "+
+				"creating new master key: %v", i, test.name, err)
+			continue
+		}
+
+		for _, childNum := range test.path {
+			var err error
+			extKey, err = extKey.ChildBIP32Std(childNum)
+			if err != nil {
+				t.Errorf("ChildBIP32Std #%d (%s): %v", i, test.name, err)
+				continue tests
+			}
+		}
+
+		priv, err := extKey.SerializedPrivKey()
+		if err != nil {
+			t.Errorf("SerializedPrivKey #%d (%s): unexpected error: %v",
+				i, test.name, err)
+			continue
+		}
+		if len(priv) != 32 {
+			t.Errorf("SerializedPrivKey #%d (%s): serialized private key "+
+				"length %d, want 32", i, test.name, len(priv))
+			continue
+		}
+
+		privStr := hex.EncodeToString(priv)
+		if privStr != test.wantPrivSer {
+			t.Errorf("Serialize #%d (%s): mismatched serialized "+
+				"private extended key -- got: %s, want: %s", i,
+				test.name, privStr, test.wantPrivSer)
+			continue
+		}
+
+		extKeyStr := extKey.String()
+		if extKeyStr != test.wantPriv {
+			t.Errorf("Serialize #%d (%s): mismatched serialized "+
+				"private extended key -- got: %s, want: %s", i,
+				test.name, extKeyStr, test.wantPriv)
+			continue
+		}
+
+		pubKey := extKey.Neuter()
+
+		// Neutering a second time should have no effect.
+		// Test for referential equality.
+		if pubKey != pubKey.Neuter() {
+			t.Errorf("Neuter #%d (%s): of extended public key returned "+
+				"different object address", i, test.name)
+			continue
+		}
+
+		pubStr := pubKey.String()
+		if pubStr != test.wantPub {
+			t.Errorf("Neuter #%d (%s): mismatched serialized "+
+				"public extended key -- got: %s, want: %s", i,
+				test.name, pubStr, test.wantPub)
+			continue
+		}
+
+		// If this path generates a private key with leading zeros, ensure they
+		// are stripped with the legacy Decred child derivation.
+		if test.leadingZeros > 0 {
+			wantLen := 32 - test.leadingZeros
+			extKey, err := NewMaster(masterSeed, test.net)
+			if err != nil {
+				t.Errorf("NewMaster #%d (%s): unexpected error when "+
+					"creating new master key: %v", i, test.name, err)
+				continue
+			}
+
+			for _, childNum := range test.path {
+				var err error
+				extKey, err = extKey.Child(childNum) // modified/legacy BIP32
+				if err != nil {
+					t.Errorf("Child #%d (%s): %v", i, test.name, err)
+					continue tests
+				}
+			}
+
+			priv, err := extKey.SerializedPrivKey()
+			if err != nil {
+				t.Errorf("SerializedPrivKey #%d (%s): unexpected error: %v",
+					i, test.name, err)
+				continue
+			}
+			if len(priv) != wantLen {
+				t.Errorf("SerializedPrivKey #%d (%s): serialized private key "+
+					"length %d, want %d", i, test.name, len(priv), wantLen)
+			}
 		}
 	}
 }

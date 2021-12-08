@@ -33,6 +33,13 @@ A comprehensive suite of tests is provided to ensure proper functionality.
 - Comprehensive test coverage including the BIP0032 test vectors
 - Benchmarks
 
+## BIP0032 Conformity
+
+Two different child key derivation functions are provided: the Child function
+derives extended keys using a modified scheme based on BIP0032, whereas
+ChildBIP32Std produces keys that strictly conform to the standard.  The Child
+function should be used for Decred wallet key derivation for legacy reasons.
+
 ## Installation and Updating
 
 This package is part of the `github.com/decred/dcrd/hdkeychain/v3` module.  Use

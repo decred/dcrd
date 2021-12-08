@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -38,12 +38,23 @@ create a random seed for use with the NewMaster function.
 Deriving Children
 
 Once you have created a tree root (or have deserialized an extended key as
-discussed later), the child extended keys can be derived by using the Child
-function.  The Child function supports deriving both normal (non-hardened) and
+discussed later), the child extended keys can be derived by using either the
+Child or ChildBIP32Std function.  The difference is described in the following
+section.  These functions support deriving both normal (non-hardened) and
 hardened child extended keys.  In order to derive a hardened extended key, use
 the HardenedKeyStart constant + the hardened key number as the index to the
 Child function.  This provides the ability to cascade the keys into a tree and
 hence generate the hierarchical deterministic key chains.
+
+BIP0032 Conformity
+
+The Child function derives extended keys with a modified scheme based on
+BIP0032, whereas ChildBIP32Std produces keys that strictly conform to the
+standard.  Specifically, the Decred variation strips leading zeros of a private
+key, causing subsequent child keys to differ from the keys expected by standard
+BIP0032.  The ChildBIP32Std method retains leading zeros, ensuring the child
+keys expected by BIP0032 are derived.  The Child function must be used for
+Decred wallet key derivation for legacy reasons.
 
 Normal vs Hardened Child Extended Keys
 

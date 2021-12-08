@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -210,28 +210,12 @@ func doubleBlake256Cksum(v []byte) []byte {
 	return second[:4]
 }
 
-// Child returns a derived child extended key at the given index.  When this
-// extended key is a private extended key (as determined by the IsPrivate
-// function), a private extended key will be derived.  Otherwise, the derived
-// extended key will be also be a public extended key.
-//
-// When the index is greater to or equal than the HardenedKeyStart constant, the
-// derived extended key will be a hardened extended key.  It is only possible to
-// derive a hardened extended key from a private extended key.  Consequently,
-// this function will return ErrDeriveHardFromPublic if a hardened child
-// extended key is requested from a public extended key.
-//
-// A hardened extended key is useful since, as previously mentioned, it requires
-// a parent private extended key to derive.  In other words, normal child
-// extended public keys can be derived from a parent public extended key (no
-// knowledge of the parent private key) whereas hardened extended keys may not
-// be.
-//
-// NOTE: There is an extremely small chance (< 1 in 2^127) the specific child
-// index does not derive to a usable child.  The ErrInvalidChild error will be
-// returned if this should occur, and the caller is expected to ignore the
-// invalid child and simply increment to the next index.
-func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
+// child derives a child extended key at the given index. The derived key will
+// retain any leading zeros of a private key if the strict BIP32 flag is true,
+// otherwise they will be stripped.  Strict BIP32 derivation is not intended for
+// Decred wallets.  The derived extended key will be either public or private as
+// determined by the IsPrivate function.
+func (k *ExtendedKey) child(i uint32, strictBIP32 bool) (*ExtendedKey, error) {
 	// There are four scenarios that could happen here:
 	// 1) Private extended key -> Hardened child private extended key
 	// 2) Private extended key -> Non-hardened child private extended key
@@ -317,12 +301,12 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 		childKeyBytes := ilModN.Bytes()
 		childKey = childKeyBytes[:]
 
-		// Strip leading zeroes to maintain legacy behavior.  Note that per
-		// [BIP32] this should be the fully zero-padded 32-bytes, however, the
-		// Decred variation strips leading zeros for legacy reasons and changing
-		// it now would break derivation for a lot of Decred wallets that rely
-		// on this behavior.
-		for len(childKey) > 0 && childKey[0] == 0x00 {
+		// Optionally strip leading zeroes to maintain legacy behavior.  Note
+		// that per [BIP32] this should be the fully zero-padded 32-bytes,
+		// however, the Decred variation strips leading zeros for legacy reasons
+		// and changing it now would break derivation for a lot of Decred
+		// wallets that rely on this behavior.
+		for !strictBIP32 && len(childKey) > 0 && childKey[0] == 0x00 {
 			childKey = childKey[1:]
 		}
 		isPrivate = true
@@ -362,6 +346,43 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 	parentFP := hash160(k.pubKeyBytes())[:4]
 	return newExtendedKey(k.privVer, k.pubVer, childKey, childChainCode,
 		parentFP, k.depth+1, i, isPrivate), nil
+}
+
+// Child returns a derived child extended key at the given index.  When this
+// extended key is a private extended key (as determined by the IsPrivate
+// function), a private extended key will be derived.  Otherwise, the derived
+// extended key will be also be a public extended key.
+//
+// When the index is greater to or equal than the HardenedKeyStart constant, the
+// derived extended key will be a hardened extended key.  It is only possible to
+// derive a hardened extended key from a private extended key.  Consequently,
+// this function will return ErrDeriveHardFromPublic if a hardened child
+// extended key is requested from a public extended key.
+//
+// A hardened extended key is useful since, as previously mentioned, it requires
+// a parent private extended key to derive.  In other words, normal child
+// extended public keys can be derived from a parent public extended key (no
+// knowledge of the parent private key) whereas hardened extended keys may not
+// be.
+//
+// NOTE: There is an extremely small chance (< 1 in 2^127) the specific child
+// index does not derive to a usable child.  The ErrInvalidChild error will be
+// returned if this should occur, and the caller is expected to ignore the
+// invalid child and simply increment to the next index.
+//
+// NOTE 2: Child keys derived from the returned extended key will follow the
+// modified Decred variation of the BIP32 derivation scheme such that any
+// leading zero bytes of private keys are stripped, resulting in different
+// subsequent child keys. This should be used for legacy compatibility purposes.
+func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
+	return k.child(i, false)
+}
+
+// ChildBIP32Std is like Child, except that derived keys will follow BIP32
+// strictly by retaining leading zeros in the keys, always generating 32-byte
+// keys, and thus different subsequently derived child keys.
+func (k *ExtendedKey) ChildBIP32Std(i uint32) (*ExtendedKey, error) {
+	return k.child(i, true)
 }
 
 // Neuter returns a new extended public key from this extended private key.  The
