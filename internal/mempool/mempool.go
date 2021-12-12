@@ -1873,23 +1873,18 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	return nil, nil
 }
 
-// MaybeAcceptTransaction is the main workhorse for handling insertion of new
-// free-standing transactions into a memory pool.  It includes functionality
-// such as rejecting duplicate transactions, ensuring transactions follow all
-// rules, orphan transaction handling, and insertion into the memory pool.  The
-// isOrphan parameter can be nil if the caller does not need to know whether
-// or not the transaction is an orphan.
-//
-// This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) ([]*chainhash.Hash, error) {
+// determineCheckTxFlags returns the flags to use when checking transactions
+// based on the agendas that are active per the functions provided via the pool
+// config.
+func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	// Create agenda flags for checking transactions based on which ones are
@@ -1902,6 +1897,22 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 	}
 	if isAutoRevocationsEnabled {
 		checkTxFlags |= blockchain.AFAutoRevocationsEnabled
+	}
+	return checkTxFlags, nil
+}
+
+// MaybeAcceptTransaction is the main workhorse for handling insertion of new
+// free-standing transactions into a memory pool.  It includes functionality
+// such as rejecting duplicate transactions, ensuring transactions follow all
+// rules, orphan transaction handling, and insertion into the memory pool.
+//
+// This function is safe for concurrent access.
+func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) ([]*chainhash.Hash, error) {
+	// Create agenda flags for checking transactions based on which ones are
+	// active or should otherwise always be enforced.
+	checkTxFlags, err := mp.determineCheckTxFlags()
+	if err != nil {
+		return nil, err
 	}
 
 	// Protect concurrent access.
@@ -2180,27 +2191,14 @@ func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool, tag Tag) ([]*dcrutil.Tx, error) {
-	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
-	if err != nil {
-		return nil, err
-	}
-
-	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
-	if err != nil {
-		return nil, err
-	}
-
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
-	//
-	// Note that explicit version upgrades are always enforced by policy.
-	checkTxFlags := blockchain.AFExplicitVerUpgrades
-	if isTreasuryEnabled {
-		checkTxFlags |= blockchain.AFTreasuryEnabled
+	checkTxFlags, err := mp.determineCheckTxFlags()
+	if err != nil {
+		return nil, err
 	}
-	if isAutoRevocationsEnabled {
-		checkTxFlags |= blockchain.AFAutoRevocationsEnabled
-	}
+	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
+	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
