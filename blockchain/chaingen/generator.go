@@ -1717,6 +1717,23 @@ func ReplaceVotes(voteBits uint16, newVersion uint32) func(*wire.MsgBlock) {
 	}
 }
 
+// ReplaceVoteSubsidies returns a function that itself takes a block and
+// modifies it by replacing the subsidy of all votes contained in the block.
+//
+// NOTE: This must only be used as a munger to the 'NextBlock' function or it
+// will lead to an invalid live ticket pool.
+func ReplaceVoteSubsidies(newSubsidy dcrutil.Amount) func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		for _, stx := range b.STransactions {
+			if isVoteTx(stx) {
+				stx.TxOut[2].Value -= stx.TxIn[0].ValueIn
+				stx.TxIn[0].ValueIn = int64(newSubsidy)
+				stx.TxOut[2].Value += int64(newSubsidy)
+			}
+		}
+	}
+}
+
 // ReplaceRevocationVersions returns a function that itself takes a block and
 // modifies it by replacing the transaction version of all revocations contained
 // in the block.
