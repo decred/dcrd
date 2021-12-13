@@ -2332,11 +2332,16 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 	if err != nil {
 		return nil, err
 	}
+	isSubsidyEnabled, err := s.isSubsidySplitAgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
 
-	dev := s.cfg.SubsidyCache.CalcTreasurySubsidy(height, voters,
-		isTreasuryEnabled)
-	pos := s.cfg.SubsidyCache.CalcStakeVoteSubsidy(height-1) * int64(voters)
-	pow := s.cfg.SubsidyCache.CalcWorkSubsidy(height, voters)
+	subsidyCache := s.cfg.SubsidyCache
+	dev := subsidyCache.CalcTreasurySubsidy(height, voters, isTreasuryEnabled)
+	pos := subsidyCache.CalcStakeVoteSubsidyV2(height-1, isSubsidyEnabled) *
+		int64(voters)
+	pow := subsidyCache.CalcWorkSubsidyV2(height, voters, isSubsidyEnabled)
 	total := dev + pos + pow
 
 	rep := types.GetBlockSubsidyResult{
@@ -5654,6 +5659,19 @@ func (s *Server) isAutoRevocationsAgendaActive(prevBlkHash *chainhash.Hash) (boo
 		return false, rpcInternalError(err.Error(), context)
 	}
 	return isAutoRevocationsEnabled, nil
+}
+
+// isSubsidySplitAgendaActive returns if the modified subsidy split agenda is
+// active or not for the block AFTER the provided block hash.
+func (s *Server) isSubsidySplitAgendaActive(prevBlkHash *chainhash.Hash) (bool, error) {
+	chain := s.cfg.Chain
+	isSubsidySplitEnabled, err := chain.IsSubsidySplitAgendaActive(prevBlkHash)
+	if err != nil {
+		context := fmt.Sprintf("Could not obtain modified subsidy split "+
+			"agenda status for block %s", prevBlkHash)
+		return false, rpcInternalError(err.Error(), context)
+	}
+	return isSubsidySplitEnabled, nil
 }
 
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the

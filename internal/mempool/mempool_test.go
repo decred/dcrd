@@ -366,6 +366,7 @@ type poolHarness struct {
 	chainParams           *chaincfg.Params
 	treasuryActive        bool
 	autoRevocationsActive bool
+	subsidySplitActive    bool
 
 	chain  *fakeChain
 	txPool *TxPool
@@ -624,7 +625,8 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	// Calculate the vote subsidy.
 	subsidyCache := p.txPool.cfg.SubsidyCache
-	subsidy := subsidyCache.CalcStakeVoteSubsidy(p.chain.BestHeight())
+	subsidy := subsidyCache.CalcStakeVoteSubsidyV2(p.chain.BestHeight(),
+		p.subsidySplitActive)
 	// Parse the ticket purchase transaction and generate the vote reward.
 	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
 		stake.TxSStxStakeOutputInfo(ticket.MsgTx())
@@ -846,6 +848,9 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			},
 			IsAutoRevocationsAgendaActive: func() (bool, error) {
 				return harness.autoRevocationsActive, nil
+			},
+			IsSubsidySplitAgendaActive: func() (bool, error) {
+				return harness.subsidySplitActive, nil
 			},
 		}),
 	}
@@ -3145,4 +3150,109 @@ func TestFraudProofHandling(t *testing.T) {
 				txInFromMempool.BlockIndex, utxoBlockIndex)
 		}
 	}
+}
+
+// TestSubsidySplitSemantics ensures the mempool has the following semantics
+// in regards to the modified subsidy split agenda:
+//
+// - Accepts votes with the original subsidy when the agenda is NOT active
+// - Rejects votes with the original subsidy when the agenda is active
+// - Accepts votes with the modified subsidy when the agenda is active
+// - Rejects votes with the modified subsidy when the agenda is NOT active
+func TestSubsidySplitSemantics(t *testing.T) {
+	t.Parallel()
+
+	harness, outputs, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	txPool := harness.txPool
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(outputs[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the prior
+	// regular transaction.
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction: %v", err)
+	}
+
+	// Add the ticket outputs as utxos to fake their existence.  Use one after
+	// the stake enabled height for the height of the fake utxos to ensure they
+	// are matured for the votes cast at stake validation height below.
+	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		noTreasury, noAutoRevocations)
+
+	// Create a vote that votes on a block at stake validation height using the
+	// proportions required when the modified subsidy split agenda is NOT active.
+	harness.subsidySplitActive = false
+	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
+	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
+	harness.chain.SetBestHash(&hash)
+	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
+	harness.chain.blocks[hash] = mockBlock
+	preDCP0010Vote, err := harness.CreateVote(ticket)
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Create another vote that votes on a block at stake validation height
+	// using the proportions required when the modified subsidy split agenda is
+	// active.
+	harness.subsidySplitActive = true
+	postDCP0010Vote, err := harness.CreateVote(ticket)
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Attempt to add the vote with the modified subsidy when the agenda is NOT
+	// active and ensure it is rejected.  Also, ensure it is not in the orphan
+	// pool, not in the transaction pool, and not reported as available.
+	harness.subsidySplitActive = false
+	_, err = txPool.ProcessTransaction(postDCP0010Vote, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrBadStakebaseAmountIn) {
+		t.Fatal("did not get expected ErrBadStakebaseAmountIn error")
+	}
+	testPoolMembership(tc, postDCP0010Vote, false, false)
+
+	// Attempt to add the vote with the original subsidy when the agenda is NOT
+	// active and ensure it is accepted.  Also, ensure it is not in the orphan
+	// pool, is in the transaction pool, and is reported as available.
+	_, err = txPool.ProcessTransaction(preDCP0010Vote, false, false, true, 0)
+	if err != nil {
+		t.Fatalf("failed to accept valid vote %v", err)
+	}
+	testPoolMembership(tc, preDCP0010Vote, false, true)
+
+	// Remove the vote from the pool and ensure it is not in the orphan pool,
+	// not in the transaction pool, and not reported as available.
+	harness.txPool.RemoveTransaction(preDCP0010Vote, true, noTreasury,
+		noAutoRevocations)
+	testPoolMembership(tc, preDCP0010Vote, false, false)
+
+	// Attempt to add the vote with the original subsidy when the agenda is
+	// active and ensure it is rejected.  Also, ensure it is not in the orphan
+	// pool, not in the transaction pool, and not reported as available.
+	harness.subsidySplitActive = true
+	_, err = txPool.ProcessTransaction(preDCP0010Vote, false, false, true, 0)
+	if !errors.Is(err, blockchain.ErrBadStakebaseAmountIn) {
+		t.Fatal("did not get expected ErrBadStakebaseAmountIn error")
+	}
+	testPoolMembership(tc, preDCP0010Vote, false, false)
+
+	// Attempt to add the vote with the modified subsidy when the agenda is
+	// active and ensure it is accepted.  Also, ensure it is not in the orphan
+	// pool, is in the transaction pool, and is reported as available.
+	_, err = txPool.ProcessTransaction(postDCP0010Vote, false, false, true, 0)
+	if err != nil {
+		t.Fatalf("failed to accept valid vote %v", err)
+	}
+	testPoolMembership(tc, postDCP0010Vote, false, true)
 }

@@ -72,6 +72,8 @@ type fakeChain struct {
 	isTreasuryAgendaActiveErr          error
 	isAutoRevocationsAgendaActive      bool
 	isAutoRevocationsAgendaActiveErr   error
+	isSubsidySplitAgendaActive         bool
+	isSubsidySplitAgendaActiveErr      error
 	maxTreasuryExpenditure             int64
 	maxTreasuryExpenditureErr          error
 	parentUtxos                        *blockchain.UtxoViewpoint
@@ -214,6 +216,13 @@ func (c *fakeChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, erro
 // given block.
 func (c *fakeChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	return c.isAutoRevocationsAgendaActive, c.isAutoRevocationsAgendaActiveErr
+}
+
+// IsSubsidySplitAgendaActive returns a mocked bool representing whether the
+// modified subsidy split agenda is active or not for the block AFTER the given
+// block.
+func (c *fakeChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	return c.isSubsidySplitAgendaActive, c.isSubsidySplitAgendaActiveErr
 }
 
 // MaxTreasuryExpenditure returns a mocked maximum amount of funds that can be
@@ -668,6 +677,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	nextHeight := height + 1
 	isTreasuryEnabled := p.chain.isTreasuryAgendaActive
 	isAutoRevocationsEnabled := p.chain.isAutoRevocationsAgendaActive
+	isSubsidySplitEnabled := p.chain.isSubsidySplitAgendaActive
 
 	// Get the best block and header.
 	bestHeader, err := p.chain.HeaderByHash(&best.Hash)
@@ -741,7 +751,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 
 	txFee, err := blockchain.CheckTransactionInputs(p.subsidyCache, tx, nextHeight,
 		utxoView, false, p.chainParams, &bestHeader, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+		isAutoRevocationsEnabled, isSubsidySplitEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1214,7 +1224,8 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	// Calculate the vote subsidy.
 	best := m.chain.BestSnapshot()
-	subsidy := m.subsidyCache.CalcStakeVoteSubsidy(best.Height)
+	subsidy := m.subsidyCache.CalcStakeVoteSubsidyV2(best.Height,
+		m.chain.isSubsidySplitAgendaActive)
 	// Parse the ticket purchase transaction and generate the vote reward.
 	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
 		stake.TxSStxStakeOutputInfo(ticket.MsgTx())
@@ -1441,11 +1452,11 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
 				view *blockchain.UtxoViewpoint, checkFraudProof bool,
 				prevHeader *wire.BlockHeader, isTreasuryEnabled,
-				isAutoRevocationsEnabled bool) (int64, error) {
+				isAutoRevocationsEnabled, isSubsidySplitEnabled bool) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(subsidyCache, tx, txHeight,
 					view, checkFraudProof, chainParams, prevHeader, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+					isAutoRevocationsEnabled, isSubsidySplitEnabled)
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
 			CountSigOps:                     blockchain.CountSigOps,
@@ -1458,6 +1469,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			IsHeaderCommitmentsAgendaActive: chain.IsHeaderCommitmentsAgendaActive,
 			IsTreasuryAgendaActive:          chain.IsTreasuryAgendaActive,
 			IsAutoRevocationsAgendaActive:   chain.IsAutoRevocationsAgendaActive,
+			IsSubsidySplitAgendaActive:      chain.IsSubsidySplitAgendaActive,
 			MaxTreasuryExpenditure:          chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint:                chain.NewUtxoViewpoint,
 			TipGeneration:                   chain.TipGeneration,

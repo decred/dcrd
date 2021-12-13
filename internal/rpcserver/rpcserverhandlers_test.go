@@ -201,6 +201,8 @@ type testRPCChain struct {
 	tspendVotes                   tspendVotes
 	treasuryActive                bool
 	treasuryActiveErr             error
+	subsidySplitActive            bool
+	subsidySplitActiveErr         error
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -444,6 +446,12 @@ func (c *testRPCChain) FetchTSpend(chainhash.Hash) ([]chainhash.Hash, error) {
 // to the given block.
 func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error) {
 	return c.tspendVotes.yes, c.tspendVotes.no, c.tspendVotes.err
+}
+
+// IsSubsidySplitAgendaActive returns a mocked bool representing whether or
+// not the modified subsidy split agenda is active.
+func (c *testRPCChain) IsSubsidySplitAgendaActive(*chainhash.Hash) (bool, error) {
+	return c.subsidySplitActive, c.subsidySplitActiveErr
 }
 
 // testPeer provides a mock peer by implementing the Peer interface.
@@ -4399,6 +4407,38 @@ func TestHandleGetBlockSubsidy(t *testing.T) {
 			PoW:       int64(887451661),
 			Total:     int64(1479086101),
 		},
+	}, {
+		name:    "handleGetBlockSubsidy: modified subsidy split ok",
+		handler: handleGetBlockSubsidy,
+		cmd: &types.GetBlockSubsidyCmd{
+			Height: 638977,
+			Voters: 5,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.subsidySplitActive = true
+			return chain
+		}(),
+		result: types.GetBlockSubsidyResult{
+			Developer: int64(110834154),
+			PoS:       int64(886673230),
+			PoW:       int64(110834154),
+			Total:     int64(1108341538),
+		},
+	}, {
+		name:    "handleGetBlockSubsidy: modified subsidy split status failure",
+		handler: handleGetBlockSubsidy,
+		cmd: &types.GetBlockSubsidyCmd{
+			Height: 638977,
+			Voters: 5,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.subsidySplitActiveErr = errors.New("error getting agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 

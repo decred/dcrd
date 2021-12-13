@@ -3630,6 +3630,10 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			tipHash := &s.chain.BestSnapshot().Hash
 			return s.chain.IsAutoRevocationsAgendaActive(tipHash)
 		},
+		IsSubsidySplitAgendaActive: func() (bool, error) {
+			tipHash := &s.chain.BestSnapshot().Hash
+			return s.chain.IsSubsidySplitAgendaActive(tipHash)
+		},
 		TSpendMinedOnAncestor: func(tspend chainhash.Hash) error {
 			tipHash := s.chain.BestSnapshot().Hash
 			return s.chain.CheckTSpendExists(tipHash, tspend)
@@ -3697,11 +3701,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
 				view *blockchain.UtxoViewpoint, checkFraudProof bool,
 				prevHeader *wire.BlockHeader, isTreasuryEnabled,
-				isAutoRevocationsEnabled bool) (int64, error) {
+				isAutoRevocationsEnabled, isSubsidyEnabled bool) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(s.subsidyCache, tx, txHeight,
 					view, checkFraudProof, s.chainParams, prevHeader, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+					isAutoRevocationsEnabled, isSubsidyEnabled)
 			},
 			CheckTSpendHasVotes:             s.chain.CheckTSpendHasVotes,
 			CountSigOps:                     blockchain.CountSigOps,
@@ -3714,6 +3718,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			IsHeaderCommitmentsAgendaActive: s.chain.IsHeaderCommitmentsAgendaActive,
 			IsTreasuryAgendaActive:          s.chain.IsTreasuryAgendaActive,
 			IsAutoRevocationsAgendaActive:   s.chain.IsAutoRevocationsAgendaActive,
+			IsSubsidySplitAgendaActive:      s.chain.IsSubsidySplitAgendaActive,
 			MaxTreasuryExpenditure:          s.chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint: func() *blockchain.UtxoViewpoint {
 				return blockchain.NewUtxoViewpoint(utxoCache)

@@ -6,7 +6,7 @@ require (
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0-20211110133211-e53d26e01d1f
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
-	github.com/decred/dcrd/chaincfg/v3 v3.1.0
+	github.com/decred/dcrd/chaincfg/v3 v3.1.1
 	github.com/decred/dcrd/database/v3 v3.0.0-20211012235250-77033596a107
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
@@ -19,6 +19,4 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 )
 
-replace (
-	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
-)
+replace github.com/decred/dcrd/blockchain/standalone/v2 => ./standalone

@@ -12,7 +12,7 @@ require (
 	github.com/decred/dcrd/blockchain/v4 v4.0.0-20210129200153-14fd1a785bf2
 	github.com/decred/dcrd/certgen v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
-	github.com/decred/dcrd/chaincfg/v3 v3.1.0
+	github.com/decred/dcrd/chaincfg/v3 v3.1.1
 	github.com/decred/dcrd/connmgr/v3 v3.0.0
 	github.com/decred/dcrd/container/apbf v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1

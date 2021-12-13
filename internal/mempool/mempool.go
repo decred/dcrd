@@ -151,13 +151,16 @@ type Config struct {
 	// vote in the mempool.
 	OnVoteReceived func(voteTx *dcrutil.Tx)
 
-	// IsTreasuryAgendaActive returns if the treasury agenda is active or
-	// not.
+	// IsTreasuryAgendaActive returns if the treasury agenda is active or not.
 	IsTreasuryAgendaActive func() (bool, error)
 
 	// IsAutoRevocationsAgendaActive returns if the automatic ticket revocations
 	// agenda is active or not.
 	IsAutoRevocationsAgendaActive func() (bool, error)
+
+	// IsSubsidySplitAgendaActive returns if the modified subsidy split agenda
+	// is active or not.
+	IsSubsidySplitAgendaActive func() (bool, error)
 
 	// OnTSpendReceived defines the function used to signal receiving a new
 	// tspend in the mempool.
@@ -1280,6 +1283,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Determine active agendas based on flags.
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
+	isSubsidyEnabled := checkTxFlags.IsSubsidySplitEnabled()
 
 	// A standalone transaction must not be a coinbase transaction.
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
@@ -1579,9 +1583,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	if err != nil {
 		return nil, err
 	}
-	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
-		tx, nextBlockHeight, utxoView, true, mp.cfg.ChainParams,
-		&bestHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
+	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache, tx,
+		nextBlockHeight, utxoView, true, mp.cfg.ChainParams, &bestHeader,
+		isTreasuryEnabled, isAutoRevocationsEnabled, isSubsidyEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1887,6 +1891,11 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 		return 0, err
 	}
 
+	isSubsidySplitEnabled, err := mp.cfg.IsSubsidySplitAgendaActive()
+	if err != nil {
+		return 0, err
+	}
+
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	//
@@ -1897,6 +1906,9 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 	}
 	if isAutoRevocationsEnabled {
 		checkTxFlags |= blockchain.AFAutoRevocationsEnabled
+	}
+	if isSubsidySplitEnabled {
+		checkTxFlags |= blockchain.AFSubsidySplitEnabled
 	}
 	return checkTxFlags, nil
 }
