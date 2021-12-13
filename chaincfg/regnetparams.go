@@ -106,7 +106,9 @@ func RegNetParams() *Params {
 		DivSubsidy:               101,
 		SubsidyReductionInterval: 128,
 		WorkRewardProportion:     6,
+		WorkRewardProportionV2:   1,
 		StakeRewardProportion:    3,
+		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
 		// Checkpoints ordered from oldest to newest.
@@ -376,6 +378,33 @@ func RegNetParams() *Params {
 						Id:          "yes",
 						Description: "change to the new consensus rules",
 						Bits:        0x0040, // Bit 6
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  0,             // Always available for vote
+				ExpireTime: math.MaxInt64, // Never expires
+			}, {
+				Vote: Vote{
+					Id:          VoteIDChangeSubsidySplit,
+					Description: "Change block reward subsidy split to 10/80/10 as defined in DCP0010",
+					Mask:        0x0180, // Bits 7 and 8
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0080, // Bit 7
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0100, // Bit 8
 						IsAbstain:   false,
 						IsNo:        false,
 					}},

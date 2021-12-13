@@ -105,7 +105,9 @@ func SimNetParams() *Params {
 		DivSubsidy:               101,
 		SubsidyReductionInterval: 128,
 		WorkRewardProportion:     6,
+		WorkRewardProportionV2:   1,
 		StakeRewardProportion:    3,
+		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
 		// Checkpoints ordered from oldest to newest.

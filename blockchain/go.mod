@@ -18,3 +18,7 @@ require (
 	github.com/decred/slog v1.2.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 )
+
+replace (
+	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
+)

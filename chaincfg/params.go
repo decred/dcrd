@@ -159,6 +159,11 @@ const (
 	// VoteIDAutoRevocations is the vote ID for the agenda that enables automatic
 	// ticket revocations as defined in DCP0009.
 	VoteIDAutoRevocations = "autorevocations"
+
+	// VoteIDChangeSubsidySplit is the vote ID for the agenda that changes the
+	// block reward subsidy split to 10% PoW, 80% PoS, and 10% Treasury as
+	// defined in DCP0010.
+	VoteIDChangeSubsidySplit = "changesubsidysplit"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
@@ -315,12 +320,23 @@ type Params struct {
 	SubsidyReductionInterval int64
 
 	// WorkRewardProportion is the comparative amount of the subsidy given for
-	// creating a block.
+	// creating a block using the proportions prior to the modified values
+	// defined in DCP0010.
 	WorkRewardProportion uint16
 
+	// WorkRewardProportionV2 is the comparative amount of the subsidy given for
+	// creating a block using the proportions defined in DCP0010.
+	WorkRewardProportionV2 uint16
+
 	// StakeRewardProportion is the comparative amount of the subsidy given for
-	// casting stake votes (collectively, per block).
+	// casting stake votes (collectively, per block) using the proportions prior
+	// to the modified values defined in DCP0010.
 	StakeRewardProportion uint16
+
+	// StakeRewardProportionV2 is the comparative amount of the subsidy given
+	// for casting stake votes (collectively, per block) using the proportions
+	// defined in DCP0010.
+	StakeRewardProportionV2 uint16
 
 	// BlockTaxProportion is the inverse of the percentage of funds for each
 	// block to allocate to the developer organization.
@@ -607,7 +623,8 @@ func (p *Params) SubsidyReductionIntervalBlocks() int64 {
 }
 
 // WorkSubsidyProportion returns the comparative proportion of the subsidy
-// generated for creating a block (PoW).
+// generated for creating a block (PoW) using the proportions prior to the
+// modified values defined in DCP0010.
 //
 // The proportional split between PoW, PoS, and the Treasury is calculated
 // by treating each of the proportional parameters as a ratio to the sum of
@@ -623,9 +640,10 @@ func (p *Params) WorkSubsidyProportion() uint16 {
 }
 
 // StakeSubsidyProportion returns the comparative proportion of the subsidy
-// generated for casting stake votes (collectively, per block).  See the
-// documentation for WorkSubsidyProportion for more details on how the
-// parameter is used.
+// generated for casting stake votes (collectively, per block) using the
+// proportions prior to the modified values defined in DCP0010.  See the
+// documentation for WorkSubsidyProportion for more details on how the parameter
+// is used.
 func (p *Params) StakeSubsidyProportion() uint16 {
 	return p.StakeRewardProportion
 }

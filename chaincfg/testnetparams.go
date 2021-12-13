@@ -101,7 +101,9 @@ func TestNet3Params() *Params {
 		DivSubsidy:               101,
 		SubsidyReductionInterval: 2048,
 		WorkRewardProportion:     6,
+		WorkRewardProportionV2:   1,
 		StakeRewardProportion:    3,
+		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
 		// Checkpoints ordered from oldest to newest.  Note that only the latest
@@ -297,6 +299,33 @@ func TestNet3Params() *Params {
 						Id:          "yes",
 						Description: "change to the new consensus rules",
 						Bits:        0x0040, // Bit 6
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1631750400, // Sep 16th, 2021
+				ExpireTime: 1694822400, // Sep 16th, 2023
+			}, {
+				Vote: Vote{
+					Id:          VoteIDChangeSubsidySplit,
+					Description: "Change block reward subsidy split to 10/80/10 as defined in DCP0010",
+					Mask:        0x0180, // Bits 7 and 8
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain from voting",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0080, // Bit 7
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0100, // Bit 8
 						IsAbstain:   false,
 						IsNo:        false,
 					}},
