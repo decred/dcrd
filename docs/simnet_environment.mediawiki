@@ -156,12 +156,12 @@ the tmux command sequence <code>Ctrl+B 1</code> and
   $ ./ctl getbalance
   {
     ...
-    "totalimmaturecoinbaserewards": 4800,
-    "totallockedbytickets": 0.0006894,
-    "totalspendable": 4800,
-    "cumulativetotal": 9899.9999675,
-    "totalunconfirmed": 299.9992781,
-    "totalvotingauthority": 0.0006
+    "totalimmaturecoinbaserewards": 800,
+    "totallockedbytickets": 0.004596,
+    "totalspendable": 750,
+    "cumulativetotal": 1649.9998846,
+    "totalunconfirmed": 99.9952886,
+    "totalvotingauthority": 0.004
   }
 
 * Manually buying tickets:
