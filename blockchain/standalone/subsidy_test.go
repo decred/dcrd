@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -157,6 +157,7 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork     int64         // expected pow subsidy
 		wantVote     int64         // expected single vote subsidy
 		wantTreasury int64         // expected treasury subsidy
+		useDCP0010   bool          // use subsidy split defined in DCP0010
 	}{{
 		name:         "negative height",
 		params:       mockMainNetParams,
@@ -167,6 +168,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     0,
 		wantTreasury: 0,
 	}, {
+		name:         "negative height, use DCP0010",
+		params:       mockMainNetParams,
+		height:       -1,
+		numVotes:     0,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+		useDCP0010:   true,
+	}, {
 		name:         "height 0",
 		params:       mockMainNetParams,
 		height:       0,
@@ -175,6 +186,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     0,
 		wantVote:     0,
 		wantTreasury: 0,
+	}, {
+		name:         "height 0, use DCP0010",
+		params:       mockMainNetParams,
+		height:       0,
+		numVotes:     0,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+		useDCP0010:   true,
 	}, {
 		name:         "height 1 (initial payouts)",
 		params:       mockMainNetParams,
@@ -185,6 +206,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     0,
 		wantTreasury: 0,
 	}, {
+		name:         "height 1 (initial payouts), use DCP0010",
+		params:       mockMainNetParams,
+		height:       1,
+		numVotes:     0,
+		wantFull:     168000000000000,
+		wantWork:     168000000000000,
+		wantVote:     0,
+		wantTreasury: 0,
+		useDCP0010:   true,
+	}, {
 		name:         "height 2 (first non-special block prior voting start)",
 		params:       mockMainNetParams,
 		height:       2,
@@ -193,6 +224,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     1871749598,
 		wantVote:     0,
 		wantTreasury: 311958266,
+	}, {
+		name:         "height 2 (first non-special block prior voting start), use DCP0010",
+		params:       mockMainNetParams,
+		height:       2,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     311958266,
+		wantVote:     0,
+		wantTreasury: 311958266,
+		useDCP0010:   true,
 	}, {
 		name:         "height 4094 (two blocks prior to voting start)",
 		params:       mockMainNetParams,
@@ -203,6 +244,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     0,
 		wantTreasury: 311958266,
 	}, {
+		name:         "height 4094 (two blocks prior to voting start), use DCP0010",
+		params:       mockMainNetParams,
+		height:       4094,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     311958266,
+		wantVote:     0,
+		wantTreasury: 311958266,
+		useDCP0010:   true,
+	}, {
 		name:         "height 4095 (final block prior to voting start)",
 		params:       mockMainNetParams,
 		height:       4095,
@@ -211,6 +262,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     1871749598,
 		wantVote:     187174959,
 		wantTreasury: 311958266,
+	}, {
+		name:         "height 4095 (final block prior to voting start), use DCP0010",
+		params:       mockMainNetParams,
+		height:       4095,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     311958266,
+		wantVote:     499133226,
+		wantTreasury: 311958266,
+		useDCP0010:   true,
 	}, {
 		name:         "height 4096 (voting start), 5 votes",
 		params:       mockMainNetParams,
@@ -221,6 +282,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     187174959,
 		wantTreasury: 311958266,
 	}, {
+		name:         "height 4096 (voting start), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     5,
+		wantFull:     3119582664,
+		wantWork:     311958266,
+		wantVote:     499133226,
+		wantTreasury: 311958266,
+		useDCP0010:   true,
+	}, {
 		name:         "height 4096 (voting start), 4 votes",
 		params:       mockMainNetParams,
 		height:       4096,
@@ -229,6 +300,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     1497399678,
 		wantVote:     187174959,
 		wantTreasury: 249566612,
+	}, {
+		name:         "height 4096 (voting start), 4 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     4,
+		wantFull:     3119582664,
+		wantWork:     249566612,
+		wantVote:     499133226,
+		wantTreasury: 249566612,
+		useDCP0010:   true,
 	}, {
 		name:         "height 4096 (voting start), 3 votes",
 		params:       mockMainNetParams,
@@ -239,6 +320,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     187174959,
 		wantTreasury: 187174959,
 	}, {
+		name:         "height 4096 (voting start), 3 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     3,
+		wantFull:     3119582664,
+		wantWork:     187174959,
+		wantVote:     499133226,
+		wantTreasury: 187174959,
+		useDCP0010:   true,
+	}, {
 		name:         "height 4096 (voting start), 2 votes",
 		params:       mockMainNetParams,
 		height:       4096,
@@ -247,6 +338,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     0,
 		wantVote:     187174959,
 		wantTreasury: 0,
+	}, {
+		name:         "height 4096 (voting start), 2 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     2,
+		wantFull:     3119582664,
+		wantWork:     0,
+		wantVote:     499133226,
+		wantTreasury: 0,
+		useDCP0010:   true,
 	}, {
 		name:         "height 6143 (final block prior to 1st reduction), 5 votes",
 		params:       mockMainNetParams,
@@ -257,6 +358,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     187174959,
 		wantTreasury: 311958266,
 	}, {
+		name:         "height 6143 (final block prior to 1st reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       6143,
+		numVotes:     5,
+		wantFull:     3119582664,
+		wantWork:     311958266,
+		wantVote:     499133226,
+		wantTreasury: 311958266,
+		useDCP0010:   true,
+	}, {
 		name:         "height 6144 (1st block in 1st reduction), 5 votes",
 		params:       mockMainNetParams,
 		height:       6144,
@@ -265,6 +376,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     1853217423,
 		wantVote:     185321742,
 		wantTreasury: 308869570,
+	}, {
+		name:         "height 6144 (1st block in 1st reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       6144,
+		numVotes:     5,
+		wantFull:     3088695706,
+		wantWork:     308869570,
+		wantVote:     494191312,
+		wantTreasury: 308869570,
+		useDCP0010:   true,
 	}, {
 		name:         "height 6144 (1st block in 1st reduction), 4 votes",
 		params:       mockMainNetParams,
@@ -275,6 +396,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     185321742,
 		wantTreasury: 247095656,
 	}, {
+		name:         "height 6144 (1st block in 1st reduction), 4 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       6144,
+		numVotes:     4,
+		wantFull:     3088695706,
+		wantWork:     247095656,
+		wantVote:     494191312,
+		wantTreasury: 247095656,
+		useDCP0010:   true,
+	}, {
 		name:         "height 12287 (last block in 1st reduction), 5 votes",
 		params:       mockMainNetParams,
 		height:       12287,
@@ -283,6 +414,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     1853217423,
 		wantVote:     185321742,
 		wantTreasury: 308869570,
+	}, {
+		name:         "height 12287 (last block in 1st reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       12287,
+		numVotes:     5,
+		wantFull:     3088695706,
+		wantWork:     308869570,
+		wantVote:     494191312,
+		wantTreasury: 308869570,
+		useDCP0010:   true,
 	}, {
 		name:         "height 12288 (1st block in 2nd reduction), 5 votes",
 		params:       mockMainNetParams,
@@ -293,6 +434,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     183486873,
 		wantTreasury: 305811456,
 	}, {
+		name:         "height 12288 (1st block in 2nd reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       12288,
+		numVotes:     5,
+		wantFull:     3058114560,
+		wantWork:     305811456,
+		wantVote:     489298329,
+		wantTreasury: 305811456,
+		useDCP0010:   true,
+	}, {
 		name:         "height 307200 (1st block in 50th reduction), 5 votes",
 		params:       mockMainNetParams,
 		height:       307200,
@@ -302,6 +453,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     113809641,
 		wantTreasury: 189682735,
 	}, {
+		name:         "height 307200 (1st block in 50th reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       307200,
+		numVotes:     5,
+		wantFull:     1896827356,
+		wantWork:     189682735,
+		wantVote:     303492376,
+		wantTreasury: 189682735,
+		useDCP0010:   true,
+	}, {
 		name:         "height 307200 (1st block in 50th reduction), 3 votes",
 		params:       mockMainNetParams,
 		height:       307200,
@@ -310,6 +471,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     682857847,
 		wantVote:     113809641,
 		wantTreasury: 113809641,
+	}, {
+		name:         "height 307200 (1st block in 50th reduction), 3 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       307200,
+		numVotes:     3,
+		wantFull:     1896827356,
+		wantWork:     113809641,
+		wantVote:     303492376,
+		wantTreasury: 113809641,
+		useDCP0010:   true,
 	}, {
 		name:         "height 10911744 (first zero vote subsidy 1776th reduction), 5 votes",
 		params:       mockMainNetParams,
@@ -329,6 +500,26 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantVote:     0,
 		wantTreasury: 0,
 	}, {
+		name:         "height 10954752 (first zero work subsidy with DCP0010 1783rd reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       10954752,
+		numVotes:     5,
+		wantFull:     9,
+		wantWork:     0,
+		wantVote:     1,
+		wantTreasury: 0,
+		useDCP0010:   true,
+	}, {
+		name:         "height 10973184 (first zero vote subsidy with DCP0010 1786th reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       10973184,
+		numVotes:     5,
+		wantFull:     6,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+		useDCP0010:   true,
+	}, {
 		name:         "height 11003904 (first zero work subsidy 1791st reduction), 5 votes",
 		params:       mockMainNetParams,
 		height:       11003904,
@@ -346,6 +537,16 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		wantWork:     0,
 		wantVote:     0,
 		wantTreasury: 0,
+	}, {
+		name:         "height 11010048 (first zero full subsidy 1792nd reduction), 5 votes, use DCP0010",
+		params:       mockMainNetParams,
+		height:       11010048,
+		numVotes:     5,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+		useDCP0010:   true,
 	}}
 
 	for _, test := range tests {
@@ -359,7 +560,8 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		}
 
 		// Ensure the PoW subsidy is the expected value.
-		workResult := cache.CalcWorkSubsidy(test.height, test.numVotes)
+		workResult := cache.CalcWorkSubsidyV2(test.height, test.numVotes,
+			test.useDCP0010)
 		if workResult != test.wantWork {
 			t.Errorf("%s: unexpected work subsidy result -- got %d, want %d",
 				test.name, workResult, test.wantWork)
@@ -367,7 +569,7 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		}
 
 		// Ensure the vote subsidy is the expected value.
-		voteResult := cache.CalcStakeVoteSubsidy(test.height)
+		voteResult := cache.CalcStakeVoteSubsidyV2(test.height, test.useDCP0010)
 		if voteResult != test.wantVote {
 			t.Errorf("%s: unexpected vote subsidy result -- got %d, want %d",
 				test.name, voteResult, test.wantVote)
@@ -747,6 +949,76 @@ func TestTotalSubsidyTreasury(t *testing.T) {
 
 	// Ensure the total calculated subsidy is the expected value.
 	const expectedTotalSubsidy = 2099999999800912
+	if totalSubsidy != expectedTotalSubsidy {
+		t.Fatalf("mismatched total subsidy -- got %d, want %d", totalSubsidy,
+			expectedTotalSubsidy)
+	}
+}
+
+// TestTotalSubsidyDCP0010 ensures the estimated total subsidy produced with the
+// subsidy split defined in DCP0010 matches the expected value.
+func TestTotalSubsidyDCP0010(t *testing.T) {
+	// Locals for convenience.
+	mockMainNetParams := mockMainNetParams()
+	reductionInterval := mockMainNetParams.SubsidyReductionIntervalBlocks()
+	stakeValidationHeight := mockMainNetParams.StakeValidationBeginHeight()
+	votesPerBlock := mockMainNetParams.VotesPerBlock()
+
+	// subsidySum returns the sum of the individual subsidies for the given
+	// height using either the original subsidy split or the modified split
+	// defined in DCP0010.  Note that this value is not exactly the same as the
+	// full subsidy originally used to calculate the individual proportions due
+	// to the use of integer math.
+	cache := NewSubsidyCache(mockMainNetParams)
+	subsidySum := func(height int64, useDCP0010 bool) int64 {
+		work := cache.CalcWorkSubsidyV2(height, votesPerBlock, useDCP0010)
+		vote := cache.CalcStakeVoteSubsidyV2(height, useDCP0010) *
+			int64(votesPerBlock)
+		treasury := cache.CalcTreasurySubsidy(height, votesPerBlock, noTreasury)
+		return work + vote + treasury
+	}
+
+	// Calculate the total possible subsidy.
+	totalSubsidy := mockMainNetParams.BlockOneSubsidy()
+	for reductionNum := int64(0); ; reductionNum++ {
+		// The first interval contains a few special cases:
+		// 1) Block 0 does not produce any subsidy
+		// 2) Block 1 consists of a special initial coin distribution
+		// 3) Votes do not produce subsidy until voting begins
+		if reductionNum == 0 {
+			// Account for the block up to the point voting begins ignoring the
+			// first two special blocks.
+			subsidyCalcHeight := int64(2)
+			nonVotingBlocks := stakeValidationHeight - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight, false) * nonVotingBlocks
+
+			// Account for the blocks remaining in the interval once voting
+			// begins.
+			subsidyCalcHeight = stakeValidationHeight
+			votingBlocks := reductionInterval - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight, false) * votingBlocks
+			continue
+		}
+
+		// Account for the all other reduction intervals until all subsidy has
+		// been produced.
+		//
+		// Note that this is necessarily an estimate since the exact height at
+		// which DCP0010 should be activated is impossible to know at the time
+		// of this writing.  For testing purposes, the activation height is
+		// estimated to be 638976, or in other words, the 104th reduction
+		// interval on mainnet.
+		subsidyCalcHeight := reductionNum * reductionInterval
+		useDCP0010 := subsidyCalcHeight >= reductionInterval*104
+		sum := subsidySum(subsidyCalcHeight, useDCP0010)
+		if sum == 0 {
+			break
+		}
+		totalSubsidy += sum * reductionInterval
+	}
+
+	// Ensure the total calculated subsidy is the expected value.
+	const expectedTotalSubsidy = 2100000000015952
 	if totalSubsidy != expectedTotalSubsidy {
 		t.Fatalf("mismatched total subsidy -- got %d, want %d", totalSubsidy,
 			expectedTotalSubsidy)
