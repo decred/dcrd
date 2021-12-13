@@ -41,9 +41,9 @@ func TestBanPeer(t *testing.T) {
 		t.Fatalf("NewOutboundPeer: unexpected err - %v\n", err)
 	}
 
-	err = bmgr.AddPeer(pA)
-	if err != nil {
-		t.Fatalf("unexpected err -%v\n", err)
+	added := bmgr.AddPeer(pA)
+	if !added {
+		t.Fatalf("expected added peer A")
 	}
 
 	pB, err := peer.NewOutboundPeer(peerCfg, "10.0.0.2:8333")
@@ -51,9 +51,9 @@ func TestBanPeer(t *testing.T) {
 		t.Fatalf("NewOutboundPeer: unexpected err - %v\n", err)
 	}
 
-	err = bmgr.AddPeer(pB)
-	if err != nil {
-		t.Fatalf("unexpected err -%v\n", err)
+	added = bmgr.AddPeer(pB)
+	if !added {
+		t.Fatalf("expected added peer B")
 	}
 
 	pC, err := peer.NewOutboundPeer(peerCfg, "10.0.0.3:8333")
@@ -62,14 +62,17 @@ func TestBanPeer(t *testing.T) {
 		return
 	}
 
-	err = bmgr.AddPeer(pC)
-	if err != nil {
-		t.Fatalf("unexpected err -%v\n", err)
+	added = bmgr.AddPeer(pC)
+	if !added {
+		t.Fatalf("expected added peer C")
 	}
 
+	bmgr.mtx.Lock()
 	if len(bmgr.peers) != 3 {
+		bmgr.mtx.Unlock()
 		t.Fatalf("expected 3 tracked peers, got %d", len(bmgr.peers))
 	}
+	bmgr.mtx.Unlock()
 
 	// Remove disconnected peer C.
 	bmgr.RemovePeer(pC)
@@ -129,9 +132,9 @@ func TestBanPeer(t *testing.T) {
 	bmgr.mtx.Unlock()
 
 	// Ensure re-adding a banned peer fails if it is before the ban period ends.
-	err = bmgr.AddPeer(pA)
-	if err == nil {
-		t.Fatalf("expected a ban error \n")
+	added = bmgr.AddPeer(pA)
+	if added {
+		t.Fatalf("expected add peer failure")
 	}
 
 	bmgr.mtx.Lock()
@@ -145,9 +148,9 @@ func TestBanPeer(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	// Ensure re-adding a banned peer succeeds if it is after the ban period.
-	err = bmgr.AddPeer(pA)
-	if err != nil {
-		t.Fatalf("unexpected err -%v\n", err)
+	added = bmgr.AddPeer(pA)
+	if !added {
+		t.Fatalf("expected added peer A")
 	}
 
 	bmgr.mtx.Lock()

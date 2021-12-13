@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/internal/staging/banmanager"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/slog"
@@ -76,6 +77,7 @@ var (
 	syncLog = backendLog.Logger("SYNC")
 	txmpLog = backendLog.Logger("TXMP")
 	trsyLog = backendLog.Logger("TRSY")
+	bmgrLog = backendLog.Logger("BMGR")
 )
 
 // Initialize package-global logger variables.
@@ -95,6 +97,7 @@ func init() {
 	stake.UseLogger(stkeLog)
 	netsync.UseLogger(syncLog)
 	txscript.UseLogger(scrpLog)
+	banmanager.UseLogger(bmgrLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -117,6 +120,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"SYNC": syncLog,
 	"TXMP": txmpLog,
 	"TRSY": trsyLog,
+	"BMGR": bmgrLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and
@@ -165,15 +169,6 @@ func setLogLevels(logLevel string) {
 	for subsystemID := range subsystemLoggers {
 		setLogLevel(subsystemID, logLevel)
 	}
-}
-
-// directionString is a helper function that returns a string that represents
-// the direction of a connection (inbound or outbound).
-func directionString(inbound bool) string {
-	if inbound {
-		return "inbound"
-	}
-	return "outbound"
 }
 
 // pickNoun returns the singular or plural form of a noun depending

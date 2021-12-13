@@ -43,6 +43,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/internal/staging/banmanager"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
@@ -307,7 +308,6 @@ type peerState struct {
 	inboundPeers    map[int32]*serverPeer
 	outboundPeers   map[int32]*serverPeer
 	persistentPeers map[int32]*serverPeer
-	banned          map[string]time.Time
 	outboundGroups  map[string]int
 	subCache        *naSubmissionCache
 }
@@ -474,6 +474,7 @@ type server struct {
 	chainParams          *chaincfg.Params
 	addrManager          *addrmgr.AddrManager
 	connManager          *connmgr.ConnManager
+	banManager           *banmanager.BanManager
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcserver.Server
@@ -526,9 +527,7 @@ type serverPeer struct {
 	continueHash   *chainhash.Hash
 	relayMtx       sync.Mutex
 	disableRelayTx bool
-	isWhitelisted  bool
 	knownAddresses *apbf.Filter
-	banScore       connmgr.DynamicBanScore
 	quit           chan struct{}
 
 	// addrsSent, getMiningStateSent and initState all track whether or not
@@ -538,9 +537,10 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// The following fields are used to synchronize the net sync manager and
-	// server.
+	// The following fields are used to synchronize the net sync manager,
+	// ban manager and server.
 	syncNotified   bool
+	banMgrNotified bool
 	txProcessed    chan struct{}
 	blockProcessed chan struct{}
 
@@ -658,45 +658,18 @@ func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
 	sp.addKnownAddresses(knownNetAddrs)
 }
 
+// banPeer notifies the ban manager associated with the server to ban the peer.
+func (sp *serverPeer) banPeer() {
+	sp.server.banManager.BanPeer(sp.Peer)
+}
+
 // addBanScore increases the persistent and decaying ban score fields by the
 // values passed as parameters. If the resulting score exceeds half of the ban
 // threshold, a warning is logged including the reason provided. Further, if
 // the score is above the ban threshold, the peer will be banned and
 // disconnected.
 func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) bool {
-	// No warning is logged and no score is calculated if banning is disabled.
-	if cfg.DisableBanning {
-		return false
-	}
-	if sp.isWhitelisted {
-		peerLog.Debugf("Misbehaving whitelisted peer %s: %s", sp, reason)
-		return false
-	}
-
-	warnThreshold := cfg.BanThreshold >> 1
-	if transient == 0 && persistent == 0 {
-		// The score is not being increased, but a warning message is still
-		// logged if the score is above the warn threshold.
-		score := sp.banScore.Int()
-		if score > warnThreshold {
-			peerLog.Warnf("Misbehaving peer %s: %s -- ban score is %d, "+
-				"it was not increased this time", sp, reason, score)
-		}
-		return false
-	}
-	score := sp.banScore.Increase(persistent, transient)
-	if score > warnThreshold {
-		peerLog.Warnf("Misbehaving peer %s: %s -- ban score increased to %d",
-			sp, reason, score)
-		if score > cfg.BanThreshold {
-			peerLog.Warnf("Misbehaving peer %s -- banning and disconnecting",
-				sp)
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-			return true
-		}
-	}
-	return false
+	return sp.server.banManager.AddBanScore(sp.Peer, persistent, transient, reason)
 }
 
 // hasServices returns whether or not the provided advertised service flags have
@@ -867,6 +840,7 @@ func (sp *serverPeer) pushMiningStateMsg(height uint32, blockHashes []chainhash.
 // mined on and pushes a miningstate wire message back to the requesting peer.
 func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState) {
 	if sp.getMiningStateSent {
+		_ = sp.addBanScore(0, 25, "repeated mining state request")
 		peerLog.Tracef("Ignoring getminingstate from %v - already sent", sp.Peer)
 		return
 	}
@@ -957,12 +931,12 @@ func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
 
 // OnGetInitState is invoked when a peer receives a getinitstate wire message.
 // It sends the available requested info to the remote peer.
-func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
+func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 	if sp.initStateSent {
+		_ = sp.addBanScore(0, 25, "repeated init state request")
 		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp.Peer)
 		return
 	}
-	sp.initStateSent = true
 
 	// Send out blank mining states if it's early in the blockchain.
 	best := sp.server.chain.BestSnapshot()
@@ -1034,6 +1008,7 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 		return
 	}
 	sp.QueueMessage(initMsg, nil)
+	sp.initStateSent = true
 }
 
 // OnInitState is invoked when a peer receives a initstate wire message.  It
@@ -1101,12 +1076,6 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 // accordingly.  We pass the message down to the net sync manager which will
 // call QueueMessage with any appropriate responses.
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
-	// Ban peers sending empty inventory requests.
-	if len(msg.InvList) == 0 {
-		sp.server.BanPeer(sp)
-		return
-	}
-
 	if !cfg.BlocksOnly {
 		sp.server.syncManager.QueueInv(msg, sp.Peer)
 		return
@@ -1141,7 +1110,7 @@ func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 func (sp *serverPeer) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 	// Ban peers sending empty getdata requests.
 	if len(msg.InvList) == 0 {
-		sp.server.BanPeer(sp)
+		sp.banPeer()
 		return
 	}
 
@@ -1235,7 +1204,7 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 	for i := range hashList {
 		iv := wire.NewInvVect(wire.InvTypeBlock, &hashList[i])
 		if sp.IsKnownInventory(iv) {
-			// TODO: Increase ban score
+			_ = sp.addBanScore(10, 0, "known inventory")
 			continue
 		}
 		invMsg.AddInvVect(iv)
@@ -1302,7 +1271,7 @@ func (sp *serverPeer) enforceNodeCFFlag(cmd string) {
 	// violation is logged and the peer is disconnected regardless.
 	if sp.ProtocolVersion() >= wire.NodeCFVersion && !cfg.DisableBanning {
 		// Disconnect the peer regardless of whether it was banned.
-		sp.addBanScore(100, 0, cmd)
+		sp.addBanScore(cfg.BanThreshold, 0, cmd)
 		sp.Disconnect()
 		return
 	}
@@ -1381,6 +1350,7 @@ func (sp *serverPeer) OnGetAddr(p *peer.Peer, msg *wire.MsgGetAddr) {
 	// Only respond with addresses once per connection.  This helps reduce
 	// traffic and further reduces fingerprinting attacks.
 	if sp.addrsSent {
+		_ = sp.addBanScore(0, 25, "repeated get address request")
 		peerLog.Tracef("Ignoring getaddr from %v - already sent", sp.Peer)
 		return
 	}
@@ -1410,7 +1380,7 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 			msg.Command(), p)
 
 		// Ban peers sending empty address requests.
-		sp.server.BanPeer(sp)
+		sp.banPeer()
 		return
 	}
 
@@ -1447,7 +1417,7 @@ func (sp *serverPeer) OnRead(p *peer.Peer, bytesRead int, msg wire.Message, err 
 	var errCode wire.ErrorCode
 	if errors.As(err, &errCode) {
 		peerLog.Errorf("Unable to read wire message from %s: %v", sp, err)
-		sp.server.BanPeer(sp)
+		sp.banPeer()
 	}
 
 	sp.server.AddBytesReceived(uint64(bytesRead))
@@ -1667,28 +1637,19 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		return false
 	}
 
-	// Disconnect banned peers.
-	host, _, err := net.SplitHostPort(sp.Addr())
-	if err != nil {
-		srvrLog.Debugf("can't split hostport %v", err)
-		sp.Disconnect()
-		return false
-	}
-	if banEnd, ok := state.banned[host]; ok {
-		if time.Now().Before(banEnd) {
-			srvrLog.Debugf("Peer %s is banned for another %v - disconnecting",
-				host, time.Until(banEnd))
-			sp.Disconnect()
+	// Add the peer to the ban manager.
+	if sp.Connected() {
+		added := s.banManager.AddPeer(sp.Peer)
+		if !added {
 			return false
 		}
 
-		srvrLog.Infof("Peer %s is no longer banned", host)
-		delete(state.banned, host)
+		sp.banMgrNotified = true
 	}
 
 	// Limit max number of connections from a single IP.  However, allow
 	// whitelisted inbound peers and localhost connections regardless.
-	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
+	isInboundWhitelisted := s.banManager.IsPeerWhitelisted(sp.Peer) && sp.Inbound()
 	peerIP := sp.NA().IP
 	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
 		state.ConnectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
@@ -1816,6 +1777,13 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 	} else {
 		list = state.outboundPeers
 	}
+
+	// Remove the disconnected peer from the ban manager
+	// if it was ever notified that the peer existed.
+	if sp.banMgrNotified {
+		s.banManager.RemovePeer(sp.Peer)
+	}
+
 	if _, ok := list[sp.ID()]; ok {
 		if !sp.Inbound() && sp.VersionKnown() {
 			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
@@ -1850,15 +1818,7 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 // handleBanPeerMsg deals with banning peers.  It is invoked from the
 // peerHandler goroutine.
 func (s *server) handleBanPeerMsg(state *peerState, sp *serverPeer) {
-	host, _, err := net.SplitHostPort(sp.Addr())
-	if err != nil {
-		srvrLog.Debugf("can't split ban peer %s %v", sp.Addr(), err)
-		return
-	}
-	direction := directionString(sp.Inbound())
-	srvrLog.Infof("Banned peer %s (%s) for %v", host, direction,
-		cfg.BanDuration)
-	state.banned[host] = time.Now().Add(cfg.BanDuration)
+	s.banManager.BanPeer(sp.Peer)
 }
 
 // handleRelayInvMsg deals with relaying inventory to peers that are not already
@@ -2210,7 +2170,6 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // for disconnection.
 func (s *server) inboundPeerConnected(conn net.Conn) {
 	sp := newServerPeer(s, false)
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
 	sp.AssociateConnection(conn)
 	go s.peerDoneHandler(sp)
@@ -2231,7 +2190,6 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	}
 	sp.Peer = p
 	sp.connReq = c
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
 	go s.peerDoneHandler(sp)
 
@@ -2295,7 +2253,6 @@ func (s *server) peerHandler(ctx context.Context) {
 		inboundPeers:    make(map[int32]*serverPeer),
 		persistentPeers: make(map[int32]*serverPeer),
 		outboundPeers:   make(map[int32]*serverPeer),
-		banned:          make(map[string]time.Time),
 		outboundGroups:  make(map[string]int),
 		subCache: &naSubmissionCache{
 			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
@@ -2376,7 +2333,7 @@ func (s *server) AddPeer(sp *serverPeer) {
 // BanPeer bans a peer that has already been connected to the server by ip
 // unless banning is disabled or the peer has been whitelisted.
 func (s *server) BanPeer(sp *serverPeer) {
-	if cfg.DisableBanning || sp.isWhitelisted {
+	if cfg.DisableBanning || s.banManager.IsPeerWhitelisted(sp.Peer) {
 		return
 	}
 	sp.Disconnect()
@@ -3790,6 +3747,19 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.connManager = cmgr
 
+	whitelist := make([]net.IPNet, 0, len(cfg.whitelists))
+	for _, entry := range cfg.whitelists {
+		whitelist = append(whitelist, *entry)
+	}
+
+	s.banManager = banmanager.NewBanManager(&banmanager.Config{
+		DisableBanning: cfg.DisableBanning,
+		BanThreshold:   cfg.BanThreshold,
+		BanDuration:    cfg.BanDuration,
+		MaxPeers:       cfg.MaxPeers,
+		WhiteList:      whitelist,
+	})
+
 	// Start up persistent peers.
 	permanentPeers := cfg.ConnectPeers
 	if len(permanentPeers) == 0 {
@@ -4030,7 +4000,7 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 
 			netAddr := addrmgr.NewNetAddressIPPort(ifaceIP, uint16(port),
 				services)
-			addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
+			_ = addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
 		}
 	} else {
 		netAddr, err := addrMgr.HostToNetAddress(host, uint16(port), services)
@@ -4038,34 +4008,8 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 			return err
 		}
 
-		addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
+		_ = addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
 	}
 
 	return nil
-}
-
-// isWhitelisted returns whether the IP address is included in the whitelisted
-// networks and IPs.
-func isWhitelisted(addr net.Addr) bool {
-	if len(cfg.whitelists) == 0 {
-		return false
-	}
-
-	host, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		srvrLog.Warnf("Unable to SplitHostPort on '%s': %v", addr, err)
-		return false
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		srvrLog.Warnf("Unable to parse IP '%s'", addr)
-		return false
-	}
-
-	for _, ipnet := range cfg.whitelists {
-		if ipnet.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }

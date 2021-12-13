@@ -103,7 +103,8 @@ func (p *rpcPeer) IsTxRelayDisabled() bool {
 // This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
 func (p *rpcPeer) BanScore() uint32 {
-	return (*serverPeer)(p).banScore.Int()
+	sp := (*serverPeer)(p)
+	return sp.server.banManager.BanScore(sp.Peer)
 }
 
 // rpcConnManager provides a connection manager for use with the RPC server and

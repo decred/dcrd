@@ -5,9 +5,7 @@
 package banmanager
 
 import (
-	"fmt"
 	"net"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -68,14 +66,40 @@ func NewBanManager(cfg *Config) *BanManager {
 //
 // This function MUST be called with the ban manager mutex locked (for reads).
 func (bm *BanManager) lookupPeer(p *peer.Peer) *banMgrPeer {
+	// Return immediately if the provided peer is banned.
+	if bm.IsPeerBanned(p) {
+		return nil
+	}
+
+	bm.mtx.Lock()
 	bmp, ok := bm.peers[p]
+	bm.mtx.Unlock()
 	if !ok {
-		log.Warnf("Attempt to lookup unknown peer %s\nStack: %v", p,
-			string(debug.Stack()))
 		return nil
 	}
 
 	return bmp
+}
+
+// IsPeerBanned returns the banned status of the provided peer.
+func (bm *BanManager) IsPeerBanned(p *peer.Peer) bool {
+	host, _, err := net.SplitHostPort(p.Addr())
+	if err != nil {
+		log.Errorf("unable to split peer '%s' IP: %v", p.Addr(), err)
+		return false
+	}
+
+	bm.mtx.Lock()
+	banEnd, ok := bm.banned[host]
+	bm.mtx.Unlock()
+
+	if ok {
+		direction := directionString(p.Inbound())
+		log.Infof("Peer %s (%s) is banned for %v", host, direction,
+			time.Until(banEnd))
+	}
+
+	return ok
 }
 
 // isPeerWhitelisted checks if the provided peer is whitelisted per the
@@ -104,9 +128,7 @@ func (bm *BanManager) isPeerWhitelisted(p *peer.Peer, whitelist []net.IPNet) boo
 
 // IsPeerWhitelisted checks if the provided peer is whitelisted.
 func (bm *BanManager) IsPeerWhitelisted(p *peer.Peer) bool {
-	bm.mtx.Lock()
 	bmp := bm.lookupPeer(p)
-	bm.mtx.Unlock()
 	if bmp == nil {
 		return false
 	}
@@ -115,11 +137,12 @@ func (bm *BanManager) IsPeerWhitelisted(p *peer.Peer) bool {
 }
 
 // AddPeer adds the provided peer to the ban manager.
-func (bm *BanManager) AddPeer(p *peer.Peer) error {
+func (bm *BanManager) AddPeer(p *peer.Peer) bool {
 	host, _, err := net.SplitHostPort(p.Addr())
 	if err != nil {
 		p.Disconnect()
-		return fmt.Errorf("cannot split hostport %v", err)
+		log.Errorf("Cannot split host port %v", err)
+		return false
 	}
 
 	bm.mtx.Lock()
@@ -129,8 +152,8 @@ func (bm *BanManager) AddPeer(p *peer.Peer) error {
 	if ok {
 		if time.Now().Before(banEnd) {
 			p.Disconnect()
-			return fmt.Errorf("peer %s is banned for another %v - disconnecting",
-				host, time.Until(banEnd))
+			log.Infof("Peer %s is banned for another %v ", host, time.Until(banEnd))
+			return false
 		}
 
 		log.Infof("Peer %s is no longer banned", host)
@@ -149,7 +172,7 @@ func (bm *BanManager) AddPeer(p *peer.Peer) error {
 	bm.peers[p] = bmp
 	bm.mtx.Unlock()
 
-	return nil
+	return true
 }
 
 // RemovePeer discards the provided peer from the ban manager.
@@ -166,9 +189,7 @@ func (bm *BanManager) BanPeer(p *peer.Peer) {
 		return
 	}
 
-	bm.mtx.Lock()
 	bmp := bm.lookupPeer(p)
-	bm.mtx.Unlock()
 	if bmp == nil {
 		return
 	}
@@ -181,7 +202,7 @@ func (bm *BanManager) BanPeer(p *peer.Peer) {
 	// Ban and remove the peer.
 	host, _, err := net.SplitHostPort(p.Addr())
 	if err != nil {
-		log.Debugf("can't split ban peer %s %v", p.Addr(), err)
+		log.Debugf("cannot split host port for %s: %v", p.Addr(), err)
 		return
 	}
 
@@ -208,9 +229,7 @@ func (bm *BanManager) AddBanScore(p *peer.Peer, persistent, transient uint32, re
 		return false
 	}
 
-	bm.mtx.Lock()
 	bmp := bm.lookupPeer(p)
-	bm.mtx.Unlock()
 	if bmp == nil {
 		return false
 	}
@@ -248,9 +267,7 @@ func (bm *BanManager) AddBanScore(p *peer.Peer, persistent, transient uint32, re
 
 // BanScore returns the ban score of the provided peer.
 func (bm *BanManager) BanScore(p *peer.Peer) uint32 {
-	bm.mtx.Lock()
 	bmp := bm.lookupPeer(p)
-	bm.mtx.Unlock()
 	if bmp == nil {
 		return 0
 	}
