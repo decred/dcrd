@@ -5,15 +5,15 @@ go 1.16
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/base58 v1.0.3
-	github.com/decred/dcrd/addrmgr/v2 v2.0.0-20211005210707-931a579e127b
-	github.com/decred/dcrd/bech32 v1.1.1
+	github.com/decred/dcrd/addrmgr/v2 v2.0.0
+	github.com/decred/dcrd/bech32 v1.1.2
 	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.1.0
-	github.com/decred/dcrd/blockchain/v4 v4.0.0-20210129200153-14fd1a785bf2
+	github.com/decred/dcrd/blockchain/v4 v4.0.0
 	github.com/decred/dcrd/certgen v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/chaincfg/v3 v3.1.1
-	github.com/decred/dcrd/connmgr/v3 v3.0.0
+	github.com/decred/dcrd/connmgr/v3 v3.1.0
 	github.com/decred/dcrd/container/apbf v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1
 	github.com/decred/dcrd/database/v3 v3.0.0
@@ -22,23 +22,23 @@ require (
 	github.com/decred/dcrd/dcrjson/v4 v4.0.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
 	github.com/decred/dcrd/gcs/v3 v3.0.0
-	github.com/decred/dcrd/hdkeychain/v3 v3.0.1-0.20210129190127-4ebd135a82f1
+	github.com/decred/dcrd/hdkeychain/v3 v3.1.0
 	github.com/decred/dcrd/lru v1.1.1
 	github.com/decred/dcrd/math/uint256 v1.0.0
-	github.com/decred/dcrd/peer/v3 v3.0.0-20210802141345-893802fc06b0
+	github.com/decred/dcrd/peer/v3 v3.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0
-	github.com/decred/dcrd/rpcclient/v7 v7.0.0-20210129214723-fc227a05904d
+	github.com/decred/dcrd/rpcclient/v7 v7.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.4.2
-	github.com/jessevdk/go-flags v1.4.0
+	github.com/jessevdk/go-flags v1.5.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 )
 
 replace (
