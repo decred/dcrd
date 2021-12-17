@@ -138,6 +138,16 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	if BuildMetadata == "" {
+		BuildMetadata = vcsCommitID()
+		if BuildMetadata != "" {
+			Version = fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
+			if PreRelease != "" {
+				Version += "-" + PreRelease
+			}
+			Version += "+" + BuildMetadata
+		}
+	}
 }
 
 // String returns the application version as a properly formed string per the
