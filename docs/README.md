@@ -171,7 +171,7 @@ https://decred.org/community/
 
 The following versioned modules are provided by dcrd repository:
 
-* [rpcclient/v6](https://github.com/decred/dcrd/tree/master/rpcclient) - Implements
+* [rpcclient/v7](https://github.com/decred/dcrd/tree/master/rpcclient) - Implements
   a robust and easy to use Websocket-enabled Decred JSON-RPC client
 * [dcrjson/v4](https://github.com/decred/dcrd/tree/master/dcrjson) - Provides
   infrastructure for working with Decred JSON-RPC APIs

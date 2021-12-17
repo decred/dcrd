@@ -26,7 +26,7 @@ digraph {
 	blockchain [label="blockchain/v4" fillcolor=orchid]
 	lru [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]
-	rpcclient [label="rpcclient/v6" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v7" fillcolor=mediumseagreen]
 	apbf [label="container/apbf" fillcolor=goldenrod]
 	uint256  [label="math/uint256" fillcolor=lightgreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
