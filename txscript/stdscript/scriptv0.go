@@ -818,6 +818,11 @@ func DetermineRequiredSigsV0(script []byte) uint16 {
 // An Error with kind ErrTooManyRequiredSigs will be returned if the threshold
 // is larger than the number of keys provided.
 func MultiSigScriptV0(threshold int, pubKeys ...[]byte) ([]byte, error) {
+	if threshold < 0 {
+		str := fmt.Sprintf("unable to generate multisig script with %d "+
+			"required signatures", threshold)
+		return nil, makeError(ErrNegativeRequiredSigs, str)
+	}
 	if len(pubKeys) < threshold {
 		str := fmt.Sprintf("unable to generate multisig script with %d "+
 			"required signatures when there are only %d public keys available",

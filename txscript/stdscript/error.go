@@ -13,6 +13,10 @@ const (
 	// supported.
 	ErrUnsupportedScriptVersion = ErrorKind("ErrUnsupportedScriptVersion")
 
+	// ErrNegativeRequiredSigs is returned from MultiSigScript when the
+	// specified number of required signatures is negative.
+	ErrNegativeRequiredSigs = ErrorKind("ErrNegativeRequiredSigs")
+
 	// ErrTooManyRequiredSigs is returned from MultiSigScript when the
 	// specified number of required signatures is larger than the number of
 	// provided public keys.

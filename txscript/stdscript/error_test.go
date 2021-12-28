@@ -17,6 +17,7 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
+		{ErrNegativeRequiredSigs, "ErrNegativeRequiredSigs"},
 		{ErrTooManyRequiredSigs, "ErrTooManyRequiredSigs"},
 		{ErrPubKeyType, "ErrPubKeyType"},
 		{ErrTooMuchNullData, "ErrTooMuchNullData"},

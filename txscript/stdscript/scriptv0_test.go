@@ -1113,6 +1113,12 @@ func TestMultiSigScriptV0(t *testing.T) {
 		threshold: 1,
 		expected:  "",
 		err:       ErrPubKeyType,
+	}, {
+		name:      "reject negative threshold",
+		pubKeys:   [][]byte{p2pkUncompressedMain},
+		threshold: -1,
+		expected:  "",
+		err:       ErrNegativeRequiredSigs,
 	}}
 
 	for _, test := range tests {
