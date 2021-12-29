@@ -736,6 +736,11 @@ func TestErrors(t *testing.T) {
 		err  error
 	}{
 		{
+			name: "key length too long",
+			key:  "DNQvB3p9wsKRyaoxXrh2UyBby7RpMtvhe4uJszAE4Mc8qinPwdUkcpqoUZPFAtXf41ukuio6JsUTgKjPnCaAy99fSBHKJgeRmWCrcytLR1GZQqpnR5",
+			err:  ErrInvalidKeyLen,
+		},
+		{
 			name: "invalid key length",
 			key:  "dpub1234",
 			err:  ErrInvalidKeyLen,

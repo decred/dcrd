@@ -536,10 +536,28 @@ func NewMaster(seed []byte, net NetworkParams) (*ExtendedKey, error) {
 // NewKeyFromString returns a new extended key instance from a base58-encoded
 // extended key which is required to be for the provided network.
 func NewKeyFromString(key string, net NetworkParams) (*ExtendedKey, error) {
-	// The base58-decoded extended key must consist of a serialized payload
-	// plus an additional 4 bytes for the checksum.
+	// The provided encoded extended key must not be larger than the maximum
+	// possible encoded size.  The base58-decoded extended key consists of the
+	// serialized payload plus an additional 4 bytes for the checksum.
+	//
+	// Since the encoding converts from base256 to base58, the max possible
+	// number of bytes of output per input byte is log_58(256) ~= 1.37.  Thus, a
+	// reasonable estimate for the max possible encoded size is
+	// ceil(decodedDataLen * 1.37).
+	//
+	// Note that the actual max size in practice is two less than this value due
+	// to rounding and the network prefixes in use, however, this uses the
+	// theoretical max so the code works properly with all prefixes since they
+	// are parameterized.
+	const decodedDataLen = serializedKeyLen + 4
+	const maxKeyLen = (decodedDataLen * 137 / 100) + 1
+	if len(key) > maxKeyLen {
+		return nil, ErrInvalidKeyLen
+	}
+
+	// Decode the extended key and ensure it is the expected length.
 	decoded := base58.Decode(key)
-	if len(decoded) != serializedKeyLen+4 {
+	if len(decoded) != decodedDataLen {
 		return nil, ErrInvalidKeyLen
 	}
 
