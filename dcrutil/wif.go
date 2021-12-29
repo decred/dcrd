@@ -99,10 +99,27 @@ func NewWIF(privKey []byte, net [2]byte, scheme dcrec.SignatureType) (*WIF, erro
 // is of an impossible length.  ErrChecksumMismatch is returned if the
 // expected WIF checksum does not match the calculated checksum.
 func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
+	// The provided encoded WIF must not be larger than the maximum possible
+	// encoded size.
+	//
+	// Since the encoding converts from base256 to base58, the max possible
+	// number of bytes of output per input byte is log_58(256) ~= 1.37.  Thus, a
+	// reasonable estimate for the max possible encoded size is
+	// ceil(decodedDataLen * 1.37).
+	//
+	// Note that the actual max size in practice is one less than this value due
+	// to the network prefixes in use, however, this uses the theoretical max so
+	// the code works properly with all prefixes since they are parameterized.
+	const decodedDataLen = 39
+	const maxWIFLen = 54
+	if len(wif) > maxWIFLen {
+		return nil, ErrMalformedPrivateKey
+	}
+
+	// Decode and ensure the decoded data is the expected length.
 	decoded := base58.Decode(wif)
 	decodedLen := len(decoded)
-
-	if decodedLen != 39 {
+	if decodedLen != decodedDataLen {
 		return nil, ErrMalformedPrivateKey
 	}
 

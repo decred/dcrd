@@ -72,6 +72,12 @@ func TestWIF(t *testing.T) {
 		// Misc decoding error tests.
 		// ---------------------------------------------------------------------
 
+		name:      "encoded wif too long",
+		skipMake:  true,
+		net:       mainNetPrivKeyID,
+		wif:       "2jV1H5Abfm1gV6GxGxNAvVfuSJPApQ9mr5vNzqJctmzbA6Km9vsBDvW",
+		decodeErr: ErrMalformedPrivateKey,
+	}, {
 		name:      "bad checksum",
 		skipMake:  true,
 		net:       mainNetPrivKeyID,
