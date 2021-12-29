@@ -1301,6 +1301,11 @@ func TestDecodeAddressV0Corners(t *testing.T) {
 		net:       mainNetParams,
 		decodeErr: ErrMalformedAddress,
 	}, {
+		name:      "exceeds max version 0 address size",
+		addr:      "5HLcANeEU3u2pxrCZFmLoyY4bAH7sgEuiTGcionhA7tzHdecFmgg1LJk",
+		net:       mainNetParams,
+		decodeErr: ErrMalformedAddress,
+	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PK ECDSA secp256k1 tests.
 		// ---------------------------------------------------------------------
@@ -1308,7 +1313,7 @@ func TestDecodeAddressV0Corners(t *testing.T) {
 		name:      "mainnet p2pk-ecdsa-secp256k1 uncompressed (0x04) rejected via decode",
 		addr:      "HiQeNVx8PNYP8ysyunUoicyNdfRUrEu1kzPE6v5gECBHBYgDzXCg8BsDGjmaHCpV97ytaQGHz5XDMJgJVHjv9YeSXWkHfwmBJj",
 		net:       mainNetParams,
-		decodeErr: ErrMalformedAddressData,
+		decodeErr: ErrMalformedAddress,
 	}, {
 		name:      "p2pk-ecdsa-secp256k1 malformed pubkey via decode",
 		addr:      "3tWTcxjUnAKTzHh8pHPYpSsUKVbTvziNGHtbBFQkY12khQWuW83p",
@@ -1331,7 +1336,7 @@ func TestDecodeAddressV0Corners(t *testing.T) {
 		name:      "mainnet p2pk-schnorr-secp256k1 uncompressed (0x04) rejected via decode",
 		addr:      "HiQjU9uCJtiQD7osQuYHWJRFiBCTuqtaTw8QFMtMgAW2ny4nUENeXDiV5VxfVZrK6PZynKPDpL7bwc6XLFNpV8k7ePDJmkkVCh",
 		net:       mainNetParams,
-		decodeErr: ErrMalformedAddressData,
+		decodeErr: ErrMalformedAddress,
 	}, {
 		name:      "p2pk-schnorr-secp256k1 malformed pubkey via decode",
 		addr:      "3tWUW3oD87XtmFVGnLX4Z3Hdesm2qRvvN8H5kq3yXxJumCxbvCpo",

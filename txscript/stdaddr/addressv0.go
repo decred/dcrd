@@ -1106,6 +1106,28 @@ func (addr *AddressScriptHashV0) Hash160() *[ripemd160.Size]byte {
 // relevant Address if it is a valid encoding for a known version 0 address type
 // and is for the network identified by the provided parameters.
 func DecodeAddressV0(addr string, params AddressParamsV0) (Address, error) {
+	// The provided address must not be larger than the maximum possible size.
+	//
+	// The largest supported version 0 decoded address data consists of 33 bytes
+	// for the public key, 2 bytes for the network identifier, and 4 bytes for
+	// the checksum.
+	//
+	// Since the encoding converts from base256 to base58, the max possible
+	// number of bytes of output per input byte is log_58(256) ~= 1.37.  Thus, a
+	// reasonable estimate for the max possible encoded size is
+	// ceil(max decoded data len * 1.37).
+	//
+	// Note that the actual max address size in practice is one less than this
+	// value due to network prefixes in use, however, this uses the theoretical
+	// max so the code works properly with all prefixes since they are
+	// parameterized.
+	const maxV0AddrLen = 54
+	if len(addr) > maxV0AddrLen {
+		str := fmt.Sprintf("failed to decode address %q...: len %d exceeds "+
+			"max allowed %d", addr[:maxV0AddrLen], len(addr), maxV0AddrLen)
+		return nil, makeError(ErrMalformedAddress, str)
+	}
+
 	// Attempt to decode the address and address type.
 	decoded, addrID, err := base58.CheckDecode(addr)
 	if err != nil {
@@ -1113,7 +1135,7 @@ func DecodeAddressV0(addr string, params AddressParamsV0) (Address, error) {
 		if errors.Is(err, base58.ErrChecksum) {
 			kind = ErrBadAddressChecksum
 		}
-		str := fmt.Sprintf("failed to decoded address %q: %v", addr, err)
+		str := fmt.Sprintf("failed to decode address %q: %v", addr, err)
 		return nil, makeError(kind, str)
 	}
 
