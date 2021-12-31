@@ -1089,9 +1089,8 @@ func (b *BlockChain) checkTSpendHasVotes(prevNode *blockNode, tspend *dcrutil.Tx
 			maxRemainingVotes)
 	}
 
-	trsyLog.Infof("TSpend %v passed with: yes %v no %v quorum %v "+
-		"required %v", tspend.Hash(), t.yes, t.no, quorum,
-		requiredVotes)
+	trsyLog.Debugf("Treasury spend %v passed (yes %v, no %v, quorum %v, "+
+		"required %v)", tspend.Hash(), t.yes, t.no, quorum, requiredVotes)
 
 	return nil
 }
