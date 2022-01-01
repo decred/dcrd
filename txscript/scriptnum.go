@@ -126,17 +126,18 @@ func (n ScriptNum) Bytes() []byte {
 
 	// Take the absolute value and keep track of whether it was originally
 	// negative.
+	nu64 := uint64(n)
 	isNegative := n < 0
 	if isNegative {
-		n = -n
+		nu64 = uint64(-n)
 	}
 
 	// Encode to little endian.  The maximum number of encoded bytes is 9
 	// (8 bytes for max int64 plus a potential byte for sign extension).
 	result := make([]byte, 0, 9)
-	for n > 0 {
-		result = append(result, byte(n&0xff))
-		n >>= 8
+	for nu64 > 0 {
+		result = append(result, byte(nu64&0xff))
+		nu64 >>= 8
 	}
 
 	// When the most significant byte already has the high bit set, an

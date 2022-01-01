@@ -75,6 +75,7 @@ func TestScriptNumBytes(t *testing.T) {
 		{-72057594037927935, hexToBytes("ffffffffffffff80")},
 		{9223372036854775807, hexToBytes("ffffffffffffff7f")},
 		{-9223372036854775807, hexToBytes("ffffffffffffffff")},
+		{-9223372036854775808, hexToBytes("000000000000008080")},
 	}
 
 	for _, test := range tests {
@@ -133,6 +134,7 @@ func TestMakeScriptNum(t *testing.T) {
 		{hexToBytes("ffffffffff"), -549755813887, 5, nil},
 		{hexToBytes("ffffffffffffff7f"), 9223372036854775807, 8, nil},
 		{hexToBytes("ffffffffffffffff"), -9223372036854775807, 8, nil},
+		{hexToBytes("000000000000008080"), -9223372036854775808, 9, nil},
 		{hexToBytes("ffffffffffffffff7f"), -1, 9, nil},
 		{hexToBytes("ffffffffffffffffff"), 1, 9, nil},
 		{hexToBytes("ffffffffffffffffff7f"), -1, 10, nil},
