@@ -2246,7 +2246,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 // done along with other performing other desirable cleanup.
 func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
-	s.donePeers <- sp
+	s.DonePeer(sp)
 
 	// Notify the net sync manager the peer is gone if it was ever notified that
 	// the peer existed.
@@ -2338,6 +2338,8 @@ out:
 			s.handleQuery(state, qmsg)
 
 		case <-ctx.Done():
+			close(s.quit)
+
 			// Disconnect all peers on server shutdown.
 			state.forAllPeers(func(sp *serverPeer) {
 				srvrLog.Tracef("Shutdown peer %s", sp)
@@ -2348,29 +2350,24 @@ out:
 	}
 
 	s.addrManager.Stop()
-
-	// Drain channels before exiting so nothing is left waiting around
-	// to send.
-cleanup:
-	for {
-		select {
-		case <-s.newPeers:
-		case <-s.donePeers:
-		case <-s.relayInv:
-		case <-s.broadcast:
-		case <-s.query:
-		default:
-			break cleanup
-		}
-	}
-
 	s.wg.Done()
 	srvrLog.Tracef("Peer handler done")
 }
 
 // AddPeer adds a new peer that has already been connected to the server.
 func (s *server) AddPeer(sp *serverPeer) {
-	s.newPeers <- sp
+	select {
+	case <-s.quit:
+	case s.newPeers <- sp:
+	}
+}
+
+// DonePeer removes a disconnected peer from the the server.
+func (s *server) DonePeer(sp *serverPeer) {
+	select {
+	case <-s.quit:
+	case s.donePeers <- sp:
+	}
 }
 
 // BanPeer bans a peer that has already been connected to the server by ip
@@ -2380,13 +2377,20 @@ func (s *server) BanPeer(sp *serverPeer) {
 		return
 	}
 	sp.Disconnect()
-	s.banPeers <- sp
+
+	select {
+	case <-s.quit:
+	case s.banPeers <- sp:
+	}
 }
 
 // RelayInventory relays the passed inventory vector to all connected peers
 // that are not already known to have it.
 func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool) {
-	s.relayInv <- relayMsg{invVect: invVect, data: data, immediate: immediate}
+	select {
+	case <-s.quit:
+	case s.relayInv <- relayMsg{invVect: invVect, data: data, immediate: immediate}:
+	}
 }
 
 // RelayBlockAnnouncement creates a block announcement for the passed block and
@@ -2394,42 +2398,59 @@ func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immedia
 // the given required services and are not already known to have it.
 func (s *server) RelayBlockAnnouncement(block *dcrutil.Block, reqServices wire.ServiceFlag) {
 	invVect := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
-	s.relayInv <- relayMsg{
+	select {
+	case <-s.quit:
+	case s.relayInv <- relayMsg{
 		invVect:     invVect,
 		data:        block.MsgBlock().Header,
 		immediate:   true,
 		reqServices: reqServices,
+	}:
 	}
 }
 
 // BroadcastMessage sends msg to all peers currently connected to the server
 // except those in the passed peers to exclude.
 func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...*serverPeer) {
-	bmsg := broadcastMsg{message: msg, excludePeers: exclPeers}
-	s.broadcast <- bmsg
+	select {
+	case <-s.quit:
+	case s.broadcast <- broadcastMsg{message: msg, excludePeers: exclPeers}:
+	}
 }
 
 // ConnectedCount returns the number of currently connected peers.
 func (s *server) ConnectedCount() int32 {
 	replyChan := make(chan int32)
-	s.query <- getConnCountMsg{reply: replyChan}
-	return <-replyChan
+	select {
+	case <-s.quit:
+		return 0
+	case s.query <- getConnCountMsg{reply: replyChan}:
+		return <-replyChan
+	}
 }
 
 // OutboundGroupCount returns the number of peers connected to the given
 // outbound group key.
 func (s *server) OutboundGroupCount(key string) int {
 	replyChan := make(chan int)
-	s.query <- getOutboundGroup{key: key, reply: replyChan}
-	return <-replyChan
+	select {
+	case <-s.quit:
+		return 0
+	case s.query <- getOutboundGroup{key: key, reply: replyChan}:
+		return <-replyChan
+	}
 }
 
 // AddedNodeInfo returns an array of dcrjson.GetAddedNodeInfoResult structures
 // describing the persistent (added) nodes.
 func (s *server) AddedNodeInfo() []*serverPeer {
 	replyChan := make(chan []*serverPeer)
-	s.query <- getAddedNodesMsg{reply: replyChan}
-	return <-replyChan
+	select {
+	case <-s.quit:
+		return nil
+	case s.query <- getAddedNodesMsg{reply: replyChan}:
+		return <-replyChan
+	}
 }
 
 // AddBytesSent adds the passed number of bytes to the total bytes sent counter
@@ -3024,7 +3045,6 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 				time.Duration(randomUint16Number(1800)))
 
 		case <-ctx.Done():
-			close(s.quit)
 			timer.Stop()
 			s.wg.Done()
 			return
