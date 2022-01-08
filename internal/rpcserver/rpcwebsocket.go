@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,6 +52,10 @@ const (
 	// websocketReadLimitAuthenticated is the maximum number of bytes allowed
 	// for an authenticated JSON-RPC message read from a websocket client.
 	websocketReadLimitAuthenticated = 1 << 24 // 16 MiB
+
+	// websocketPongTimeout is the maximum amount of time attempts to respond to
+	// websocket ping messages with a pong will wait before giving up.
+	websocketPongTimeout = time.Second * 5
 )
 
 type semaphore chan struct{}
