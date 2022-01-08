@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6358,11 +6358,14 @@ func (s *Server) route(ctx context.Context) *http.Server {
 			return
 		}
 		ws.SetPingHandler(func(payload string) error {
-			err := ws.WriteControl(websocket.PongMessage, []byte(payload),
-				time.Now().Add(time.Second))
 			log.Debugf("ping received: len %d", len(payload))
-			log.Tracef("ping payload: %s", payload)
-			if err != nil {
+			log.Tracef("ping payload: %q", payload)
+			var netErr net.Error
+			err := ws.WriteControl(websocket.PongMessage, []byte(payload),
+				time.Now().Add(websocketPongTimeout))
+			if err != nil && !errors.Is(err, websocket.ErrCloseSent) &&
+				!(errors.As(err, &netErr) && netErr.Timeout()) {
+
 				log.Errorf("Failed to send pong: %v", err)
 				return err
 			}
@@ -6370,7 +6373,7 @@ func (s *Server) route(ctx context.Context) *http.Server {
 		})
 		ws.SetPongHandler(func(payload string) error {
 			log.Debugf("pong received: len %d", len(payload))
-			log.Tracef("pong payload: %s", payload)
+			log.Tracef("pong payload: %q", payload)
 			return nil
 		})
 		if !authenticated {
