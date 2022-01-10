@@ -8,19 +8,32 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/wire"
 )
 
-// SpendConsumer represents an indexer dependent on
-// spend journal entries.
+// SpendDependencyQueryer provides access to chain details required to determine
+// if a spend journal entry is needed by a consumer.
+//
+// All functions MUST be safe for concurrent access.
+type SpendDependencyQueryer interface {
+	// BlockHeaderByHash returns the block header identified by the given hash.
+	BlockHeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error)
+
+	// Ancestor returns the ancestor of the provided block at the
+	// provided height.
+	Ancestor(block *chainhash.Hash, height int64) *chainhash.Hash
+}
+
+// SpendConsumer represents an indexer dependent on spend journal entries.
 type SpendConsumer struct {
 	id      string
-	queryer ChainQueryer
+	queryer SpendDependencyQueryer
 	tipHash *chainhash.Hash
 	mtx     sync.Mutex
 }
 
 // NewSpendConsumer initializes a spend consumer.
-func NewSpendConsumer(id string, tipHash *chainhash.Hash, queryer ChainQueryer) *SpendConsumer {
+func NewSpendConsumer(id string, tipHash *chainhash.Hash, queryer SpendDependencyQueryer) *SpendConsumer {
 	return &SpendConsumer{
 		id:      id,
 		queryer: queryer,
