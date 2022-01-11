@@ -267,7 +267,7 @@ const (
 	generatedBlockVersion = 9
 
 	// generatedBlockVersionTest is the version of the block being generated
-	// for networks other than the main and simulation networks.
+	// for networks other than the main network.
 	generatedBlockVersionTest = 10
 
 	// blockHeaderOverhead is the max number of bytes it takes to serialize
@@ -2296,9 +2296,7 @@ nextPriorityQueueItem:
 
 	// Choose the block version to generate based on the network.
 	blockVersion := int32(generatedBlockVersion)
-	if g.cfg.ChainParams.Net != wire.MainNet &&
-		g.cfg.ChainParams.Net != wire.SimNet {
-
+	if g.cfg.ChainParams.Net != wire.MainNet {
 		blockVersion = generatedBlockVersionTest
 	}
 
