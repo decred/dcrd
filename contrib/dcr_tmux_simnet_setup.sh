@@ -111,7 +111,7 @@ case \$1 in
   *) NUM=\$1 ;;
 esac
 
-for i in \$(seq \$NUM) ; do
+while [ \$((NUM--)) != 0 ]; do
   ./ctl generate 1
   sleep 1
 done
