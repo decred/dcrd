@@ -286,6 +286,21 @@ func TestNonStandardSignatures(t *testing.T) {
 				t.Fatalf("expected %v, got %v", false, ok)
 			}
 		}
+
+		// Append an extra byte and make sure the parse fails.
+		pkBad2 := append(pub.Serialize(), 0x01)
+		_, err = ParsePubKey(pkBad2)
+		if err == nil {
+			t.Fatal("expected err, got nil")
+		}
+
+		// Remove a random byte and make sure the parse fails.
+		pkBad3 := pub.Serialize()
+		pkBad3 = append(pkBad3[:pos], pkBad3[pos+1:]...)
+		_, err = ParsePubKey(pkBad3)
+		if err == nil {
+			t.Fatal("expected err, got nil")
+		}
 	}
 }
 

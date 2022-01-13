@@ -32,6 +32,10 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	if len(pubKeyStr) == 0 {
 		return nil, errors.New("pubkey string is empty")
 	}
+	if len(pubKeyStr) != PubKeyBytesLen {
+		return nil, fmt.Errorf("malformed public key: invalid length: %d",
+			len(pubKeyStr))
+	}
 
 	curve := Edwards()
 	pubkey := PublicKey{}
