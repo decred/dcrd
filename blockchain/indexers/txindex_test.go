@@ -29,10 +29,10 @@ type testChain struct {
 	bestHash         *chainhash.Hash
 	treasuryActive   bool
 	keyedByHeight    map[int64]*dcrutil.Block
-	keyedByHash      map[string]*dcrutil.Block
-	orphans          map[string]*dcrutil.Block
+	keyedByHash      map[chainhash.Hash]*dcrutil.Block
+	orphans          map[chainhash.Hash]*dcrutil.Block
 	consumers        map[string]spendpruner.SpendConsumer
-	removedSpendDeps map[string][]string
+	removedSpendDeps map[chainhash.Hash][]string
 	mtx              sync.Mutex
 }
 
@@ -40,10 +40,10 @@ type testChain struct {
 func newTestChain() (*testChain, error) {
 	tc := &testChain{
 		keyedByHeight:    make(map[int64]*dcrutil.Block),
-		keyedByHash:      make(map[string]*dcrutil.Block),
-		orphans:          make(map[string]*dcrutil.Block),
+		keyedByHash:      make(map[chainhash.Hash]*dcrutil.Block),
+		orphans:          make(map[chainhash.Hash]*dcrutil.Block),
 		consumers:        make(map[string]spendpruner.SpendConsumer),
-		removedSpendDeps: make(map[string][]string),
+		removedSpendDeps: make(map[chainhash.Hash][]string),
 	}
 	genesis := dcrutil.NewBlock(chaincfg.SimNetParams().GenesisBlock)
 	return tc, tc.AddBlock(genesis)
@@ -57,13 +57,13 @@ func (tc *testChain) AddBlock(blk *dcrutil.Block) error {
 	// Ensure the incoming block is the child of the current chain tip.
 	if tc.bestHash != nil {
 		if blk.MsgBlock().Header.PrevBlock != *tc.bestHash {
-			return fmt.Errorf("block %s is an orphan", blk.Hash().String())
+			return fmt.Errorf("block %s is an orphan", blk.Hash())
 		}
 	}
 
 	height := blk.Height()
 	hash := blk.Hash()
-	tc.keyedByHash[hash.String()] = blk
+	tc.keyedByHash[*hash] = blk
 	tc.keyedByHeight[height] = blk
 	tc.bestHeight = height
 	tc.bestHash = hash
@@ -82,8 +82,7 @@ func (tc *testChain) RemoveBlock(blk *dcrutil.Block) error {
 
 	// Ensure the block being removed is the current chain tip.
 	if *tc.bestHash != *hash {
-		return fmt.Errorf("block %s is not the current chain tip",
-			blk.Hash().String())
+		return fmt.Errorf("block %s is not the current chain tip", blk.Hash())
 	}
 
 	// Set the new chain tip.
@@ -91,10 +90,10 @@ func (tc *testChain) RemoveBlock(blk *dcrutil.Block) error {
 	tc.bestHeight--
 
 	height := blk.Height()
-	delete(tc.keyedByHash, hash.String())
+	delete(tc.keyedByHash, *hash)
 	delete(tc.keyedByHeight, height)
 
-	tc.orphans[hash.String()] = blk
+	tc.orphans[*hash] = blk
 
 	return nil
 }
@@ -105,7 +104,7 @@ func (tc *testChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	_, ok := tc.keyedByHash[hash.String()]
+	_, ok := tc.keyedByHash[*hash]
 	return ok
 }
 
@@ -182,9 +181,9 @@ func (tc *testChain) RemoveSpendConsumerDependency(_ database.Tx, blockHash *cha
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	removedDeps, ok := tc.removedSpendDeps[blockHash.String()]
+	removedDeps, ok := tc.removedSpendDeps[*blockHash]
 	if !ok {
-		tc.removedSpendDeps[blockHash.String()] = []string{consumerID}
+		tc.removedSpendDeps[*blockHash] = []string{consumerID}
 
 		return nil
 	}
@@ -199,7 +198,7 @@ func (tc *testChain) IsRemovedSpendConsumerDependency(blockHash *chainhash.Hash,
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	ids, ok := tc.removedSpendDeps[blockHash.String()]
+	ids, ok := tc.removedSpendDeps[*blockHash]
 	if !ok {
 		return false
 	}
@@ -250,11 +249,11 @@ func (tc *testChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error) {
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	blk := tc.keyedByHash[hash.String()]
+	blk := tc.keyedByHash[*hash]
 	if blk == nil {
-		blk = tc.orphans[hash.String()]
+		blk = tc.orphans[*hash]
 		if blk == nil {
-			return nil, fmt.Errorf("no block found with hash %s", hash.String())
+			return nil, fmt.Errorf("no block found with hash %s", hash)
 		}
 	}
 
@@ -266,12 +265,12 @@ func (tc *testChain) BlockHeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, 
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	blk := tc.keyedByHash[hash.String()]
+	blk := tc.keyedByHash[*hash]
 	if blk == nil {
-		blk = tc.orphans[hash.String()]
+		blk = tc.orphans[*hash]
 		if blk == nil {
-			return wire.BlockHeader{}, fmt.Errorf("no block found with "+
-				"hash %s", hash.String())
+			return wire.BlockHeader{}, fmt.Errorf("no block found with hash %s",
+				hash)
 		}
 	}
 
@@ -394,8 +393,7 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Ensure the index remains in sync with the main chain when new
@@ -430,8 +428,7 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk5.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(), tipHash)
 	}
 
 	// Simulate a reorg by setting bk4 as the main chain tip. bk5 is now
@@ -474,8 +471,7 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk5a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5a.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5a.Hash(), tipHash)
 	}
 
 	// Ensure bk5 is no longer indexed.
@@ -531,8 +527,7 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Drop the index.
@@ -569,8 +564,7 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Add bk4a to the main chain.
@@ -630,7 +624,6 @@ func TestTxIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk4a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4a.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4a.Hash(), tipHash)
 	}
 }

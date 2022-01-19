@@ -78,8 +78,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
+			addrIdxTipHash)
 	}
 
 	txIdxTipHeight, txIdxTipHash, err := txIdx.Tip()
@@ -93,8 +93,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), txIdxTipHash)
 	}
 
 	existsAddrIdxTipHeight, existsAddrIdxTipHash, err := existsAddrIdx.Tip()
@@ -108,8 +107,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *existsAddrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), existsAddrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
+			existsAddrIdxTipHash)
 	}
 
 	// Ensure the address index remains in sync with the main chain when new
@@ -136,8 +135,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4.Hash().String(), addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(),
+			addrIdxTipHash)
 	}
 
 	txIdxTipHeight, txIdxTipHash, err = txIdx.Tip()
@@ -151,8 +150,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4.Hash().String(), txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(), txIdxTipHash)
 	}
 
 	existsAddrIdxTipHeight, existsAddrIdxTipHash, err = existsAddrIdx.Tip()
@@ -166,8 +164,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *existsAddrIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4.Hash().String(), existsAddrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(),
+			existsAddrIdxTipHash)
 	}
 
 	// Ensure stopping a prequisite subscription stops its dependency as well.
@@ -198,8 +196,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4.Hash().String(), addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(),
+			addrIdxTipHash)
 	}
 
 	txIdxTipHeight, txIdxTipHash, err = txIdx.Tip()
@@ -213,8 +211,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4.Hash().String(), txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(), txIdxTipHash)
 	}
 
 	existsAddrIdxTipHeight, existsAddrIdxTipHash, err = existsAddrIdx.Tip()
@@ -228,7 +225,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	if *existsAddrIdxTipHash != *bk5.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5.Hash().String(), existsAddrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(),
+			existsAddrIdxTipHash)
 	}
 }

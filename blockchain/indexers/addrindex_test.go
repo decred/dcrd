@@ -338,12 +338,12 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if txIdxTipHeight != bk3.Height() {
-		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(), txIdxTipHeight)
+		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(),
+			txIdxTipHeight)
 	}
 
 	if *txIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash().String(),
-			txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), txIdxTipHash)
 	}
 
 	addrIdxTipHeight, addrIdxTipHash, err := addrIdx.Tip()
@@ -352,12 +352,13 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if addrIdxTipHeight != bk3.Height() {
-		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(), addrIdxTipHeight)
+		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(),
+			addrIdxTipHeight)
 	}
 
 	if *addrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash().String(),
-			addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
+			addrIdxTipHash)
 	}
 
 	// Ensure the address index remains in sync with the main chain when new
@@ -394,8 +395,7 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk5.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash().String(),
-			txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(), txIdxTipHash)
 	}
 
 	addrIdxTipHeight, addrIdxTipHash, err = addrIdx.Tip()
@@ -409,8 +409,8 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk5.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash().String(),
-			addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(),
+			addrIdxTipHash)
 	}
 
 	// Ensure the spend consumer's tip was updated to bk5.
@@ -419,8 +419,8 @@ func TestAddrIndexAsync(t *testing.T) {
 	addrIdx.consumer.mtx.Unlock()
 
 	if !tipHash.IsEqual(bk5.Hash()) {
-		t.Fatalf("expected spend consumer tip hash to be %s, got %s",
-			bk5.Hash().String(), tipHash.String())
+		t.Fatalf("expected spend consumer tip hash to be %s, got %s", bk5.Hash(),
+			tipHash)
 	}
 
 	// Fetch the first address paid to by bk5's coinbase.
@@ -436,8 +436,7 @@ func TestAddrIndexAsync(t *testing.T) {
 			return err
 		}
 		if entry == nil {
-			return fmt.Errorf("no index entry found for address %s",
-				addrs[0].String())
+			return fmt.Errorf("no index entry found for address %s", addrs[0])
 		}
 
 		return nil
@@ -496,8 +495,8 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk5a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5a.Hash().String(), txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5a.Hash(),
+			txIdxTipHash)
 	}
 
 	addrIdxTipHeight, addrIdxTipHash, err = addrIdx.Tip()
@@ -511,8 +510,8 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk5a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5a.Hash().String(), addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5a.Hash(),
+			addrIdxTipHash)
 	}
 
 	// Ensure the spend consumer's tip was updated to bk5a.
@@ -522,7 +521,7 @@ func TestAddrIndexAsync(t *testing.T) {
 
 	if !tipHash.IsEqual(bk5a.Hash()) {
 		t.Fatalf("expected spend consumer tip hash to be %s, got %s",
-			bk5a.Hash().String(), tipHash.String())
+			bk5a.Hash(), tipHash)
 	}
 
 	// Ensure the address associated with bk5's coinbase transaction
@@ -534,14 +533,13 @@ func TestAddrIndexAsync(t *testing.T) {
 		}
 		if entry != nil {
 			return fmt.Errorf("expected no index entry found for address %s",
-				addrs[0].String())
+				addrs[0])
 		}
 
 		return nil
 	})
 	if err == nil {
-		t.Fatalf("expected no index entry found for address %s",
-			addrs[0].String())
+		t.Fatalf("expected no index entry found for address %s", addrs[0])
 	}
 
 	// Ensure the indexes remain in sync when blocks are disconnected.
@@ -570,7 +568,7 @@ func TestAddrIndexAsync(t *testing.T) {
 	// was removed.
 	if !chain.IsRemovedSpendConsumerDependency(bk5a.Hash(), addrIdx.consumer.id) {
 		t.Fatalf("expected removed spend journal dependency for blockhash %s",
-			bk3.Hash().String())
+			bk3.Hash())
 	}
 
 	g.SetTip("bk3")
@@ -588,7 +586,7 @@ func TestAddrIndexAsync(t *testing.T) {
 	// was removed.
 	if !chain.IsRemovedSpendConsumerDependency(bk4.Hash(), addrIdx.consumer.id) {
 		t.Fatalf("expected removed spend journal dependency for blockhash %s",
-			bk4.Hash().String())
+			bk4.Hash())
 	}
 
 	// Ensure the index tips are now bk3 after the disconnections.
@@ -603,8 +601,7 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *txIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), txIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), txIdxTipHash)
 	}
 
 	addrIdxTipHeight, addrIdxTipHash, err = addrIdx.Tip()
@@ -613,12 +610,13 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if addrIdxTipHeight != bk3.Height() {
-		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(), addrIdxTipHeight)
+		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(),
+			addrIdxTipHeight)
 	}
 
 	if *addrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash().String(),
-			addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
+			addrIdxTipHash)
 	}
 
 	// Drop the address index and resubscribe.
@@ -649,12 +647,13 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if addrIdxTipHeight != bk3.Height() {
-		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(), addrIdxTipHeight)
+		t.Fatalf("expected tip height to be %d, got %d", bk3.Height(),
+			addrIdxTipHeight)
 	}
 
 	if *addrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash().String(),
-			addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
+			addrIdxTipHash)
 	}
 
 	// Add bk4a to the main chain.
@@ -714,7 +713,7 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	if *addrIdxTipHash != *bk4a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4a.Hash().String(), addrIdxTipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4a.Hash(),
+			addrIdxTipHash)
 	}
 }

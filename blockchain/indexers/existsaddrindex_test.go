@@ -64,8 +64,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Ensure the index remains in sync with the main chain when new
@@ -100,8 +99,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk5.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5.Hash(), tipHash)
 	}
 
 	// Fetch the first address paid to by bk5's coinbase.
@@ -116,7 +114,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if !indexed {
-		t.Fatalf("expected %s to be indexed", addrs[0].String())
+		t.Fatalf("expected %s to be indexed", addrs[0])
 	}
 
 	// Simulate a reorg by setting bk4 as the main chain tip. bk5 is now
@@ -159,8 +157,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk5a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk5a.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk5a.Hash(), tipHash)
 	}
 
 	// Ensure the index still has the first address paid to by bk5's
@@ -171,7 +168,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if !indexed {
-		t.Fatalf("expected %s to be indexed", addrs[0].String())
+		t.Fatalf("expected %s to be indexed", addrs[0])
 	}
 
 	// Ensure the index remains in sync when blocks are disconnected.
@@ -217,8 +214,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Drop the index.
@@ -255,8 +251,7 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk3.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(), tipHash)
 	}
 
 	// Add bk4a to the main chain.
@@ -316,7 +311,6 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	if *tipHash != *bk4a.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s",
-			bk4a.Hash().String(), tipHash.String())
+		t.Fatalf("expected tip hash to be %s, got %s", bk4a.Hash(), tipHash)
 	}
 }
