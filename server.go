@@ -2568,7 +2568,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// namely blocks 101, 102, 103, 104, 105, and 106.
 		//
 		// Additionally, a notification will NOT be sent for mainnet once block
-		// height 534304 has been reached and the block version is prior to 8.
+		// height 635775 has been reached and the block version is prior to 9.
 		// The intent is for future code to perform this type of check more
 		// dynamically so it happens for all upgrades after a certain time frame
 		// is provided for upgrades to occur, but it is hard coded for now in
@@ -2579,7 +2579,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		blockHeight := int64(blockHeader.Height)
 		reorgDepth := bestHeight - (blockHeight - band.ForkLen)
 		isOldMainnetBlock := s.chainParams.Net == wire.MainNet &&
-			blockHeight >= 534304 && blockHeader.Version < 8
+			blockHeight >= 635775 && blockHeader.Version < 9
 		if s.rpcServer != nil &&
 			blockHeight >= s.chainParams.StakeValidationHeight-1 &&
 			reorgDepth < maxReorgDepthNotify &&
