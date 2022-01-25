@@ -20,6 +20,8 @@ import (
 // Put some IP in here for convenience. Points to google.
 var someIP = "173.194.115.66"
 
+var zeroTime = time.Time{}
+
 // defaultNetAddressTypeFilter defines a filter that instructs address manager
 // operations that accept it to return network addresses of any type.
 func defaultNetAddressTypeFilter(netAddressType NetAddressType) bool {
@@ -619,7 +621,7 @@ func TestValidatePeerNa(t *testing.T) {
 	const unroutableIpv6Address = "::1"
 	const routableIpv4Address = "12.1.2.3"
 	const routableIpv6Address = "2003::"
-	onionCatTorV2Address := onionCatNet.IP.String()
+	onionCatTorV3Address := "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion"
 	rfc4380IPAddress := rfc4380Net.IP.String()
 	rfc3964IPAddress := rfc3964Net.IP.String()
 	rfc6052IPAddress := rfc6052Net.IP.String()
@@ -632,33 +634,33 @@ func TestValidatePeerNa(t *testing.T) {
 		valid         bool
 		reach         NetAddressReach
 	}{{
-		name:          "torv2 to torv2",
-		localAddress:  onionCatTorV2Address,
-		remoteAddress: onionCatTorV2Address,
+		name:          "torv3 to torv3",
+		localAddress:  onionCatTorV3Address,
+		remoteAddress: onionCatTorV3Address,
 		valid:         false,
 		reach:         Private,
 	}, {
-		name:          "routable ipv4 to torv2",
+		name:          "routable ipv4 to torv3",
 		localAddress:  routableIpv4Address,
-		remoteAddress: onionCatTorV2Address,
+		remoteAddress: onionCatTorV3Address,
 		valid:         true,
 		reach:         Ipv4,
 	}, {
-		name:          "unroutable ipv4 to torv2",
+		name:          "unroutable ipv4 to torv3",
 		localAddress:  unroutableIpv4Address,
-		remoteAddress: onionCatTorV2Address,
+		remoteAddress: onionCatTorV3Address,
 		valid:         false,
 		reach:         Default,
 	}, {
-		name:          "routable ipv6 to torv2",
+		name:          "routable ipv6 to torv3",
 		localAddress:  routableIpv6Address,
-		remoteAddress: onionCatTorV2Address,
+		remoteAddress: onionCatTorV3Address,
 		valid:         false,
 		reach:         Default,
 	}, {
-		name:          "unroutable ipv6 to torv2",
+		name:          "unroutable ipv6 to torv3",
 		localAddress:  unroutableIpv6Address,
-		remoteAddress: onionCatTorV2Address,
+		remoteAddress: onionCatTorV3Address,
 		valid:         false,
 		reach:         Default,
 	}, {
@@ -755,20 +757,44 @@ func TestValidatePeerNa(t *testing.T) {
 
 	addressManager := New("testValidatePeerNa")
 	for _, test := range tests {
-		localIP := net.ParseIP(test.localAddress)
-		remoteIP := net.ParseIP(test.remoteAddress)
-		localNa := NewNetAddressIPPort(localIP, 8333, wire.SFNodeNetwork)
-		remoteNa := NewNetAddressIPPort(remoteIP, 8333, wire.SFNodeNetwork)
+		localAddrType, localAddrBytes, err := ParseHost(test.localAddress)
+		if err != nil {
+			t.Errorf("%q: failed to parse local address '%v': %v", test.name,
+				test.localAddress, err)
+			return
+		}
+		remoteAddrType, remoteAddrBytes, err := ParseHost(test.remoteAddress)
+		if err != nil {
+			t.Errorf("%q: failed to parse remote address '%v': %v", test.name,
+				test.remoteAddress, err)
+			return
+		}
+
+		localNa, err := NewNetAddressByType(localAddrType, localAddrBytes,
+			8333, zeroTime, wire.SFNodeNetwork)
+		if err != nil {
+			t.Errorf("%q: failed to create local network address '%v': %v",
+				test.name, test.localAddress, err)
+			return
+		}
+		remoteNa, err := NewNetAddressByType(remoteAddrType, remoteAddrBytes,
+			8333, zeroTime, wire.SFNodeNetwork)
+		if err != nil {
+			t.Errorf("%q: failed to create remote network address '%v': %v",
+				test.name, test.remoteAddress, err)
+			return
+		}
 
 		valid, reach := addressManager.ValidatePeerNa(localNa, remoteNa)
 		if valid != test.valid {
 			t.Errorf("%q: unexpected return value for valid - want '%v', "+
 				"got '%v'", test.name, test.valid, valid)
-			continue
+			return
 		}
 		if reach != test.reach {
 			t.Errorf("%q: unexpected return value for reach - want '%v', "+
 				"got '%v'", test.name, test.reach, reach)
+			return
 		}
 	}
 }

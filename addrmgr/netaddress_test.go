@@ -14,6 +14,15 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+var (
+	torV3AddressString = "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion"
+	torV3AddressBytes  = []byte{
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2,
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80,
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce,
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93}
+)
+
 // TestNewNetAddressByType verifies that the TestNewNetAddressByType constructor
 // converts a network address with expected field values.
 func TestNewNetAddressByType(t *testing.T) {
@@ -26,78 +35,53 @@ func TestNewNetAddressByType(t *testing.T) {
 		addrType  NetAddressType
 		addrBytes []byte
 		want      *NetAddress
-	}{
-		{
-			name:      "4 byte ipv4 address stored as 4 byte ip",
-			addrType:  IPv4Address,
-			addrBytes: net.ParseIP("127.0.0.1").To4(),
-			want: &NetAddress{
-				IP:        []byte{0x7f, 0x00, 0x00, 0x01},
-				Port:      port,
-				Services:  services,
-				Timestamp: timestamp,
-				Type:      IPv4Address,
-			},
+	}{{
+		name:      "4 byte ipv4 address stored as 4 byte ip",
+		addrType:  IPv4Address,
+		addrBytes: net.ParseIP("127.0.0.1").To4(),
+		want: &NetAddress{
+			IP:        []byte{0x7f, 0x00, 0x00, 0x01},
+			Port:      port,
+			Services:  services,
+			Timestamp: timestamp,
+			Type:      IPv4Address,
 		},
-		{
-			name:      "16 byte ipv4 address stored as 4 byte ip",
-			addrType:  IPv4Address,
-			addrBytes: net.ParseIP("127.0.0.1").To16(),
-			want: &NetAddress{
-				IP:        []byte{0x7f, 0x00, 0x00, 0x01},
-				Port:      port,
-				Services:  services,
-				Timestamp: timestamp,
-				Type:      IPv4Address,
-			},
+	}, {
+		name:      "16 byte ipv4 address stored as 4 byte ip",
+		addrType:  IPv4Address,
+		addrBytes: net.ParseIP("127.0.0.1").To16(),
+		want: &NetAddress{
+			IP:        []byte{0x7f, 0x00, 0x00, 0x01},
+			Port:      port,
+			Services:  services,
+			Timestamp: timestamp,
+			Type:      IPv4Address,
 		},
-		{
-			name:      "16 byte ipv6 address stored in 16 bytes",
-			addrType:  IPv6Address,
-			addrBytes: net.ParseIP("::1"),
-			want: &NetAddress{
-				IP: []byte{
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-				Port:      port,
-				Services:  services,
-				Timestamp: timestamp,
-				Type:      IPv6Address,
-			},
+	}, {
+		name:      "16 byte ipv6 address stored in 16 bytes",
+		addrType:  IPv6Address,
+		addrBytes: net.ParseIP("::1"),
+		want: &NetAddress{
+			IP: []byte{
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			Port:      port,
+			Services:  services,
+			Timestamp: timestamp,
+			Type:      IPv6Address,
 		},
-		{
-			name:      "16 byte torv2 address stored in 16 bytes",
-			addrType:  TORv2Address,
-			addrBytes: net.ParseIP("fd87:d87e:eb43::"),
-			want: &NetAddress{
-				IP: []byte{
-					0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				},
-				Port:      port,
-				Services:  services,
-				Timestamp: timestamp,
-				Type:      TORv2Address,
-			},
+	}, {
+		name:      "32 byte torv3 address stored in 32 bytes",
+		addrType:  TORv3Address,
+		addrBytes: torV3AddressBytes,
+		want: &NetAddress{
+			IP:        torV3AddressBytes,
+			Port:      port,
+			Services:  services,
+			Timestamp: timestamp,
+			Type:      TORv3Address,
 		},
-		{
-			name:     "10 byte torv2 public key stored in 16 bytes with prefix",
-			addrType: TORv2Address,
-			addrBytes: []byte{
-				0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
-			},
-			want: &NetAddress{
-				IP: []byte{
-					0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43, 0x01, 0x02,
-					0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
-				},
-				Port:      port,
-				Services:  services,
-				Timestamp: timestamp,
-				Type:      TORv2Address,
-			},
-		},
-	}
+	}}
 
 	for _, test := range tests {
 		addr, err := NewNetAddressByType(test.addrType, test.addrBytes, port,
@@ -178,23 +162,11 @@ func TestKey(t *testing.T) {
 		{host: "fee2::3:3", port: 8335, want: "[fee2::3:3]:8335"},
 		{host: "fef3::4:4", port: 8336, want: "[fef3::4:4]:8336"},
 
-		// TORv2
-		{
-			host: "fd87:d87e:eb43::",
-			port: 8333,
-			want: "aaaaaaaaaaaaaaaa.onion:8333",
-		},
-		{
-			host: "aaaaaaaaaaaaaaaa.onion",
-			port: 8334,
-			want: "aaaaaaaaaaaaaaaa.onion:8334",
-		},
-
 		// TORv3
 		{
-			host: "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion",
+			host: torV3AddressString,
 			port: 8333,
-			want: "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion:8333",
+			want: torV3AddressString + ":8333",
 		},
 	}
 

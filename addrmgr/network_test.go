@@ -9,8 +9,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/decred/dcrd/wire"
 	"time"
+
+	"github.com/decred/dcrd/wire"
 )
 
 // TestIPTypes ensures the various functions which determine the type of an IP
@@ -177,11 +178,6 @@ func TestGroupKey(t *testing.T) {
 		{name: "ipv6 rfc4380 toredo ipv4", host: "2001:0:1234::f3fe:fdfc", expected: "12.1.0.0"},
 		{name: "ipv6 rfc6052 well-known prefix with ipv4", host: "64:ff9b::0c01:0203", expected: "12.1.0.0"},
 		{name: "ipv6 rfc6145 translated ipv4", host: "::ffff:0:0c01:0203", expected: "12.1.0.0"},
-
-		// TORv2
-		{name: "ipv6 tor onioncat", host: "fd87:d87e:eb43:1234::5678", expected: "torv2:2"},
-		{name: "ipv6 tor onioncat 2", host: "fd87:d87e:eb43:1245::6789", expected: "torv2:2"},
-		{name: "ipv6 tor onioncat 3", host: "fd87:d87e:eb43:1345::6789", expected: "torv2:3"},
 
 		// TORv3
 		{

@@ -546,13 +546,15 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	for _, v := range sam.Addresses {
 		netAddr, err := a.newAddressFromString(v.Addr)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Addr, err)
+			log.Warnf("skipping unrecognized network address %s: %v",
+				v.Addr, err)
+			continue
 		}
 		srcAddr, err := a.newAddressFromString(v.Src)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Src, err)
+			log.Warnf("skipping unrecognized network address %s: %v",
+				v.Src, err)
+			continue
 		}
 
 		ka := &KnownAddress{
@@ -759,17 +761,6 @@ func (a *AddrManager) reset() {
 // an unknown address type is returned without error.
 func ParseHost(host string) (NetAddressType, []byte, error) {
 	if strings.HasSuffix(host, ".onion") {
-		// Check if this is a TorV2 address.
-		if len(host) == 22 {
-			data, err := base32.StdEncoding.DecodeString(
-				strings.ToUpper(host[:16]))
-			if err != nil {
-				return UnknownAddressType, nil, err
-			}
-			prefix := []byte{0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43}
-			addrBytes := append(prefix, data...)
-			return TORv2Address, addrBytes, nil
-		}
 		// Check if this is a valid TORv3 address.
 		if len(host) == 62 {
 			torAddressBytes, err := base32.StdEncoding.DecodeString(
@@ -786,9 +777,6 @@ func ParseHost(host string) (NetAddressType, []byte, error) {
 	if ip := net.ParseIP(host); ip != nil {
 		if isIPv4(ip) {
 			return IPv4Address, ip.To4(), nil
-		}
-		if isOnionCatTor(ip) {
-			return TORv2Address, ip, nil
 		}
 		return IPv6Address, ip, nil
 	}
@@ -1137,10 +1125,8 @@ func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
 		return Unreachable
 	}
 
-	isRemoteAddrTOR := remoteAddr.Type == TORv2Address ||
-		remoteAddr.Type == TORv3Address
-	isLocalAddrTOR := localAddr.Type == TORv2Address ||
-		localAddr.Type == TORv3Address
+	isRemoteAddrTOR := remoteAddr.Type == TORv3Address
+	isLocalAddrTOR := localAddr.Type == TORv3Address
 
 	if isRemoteAddrTOR {
 		if isLocalAddrTOR {
@@ -1236,7 +1222,7 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress, supportedNetAd
 
 		// Send something unroutable if nothing suitable.
 		var ip net.IP
-		if remoteAddr.Type != IPv4Address && remoteAddr.Type != TORv2Address {
+		if remoteAddr.Type != IPv4Address {
 			ip = net.IPv6zero
 		} else {
 			ip = net.IPv4zero

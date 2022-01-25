@@ -42,15 +42,11 @@ func (netAddr *NetAddress) IsRoutable() bool {
 }
 
 // ipString returns a string representation of the network address' IP field.
-// If the ip is in the range used for TORv2 addresses then it will be
-// transformed into the respective .onion address.  It does not include the
-// port.
+// If the ip is in the range used for TOR addresses then it will be transformed
+// into the respective .onion address.  It does not include the port.
 func (netAddr *NetAddress) ipString() string {
 	netIP := netAddr.IP
 	switch netAddr.Type {
-	case TORv2Address:
-		base32 := base32.StdEncoding.EncodeToString(netIP[6:])
-		return strings.ToLower(base32) + ".onion"
 	case TORv3Address:
 		addrBytes := netIP
 		checksum := calcTORv3Checksum(addrBytes)
@@ -99,9 +95,6 @@ func canonicalizeIP(addrType NetAddressType, addrBytes []byte) []byte {
 	switch {
 	case len == 16 && addrType == IPv4Address:
 		return net.IP(addrBytes).To4()
-	case len == 10 && addrType == TORv2Address:
-		prefix := []byte{0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43}
-		return append(prefix, addrBytes...)
 	case addrType == IPv6Address:
 		return net.IP(addrBytes).To16()
 	}
@@ -116,8 +109,6 @@ func deriveNetAddressType(claimedType NetAddressType, addrBytes []byte) (NetAddr
 	switch {
 	case isIPv4(addrBytes):
 		return IPv4Address, nil
-	case len == 16 && isOnionCatTor(addrBytes):
-		return TORv2Address, nil
 	case len == 16:
 		return IPv6Address, nil
 	case len == 32 && claimedType == TORv3Address:
@@ -190,8 +181,8 @@ func (a *AddrManager) newAddressFromString(addr string) (*NetAddress, error) {
 
 // NewNetAddressIPPort creates a new address manager network address given an
 // ip, port, and the supported service flags for the address.  The provided ip
-// MUST be an IPv4, IPv6, or TORv2 address since this method does not perform
-// error checking on the derived network address type.
+// MUST be a valid address since this method does not perform error checking on
+// the derived network address type.
 func NewNetAddressIPPort(ip net.IP, port uint16, services wire.ServiceFlag) *NetAddress {
 	netAddressType, _ := deriveNetAddressType(UnknownAddressType, ip)
 	timestamp := time.Unix(time.Now().Unix(), 0)

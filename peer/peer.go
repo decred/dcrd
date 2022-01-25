@@ -1813,16 +1813,15 @@ func (p *Peer) readRemoteVersionMsg() error {
 	return nil
 }
 
-// addrmgrToWireNetAddress converts an IPv4, IPv6, or TORv2 address manager
-// network address to a wire network address.  The host name must not match the
+// addrmgrToWireNetAddress converts an IPv4 or IPv6 address manager network
+// address to a wire network address.  The host name must not match the
 // configured proxy host name.
 //
 // If the address cannot be converted, an IPv4 network address consisting of all
 // zeroes is returned.
 func addrmgrToWireNetAddress(addr *addrmgr.NetAddress, proxyAddr string) *wire.NetAddress {
 	if addr.Type != addrmgr.IPv4Address &&
-		addr.Type != addrmgr.IPv6Address &&
-		addr.Type != addrmgr.TORv2Address {
+		addr.Type != addrmgr.IPv6Address {
 		return wire.NewNetAddressIPPort(zeroIPv4, 0, addr.Services)
 	}
 

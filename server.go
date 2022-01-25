@@ -361,10 +361,9 @@ func (ps *peerState) forAllPeers(closure func(sp *serverPeer)) {
 }
 
 // hostToNetAddress parses and returns an address manager network address given
-// a hostname in a supported format (IPv4, IPv6, TORv2).  If the hostname
-// cannot be immediately converted from a known address format, it will be
-// resolved using a DNS lookup function. If it cannot be resolved, an error is
-// returned.
+// a hostname in a supported format.  If the hostname cannot be immediately
+// converted from a known address format, it will be resolved using a DNS lookup
+// function. If it cannot be resolved, an error is returned.
 func (cfg *config) hostToNetAddress(host string, port uint16, services wire.ServiceFlag) (*addrmgr.NetAddress, error) {
 	networkID, addrBytes, err := addrmgr.ParseHost(host)
 	if err != nil {
@@ -740,7 +739,6 @@ func isSupportedNetAddressTypeV1(netAddressType addrmgr.NetAddressType) bool {
 	switch netAddressType {
 	case addrmgr.IPv4Address:
 	case addrmgr.IPv6Address:
-	case addrmgr.TORv2Address:
 		return true
 	}
 	return false
