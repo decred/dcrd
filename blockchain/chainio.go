@@ -16,6 +16,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v3"
@@ -1312,6 +1313,34 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 	return nil
 }
 
+// updateDeploymentVersion uses an existing database transaction to update the
+// deployment version as needed.
+func updateDeploymentVersion(dbTx database.Tx, chainParams *chaincfg.Params) error {
+	// Get the current deployment version.
+	curVersion := currentDeploymentVersion(chainParams)
+
+	// Return if the current version is zero as there is nothing to do.  This is
+	// the case for networks that don't track deployments and use the latest
+	// consensus rules by default.
+	if curVersion == 0 {
+		return nil
+	}
+
+	// Fetch the previous deployment version from the database.
+	prevVersion := dbFetchDeploymentVer(dbTx)
+
+	// Update the deployment version in the database to the current version.
+	if curVersion != prevVersion {
+		err := dbPutDeploymentVer(dbTx, curVersion)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Infof("Deployment version %v loaded", curVersion)
+	return nil
+}
+
 // initChainState attempts to load and initialize the chain state from the
 // database.  When the db does not yet contain any chain state, both it and the
 // chain state are initialized to the genesis block.
@@ -1519,6 +1548,14 @@ func (b *BlockChain) initChainState(ctx context.Context,
 			tip.stakeNode.MissedTickets(), tip.stakeNode.FinalState())
 
 		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Update the deployment version as needed.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		return updateDeploymentVersion(dbTx, b.chainParams)
 	})
 	if err != nil {
 		return err
