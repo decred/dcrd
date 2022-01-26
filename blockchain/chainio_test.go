@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"math"
 	"math/big"
 	"reflect"
 	"testing"
@@ -889,6 +890,67 @@ func TestBestChainStateDeserializeErrors(t *testing.T) {
 			t.Errorf("%q: wrong error code got: %v, want: %v", test.name, err,
 				test.err)
 			continue
+		}
+	}
+}
+
+// TestDbPutDeploymentVer ensures that putting and fetching the deployment
+// version works as expected.
+func TestDbPutDeploymentVer(t *testing.T) {
+	t.Parallel()
+
+	// Create a test database.
+	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", wire.RegNet)
+	if err != nil {
+		t.Fatalf("failed to create database: %v", err)
+	}
+	defer teardownDb()
+
+	tests := []struct {
+		name    string
+		version uint32
+	}{{
+		name:    "fetch the version when not yet stored in the database",
+		version: 0,
+	}, {
+		name:    "put and fetch an initial version in the database",
+		version: 1,
+	}, {
+		name:    "put and fetch an updated version in the database",
+		version: 6,
+	}, {
+		name:    "put and fetch the max allowed version in the database",
+		version: math.MaxUint32,
+	}}
+
+	for _, test := range tests {
+		if test.version != 0 {
+			// Update the deployment version.
+			err = db.Update(func(dbTx database.Tx) error {
+				return dbPutDeploymentVer(dbTx, test.version)
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting deployment version: %v", test.name,
+					err)
+			}
+		}
+
+		// Fetch the deployment version.
+		var gotVersion uint32
+		err = db.View(func(dbTx database.Tx) error {
+			gotVersion = dbFetchDeploymentVer(dbTx)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error fetching deployment version: %v", test.name,
+				err)
+		}
+
+		// Ensure that the fetched deployment version matches the expected
+		// deployment version.
+		if gotVersion != test.version {
+			t.Errorf("%q: mismatched deployment version:\nwant: %+v\n got: "+
+				"%v\n", test.name, test.version, gotVersion)
 		}
 	}
 }

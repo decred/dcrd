@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -77,6 +77,10 @@ var (
 	// chainStateKeyName is the name of the db key used to store the best chain
 	// state.
 	chainStateKeyName = []byte("chainstate")
+
+	// deploymentVerKeyName is the name of the db key used to store the
+	// deployment version.
+	deploymentVerKeyName = []byte("deploymentver")
 
 	// spendJournalBucketName is the name of the db bucket used to house
 	// transactions outputs that are spent in each block.
@@ -1105,6 +1109,25 @@ func dbFetchBestState(dbTx database.Tx) (bestChainState, error) {
 	serializedData := meta.Get(chainStateKeyName)
 	log.Tracef("Serialized chain state: %x", serializedData)
 	return deserializeBestChainState(serializedData)
+}
+
+// dbPutDeploymentVer uses an existing database transaction to update the
+// deployment version to the provided version.
+func dbPutDeploymentVer(dbTx database.Tx, version uint32) error {
+	serializedData := make([]byte, 4)
+	byteOrder.PutUint32(serializedData, version)
+	return dbTx.Metadata().Put(deploymentVerKeyName, serializedData)
+}
+
+// dbFetchDeploymentVer uses an existing database transaction to fetch the
+// deployment version.
+func dbFetchDeploymentVer(dbTx database.Tx) uint32 {
+	meta := dbTx.Metadata()
+	serializedData := meta.Get(deploymentVerKeyName)
+	if len(serializedData) == 0 {
+		return 0
+	}
+	return byteOrder.Uint32(serializedData)
 }
 
 // createChainState initializes both the database and the chain state to the
