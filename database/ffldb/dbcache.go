@@ -443,7 +443,7 @@ func (c *dbCache) commitTreaps(pendingKeys, pendingRemove TreapForEacher) error 
 		var innerErr error
 		pendingKeys.ForEach(func(k, v []byte) bool {
 			if dbErr := ldbTx.Put(k, v, nil); dbErr != nil {
-				str := fmt.Sprintf("failed to put key %q to "+
+				str := fmt.Sprintf("failed to put key %x to "+
 					"ldb transaction", k)
 				innerErr = convertErr(str, dbErr)
 				return false
@@ -457,7 +457,7 @@ func (c *dbCache) commitTreaps(pendingKeys, pendingRemove TreapForEacher) error 
 		pendingRemove.ForEach(func(k, v []byte) bool {
 			if dbErr := ldbTx.Delete(k, nil); dbErr != nil {
 				str := fmt.Sprintf("failed to delete "+
-					"key %q from ldb transaction",
+					"key %x from ldb transaction",
 					k)
 				innerErr = convertErr(str, dbErr)
 				return false
