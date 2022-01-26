@@ -134,7 +134,7 @@ func makeDbErr(kind database.ErrorKind, desc string) database.Error {
 
 // convertErr converts the passed leveldb error into a database error with an
 // equivalent error kind and the passed description.  It also sets the passed
-// error as the underlying error.
+// error as the underlying error and adds its error string to the description.
 func convertErr(desc string, ldbErr error) database.Error {
 	// Use the driver-specific error code by default.  The code below will
 	// update this with the converted error if it's recognized.
@@ -155,6 +155,9 @@ func convertErr(desc string, ldbErr error) database.Error {
 	case errors.Is(ldbErr, leveldb.ErrIterReleased):
 		kind = database.ErrTxClosed
 	}
+
+	// Include the original error in description.
+	desc = fmt.Sprintf("%s: %v", desc, ldbErr)
 
 	err := makeDbErr(kind, desc)
 	err.RawErr = ldbErr
@@ -2054,9 +2057,7 @@ func initDB(ldb *leveldb.DB) error {
 
 	// Write everything as a single batch.
 	if err := ldb.Write(batch, nil); err != nil {
-		str := fmt.Sprintf("failed to initialize metadata database: %v",
-			err)
-		return convertErr(str, err)
+		return convertErr("failed to initialize metadata database", err)
 	}
 
 	return nil
