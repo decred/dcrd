@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -108,6 +108,56 @@ var (
 		}},
 	}
 )
+
+// TestCurrentDeploymentVersion ensures that the highest deployment version is
+// returned based on given network parameters.
+func TestCurrentDeploymentVersion(t *testing.T) {
+	t.Parallel()
+
+	// Default parameters to use for tests.  Clone the parameters so they can be
+	// mutated.
+	params := cloneParams(chaincfg.RegNetParams())
+
+	tests := []struct {
+		name        string
+		deployments map[uint32][]chaincfg.ConsensusDeployment
+		wantVersion uint32
+	}{{
+		name:        "no deployments defined",
+		wantVersion: 0,
+	}, {
+		name: "single deployment defined",
+		deployments: map[uint32][]chaincfg.ConsensusDeployment{
+			7: {{
+				Vote: testDummy1,
+			}},
+		},
+		wantVersion: 7,
+	}, {
+		name: "multiple deployments defined",
+		deployments: map[uint32][]chaincfg.ConsensusDeployment{
+			7: {{
+				Vote: testDummy1,
+			}},
+			8: {{
+				Vote: testDummy2,
+			}},
+		},
+		wantVersion: 8,
+	}}
+
+	for _, test := range tests {
+		// Set deployments based on the test parameter.
+		params.Deployments = test.deployments
+
+		// Ensure that the returned version matches the expected version.
+		gotVersion := currentDeploymentVersion(params)
+		if gotVersion != test.wantVersion {
+			t.Errorf("%q: mismatched current deployment version:\nwant: %v\n "+
+				"got: %v\n", test.name, test.wantVersion, gotVersion)
+		}
+	}
+}
 
 // TestThresholdState ensures that the threshold state function progresses
 // through the states correctly.
