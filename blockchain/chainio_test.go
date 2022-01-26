@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -951,6 +952,100 @@ func TestDbPutDeploymentVer(t *testing.T) {
 		if gotVersion != test.version {
 			t.Errorf("%q: mismatched deployment version:\nwant: %+v\n got: "+
 				"%v\n", test.name, test.version, gotVersion)
+		}
+	}
+}
+
+// TestUpdateDeploymentVersion ensures that updating the deployment version
+// works as expected under a variety of conditions.
+func TestUpdateDeploymentVersion(t *testing.T) {
+	t.Parallel()
+
+	// Default parameters to use for tests.  Clone the parameters so they can be
+	// mutated.
+	params := cloneParams(chaincfg.RegNetParams())
+	defaultDeployments := map[uint32][]chaincfg.ConsensusDeployment{
+		7: {{
+			Vote: testDummy1,
+		}},
+		8: {{
+			Vote: testDummy2,
+		}},
+	}
+
+	// Create a test database.
+	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", params.Net)
+	if err != nil {
+		t.Fatalf("failed to create database: %v", err)
+	}
+	defer teardownDb()
+
+	tests := []struct {
+		name              string
+		deployments       map[uint32][]chaincfg.ConsensusDeployment
+		blockIndexEntries []blockIndexEntry
+		prevVersion       uint32
+		wantVersion       uint32
+	}{{
+		name:        "no deployments defined",
+		wantVersion: 0,
+	}, {
+		name:        "current version == previous version",
+		deployments: defaultDeployments,
+		prevVersion: 8,
+		wantVersion: 8,
+	}, {
+		name:        "current version > previous version",
+		deployments: defaultDeployments,
+		prevVersion: 7,
+		wantVersion: 8,
+	}, {
+		name:        "current version < previous version",
+		deployments: defaultDeployments,
+		prevVersion: 9,
+		wantVersion: 8,
+	}}
+
+	for _, test := range tests {
+		// Set deployments based on the test parameter.
+		params.Deployments = test.deployments
+
+		// Set the previous version based on the test parameter.
+		if test.prevVersion != 0 {
+			err = db.Update(func(dbTx database.Tx) error {
+				return dbPutDeploymentVer(dbTx, test.prevVersion)
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting deployment version: %v", test.name,
+					err)
+			}
+		}
+
+		// Update the deployment version.
+		err = db.Update(func(dbTx database.Tx) error {
+			return updateDeploymentVersion(dbTx, params)
+		})
+		if err != nil {
+			t.Fatalf("%q: error updating deployment version: %v", test.name,
+				err)
+		}
+
+		// Fetch the updated deployment version.
+		var gotVersion uint32
+		err = db.View(func(dbTx database.Tx) error {
+			gotVersion = dbFetchDeploymentVer(dbTx)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error fetching deployment version: %v", test.name,
+				err)
+		}
+
+		// Ensure that the fetched deployment version matches the expected
+		// deployment version.
+		if gotVersion != test.wantVersion {
+			t.Errorf("%q: mismatched deployment version:\nwant: %v\n got: %v\n",
+				test.name, test.wantVersion, gotVersion)
 		}
 	}
 }
