@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -210,6 +210,19 @@ func newThresholdCaches(params *chaincfg.Params) map[uint32][]thresholdStateCach
 		}
 	}
 	return caches
+}
+
+// currentDeploymentVersion returns the highest deployment version that is
+// defined in the given network parameters.  Zero is returned if no deployments
+// are defined.
+func currentDeploymentVersion(params *chaincfg.Params) uint32 {
+	var currentVersion uint32
+	for version := range params.Deployments {
+		if version > currentVersion {
+			currentVersion = version
+		}
+	}
+	return currentVersion
 }
 
 // nextThresholdState returns the current rule change threshold state for the
