@@ -225,6 +225,28 @@ func currentDeploymentVersion(params *chaincfg.Params) uint32 {
 	return currentVersion
 }
 
+// nextDeploymentVersion returns the lowest deployment version defined in the
+// given network parameters that is higher than the provided version.  Zero is
+// returned if a deployment version higher than the provided version does not
+// exist.
+func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
+	var nextVersion uint32
+	for deploymentVersion := range params.Deployments {
+		// Continue if the deployment version is not greater than the provided
+		// version.
+		if deploymentVersion <= version {
+			continue
+		}
+
+		// Set next version if it has not been set yet or if the deployment
+		// version is lower than the current next version.
+		if nextVersion == 0 || deploymentVersion < nextVersion {
+			nextVersion = deploymentVersion
+		}
+	}
+	return nextVersion
+}
+
 // nextThresholdState returns the current rule change threshold state for the
 // block AFTER the given node and deployment ID.  The cache is used to ensure
 // the threshold states for previous windows are only calculated once.
