@@ -159,6 +159,67 @@ func TestCurrentDeploymentVersion(t *testing.T) {
 	}
 }
 
+// TestNextDeploymentVersion ensures that the next deployment version is
+// returned based on given network parameters.
+func TestNextDeploymentVersion(t *testing.T) {
+	t.Parallel()
+
+	// Default parameters to use for tests.  Clone the parameters so they can be
+	// mutated.
+	params := cloneParams(chaincfg.RegNetParams())
+	deployments := map[uint32][]chaincfg.ConsensusDeployment{
+		7: {{
+			Vote: testDummy1,
+		}},
+		8: {{
+			Vote: testDummy2,
+		}},
+	}
+
+	tests := []struct {
+		name        string
+		deployments map[uint32][]chaincfg.ConsensusDeployment
+		version     uint32
+		wantVersion uint32
+	}{{
+		name:        "no deployments defined",
+		version:     0,
+		wantVersion: 0,
+	}, {
+		name:        "provided version is less than all defined versions",
+		deployments: deployments,
+		version:     6,
+		wantVersion: 7,
+	}, {
+		name:        "provided version is between defined versions",
+		deployments: deployments,
+		version:     7,
+		wantVersion: 8,
+	}, {
+		name:        "provided version is the current version",
+		deployments: deployments,
+		version:     8,
+		wantVersion: 0,
+	}, {
+		name:        "provided version is greater than the current version",
+		deployments: deployments,
+		version:     9,
+		wantVersion: 0,
+	}}
+
+	for _, test := range tests {
+		// Set deployments based on the test parameter.
+		params.Deployments = test.deployments
+
+		// Ensure that the returned version matches the expected version.
+		gotVersion := nextDeploymentVersion(params, test.version)
+		if gotVersion != test.wantVersion {
+			t.Errorf("%q: mismatched next deployment version:\nwant: %v\n "+
+				"got: %v\n", test.name, test.wantVersion, gotVersion)
+		}
+	}
+}
+
 // TestThresholdState ensures that the threshold state function progresses
 // through the states correctly.
 func TestThresholdState(t *testing.T) {
