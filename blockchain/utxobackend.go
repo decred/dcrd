@@ -251,7 +251,7 @@ var _ UtxoBackend = (*levelDbUtxoBackend)(nil)
 
 // convertLdbErr converts the passed leveldb error into a context error with an
 // equivalent error kind and the passed description.  It also sets the passed
-// error as the underlying error.
+// error as the underlying error and adds its error string to the description.
 func convertLdbErr(ldbErr error, desc string) ContextError {
 	// Use the general UTXO backend error kind by default.  The code below will
 	// update this with the converted error if it's recognized.
@@ -272,6 +272,9 @@ func convertLdbErr(ldbErr error, desc string) ContextError {
 	case errors.Is(ldbErr, leveldb.ErrIterReleased):
 		kind = ErrUtxoBackendTxClosed
 	}
+
+	// Include the original error in description.
+	desc = fmt.Sprintf("%s: %v", desc, ldbErr)
 
 	err := contextError(kind, desc)
 	err.RawErr = ldbErr
@@ -364,8 +367,7 @@ func LoadUtxoDB(ctx context.Context, params *chaincfg.Params, dataDir string) (*
 	}
 	db, err := leveldb.OpenFile(dbPath, &opts)
 	if err != nil {
-		str := fmt.Sprintf("failed to open UTXO database: %v", err)
-		return nil, convertLdbErr(err, str)
+		return nil, convertLdbErr(err, "failed to open UTXO database")
 	}
 
 	log.Info("UTXO database loaded")
@@ -573,7 +575,7 @@ func (l *levelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
 		stats.Total += entry.amount
 	}
 	if err := iter.Error(); err != nil {
-		return nil, convertLdbErr(err, err.Error())
+		return nil, convertLdbErr(err, "failed to fetch stats")
 	}
 
 	stats.SerializedHash = standalone.CalcMerkleRootInPlace(leaves)

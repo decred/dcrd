@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestConvertLdbErr(t *testing.T) {
 		want:   ErrUtxoBackend,
 	}, {
 		name:   "Corruption error",
-		ldbErr: &ldberrors.ErrCorrupted{},
+		ldbErr: &ldberrors.ErrCorrupted{Err: errors.New("corrupted")},
 		desc:   "Some corruption error occurred",
 		want:   ErrUtxoBackendCorruption,
 	}, {
@@ -78,10 +79,11 @@ func TestConvertLdbErr(t *testing.T) {
 			continue
 		}
 
+		wantDesc := fmt.Sprintf("%s: %v", test.desc, test.ldbErr)
 		// Validate the error description.
-		if gotErr.Description != test.desc {
+		if gotErr.Description != wantDesc {
 			t.Errorf("%q: mismatched error description:\nwant: %v\n got: %v\n",
-				test.name, test.desc, gotErr.Description)
+				test.name, wantDesc, gotErr.Description)
 			continue
 		}
 

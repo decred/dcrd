@@ -5061,7 +5061,7 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 			numMigrated++
 		}
 		if iterErr := iter.Error(); iterErr != nil {
-			return false, convertLdbErr(iterErr, iterErr.Error())
+			return false, convertLdbErr(iterErr, "failed to run batch")
 		}
 		isFullyDone := err == nil
 		if (isFullyDone || logProgress) && numMigrated > 0 {
@@ -5202,7 +5202,7 @@ func moveUtxoDatabase(ctx context.Context, oldPath string, newPath string) error
 	// Open the database at the old path.
 	oldDb, err := leveldb.OpenFile(oldPath, &opts)
 	if err != nil {
-		str := fmt.Sprintf("failed to open UTXO database at old path: %v", err)
+		str := "failed to open UTXO database at old path"
 		return convertLdbErr(err, str)
 	}
 
@@ -5212,7 +5212,7 @@ func moveUtxoDatabase(ctx context.Context, oldPath string, newPath string) error
 		if err := oldDb.Close(); err != nil {
 			return convertLdbErr(err, "failed to close UTXO database at old path")
 		}
-		str := fmt.Sprintf("failed to open UTXO database at new path: %v", err)
+		str := "failed to open UTXO database at new path"
 		return convertLdbErr(err, str)
 	}
 
@@ -5265,7 +5265,7 @@ func moveUtxoDatabase(ctx context.Context, oldPath string, newPath string) error
 			numMigrated++
 		}
 		if iterErr := iter.Error(); iterErr != nil {
-			return false, convertLdbErr(iterErr, iterErr.Error())
+			return false, convertLdbErr(iterErr, "failed to run batch")
 		}
 		isFullyDone := err == nil
 		if (isFullyDone || logProgress) && numMigrated > 0 {
