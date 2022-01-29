@@ -1244,7 +1244,15 @@ func (b *BlockChain) createChainState() error {
 // constructs the block index into the provided index parameter.  It is not safe
 // for concurrent access as it is only intended to be used during initialization
 // and database migration.
-func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockIndex) error {
+//
+// If a non-zero start time for new consensus rules is provided, it will unmark
+// blocks that were previously marked failed if their median time is after that
+// time.  This ensures clients that did not update prior to new rules activating
+// are able to automatically recover under the new rules without having to
+// manually intervene.
+func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash,
+	index *blockIndex, newConsensusRulesStartTime uint64) error {
+
 	// Determine how many blocks will be loaded into the index in order to
 	// allocate the right amount as a single alloc versus a whole bunch of
 	// little ones to reduce pressure on the GC.
@@ -1297,11 +1305,35 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 			}
 		}
 
-		// Initialize the block node, connect it, and add it to the block
-		// index.
+		// Initialize the block node.
 		node := &blockNodes[i]
 		initBlockNode(node, header, parent)
+
+		// Set the status based on the database entry.
+		//
+		// If new consensus rules were detected, unmark blocks that were
+		// previously marked failed if their median time is after the earliest
+		// possible start time of the new consensus rules.  This ensures clients
+		// that did not update prior to new rules activating are able to
+		// automatically recover under the new rules without having to manually
+		// intervene.
+		//
+		// Note that there are two important preconditions for correct behavior
+		// here:
+		//   - The block index entries MUST be loaded in order of their height
+		//   - The median times of blocks are required to be strictly increasing
 		node.status = entry.status
+		if newConsensusRulesStartTime != 0 &&
+			(node.status.KnownValidateFailed() ||
+				node.status.KnownInvalidAncestor()) {
+
+			medianTime := node.CalcPastMedianTime()
+			if uint64(medianTime.Unix()) >= newConsensusRulesStartTime {
+				node.status &^= statusValidateFailed | statusInvalidAncestor
+			}
+		}
+
+		// Connect the block node and add it to the block index.
 		node.isFullyLinked = parent == nil || index.canValidate(parent)
 		node.votes = entry.voteInfo
 		index.addNodeFromDB(node)
@@ -1488,6 +1520,7 @@ func (b *BlockChain) initChainState(ctx context.Context,
 
 	// Attempt to load the chain state and block index from the database.
 	var tip *blockNode
+	var newRulesStartTime uint64
 	err = b.db.View(func(dbTx database.Tx) error {
 		// Fetch the stored best chain state from the database.
 		state, err := dbFetchBestState(dbTx)
@@ -1498,9 +1531,11 @@ func (b *BlockChain) initChainState(ctx context.Context,
 		log.Infof("Loading block index...")
 		bidxStart := time.Now()
 
-		// Load all of the block index entries from the database and
-		// construct the block index.
-		err = loadBlockIndex(dbTx, &b.chainParams.GenesisHash, b.index)
+		// Load all of the block index entries from the database and construct
+		// the block index.
+		newRulesStartTime := newDeploymentsStartTime(dbTx, b.chainParams)
+		err = loadBlockIndex(dbTx, &b.chainParams.GenesisHash, b.index,
+			newRulesStartTime)
 		if err != nil {
 			return err
 		}
@@ -1586,6 +1621,18 @@ func (b *BlockChain) initChainState(ctx context.Context,
 	})
 	if err != nil {
 		return err
+	}
+
+	// Flush the block index if new consensus rules were detected since blocks
+	// may have been unmarked as failing validation when loading the block
+	// index.  This is done before updating the deployment version to ensure
+	// that any updated block index records are saved to the database before
+	// persisting the updated deployment version.
+	if newRulesStartTime != 0 {
+		err = b.flushBlockIndex()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Update the deployment version as needed.
