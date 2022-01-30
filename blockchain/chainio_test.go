@@ -956,6 +956,95 @@ func TestDbPutDeploymentVer(t *testing.T) {
 	}
 }
 
+// TestNewDeploymentsStartTime ensures that the correct start time is returned
+// for new deployments under a variety of conditions.
+func TestNewDeploymentsStartTime(t *testing.T) {
+	t.Parallel()
+
+	// Default parameters to use for tests.  Clone the parameters so they can be
+	// mutated.
+	params := cloneParams(chaincfg.RegNetParams())
+	defaultDeployments := map[uint32][]chaincfg.ConsensusDeployment{
+		7: {{
+			Vote:       testDummy1,
+			StartTime:  1596240000,
+			ExpireTime: 1627776000,
+		}},
+		8: {{
+			Vote:       testDummy2,
+			StartTime:  1631750400,
+			ExpireTime: 1694822400,
+		}},
+	}
+
+	// Create a test database.
+	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", params.Net)
+	if err != nil {
+		t.Fatalf("failed to create database: %v", err)
+	}
+	defer teardownDb()
+
+	tests := []struct {
+		name              string
+		deployments       map[uint32][]chaincfg.ConsensusDeployment
+		blockIndexEntries []blockIndexEntry
+		prevVersion       uint32
+		wantTime          uint64
+	}{{
+		name:     "no deployments defined",
+		wantTime: 0,
+	}, {
+		name:        "current version == previous version",
+		deployments: defaultDeployments,
+		prevVersion: 0,
+		wantTime:    1596240000,
+	}, {
+		name:        "current version > previous version",
+		deployments: defaultDeployments,
+		prevVersion: 7,
+		wantTime:    1631750400,
+	}, {
+		name:        "current version < previous version",
+		deployments: defaultDeployments,
+		prevVersion: 9,
+		wantTime:    0,
+	}}
+
+	for _, test := range tests {
+		// Set deployments based on the test parameter.
+		params.Deployments = test.deployments
+
+		// Set the previous version based on the test parameter.
+		if test.prevVersion != 0 {
+			err = db.Update(func(dbTx database.Tx) error {
+				return dbPutDeploymentVer(dbTx, test.prevVersion)
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting deployment version: %v", test.name,
+					err)
+			}
+		}
+
+		// Get the new deployments start time.
+		var gotTime uint64
+		err = db.View(func(dbTx database.Tx) error {
+			gotTime = newDeploymentsStartTime(dbTx, params)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error getting new deployments start time: %v",
+				test.name, err)
+		}
+
+		// Ensure that the fetched new deployments start time matches the
+		// expected time.
+		if gotTime != test.wantTime {
+			t.Errorf("%q: mismatched new deployments start time:\nwant: %v\n "+
+				"got: %v\n", test.name, test.wantTime, gotTime)
+		}
+	}
+}
+
 // TestUpdateDeploymentVersion ensures that updating the deployment version
 // works as expected under a variety of conditions.
 func TestUpdateDeploymentVersion(t *testing.T) {

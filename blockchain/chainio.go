@@ -1313,6 +1313,41 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 	return nil
 }
 
+// newDeploymentsStartTime returns the earliest start time of newly detected
+// deployment versions.  Zero is returned if not updating to a new deployment
+// version.
+func newDeploymentsStartTime(dbTx database.Tx, chainParams *chaincfg.Params) uint64 {
+	// Get the current deployment version.
+	curVersion := currentDeploymentVersion(chainParams)
+
+	// Return if the current version is zero as there is nothing to do.  This is
+	// the case for networks that don't track deployments and use the latest
+	// consensus rules by default.
+	if curVersion == 0 {
+		return 0
+	}
+
+	// Fetch the previous deployment version from the database.
+	prevVersion := dbFetchDeploymentVer(dbTx)
+
+	// If we are updating to a newer deployment version, determine the earliest
+	// possible start time of consensus rules that were not previously known.
+	var newDeploymentsStartTime uint64
+	if curVersion > prevVersion {
+		nextDeploymentVersion := nextDeploymentVersion(chainParams, prevVersion)
+		nextDeployment := chainParams.Deployments[nextDeploymentVersion]
+		if len(nextDeployment) > 0 {
+			// Set the start time based on the first deployment in the version.
+			//
+			// Note that this assumes that all deployments within a given
+			// version have the same start time.
+			newDeploymentsStartTime = nextDeployment[0].StartTime
+		}
+	}
+
+	return newDeploymentsStartTime
+}
+
 // updateDeploymentVersion uses an existing database transaction to update the
 // deployment version as needed.
 func updateDeploymentVersion(dbTx database.Tx, chainParams *chaincfg.Params) error {
