@@ -110,7 +110,7 @@ func TestSpendPruner(t *testing.T) {
 	// Ensure adding dependents fails if a consumer errors checking if the
 	// data is needed.
 	hashA := &chainhash.Hash{'a'}
-	err = pruner.addSpendConsumerDeps(hashA)
+	err = pruner.addSpendConsumerDependencies(hashA, 0)
 	if !errors.Is(err, ErrNeedSpendData) {
 		t.Fatalf("expected a spend data error, got %v", err)
 	}
@@ -135,7 +135,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Ensure adding dependents creates entries for consumers that need
 	// the spend data of the provided block hash.
-	err = pruner.addSpendConsumerDeps(hashA)
+	err = pruner.addSpendConsumerDependencies(hashA, 0)
 	if err != nil {
 		t.Fatalf("unexpected error adding consumer dependencies: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestSpendPruner(t *testing.T) {
 		})
 	}
 
-	err = pruner.addSpendConsumerDeps(hashA)
+	err = pruner.addSpendConsumerDependencies(hashA, 0)
 	if err != nil {
 		t.Fatalf("unexpected error adding spend data dependents "+
 			"for hashA: %v", err)
@@ -244,7 +244,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Ensure the spend pruner does not remove the spend entries if
 	// there are existing dependencies for it.
-	err = pruner.MaybePruneSpendData(hashA, nil)
+	err = pruner.MaybePruneSpendData(hashA, 0)
 	if err != nil {
 		t.Fatalf("[MaybePruneSpendData] unexpected error: %v", err)
 	}
@@ -304,14 +304,14 @@ func TestSpendPruner(t *testing.T) {
 
 	// Create consumer dependencies for hashB and hashC.
 	hashB := &chainhash.Hash{'b'}
-	err = pruner.addSpendConsumerDeps(hashB)
+	err = pruner.addSpendConsumerDependencies(hashB, 1)
 	if err != nil {
 		t.Fatalf("unexpected error adding consumer dependencies "+
 			"for hashB: %v", err)
 	}
 
 	hashC := &chainhash.Hash{'c'}
-	err = pruner.addSpendConsumerDeps(hashC)
+	err = pruner.addSpendConsumerDependencies(hashC, 2)
 	if err != nil {
 		t.Fatalf("unexpected error adding consumer dependencies "+
 			"for hashC: %v", err)

@@ -14,16 +14,16 @@ const (
 	// ErrNoConsumer indicates a spend journal consumer hash does not exist.
 	ErrNoConsumer = ErrorKind("ErrNoConsumer")
 
-	// ErrLoadSpendDeps indicates an error loading consumer
+	// ErrLoadSpendDependencies indicates an error loading consumer
 	// spend dependencies.
-	ErrLoadSpendDeps = ErrorKind("ErrLoadSpendDeps")
+	ErrLoadSpendDependencies = ErrorKind("ErrLoadSpendDependencies")
 
 	// ErrNeedSpendData indicates an error asserting a spend data dependency.
 	ErrNeedSpendData = ErrorKind("ErrNeedSpendData")
 
 	// ErrUpdateConsumerDeps indicates an error updating consumer spend
 	// dependencies.
-	ErrUpdateConsumerDeps = ErrorKind("ErrUpdateConsumerDeps")
+	ErrUpdateConsumerDependencies = ErrorKind("ErrUpdateConsumerDependencies")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

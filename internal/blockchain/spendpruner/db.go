@@ -19,18 +19,21 @@ const (
 )
 
 var (
+	// spendConsumerDependenciesBucketName is the name of the bucket used in
+	// storing spend journal consumer dependencies.
+	spendConsumerDependenciesBucketName = []byte("spendconsumerdeps")
 	// spendJournalHeightsBucketName is the name of the bucket used in
 	// storing spend journal heights.
 	spendJournalHeightsBucketName = []byte("spendheights")
 )
 
-// initConsumerDepsBucket creates the spend consumer dependencies bucket if it
-// does not exist.
-func initConsumerDepsBucket(db database.DB) error {
+// initConsumerDependenciesBucket creates the spend consumer dependencies
+// bucket if it does not exist.
+func initConsumerDependenciesBucket(db database.DB) error {
 	// Create the spend consumer dependencies bucket if it does not exist yet.
 	return db.Update(func(dbTx database.Tx) error {
 		meta := dbTx.Metadata()
-		_, err := meta.CreateBucketIfNotExists(spendConsumerDepsBucketName)
+		_, err := meta.CreateBucketIfNotExists(spendConsumerDependenciesBucketName)
 		return err
 	})
 }
@@ -46,6 +49,9 @@ func initSpendJournalHeightsBucket(db database.DB) error {
 	})
 }
 
+// serializeSpendConsumerDependencies returns serialized bytes of the provided
+// spend journal consumer dependencies.
+func serializeSpendConsumerDependencies(deps []string) []byte {
 	var buf bytes.Buffer
 	for idx := 0; idx < len(deps); idx++ {
 		buf.WriteString(deps[idx])
@@ -57,9 +63,9 @@ func initSpendJournalHeightsBucket(db database.DB) error {
 	return buf.Bytes()
 }
 
-// deserializeSpendConsumerDeps returns deserialized spend consumer
+// deserializeSpendConsumerDependencies returns deserialized spend consumer
 // dependencies from the provided serialized bytes.
-func deserializeSpendConsumerDeps(serializedBytes []byte) []string {
+func deserializeSpendConsumerDependencies(serializedBytes []byte) []string {
 	depBytes := bytes.Split(serializedBytes, []byte{depsSeparator})
 	deps := make([]string, len(depBytes))
 	for idx := 0; idx < len(depBytes); idx++ {
@@ -69,10 +75,10 @@ func deserializeSpendConsumerDeps(serializedBytes []byte) []string {
 	return deps
 }
 
-// dbUpdateSpendConsumerDeps uses an existing database transaction to update
-// the spend consumer dependency entry for the provided block hash.
-func dbUpdateSpendConsumerDeps(dbTx database.Tx, blockHash chainhash.Hash, consumerDeps []string) error {
-	depsBucket := dbTx.Metadata().Bucket(spendConsumerDepsBucketName)
+// dbUpdateSpendConsumerDependencies uses an existing database transaction to
+// update the spend consumer dependencies entry for the provided block hash.
+func dbUpdateSpendConsumerDependencies(dbTx database.Tx, blockHash chainhash.Hash, consumerDeps []string) error {
+	depsBucket := dbTx.Metadata().Bucket(spendConsumerDependenciesBucketName)
 
 	// Remove the dependency entry if there are no spend consumer dependencies
 	// left for the block hash.
@@ -81,7 +87,7 @@ func dbUpdateSpendConsumerDeps(dbTx database.Tx, blockHash chainhash.Hash, consu
 	}
 
 	// Update the dependency entry.
-	serialized := serializeSpendConsumerDeps(consumerDeps)
+	serialized := serializeSpendConsumerDependencies(consumerDeps)
 	return depsBucket.Put(blockHash[:], serialized)
 }
 
@@ -156,6 +162,11 @@ func dbPruneSpendHeights(dbTx database.Tx, keys []chainhash.Hash) error {
 
 	return nil
 }
+
+// dbFetchSpendConsumerDependencies uses an existing database transaction to
+// fetch all spend consumer dependency entries in the database.
+func dbFetchSpendConsumerDependencies(dbTx database.Tx) (map[chainhash.Hash][]string, error) {
+	depsBucket := dbTx.Metadata().Bucket(spendConsumerDependenciesBucketName)
 	consumerDeps := make(map[chainhash.Hash][]string)
 	cursor := depsBucket.Cursor()
 	for ok := cursor.First(); ok; ok = cursor.Next() {
@@ -164,7 +175,7 @@ func dbPruneSpendHeights(dbTx database.Tx, keys []chainhash.Hash) error {
 			return nil, err
 		}
 
-		deps := deserializeSpendConsumerDeps(cursor.Value())
+		deps := deserializeSpendConsumerDependencies(cursor.Value())
 		consumerDeps[*hash] = deps
 	}
 

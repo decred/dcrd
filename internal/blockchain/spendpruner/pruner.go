@@ -55,8 +55,7 @@ type SpendJournalPruner struct {
 }
 
 // NewSpendJournalPruner initializes a spend journal pruner.
-func NewSpendJournalPruner(db database.DB, removeSpendEntry func(hash *chainhash.Hash) error) (*SpendJournalPruner, error) {
-	err := initConsumerDepsBucket(db)
+	err := initConsumerDependenciesBucket(db)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +68,7 @@ func NewSpendJournalPruner(db database.DB, removeSpendEntry func(hash *chainhash
 		ch:               make(chan SpendJournalNotification),
 	}
 
-	err = spendPruner.loadSpendConsumerDeps()
+	err = spendPruner.loadSpendConsumerDependencies()
 	if err != nil {
 		return nil, err
 	}
@@ -138,11 +137,9 @@ func (s *SpendJournalPruner) dependencyExistsInternal(blockHash *chainhash.Hash,
 	return false
 }
 
-// addSpendConsumerDeps adds an entry for each spend consumer dependent on
-// journal data for the provided block hash.
-func (s *SpendJournalPruner) addSpendConsumerDeps(blockHash *chainhash.Hash) error {
-	s.consumersMtx.RLock()
-	defer s.consumersMtx.RUnlock()
+// addSpendConsumerDependencies adds an entry for each spend consumer dependent
+// on journal data for the provided block hash.
+func (s *SpendJournalPruner) addSpendConsumerDependencies(blockHash *chainhash.Hash, blockHeight uint32) error {
 
 	for _, consumer := range s.consumers {
 		if s.dependencyExistsInternal(blockHash, consumer.ID()) {
@@ -189,7 +186,7 @@ func (s *SpendJournalPruner) addSpendConsumerDeps(blockHash *chainhash.Hash) err
 	if err != nil {
 		msg := fmt.Sprintf("unable to update persisted consumer "+
 			"dependencies for block hash %v: %v", blockHash, err)
-		return pruneError(ErrUpdateConsumerDeps, msg)
+		return pruneError(ErrUpdateConsumerDependencies, msg)
 	}
 
 	return nil
@@ -231,30 +228,26 @@ func (s *SpendJournalPruner) RemoveSpendConsumerDependency(dbTx database.Tx, blo
 
 	// Update the tracked spend journal entry for the provided
 	// block hash.
-	err := dbUpdateSpendConsumerDeps(dbTx, *blockHash, dependents)
+	err := dbUpdateSpendConsumerDependencies(dbTx, *blockHash, dependents)
 	if err != nil {
 		msg := fmt.Sprintf("unable to update consumer dependencies "+
 			"entry for block hash %v: %v", blockHash, err)
-		return pruneError(ErrUpdateConsumerDeps, msg)
+		return pruneError(ErrUpdateConsumerDependencies, msg)
 	}
 
 	return nil
 }
 
-// removeSpendConsumerDeps removes the key/value pair of spend consumer
+// removeSpendConsumerDependencies removes the key/value pair of spend consumer
 // dependencies and the provided block hash from the the prune set as well
-// as the database.
-func (s *SpendJournalPruner) removeSpendConsumerDeps(blockHash *chainhash.Hash) error {
+func (s *SpendJournalPruner) removeSpendConsumerDependencies(blockHash *chainhash.Hash) error {
 	s.dependentsMtx.Lock()
 	delete(s.dependents, *blockHash)
 	s.dependentsMtx.Unlock()
 
 	// Remove the tracked spend journal entry for the provided
 	// block hash.
-	err := s.db.Update(func(tx database.Tx) error {
-		return dbUpdateSpendConsumerDeps(tx, *blockHash, nil)
-	})
-	if err != nil {
+		err := dbUpdateSpendConsumerDependencies(tx, *blockHash, nil)
 		msg := fmt.Sprintf("unable to remove persisted consumer dependencies "+
 			"entry for block hash %v: %v", blockHash, err)
 		return pruneError(ErrUpdateConsumerDeps, msg)
@@ -263,15 +256,15 @@ func (s *SpendJournalPruner) removeSpendConsumerDeps(blockHash *chainhash.Hash) 
 	return nil
 }
 
-// loadSpendConsumerDeps loads persisted consumer spend dependencies from
-// the database.
-func (s *SpendJournalPruner) loadSpendConsumerDeps() error {
+// loadSpendConsumerDependencies loads persisted consumer spend dependencies
+// from the database.
+func (s *SpendJournalPruner) loadSpendConsumerDependencies() error {
 	return s.db.View(func(tx database.Tx) error {
-		consumerDeps, err := dbFetchSpendConsumerDeps(tx)
+		consumerDeps, err := dbFetchSpendConsumerDependencies(tx)
 		if err != nil {
 			msg := fmt.Sprintf("unable to load spend consumer "+
 				"dependencies: %v", err)
-			return pruneError(ErrLoadSpendDeps, msg)
+			return pruneError(ErrLoadSpendDependencies, msg)
 		}
 
 		s.dependentsMtx.Lock()

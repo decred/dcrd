@@ -17,9 +17,9 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrNoConsumer, "ErrNoConsumer"},
-		{ErrLoadSpendDeps, "ErrLoadSpendDeps"},
+		{ErrLoadSpendDependencies, "ErrLoadSpendDependencies"},
 		{ErrNeedSpendData, "ErrNeedSpendData"},
-		{ErrUpdateConsumerDeps, "ErrUpdateConsumerDeps"},
+		{ErrUpdateConsumerDependencies, "ErrUpdateConsumerDependencies"},
 	}
 
 	for i, test := range tests {

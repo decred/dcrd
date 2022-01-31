@@ -15,9 +15,9 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// TestSerializeConsumerDeps ensures consumer dependencies serialize as
+// TestSerializeConsumerDependencies ensures consumer dependencies serialize as
 // intended.
-func TestSerializeConsumerDeps(t *testing.T) {
+func TestSerializeConsumerDependencies(t *testing.T) {
 	tests := []struct {
 		name     string
 		deps     []string
@@ -41,7 +41,7 @@ func TestSerializeConsumerDeps(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		serialized := serializeSpendConsumerDeps(test.deps)
+		serialized := serializeSpendConsumerDependencies(test.deps)
 		if !bytes.Equal(serialized, test.expected) {
 			t.Errorf("%q: unexpected serialized mismatch, "+
 				"expected %q, got %q", test.name, test.expected, serialized)
@@ -50,9 +50,9 @@ func TestSerializeConsumerDeps(t *testing.T) {
 	}
 }
 
-// TestDeserializeConsumerDeps ensures consumer dependencies deserialize as
-// intended.
-func TestDeserializeConsumerDeps(t *testing.T) {
+// TestDeserializeConsumerDependencies ensures consumer dependencies
+// deserialize as intended.
+func TestDeserializeConsumerDependencies(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
@@ -76,7 +76,7 @@ func TestDeserializeConsumerDeps(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		deserialized := deserializeSpendConsumerDeps(test.serialized)
+		deserialized := deserializeSpendConsumerDependencies(test.serialized)
 		for idx := range test.expected {
 			if deserialized[idx] != test.expected[idx] {
 				t.Errorf("%q: unexpected dependency mismatch at index %d, "+
@@ -104,7 +104,7 @@ func createDB() (database.DB, func(), error) {
 		return nil, nil, err
 	}
 
-	err = initConsumerDepsBucket(db)
+	err = initConsumerDependenciesBucket(db)
 	if err != nil {
 		os.RemoveAll(dbPath)
 		return nil, nil, err
