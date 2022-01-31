@@ -100,11 +100,19 @@ func createDB() (database.DB, func(), error) {
 
 	db, err := database.Create("ffldb", dbPath, wire.SimNet)
 	if err != nil {
+		os.RemoveAll(dbPath)
 		return nil, nil, err
 	}
 
 	err = initConsumerDepsBucket(db)
 	if err != nil {
+		os.RemoveAll(dbPath)
+		return nil, nil, err
+	}
+
+	err = initSpendJournalHeightsBucket(db)
+	if err != nil {
+		os.RemoveAll(dbPath)
 		return nil, nil, err
 	}
 
