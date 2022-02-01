@@ -1061,7 +1061,8 @@ func TestMaybeFlush(t *testing.T) {
 func TestInitialize(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// -------------------------------------------------------------------------
 	// Create some convenience functions to improve test readability.
@@ -1218,7 +1219,8 @@ func TestInitialize(t *testing.T) {
 func TestShutdownUtxoCache(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// Replace the chain utxo cache with a test cache so that flushing can be
 	// disabled.

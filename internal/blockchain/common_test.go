@@ -114,22 +114,23 @@ func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
 }
 
 // chainSetup is used to create a new db and chain instance with the genesis
-// block already inserted.
-func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
+// block already inserted.  In addition to the new chain instance, it returns
+// a teardown function the caller should invoke when done testing to clean up.
+func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, func(), error) {
 	if !isSupportedDbType(testDbType) {
-		return nil, fmt.Errorf("unsupported db type %v", testDbType)
+		return nil, nil, fmt.Errorf("unsupported db type %v", testDbType)
 	}
 
 	// Create a test block database.
 	db, err := createTestDatabase(t, testDbType, blockDataNet)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create a test UTXO database.
 	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	t.Cleanup(func() {
 		teardownUtxoDb()
@@ -142,11 +143,16 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 	// Create a SigCache instance.
 	sigCache, err := txscript.NewSigCache(1000)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create the main chain instance.
 	utxoBackend := NewLevelDbUtxoBackend(utxoDb)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+	})
+
 	chain, err := New(context.Background(),
 		&Config{
 			DB:          db,
@@ -167,10 +173,14 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 
 	if err != nil {
 		err := fmt.Errorf("failed to create chain instance: %w", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return chain, nil
+	startup := func() {
+		go chain.SpendPrunerHandler(ctx)
+	}
+
+	return chain, startup, nil
 }
 
 // newFakeChain returns a chain that is usable for synthetic tests.  It is
@@ -614,11 +624,11 @@ type chaingenHarness struct {
 // a chaingen generator to use instead of creating a new one.
 //
 // See the documentation for the chaingenHarness type for more details.
-func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) *chaingenHarness {
+func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) (*chaingenHarness, func()) {
 	t.Helper()
 
 	// Create a new database and chain instance to run tests against.
-	chain, err := chainSetup(t, g.Params())
+	chain, startupFunc, err := chainSetup(t, g.Params())
 	if err != nil {
 		t.Fatalf("Failed to setup chain instance: %v", err)
 	}
@@ -629,7 +639,7 @@ func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) *chaingenHar
 		chain:              chain,
 		deploymentVersions: make(map[string]uint32),
 	}
-	return &harness
+	return &harness, startupFunc
 }
 
 // newChaingenHarness creates and returns a new instance of a chaingen harness
@@ -639,7 +649,7 @@ func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) *chaingenHar
 // generator to use instead of allowing the caller to provide one.
 //
 // See the documentation for the chaingenHarness type for more details.
-func newChaingenHarness(t *testing.T, params *chaincfg.Params) *chaingenHarness {
+func newChaingenHarness(t *testing.T, params *chaincfg.Params) (*chaingenHarness, func()) {
 	t.Helper()
 
 	// Create a test generator instance initialized with the genesis block as

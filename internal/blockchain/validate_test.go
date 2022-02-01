@@ -58,11 +58,12 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	// Create a new database and chain instance to run tests against.
-	chain, err := chainSetup(t, params)
+	chain, startupFunc, err := chainSetup(t, params)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
 	}
+	startupFunc()
 
 	// Load up the rest of the blocks up to HEAD.
 	filename := filepath.Join("testdata", "reorgto179.bz2")
@@ -357,7 +358,8 @@ var badBlock = wire.MsgBlock{
 func TestCheckConnectBlockTemplate(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// Define some additional convenience helper functions to process the
 	// current tip block associated with the generator.
@@ -990,7 +992,8 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	coinbaseMaturity := params.CoinbaseMaturity
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// The following funcs are convenience funcs for asserting the tests are
 	// actually testing what they intend to.
@@ -1757,7 +1760,8 @@ func TestAutoRevocations(t *testing.T) {
 	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// replaceAutoRevocationsVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, vote, and revocation
@@ -1948,7 +1952,8 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g := newChaingenHarness(t, params)
+	g, startupFunc := newChaingenHarness(t, params)
+	startupFunc()
 
 	// replaceCoinbaseSubsidy is a munge function which modifies the provided
 	// block by replacing the coinbase subsidy with the proportion required for
