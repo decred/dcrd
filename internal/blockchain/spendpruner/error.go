@@ -24,6 +24,12 @@ const (
 	// ErrUpdateConsumerDeps indicates an error updating consumer spend
 	// dependencies.
 	ErrUpdateConsumerDependencies = ErrorKind("ErrUpdateConsumerDependencies")
+
+	// ErrLoadSpendHeights indicates an error loading spend heights.
+	ErrLoadSpendHeights = ErrorKind("ErrLoadSpendHeights")
+
+	// ErrRemoveSpendHeight indicates an error removing a spend height.
+	ErrRemoveSpendHeight = ErrorKind("ErrRemoveSpendHeight")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

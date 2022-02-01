@@ -20,6 +20,8 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrLoadSpendDependencies, "ErrLoadSpendDependencies"},
 		{ErrNeedSpendData, "ErrNeedSpendData"},
 		{ErrUpdateConsumerDependencies, "ErrUpdateConsumerDependencies"},
+		{ErrLoadSpendHeights, "ErrLoadSpendHeights"},
+		{ErrRemoveSpendHeight, "ErrRemoveSpendHeight"},
 	}
 
 	for i, test := range tests {

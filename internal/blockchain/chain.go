@@ -47,6 +47,10 @@ const (
 	// contextCheckCacheSize is the number of recent successful contextual block
 	// check results to keep in memory.
 	contextCheckCacheSize = 25
+
+	// invalidateReconsiderName is the name of spend journal consumer for
+	// block invalidation and reconsideration.
+	invalidateReconsiderName = "invalidatereconsider"
 )
 
 // panicf is a convenience function that formats according to the given format
@@ -260,6 +264,10 @@ type BlockChain struct {
 	// spendPruner prunes spend journal data for disconnected blocks
 	// if there are no consumers left for it.
 	spendPruner *spendpruner.SpendJournalPruner
+
+	// invalidateSpendConsumer tracks spend journal data needed for
+	// invalidating and reconsidering blocks.
+	invalidateSpendConsumer *indexers.SpendConsumer
 
 	// bulkImportMode provides a mechanism to indicate that several validation
 	// checks can be avoided when bulk importing blocks already known to be valid.
@@ -2441,10 +2449,15 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db, b.RemoveSpendEntry)
+	best := b.BestSnapshot()
 	if err != nil {
 		return nil, err
 	}
+
+	queryer := ChainQueryerAdapter{BlockChain: &b}
+	b.invalidateSpendConsumer = indexers.NewSpendConsumer(
+		invalidateReconsiderName, &best.Hash, &queryer)
+	b.spendPruner.AddConsumer(b.invalidateSpendConsumer)
 
 	log.Infof("Blockchain database version info: chain: %d, compression: "+
 		"%d, block index: %d, spend journal: %d", b.dbInfo.version,

@@ -679,6 +679,10 @@ func (b *BlockChain) InvalidateBlock(hash *chainhash.Hash) error {
 		return unknownBlockError(hash)
 	}
 
+	// Update the tip of the invalidate/reconsider spend journal consumer
+	// to ensure it requires all the blocks to be disconnected.
+	b.invalidateSpendConsumer.UpdateTip(&b.BestSnapshot().Hash)
+
 	// Disallow invalidation of the genesis block.
 	if node.height == 0 {
 		str := "invalidating the genesis block is not allowed"
@@ -923,5 +927,10 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 	b.index.Lock()
 	b.index.pruneCachedTips(b.bestChain.Tip())
 	b.index.Unlock()
+
+	// Update the tip of the invalidate/reconsider spend journal consumer
+	// to ensure it no longer requires all the reconnected blocks.
+	b.invalidateSpendConsumer.UpdateTip(&b.BestSnapshot().Hash)
+
 	return err
 }
