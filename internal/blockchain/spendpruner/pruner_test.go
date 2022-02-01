@@ -43,15 +43,17 @@ type testChain struct {
 	mtx                 sync.Mutex
 }
 
-// RemoveSpendEntry purges the associated spend journal entry of the provided
-// block hash.
-func (t *testChain) RemoveSpendEntry(hash *chainhash.Hash) error {
+// BatchRemoveSpendEntry purges the spend journal entries of the
+// provided batched block hashes if they are not part of the main chain.
+func (t *testChain) BatchRemoveSpendEntry(batch []chainhash.Hash) error {
 	if t.removeSpendEntryErr != nil {
 		return t.removeSpendEntryErr
 	}
 
 	t.mtx.Lock()
-	t.removedSpendEntries[*hash] = struct{}{}
+	for _, entry := range batch {
+		t.removedSpendEntries[entry] = struct{}{}
+	}
 	t.mtx.Unlock()
 
 	return nil
@@ -85,13 +87,17 @@ func TestSpendPruner(t *testing.T) {
 
 	defer teardown()
 
+	batchPruneInterval := time.Millisecond * 100
+	dependentPruneInterval := time.Millisecond * 100
+	tipHeight := uint32(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	pruner, err := NewSpendJournalPruner(db, chain.RemoveSpendEntry)
+	pruner, err := NewSpendJournalPruner(db, chain.BatchRemoveSpendEntry,
+		tipHeight, batchPruneInterval, dependentPruneInterval)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	go pruner.HandleSignals(ctx)
+	go pruner.Run(ctx)
 
 	pruner.AddConsumer(consumerA)
 	pruner.AddConsumer(consumerB)
@@ -107,7 +113,7 @@ func TestSpendPruner(t *testing.T) {
 		t.Fatalf("expected 2 consumers, got %d", consumers)
 	}
 
-	// Ensure adding dependents fails if a consumer errors checking if the
+	// Ensure adding dependents fails if a consumer errors checking whether the
 	// data is needed.
 	hashA := &chainhash.Hash{'a'}
 	err = pruner.addSpendConsumerDependencies(hashA, 0)
@@ -131,6 +137,18 @@ func TestSpendPruner(t *testing.T) {
 		return ok
 	}
 
+	inPruneBatch := func(pruner *SpendJournalPruner, hash *chainhash.Hash) bool {
+		pruner.pruneBatchMtx.Lock()
+		for _, batchedHash := range pruner.pruneBatch {
+			if batchedHash.IsEqual(hash) {
+				pruner.pruneBatchMtx.Unlock()
+				return true
+			}
+		}
+		pruner.pruneBatchMtx.Unlock()
+		return false
+	}
+
 	consumerB.needSpendDataErr = nil
 
 	// Ensure adding dependents creates entries for consumers that need
@@ -140,11 +158,15 @@ func TestSpendPruner(t *testing.T) {
 		t.Fatalf("unexpected error adding consumer dependencies: %v", err)
 	}
 
+	if !pruner.spendHeightExists(hashA) {
+		t.Fatalf("expected a spend journal height entry for %s", hashA)
+	}
+
 	// Ensure there is only one dependent entry for hashA, belonging to
 	// consumerA.
 	dependents, ok := fetchHashSpendDependents(pruner, hashA)
 	if !ok {
-		t.Fatalf("expected dependents to have an entry for %s", hashA)
+		t.Fatalf("expected dependent entry for hashA: %s", hashA)
 	}
 
 	if len(dependents) != 1 {
@@ -244,7 +266,7 @@ func TestSpendPruner(t *testing.T) {
 
 	// Ensure the spend pruner does not remove the spend entries if
 	// there are existing dependencies for it.
-	err = pruner.MaybePruneSpendData(hashA, 0)
+	err = pruner.MaybePruneSpendData(hashA)
 	if err != nil {
 		t.Fatalf("[MaybePruneSpendData] unexpected error: %v", err)
 	}
@@ -254,25 +276,28 @@ func TestSpendPruner(t *testing.T) {
 		t.Fatal("unexpected hashA spend data pruned")
 	}
 
+	if !pruner.spendHeightExists(hashA) {
+		t.Fatalf("expected a spend journal height entry for %s", hashA)
+	}
+
 	// Ensure the spend pruner does remove spend entries for
 	// a hash if there are no existing spend dependencies for it.
 	hashX := &chainhash.Hash{'x'}
-	done := make(chan bool)
-	err = pruner.MaybePruneSpendData(hashX, done)
+	err = pruner.MaybePruneSpendData(hashX)
 	if err != nil {
 		t.Fatalf("[MaybePruneSpendData] unexpected error: %v", err)
 	}
 
-	select {
-	case <-done:
-		// Do nothing.
-	case <-time.After(time.Second * 3):
-		t.Fatal("timeout waiting for remove spend journal done signal")
+	ok = inPruneBatch(pruner, hashX)
+	if !ok {
+		t.Fatalf("expected hashX spend notification to be batched")
 	}
+
+	time.Sleep(batchPruneInterval + (batchPruneInterval / 4))
 
 	ok = isRemovedSpendEntry(chain, hashX)
 	if !ok {
-		t.Fatalf("expected hashX spend data to be pruned")
+		t.Fatalf("expected hashX spend entry to be pruned")
 	}
 
 	// Remove the HashA dependency for consumerC.
@@ -294,9 +319,21 @@ func TestSpendPruner(t *testing.T) {
 		t.Fatal("expected no dependent entry for hashA")
 	}
 
-	ok = isRemovedSpendEntry(chain, hashX)
+	ok = inPruneBatch(pruner, hashA)
 	if !ok {
-		t.Fatal("expected hashA spend data to be pruned")
+		t.Fatalf("expected hashA spend notification to be batched")
+	}
+
+	time.Sleep(batchPruneInterval + (batchPruneInterval / 4))
+
+	ok = isRemovedSpendEntry(chain, hashA)
+	if !ok {
+		t.Fatalf("expected hashA spend entry to be pruned")
+	}
+
+	// Ensure the pruner no longer has a spend height entry for HashA.
+	if pruner.spendHeightExists(hashA) {
+		t.Fatalf("expected no spend journal height entry for %s", hashA)
 	}
 
 	// Update spend consumers to need spend data for upcoming tests.
@@ -306,8 +343,18 @@ func TestSpendPruner(t *testing.T) {
 	hashB := &chainhash.Hash{'b'}
 	err = pruner.addSpendConsumerDependencies(hashB, 1)
 	if err != nil {
-		t.Fatalf("unexpected error adding consumer dependencies "+
-			"for hashB: %v", err)
+		t.Fatal("unexpected error adding consumer dependencies "+
+			"for hashB: %w", err)
+	}
+
+	dependents, _ = fetchHashSpendDependents(pruner, hashB)
+	if len(dependents) != 3 {
+		t.Fatalf("expected 3 dependent entries for hashB, got %d",
+			len(dependents))
+	}
+
+	if !pruner.DependencyExists(hashB) {
+		t.Fatal("expected consumer dependencies for hashB")
 	}
 
 	hashC := &chainhash.Hash{'c'}
@@ -317,27 +364,35 @@ func TestSpendPruner(t *testing.T) {
 			"for hashC: %v", err)
 	}
 
-	if !pruner.DependencyExists(hashB) {
-		t.Fatal("expected consumer dependencies for hashB")
+	if !pruner.DependencyExists(hashC) {
+		t.Fatal("expected consumer dependencies for hashC")
 	}
 
 	// Trigger a consumer dependencies purge by signalling hashB as a
 	// connected block.
-	go pruner.NotifyConnectedBlock(hashB)
-	time.Sleep(time.Millisecond * 100)
+	pruner.ConnectBlock(hashB)
 
 	if pruner.DependencyExists(hashB) {
 		t.Fatal("expected no consumer dependencies entry for hashB")
 	}
 
+	// Ensure the pruner no longer has a spend height entry for HashB.
+	if pruner.spendHeightExists(hashB) {
+		t.Fatalf("expected no spend journal height entry for %s", hashB)
+	}
+
 	// Ensure the spend pruner does nothing if the provided connected block
 	// does not have any spend consumer dependencies.
-	go pruner.NotifyConnectedBlock(hashT)
-	time.Sleep(time.Millisecond * 100)
+	pruner.ConnectBlock(hashT)
 
-	// Ensure there are consumer dependencies for hashC before shutting down.
+	// Ensure there are consumer dependencies and a spend height for hashC
+	// before shutting down.
 	if !pruner.DependencyExists(hashC) {
 		t.Fatal("expected consumer dependencies for hashC")
+	}
+
+	if !pruner.spendHeightExists(hashC) {
+		t.Fatalf("expected a spend journal height entry for hashC")
 	}
 
 	pruner.dependentsMtx.Lock()
@@ -347,7 +402,8 @@ func TestSpendPruner(t *testing.T) {
 	cancel()
 
 	// Load the spend pruner from the database.
-	pruner, err = NewSpendJournalPruner(db, chain.RemoveSpendEntry)
+	pruner, err = NewSpendJournalPruner(db, chain.BatchRemoveSpendEntry,
+		tipHeight, batchPruneInterval, dependentPruneInterval)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,6 +412,10 @@ func TestSpendPruner(t *testing.T) {
 	// the database.
 	if !pruner.DependencyExists(hashC) {
 		t.Fatal("expected consumer dependencies for hashC")
+	}
+
+	if !pruner.spendHeightExists(hashC) {
+		t.Fatalf("expected a spend journal height entry for hashC")
 	}
 
 	// Ensure the expected number of dependents for hashC are identical

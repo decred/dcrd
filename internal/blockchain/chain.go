@@ -822,7 +822,10 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	}
 
 	// Notify the spend pruner of the connected block.
-	go b.spendPruner.NotifyConnectedBlock(block.Hash())
+	err = b.spendPruner.ConnectBlock(block.Hash())
+	if err != nil {
+		return err
+	}
 
 	// Notify the caller that the block was connected to the main chain.
 	// The caller would typically want to react with actions such as
@@ -981,7 +984,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 
 	// Prune the associated spend data for the provided block hash if there
 	// are no spend dependencies for it.
-	err = b.spendPruner.MaybePruneSpendData(block.Hash(), nil)
+	err = b.spendPruner.MaybePruneSpendData(block.Hash())
 	if err != nil {
 		return err
 	}
@@ -2208,6 +2211,7 @@ func (q *ChainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 // provided block hash if it is not part of the main chain.
 //
 // This function is safe for concurrent access.
+// Deprecated: This will be removed in the next major version bump.
 func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
 	b.processLock.Lock()
 	defer b.processLock.Unlock()
@@ -2219,6 +2223,34 @@ func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
 
 	err := b.db.Update(func(dbTx database.Tx) error {
 		return dbRemoveSpendJournalEntry(dbTx, hash)
+	})
+
+	return err
+}
+
+// BatchRemoveSpendEntry purges the spend journal entries of the
+// provided batched block hashes if they are not part of the main chain.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) BatchRemoveSpendEntry(batch []chainhash.Hash) error {
+	b.processLock.Lock()
+	defer b.processLock.Unlock()
+
+	for idx := 0; idx < len(batch); idx++ {
+		// Remove all batched hashes still part of the main chain.
+		if b.MainChainHasBlock(&batch[idx]) {
+			batch = append(batch[:idx], batch[idx+1:]...)
+		}
+	}
+
+	err := b.db.Update(func(dbTx database.Tx) error {
+		for idx := 0; idx < len(batch); idx++ {
+			err := dbRemoveSpendJournalEntry(dbTx, &batch[idx])
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 
 	return err
@@ -2275,7 +2307,7 @@ func (q *ChainQueryerAdapter) BlockHeaderByHash(hash *chainhash.Hash) (wire.Bloc
 //
 // This must be run as a goroutine.
 func (b *BlockChain) SpendPrunerHandler(ctx context.Context) {
-	b.spendPruner.HandleSignals(ctx)
+	b.spendPruner.Run(ctx)
 }
 
 // Config is a descriptor which specifies the blockchain instance configuration.
@@ -2450,6 +2482,10 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 
 	best := b.BestSnapshot()
+	tipHeight := uint32(best.Height)
+	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db,
+		b.BatchRemoveSpendEntry, tipHeight, spendpruner.BatchPruneInterval,
+		spendpruner.DependencyPruneInterval)
 	if err != nil {
 		return nil, err
 	}
