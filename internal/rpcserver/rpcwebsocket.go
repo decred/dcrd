@@ -8,9 +8,6 @@ package rpcserver
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1466,18 +1463,11 @@ out:
 				break out
 			case !c.authenticated:
 				// Check credentials.
-				login := authCmd.Username + ":" + authCmd.Passphrase
-				auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
-				mac := make([]byte, 0, sha256.Size)
-				mac = c.rpcServer.authMAC(mac, []byte(auth))
-				cmp := subtle.ConstantTimeCompare(mac, c.rpcServer.authsha[:])
-				limitcmp := subtle.ConstantTimeCompare(mac, c.rpcServer.limitauthsha[:])
-				if cmp|limitcmp != 0 {
-					log.Warnf("Auth failure.")
+				c.authenticated, c.isAdmin = c.rpcServer.checkAuthUserPass(
+					authCmd.Username, authCmd.Passphrase, c.addr)
+				if !c.authenticated {
 					break out
 				}
-				c.authenticated = true
-				c.isAdmin = cmp == 1
 
 				// Increase the read limits for authenticated connections.
 				c.conn.SetReadLimit(websocketReadLimitAuthenticated)
@@ -1682,18 +1672,11 @@ out:
 							break out
 						case !c.authenticated:
 							// Check credentials.
-							login := authCmd.Username + ":" + authCmd.Passphrase
-							auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
-							authSha := sha256.Sum256([]byte(auth))
-							cmp := subtle.ConstantTimeCompare(authSha[:], c.rpcServer.authsha[:])
-							limitcmp := subtle.ConstantTimeCompare(authSha[:], c.rpcServer.limitauthsha[:])
-							if cmp != 1 && limitcmp != 1 {
-								log.Warnf("Auth failure.")
+							c.authenticated, c.isAdmin = c.rpcServer.checkAuthUserPass(
+								authCmd.Username, authCmd.Passphrase, c.addr)
+							if !c.authenticated {
 								break out
 							}
-
-							c.authenticated = true
-							c.isAdmin = cmp == 1
 
 							// Marshal and send response.
 							reply, err = createMarshalledReply(cmd.jsonrpc, cmd.id, nil, nil)
