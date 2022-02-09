@@ -36,6 +36,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
+	"github.com/jrick/bitset"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
@@ -54,7 +55,6 @@ import (
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/jrick/bitset"
 )
 
 // API version constants
@@ -5849,6 +5849,39 @@ func (s *Server) authMAC(dst, auth []byte) []byte {
 	return dst
 }
 
+// checkAuthMAC checks the HTTP Basic authentication string by comparing
+// it with the already generated hash.
+//
+// The first bool return value signifies auth success (true if successful) and
+// the second bool return value specifies whether the user can change the state
+// of the server (true) or whether the user is limited (false).
+func (s *Server) checkAuthMAC(auth, remoteAddr string) (bool, bool) {
+	mac := make([]byte, 0, sha256.Size)
+	mac = s.authMAC(mac, []byte(auth))
+
+	cmp := subtle.ConstantTimeCompare(mac, s.authsha[:])
+	limitcmp := subtle.ConstantTimeCompare(mac, s.limitauthsha[:])
+	if cmp|limitcmp == 0 {
+		// Request's auth doesn't match either user
+		log.Warnf("RPC authentication failure from %s", remoteAddr)
+		return false, false
+	}
+	return true, cmp == 1
+}
+
+// checkAuthUserPass checks the correctness of username and password by
+// generating the corresponding HTTP Basic authentication string then
+// compare the string with the already generated hash.
+//
+// The first bool return value signifies auth success (true if successful) and
+// the second bool return value specifies whether the user can change the state
+// of the server (true) or whether the user is limited (false).
+func (s *Server) checkAuthUserPass(user, pass, remoteAddr string) (bool, bool) {
+	login := user + ":" + pass
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
+	return s.checkAuthMAC(auth, remoteAddr)
+}
+
 // checkAuth checks the HTTP Basic authentication supplied by a wallet or RPC
 // client in the HTTP request r.  If the supplied authentication does not match
 // the username and password expected, a non-nil error is returned.
@@ -5878,19 +5911,11 @@ func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
 		return false, false, nil
 	}
 
-	mac := make([]byte, 0, sha256.Size)
-	mac = s.authMAC(mac, []byte(authhdr[0]))
-
-	cmp := subtle.ConstantTimeCompare(mac, s.authsha[:])
-	limitcmp := subtle.ConstantTimeCompare(mac, s.limitauthsha[:])
-	if cmp|limitcmp == 0 {
-		// Request's auth doesn't match either user
-		log.Warnf("RPC authentication failure from %s", r.RemoteAddr)
+	authed, isAdmin := s.checkAuthMAC(authhdr[0], r.RemoteAddr)
+	if !authed {
 		return false, false, errors.New("auth failure")
 	}
-
-	isAdmin := cmp == 1
-	return true, isAdmin, nil
+	return authed, isAdmin, nil
 }
 
 // parsedRPCCmd represents a JSON-RPC request object that has been parsed into
