@@ -173,7 +173,7 @@ func New(t *testing.T, activeNet *chaincfg.Params, handlers *rpcclient.Notificat
 	}
 
 	// Uncomment and change to enable additional dcrd debug/trace output.
-	//config.debugLevel = "TXMP=trace,TRSY=trace,RPCS=trace,PEER=trace"
+	// config.debugLevel = "TXMP=trace,TRSY=trace,RPCS=trace,PEER=trace"
 
 	// Generate p2p+rpc listening addresses.
 	config.listen, config.rpcListen = generateListeningAddresses()

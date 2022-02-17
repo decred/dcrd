@@ -1248,7 +1248,7 @@ func TestOrphanReject(t *testing.T) {
 
 		// Ensure no transactions were reported as accepted.
 		if len(acceptedTxns) != 0 {
-			t.Fatal("ProcessTransaction: reported %d accepted "+
+			t.Fatalf("ProcessTransaction: reported %d accepted "+
 				"transactions from failed orphan attempt",
 				len(acceptedTxns))
 		}
@@ -2358,7 +2358,7 @@ func createTSpend(t *testing.T, expiry uint32, tspendAmount, tspendFee int64, pi
 	}
 	script := make([]byte, len(p2shOpTrueScript)+1)
 	script[0] = txscript.OP_TGEN
-	copy(script[1:], p2shOpTrueScript[:])
+	copy(script[1:], p2shOpTrueScript)
 	msgTx.AddTxOut(wire.NewTxOut(tspendAmount, script))
 
 	msgTx.AddTxIn(&wire.TxIn{

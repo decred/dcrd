@@ -8542,7 +8542,7 @@ func TestHandleGetRawTransaction(t *testing.T) {
 func TestHandleVersion(t *testing.T) {
 	t.Parallel()
 
-	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
+	runtimeVer := strings.ReplaceAll(runtime.Version(), ".", "-")
 	version.BuildMetadata = "foo"
 	version.PreRelease = "pre"
 	buildMeta := version.NormalizeString(fmt.Sprintf("%s.%s",

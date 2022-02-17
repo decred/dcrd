@@ -5591,7 +5591,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 
 // handleVersion implements the version command.
 func handleVersion(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
+	runtimeVer := strings.ReplaceAll(runtime.Version(), ".", "-")
 	buildMeta := version.NormalizeString(runtimeVer)
 	build := version.NormalizeString(version.BuildMetadata)
 	if build != "" {
