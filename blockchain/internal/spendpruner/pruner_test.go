@@ -306,7 +306,7 @@ func TestSpendPruner(t *testing.T) {
 	hashB := &chainhash.Hash{'b'}
 	err = pruner.addSpendConsumerDeps(hashB)
 	if err != nil {
-		t.Fatal("unexpected error adding consumer dependencies "+
+		t.Fatalf("unexpected error adding consumer dependencies "+
 			"for hashB: %v", err)
 	}
 

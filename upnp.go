@@ -289,7 +289,7 @@ func soapRequest(url, function, message string) (replyXML []byte, err error) {
 		"<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n" +
 		"<s:Body>" + message + "</s:Body></s:Envelope>"
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(fullMessage))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(fullMessage))
 	if err != nil {
 		return nil, err
 	}

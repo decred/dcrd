@@ -627,7 +627,7 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertTBaseAmount(t, hn.Node, tbaseSubsidy)
-	nbVotes = nbVotes + int64(4)
+	nbVotes += int64(4)
 	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, nbVotes)
 	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, nbVotes, 0)
 
@@ -639,7 +639,7 @@ func TestTreasury(t *testing.T) {
 	if _, err := vw.GenerateBlocks(timeoutCtx(t, time.Minute), 1); err != nil {
 		t.Fatal(err)
 	}
-	nbVotes = nbVotes + int64(3)
+	nbVotes += int64(3)
 	assertTBaseAmount(t, hn.Node, tbaseSubsidy)
 	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, nbVotes)
 	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, nbVotes, 0)
