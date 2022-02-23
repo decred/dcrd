@@ -8,7 +8,6 @@ package secp256k1
 import (
 	"compress/zlib"
 	"encoding/base64"
-	"encoding/binary"
 	"io"
 	"strings"
 	"sync"
@@ -69,14 +68,10 @@ var s256BytePoints = func() func() *bytePointTable {
 			for i := 0; i < len(bytePoints[byteNum]); i++ {
 				px := &bytePoints[byteNum][i][0]
 				py := &bytePoints[byteNum][i][1]
-				for i := 0; i < len(px.n); i++ {
-					px.n[i] = binary.LittleEndian.Uint32(serialized[offset:])
-					offset += 4
-				}
-				for i := 0; i < len(py.n); i++ {
-					py.n[i] = binary.LittleEndian.Uint32(serialized[offset:])
-					offset += 4
-				}
+				px.SetByteSlice(serialized[offset:])
+				offset += 32
+				py.SetByteSlice(serialized[offset:])
+				offset += 32
 			}
 		}
 		data = &bytePoints

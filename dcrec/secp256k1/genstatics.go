@@ -14,7 +14,6 @@ package secp256k1
 //   [GECC]: Guide to Elliptic Curve Cryptography (Hankerson, Menezes, Vanstone)
 
 import (
-	"encoding/binary"
 	"math/big"
 )
 
@@ -35,7 +34,7 @@ func SerializedBytePoints() []byte {
 
 	// Separate the bits into byte-sized windows.
 	curveByteSize := curveParams.BitSize / 8
-	serialized := make([]byte, curveByteSize*256*2*10*4)
+	serialized := make([]byte, curveByteSize*256*2*32)
 	offset := 0
 	for byteNum := 0; byteNum < curveByteSize; byteNum++ {
 		// Grab the 8 bits that make up this byte from doubling points.
@@ -53,14 +52,10 @@ func SerializedBytePoints() []byte {
 			}
 			point.ToAffine()
 
-			for i := 0; i < len(point.X.n); i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.X.n[i])
-				offset += 4
-			}
-			for i := 0; i < len(point.Y.n); i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.Y.n[i])
-				offset += 4
-			}
+			point.X.PutBytesUnchecked(serialized[offset:])
+			offset += 32
+			point.Y.PutBytesUnchecked(serialized[offset:])
+			offset += 32
 		}
 	}
 
