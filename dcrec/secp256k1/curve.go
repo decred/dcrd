@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Copyright 2013-2014 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -45,7 +45,7 @@ var (
 	// May he rest in peace.
 	//
 	// They have also been independently derived from the code in the
-	// EndomorphismVectors function in genstatics.go.
+	// endomorphismVectors function in genprecomps.go.
 	endomorphismLambda = fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
 	endomorphismBeta   = hexToFieldVal("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
 	endomorphismA1     = fromHex("3086d221a7d46bcde86c90e49284eb15")

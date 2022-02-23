@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-//go:generate go run -tags gensecp256k1 genprecomps.go
+//go:generate go run genprecomps.go
 
 // bytePointTable describes a table used to house pre-computed values for
 // accelerating scalar base multiplication.
