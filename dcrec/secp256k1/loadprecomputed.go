@@ -1,5 +1,5 @@
 // Copyright 2015 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -20,6 +20,11 @@ import (
 // accelerating scalar base multiplication.
 type bytePointTable [32][256][2]FieldVal
 
+// compressedBytePointsFn is set to a real function by the code generation to
+// return the compressed pre-computed values for accelerating scalar base
+// multiplication.
+var compressedBytePointsFn func() string
+
 // s256BytePoints houses pre-computed values used to accelerate scalar base
 // multiplication such that they are only loaded on first use.
 var s256BytePoints = func() func() *bytePointTable {
@@ -38,10 +43,10 @@ var s256BytePoints = func() func() *bytePointTable {
 	var data *bytePointTable
 	mustLoadBytePoints := func() {
 		// There will be no byte points to load when generating them.
-		bp := compressedBytePoints
-		if len(bp) == 0 {
+		if compressedBytePointsFn == nil {
 			return
 		}
+		bp := compressedBytePointsFn()
 
 		// Decompress the pre-computed table used to accelerate scalar base
 		// multiplication.

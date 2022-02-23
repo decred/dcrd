@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2015 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,10 +17,6 @@ import (
 	"encoding/binary"
 	"math/big"
 )
-
-// compressedBytePoints are dummy points used so the code which generates the
-// real values can compile.
-var compressedBytePoints = ""
 
 // SerializedBytePoints returns a serialized byte slice which contains all of
 // the possible points per 8-bit window.  This is used to when generating
