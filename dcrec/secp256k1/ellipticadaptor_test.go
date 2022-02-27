@@ -116,6 +116,74 @@ func TestAddAffineAdaptor(t *testing.T) {
 	}
 }
 
+// TestDoubleAffineAdaptor tests doubling of points in affine coordinates via
+// the method used to satisfy the elliptic.Curve interface works as intended for
+// some edge cases and known good values.
+func TestDoubleAffineAdaptor(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		x1, y1 string // hex encoded coordinates of point to double
+		x3, y3 string // hex encoded coordinates of expected point
+	}{{
+		// Doubling the point at infinity is still the point at infinity.
+		name: "2*∞ = ∞ (point at infinity)",
+		x1:   "0",
+		y1:   "0",
+		x3:   "0",
+		y3:   "0",
+	}, {
+		name: "random point 1",
+		x1:   "e41387ffd8baaeeb43c2faa44e141b19790e8ac1f7ff43d480dc132230536f86",
+		y1:   "1b88191d430f559896149c86cbcb703193105e3cf3213c0c3556399836a2b899",
+		x3:   "88da47a089d333371bd798c548ef7caae76e737c1980b452d367b3cfe3082c19",
+		y3:   "3b6f659b09a362821dfcfefdbfbc2e59b935ba081b6c249eb147b3c2100b1bc1",
+	}, {
+		name: "random point 2",
+		x1:   "b3589b5d984f03ef7c80aeae444f919374799edf18d375cab10489a3009cff0c",
+		y1:   "c26cf343875b3630e15bccc61202815b5d8f1fd11308934a584a5babe69db36a",
+		x3:   "e193860172998751e527bb12563855602a227fc1f612523394da53b746bb2fb1",
+		y3:   "2bfcf13d2f5ab8bb5c611fab5ebbed3dc2f057062b39a335224c22f090c04789",
+	}, {
+		name: "random point 3",
+		x1:   "2b31a40fbebe3440d43ac28dba23eee71c62762c3fe3dbd88b4ab82dc6a82340",
+		y1:   "9ba7deb02f5c010e217607fd49d58db78ec273371ea828b49891ce2fd74959a1",
+		x3:   "2c8d5ef0d343b1a1a48aa336078eadda8481cb048d9305dc4fdf7ee5f65973a2",
+		y3:   "bb4914ac729e26d3cd8f8dc8f702f3f4bb7e0e9c5ae43335f6e94c2de6c3dc95",
+	}, {
+		name: "random point 4",
+		x1:   "61c64b760b51981fab54716d5078ab7dffc93730b1d1823477e27c51f6904c7a",
+		y1:   "ef6eb16ea1a36af69d7f66524c75a3a5e84c13be8fbc2e811e0563c5405e49bd",
+		x3:   "5f0dcdd2595f5ad83318a0f9da481039e36f135005420393e72dfca985b482f4",
+		y3:   "a01c849b0837065c1cb481b0932c441f49d1cab1b4b9f355c35173d93f110ae0",
+	}}
+
+	curve := S256()
+	for _, test := range tests {
+		// Parse test data.
+		x1, y1 := fromHex(test.x1), fromHex(test.y1)
+		x3, y3 := fromHex(test.x3), fromHex(test.y3)
+
+		// Ensure the test data is using points that are actually on
+		// the curve (or the point at infinity).
+		if !isValidAffinePoint(x1, y1) {
+			t.Errorf("%s: first point is not on the curve", test.name)
+			continue
+		}
+		if !isValidAffinePoint(x3, y3) {
+			t.Errorf("%s: expected point is not on the curve", test.name)
+			continue
+		}
+
+		// Double the point and ensure the result matches expected.
+		rx, ry := curve.Double(x1, y1)
+		if rx.Cmp(x3) != 0 || ry.Cmp(y3) != 0 {
+			t.Errorf("%s: wrong result\ngot: (%x, %x)\nwant: (%x, %x)",
+				test.name, rx, ry, x3, y3)
+			continue
+		}
+	}
+}
+
 // TestScalarBaseMultAdaptor ensures the ScalarBaseMult method used to satisfy
 // the elliptic.Curve interface works as intended.
 func TestScalarBaseMultAdaptor(t *testing.T) {
