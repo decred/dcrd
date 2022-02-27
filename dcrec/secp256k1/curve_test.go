@@ -6,7 +6,6 @@
 package secp256k1
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -15,40 +14,14 @@ import (
 	"time"
 )
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
-// panic if there is an error.  This is only provided for the hard-coded
-// constants so errors in the source code can be detected. It will only (and
-// must only) be called with hard-coded values.
-func hexToModNScalar(s string) *ModNScalar {
-	var isNegative bool
-	if len(s) > 0 && s[0] == '-' {
-		isNegative = true
-		s = s[1:]
-	}
-	if len(s)%2 != 0 {
-		s = "0" + s
-	}
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		panic("invalid hex in source file: " + s)
-	}
-	var scalar ModNScalar
-	if overflow := scalar.SetByteSlice(b); overflow {
-		panic("hex in source file overflows mod N scalar: " + s)
-	}
-	if isNegative {
-		scalar.Negate()
-	}
-	return &scalar
-}
-
 var (
-	// endoLambda is the endomorphismLambda big integer converted to a mod n
-	// scalar.
-	endoLambda = hexToModNScalar(endomorphismLambda.Text(16))
-
 	// oneModN is simply the number 1 as a mod n scalar.
 	oneModN = hexToModNScalar("1")
+
+	// endoLambda is the positive version of the lambda constant used in the
+	// endomorphism.  It is stored here for convenience and to avoid recomputing
+	// it throughout the tests.
+	endoLambda = new(ModNScalar).NegateVal(endoNegLambda)
 )
 
 // isValidJacobianPoint returns true if the point (x,y,z) is on the secp256k1
@@ -672,27 +645,6 @@ func checkLambdaDecomposition(origK, k1, k2 *ModNScalar) error {
 	return nil
 }
 
-// splitKModN is a convenience method that wraps splitK with mod n scalars to
-// simplify its usage in tests.
-func splitKModN(k *ModNScalar) (ModNScalar, ModNScalar) {
-	// Decompose the scalar.
-	origKBytes := k.Bytes()
-	k1Bytes, k2Bytes, k1Sign, k2Sign := splitK(origKBytes[:])
-
-	// Convert returned bytes to mod n scalars while respecting the sign.
-	var k1, k2 ModNScalar
-	k1.SetByteSlice(k1Bytes)
-	k2.SetByteSlice(k2Bytes)
-	if k1Sign == -1 {
-		k1.Negate()
-	}
-	if k2Sign == -1 {
-		k2.Negate()
-	}
-
-	return k1, k2
-}
-
 // TestSplitK ensures decomposing various edge cases and values into a balanced
 // length-two representation produces valid results.
 func TestSplitK(t *testing.T) {
@@ -764,7 +716,7 @@ func TestSplitK(t *testing.T) {
 		// Decompose the scalar and ensure the resulting decomposition satisfies
 		// the required equation and consists of scalars that are small in
 		// magnitude.
-		k1, k2 := splitKModN(test.k)
+		k1, k2 := splitK(test.k)
 		if err := checkLambdaDecomposition(test.k, &k1, &k2); err != nil {
 			t.Errorf("%q: %v", test.name, err)
 		}
@@ -788,7 +740,7 @@ func TestSplitKRandom(t *testing.T) {
 		// decomposition satisfies the required equation and consists of scalars
 		// that are small in magnitude.
 		origK := randModNScalar(t, rng)
-		k1, k2 := splitKModN(origK)
+		k1, k2 := splitK(origK)
 		if err := checkLambdaDecomposition(origK, &k1, &k2); err != nil {
 			t.Fatalf("decomposition err: %v\nin: %v\nk1: %v\nk2: %v", err,
 				origK, k1, k2)

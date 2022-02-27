@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -878,8 +878,8 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	//
 	// X = (r, y)
 	var X secp256k1.JacobianPoint
-	X.X.Set(&fieldR)
-	X.Y.Set(&y)
+	X.X.Set(fieldR.Normalize())
+	X.Y.Set(y.Normalize())
 	X.Z.SetInt(1)
 
 	// Step 6.

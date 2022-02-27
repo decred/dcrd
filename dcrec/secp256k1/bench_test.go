@@ -55,7 +55,7 @@ func BenchmarkAddNonConstNotZOne(b *testing.B) {
 // BenchmarkScalarBaseMultNonConst benchmarks multiplying a scalar by the base
 // point of the curve.
 func BenchmarkScalarBaseMultNonConst(b *testing.B) {
-	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -84,7 +84,7 @@ func BenchmarkSplitK(b *testing.B) {
 	halfOrderPOneMLambda := new(ModNScalar).Add2(halfOrderPOne, negLambda)
 	lambdaPHalfOrder := new(ModNScalar).Add2(endoLambda, halfOrder)
 	lambdaPOnePHalfOrder := new(ModNScalar).Add2(lambdaPOne, halfOrder)
-	scalarsN := []*ModNScalar{
+	scalars := []*ModNScalar{
 		new(ModNScalar),      // zero
 		oneModN,              // one
 		negOne,               // group order - 1 (aka -1 mod N)
@@ -100,17 +100,12 @@ func BenchmarkSplitK(b *testing.B) {
 		lambdaPHalfOrder,     // lambda + group half order
 		lambdaPOnePHalfOrder, // lambda + 1 + group half order
 	}
-	scalars := make([][]byte, len(scalarsN))
-	for i, scalar := range scalarsN {
-		b := scalar.Bytes()
-		scalars[i] = b[:]
-	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i += len(scalars) {
 		for j := 0; j < len(scalars); j++ {
-			_, _, _, _ = splitK(scalars[j])
+			_, _ = splitK(scalars[j])
 		}
 	}
 }
@@ -118,7 +113,7 @@ func BenchmarkSplitK(b *testing.B) {
 // BenchmarkScalarMultNonConst benchmarks multiplying a scalar by an arbitrary
 // point on the curve.
 func BenchmarkScalarMultNonConst(b *testing.B) {
-	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 	point := jacobianPointFromHex(
 		"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
 		"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",

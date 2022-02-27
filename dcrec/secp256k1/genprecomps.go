@@ -111,6 +111,7 @@ type endomorphismParams struct {
 	beta   *big.Int
 	a1, b1 *big.Int
 	a2, b2 *big.Int
+	z1, z2 *big.Int
 }
 
 // endomorphismVectors runs the first 3 steps of algorithm 3.74 from [GECC] to
@@ -305,6 +306,18 @@ func deriveEndomorphismParams() [2]endomorphismParams {
 		checkVectors(a1, b1, lambda)
 		checkVectors(a2, b2, lambda)
 
+		// Calculate the precomputed estimates also used when generating the
+		// aforementioned decomposition.
+		//
+		// z1 = floor(b2<<320 / n)
+		// z2 = floor(((-b1)%n)<<320) / n)
+		const shift = 320
+		z1 := new(big.Int).Lsh(b2, shift)
+		z1.Div(z1, curveParams.N)
+		z2 := new(big.Int).Neg(b1)
+		z2.Lsh(z2, shift)
+		z2.Div(z2, curveParams.N)
+
 		params := &endoParams[i]
 		params.lambda = lambda
 		params.beta = &betas[i]
@@ -312,6 +325,8 @@ func deriveEndomorphismParams() [2]endomorphismParams {
 		params.b1 = b1
 		params.a2 = a2
 		params.b2 = b2
+		params.z1 = z1
+		params.z2 = z2
 	}
 
 	return endoParams
@@ -364,12 +379,15 @@ func main() {
 		fmt.Printf("    b1: %x\n", p.b1)
 		fmt.Printf("    a2: %x\n", p.a2)
 		fmt.Printf("    b2: %x\n", p.b2)
+		fmt.Printf("    z1: %x\n", p.z1)
+		fmt.Printf("    z2: %x\n", p.z2)
 	}
 	endoParams := deriveEndomorphismParams()
 	fmt.Println("The following are the computed values to make use of the " +
 		"secp256k1 endomorphism.\nThey consist of the lambda and beta " +
 		"values along with the associated linearly independent vectors " +
-		"(a1, b1, a2, b2) used when decomposing scalars:")
+		"(a1, b1, a2, b2) and estimates (z1, z2) used when decomposing " +
+		"scalars:")
 	printParams(&endoParams[0])
 	fmt.Println()
 
