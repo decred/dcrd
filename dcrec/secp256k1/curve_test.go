@@ -267,67 +267,64 @@ func TestAddJacobian(t *testing.T) {
 	}
 }
 
-// TestDoubleJacobian tests doubling of points projected in Jacobian
-// coordinates.
+// TestDoubleJacobian tests doubling of points projected in Jacobian coordinates
+// works as intended for some edge cases and known good values.
 func TestDoubleJacobian(t *testing.T) {
 	tests := []struct {
-		x1, y1, z1 string // Coordinates (in hex) of point to double
-		x3, y3, z3 string // Coordinates (in hex) of expected point
-	}{
+		name       string // test description
+		x1, y1, z1 string // hex encoded coordinates of point to double
+		x3, y3, z3 string // hex encoded coordinates of expected point
+	}{{
 		// Doubling the point at infinity is still infinity.
-		{
-			"0",
-			"0",
-			"0",
-			"0",
-			"0",
-			"0",
-		},
+		name: "2*∞ = ∞ (point at infinity)",
+		x1:   "0",
+		y1:   "0",
+		z1:   "0",
+		x3:   "0",
+		y3:   "0",
+		z3:   "0",
+	}, {
 		// Doubling with z1=1.
-		{
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"ec9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee64f87c50c27",
-			"b082b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd0755c8f2a",
-			"16e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c1e594464",
-		},
+		name: "2*P(x, y, 1)",
+		x1:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y1:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z1:   "1",
+		x3:   "ec9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee64f87c50c27",
+		y3:   "b082b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd0755c8f2a",
+		z3:   "16e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c1e594464",
+	}, {
 		// Doubling with z1!=1.
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
-			"2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
-			"6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
-		},
+		name: "2*P(x, y, 2)",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x3:   "9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
+		y3:   "2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
+		z3:   "6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
+	}, {
 		// From btcd issue #709.
-		{
-			"201e3f75715136d2f93c4f4598f91826f94ca01f4233a5bd35de9708859ca50d",
-			"bdf18566445e7562c6ada68aef02d498d7301503de5b18c6aef6e2b1722412e1",
-			"0000000000000000000000000000000000000000000000000000000000000001",
-			"4a5e0559863ebb4e9ed85f5c4fa76003d05d9a7626616e614a1f738621e3c220",
-			"00000000000000000000000000000000000000000000000000000001b1388778",
-			"7be30acc88bceac58d5b4d15de05a931ae602a07bcb6318d5dedc563e4482993",
-		},
-	}
+		name: "carry to bit 256 during normalize",
+		x1:   "201e3f75715136d2f93c4f4598f91826f94ca01f4233a5bd35de9708859ca50d",
+		y1:   "bdf18566445e7562c6ada68aef02d498d7301503de5b18c6aef6e2b1722412e1",
+		z1:   "0000000000000000000000000000000000000000000000000000000000000001",
+		x3:   "4a5e0559863ebb4e9ed85f5c4fa76003d05d9a7626616e614a1f738621e3c220",
+		y3:   "00000000000000000000000000000000000000000000000000000001b1388778",
+		z3:   "7be30acc88bceac58d5b4d15de05a931ae602a07bcb6318d5dedc563e4482993",
+	}}
 
-	t.Logf("Running %d tests", len(tests))
-	for i, test := range tests {
+	for _, test := range tests {
 		// Convert hex to field values.
 		p1 := jacobianPointFromHex(test.x1, test.y1, test.z1)
 		want := jacobianPointFromHex(test.x3, test.y3, test.z3)
 
-		// Ensure the test data is using points that are actually on
-		// the curve (or the point at infinity).
+		// Ensure the test data is using points that are actually on the curve
+		// (or the point at infinity).
 		if !isValidJacobianPoint(&p1) {
-			t.Errorf("#%d first point is not on the curve -- "+
-				"invalid test data", i)
+			t.Errorf("%s: first point is not on the curve", test.name)
 			continue
 		}
 		if !isValidJacobianPoint(&want) {
-			t.Errorf("#%d expected point is not on the curve -- "+
-				"invalid test data", i)
+			t.Errorf("%s: expected point is not on the curve", test.name)
 			continue
 		}
 
@@ -337,9 +334,9 @@ func TestDoubleJacobian(t *testing.T) {
 
 		// Ensure result matches expected.
 		if !result.IsStrictlyEqual(&want) {
-			t.Errorf("#%d wrong result\ngot: (%v, %v, %v)\n"+
-				"want: (%v, %v, %v)", i, result.X, result.Y, result.Z,
-				want.X, want.Y, want.Z)
+			t.Errorf("%s: wrong result\ngot: (%v, %v, %v)\nwant: (%v, %v, %v)",
+				test.name, result.X, result.Y, result.Z, want.X, want.Y,
+				want.Z)
 			continue
 		}
 	}
