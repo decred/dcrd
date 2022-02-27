@@ -6,10 +6,10 @@
 package secp256k1
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"math/bits"
 	mrand "math/rand"
 	"testing"
 	"time"
@@ -41,6 +41,15 @@ func hexToModNScalar(s string) *ModNScalar {
 	}
 	return &scalar
 }
+
+var (
+	// endoLambda is the endomorphismLambda big integer converted to a mod n
+	// scalar.
+	endoLambda = hexToModNScalar(endomorphismLambda.Text(16))
+
+	// oneModN is simply the number 1 as a mod n scalar.
+	oneModN = hexToModNScalar("1")
+)
 
 // isValidJacobianPoint returns true if the point (x,y,z) is on the secp256k1
 // curve or is the point at infinity.
@@ -600,112 +609,189 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 	}
 }
 
-func TestSplitK(t *testing.T) {
-	tests := []struct {
-		k      string
-		k1, k2 string
-		s1, s2 int
-	}{
-		{
-			"6df2b5d30854069ccdec40ae022f5c948936324a4e9ebed8eb82cfd5a6b6d766",
-			"00000000000000000000000000000000b776e53fb55f6b006a270d42d64ec2b1",
-			"00000000000000000000000000000000d6cc32c857f1174b604eefc544f0c7f7",
-			-1, -1,
-		},
-		{
-			"6ca00a8f10632170accc1b3baf2a118fa5725f41473f8959f34b8f860c47d88d",
-			"0000000000000000000000000000000007b21976c1795723c1bfbfa511e95b84",
-			"00000000000000000000000000000000d8d2d5f9d20fc64fd2cf9bda09a5bf90",
-			1, -1,
-		},
-		{
-			"b2eda8ab31b259032d39cbc2a234af17fcee89c863a8917b2740b67568166289",
-			"00000000000000000000000000000000507d930fecda7414fc4a523b95ef3c8c",
-			"00000000000000000000000000000000f65ffb179df189675338c6185cb839be",
-			-1, -1,
-		},
-		{
-			"f6f00e44f179936f2befc7442721b0633f6bafdf7161c167ffc6f7751980e3a0",
-			"0000000000000000000000000000000008d0264f10bcdcd97da3faa38f85308d",
-			"0000000000000000000000000000000065fed1506eb6605a899a54e155665f79",
-			-1, -1,
-		},
-		{
-			"8679085ab081dc92cdd23091ce3ee998f6b320e419c3475fae6b5b7d3081996e",
-			"0000000000000000000000000000000089fbf24fbaa5c3c137b4f1cedc51d975",
-			"00000000000000000000000000000000d38aa615bd6754d6f4d51ccdaf529fea",
-			-1, -1,
-		},
-		{
-			"6b1247bb7931dfcae5b5603c8b5ae22ce94d670138c51872225beae6bba8cdb3",
-			"000000000000000000000000000000008acc2a521b21b17cfb002c83be62f55d",
-			"0000000000000000000000000000000035f0eff4d7430950ecb2d94193dedc79",
-			-1, -1,
-		},
-		{
-			"a2e8ba2e8ba2e8ba2e8ba2e8ba2e8ba219b51835b55cc30ebfe2f6599bc56f58",
-			"0000000000000000000000000000000045c53aa1bb56fcd68c011e2dad6758e4",
-			"00000000000000000000000000000000a2e79d200f27f2360fba57619936159b",
-			-1, -1,
-		},
+// modNBitLen returns the minimum number of bits required to represent the mod n
+// scalar.  The result is 0 when the value is 0.
+func modNBitLen(s *ModNScalar) uint16 {
+	if w := s.n[7]; w > 0 {
+		return uint16(bits.Len32(w)) + 224
+	}
+	if w := s.n[6]; w > 0 {
+		return uint16(bits.Len32(w)) + 192
+	}
+	if w := s.n[5]; w > 0 {
+		return uint16(bits.Len32(w)) + 160
+	}
+	if w := s.n[4]; w > 0 {
+		return uint16(bits.Len32(w)) + 128
+	}
+	if w := s.n[3]; w > 0 {
+		return uint16(bits.Len32(w)) + 96
+	}
+	if w := s.n[2]; w > 0 {
+		return uint16(bits.Len32(w)) + 64
+	}
+	if w := s.n[1]; w > 0 {
+		return uint16(bits.Len32(w)) + 32
+	}
+	return uint16(bits.Len32(s.n[0]))
+}
+
+// checkLambdaDecomposition returns an error if the provided decomposed scalars
+// do not satisfy the required equation or they are not small in magnitude.
+func checkLambdaDecomposition(origK, k1, k2 *ModNScalar) error {
+	// Recompose the scalar from the decomposed scalars to ensure they satisfy
+	// the required equation.
+	calcK := new(ModNScalar).Mul2(k2, endoLambda).Add(k1)
+	if !calcK.Equals(origK) {
+		return fmt.Errorf("recomposed scalar %v != orig scalar", calcK)
 	}
 
-	for i, test := range tests {
-		k, ok := new(big.Int).SetString(test.k, 16)
-		if !ok {
-			t.Errorf("%d: bad value for k: %s", i, test.k)
-		}
-		k1, k2, k1Sign, k2Sign := splitK(k.Bytes())
-		k1str := fmt.Sprintf("%064x", k1)
-		if test.k1 != k1str {
-			t.Errorf("%d: bad k1: got %v, want %v", i, k1str, test.k1)
-		}
-		k2str := fmt.Sprintf("%064x", k2)
-		if test.k2 != k2str {
-			t.Errorf("%d: bad k2: got %v, want %v", i, k2str, test.k2)
-		}
-		if test.s1 != k1Sign {
-			t.Errorf("%d: bad k1 sign: got %d, want %d", i, k1Sign, test.s1)
-		}
-		if test.s2 != k2Sign {
-			t.Errorf("%d: bad k2 sign: got %d, want %d", i, k2Sign, test.s2)
-		}
-		k1Int := new(big.Int).SetBytes(k1)
-		k1SignInt := new(big.Int).SetInt64(int64(k1Sign))
-		k1Int.Mul(k1Int, k1SignInt)
-		k2Int := new(big.Int).SetBytes(k2)
-		k2SignInt := new(big.Int).SetInt64(int64(k2Sign))
-		k2Int.Mul(k2Int, k2SignInt)
-		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
-		gotK.Add(k1Int, gotK)
-		gotK.Mod(gotK, curveParams.N)
-		if k.Cmp(gotK) != 0 {
-			t.Errorf("%d: bad k: got %X, want %X", i, gotK.Bytes(), k.Bytes())
+	// Ensure the decomposed scalars are small in magnitude by affirming their
+	// bit lengths do not exceed one more than half of the bit size of the
+	// underlying field.  This value is max(||v1||, ||v2||), where:
+	//
+	// vector v1 = <endoA1, endoB1>
+	// vector v2 = <endoA2, endoB2>
+	const maxBitLen = 129
+	if k1.IsOverHalfOrder() {
+		k1.Negate()
+	}
+	if k2.IsOverHalfOrder() {
+		k2.Negate()
+	}
+	k1BitLen, k2BitLen := modNBitLen(k1), modNBitLen(k2)
+	if k1BitLen > maxBitLen {
+		return fmt.Errorf("k1 scalar bit len %d > max allowed %d",
+			k1BitLen, maxBitLen)
+	}
+	if k2BitLen > maxBitLen {
+		return fmt.Errorf("k2 scalar bit len %d > max allowed %d",
+			k2BitLen, maxBitLen)
+	}
+
+	return nil
+}
+
+// splitKModN is a convenience method that wraps splitK with mod n scalars to
+// simplify its usage in tests.
+func splitKModN(k *ModNScalar) (ModNScalar, ModNScalar) {
+	// Decompose the scalar.
+	origKBytes := k.Bytes()
+	k1Bytes, k2Bytes, k1Sign, k2Sign := splitK(origKBytes[:])
+
+	// Convert returned bytes to mod n scalars while respecting the sign.
+	var k1, k2 ModNScalar
+	k1.SetByteSlice(k1Bytes)
+	k2.SetByteSlice(k2Bytes)
+	if k1Sign == -1 {
+		k1.Negate()
+	}
+	if k2Sign == -1 {
+		k2.Negate()
+	}
+
+	return k1, k2
+}
+
+// TestSplitK ensures decomposing various edge cases and values into a balanced
+// length-two representation produces valid results.
+func TestSplitK(t *testing.T) {
+	// Values computed from the group half order and lambda such that they
+	// exercise the decomposition edge cases and maximize the bit lengths of the
+	// produced scalars.
+	h := "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0"
+	negOne := new(ModNScalar).NegateVal(oneModN)
+	halfOrder := hexToModNScalar(h)
+	halfOrderMOne := new(ModNScalar).Add2(halfOrder, negOne)
+	halfOrderPOne := new(ModNScalar).Add2(halfOrder, oneModN)
+	lambdaMOne := new(ModNScalar).Add2(endoLambda, negOne)
+	lambdaPOne := new(ModNScalar).Add2(endoLambda, oneModN)
+	negLambda := new(ModNScalar).NegateVal(endoLambda)
+	halfOrderMOneMLambda := new(ModNScalar).Add2(halfOrderMOne, negLambda)
+	halfOrderMLambda := new(ModNScalar).Add2(halfOrder, negLambda)
+	halfOrderPOneMLambda := new(ModNScalar).Add2(halfOrderPOne, negLambda)
+	lambdaPHalfOrder := new(ModNScalar).Add2(endoLambda, halfOrder)
+	lambdaPOnePHalfOrder := new(ModNScalar).Add2(lambdaPOne, halfOrder)
+
+	tests := []struct {
+		name string      // test description
+		k    *ModNScalar // scalar to decompose
+	}{{
+		name: "zero",
+		k:    new(ModNScalar),
+	}, {
+		name: "one",
+		k:    oneModN,
+	}, {
+		name: "group order - 1 (aka -1 mod N)",
+		k:    negOne,
+	}, {
+		name: "group half order - 1 - lambda",
+		k:    halfOrderMOneMLambda,
+	}, {
+		name: "group half order - lambda",
+		k:    halfOrderMLambda,
+	}, {
+		name: "group half order + 1 - lambda",
+		k:    halfOrderPOneMLambda,
+	}, {
+		name: "group half order - 1",
+		k:    halfOrderMOne,
+	}, {
+		name: "group half order",
+		k:    halfOrder,
+	}, {
+		name: "group half order + 1",
+		k:    halfOrderPOne,
+	}, {
+		name: "lambda - 1",
+		k:    lambdaMOne,
+	}, {
+		name: "lambda",
+		k:    endoLambda,
+	}, {
+		name: "lambda + 1",
+		k:    lambdaPOne,
+	}, {
+		name: "lambda + group half order",
+		k:    lambdaPHalfOrder,
+	}, {
+		name: "lambda + 1 + group half order",
+		k:    lambdaPOnePHalfOrder,
+	}}
+
+	for _, test := range tests {
+		// Decompose the scalar and ensure the resulting decomposition satisfies
+		// the required equation and consists of scalars that are small in
+		// magnitude.
+		k1, k2 := splitKModN(test.k)
+		if err := checkLambdaDecomposition(test.k, &k1, &k2); err != nil {
+			t.Errorf("%q: %v", test.name, err)
 		}
 	}
 }
 
-func TestSplitKRand(t *testing.T) {
-	for i := 0; i < 1024; i++ {
-		bytesK := make([]byte, 32)
-		_, err := rand.Read(bytesK)
-		if err != nil {
-			t.Fatalf("failed to read random data at %d", i)
-			break
+// TestSplitKRandom ensures that decomposing randomly-generated scalars into a
+// balanced length-two representation produces valid results.
+func TestSplitKRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := mrand.New(mrand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
 		}
-		k := new(big.Int).SetBytes(bytesK)
-		k1, k2, k1Sign, k2Sign := splitK(bytesK)
-		k1Int := new(big.Int).SetBytes(k1)
-		k1SignInt := new(big.Int).SetInt64(int64(k1Sign))
-		k1Int.Mul(k1Int, k1SignInt)
-		k2Int := new(big.Int).SetBytes(k2)
-		k2SignInt := new(big.Int).SetInt64(int64(k2Sign))
-		k2Int.Mul(k2Int, k2SignInt)
-		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
-		gotK.Add(k1Int, gotK)
-		gotK.Mod(gotK, curveParams.N)
-		if k.Cmp(gotK) != 0 {
-			t.Errorf("%d: bad k: got %X, want %X", i, gotK.Bytes(), k.Bytes())
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate a random scalar, decompose it, and ensure the resulting
+		// decomposition satisfies the required equation and consists of scalars
+		// that are small in magnitude.
+		origK := randModNScalar(t, rng)
+		k1, k2 := splitKModN(origK)
+		if err := checkLambdaDecomposition(origK, &k1, &k2); err != nil {
+			t.Fatalf("decomposition err: %v\nin: %v\nk1: %v\nk2: %v", err,
+				origK, k1, k2)
 		}
 	}
 }
