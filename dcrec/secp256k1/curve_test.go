@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Copyright 2013-2016 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -14,9 +14,13 @@ import (
 	"time"
 )
 
-// isJacobianOnS256Curve returns boolean if the point (x,y,z) is on the
-// secp256k1 curve.
-func isJacobianOnS256Curve(point *JacobianPoint) bool {
+// isValidJacobianPoint returns true if the point (x,y,z) is on the secp256k1
+// curve or is the point at infinity.
+func isValidJacobianPoint(point *JacobianPoint) bool {
+	if (point.X.IsZero() && point.Y.IsZero()) || point.Z.IsZero() {
+		return true
+	}
+
 	// Elliptic curve equation for secp256k1 is: y^2 = x^3 + 7
 	// In Jacobian coordinates, Y = y/z^3 and X = x/z^2
 	// Thus:
@@ -250,17 +254,17 @@ func TestAddJacobian(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !p1.Z.IsZero() && !isJacobianOnS256Curve(&p1) {
+		if !isValidJacobianPoint(&p1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !p2.Z.IsZero() && !isJacobianOnS256Curve(&p2) {
+		if !isValidJacobianPoint(&p2) {
 			t.Errorf("#%d second point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !want.Z.IsZero() && !isJacobianOnS256Curve(&want) {
+		if !isValidJacobianPoint(&want) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
@@ -428,12 +432,12 @@ func TestDoubleJacobian(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !p1.Z.IsZero() && !isJacobianOnS256Curve(&p1) {
+		if !isValidJacobianPoint(&p1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !want.Z.IsZero() && !isJacobianOnS256Curve(&want) {
+		if !isValidJacobianPoint(&want) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
