@@ -600,42 +600,6 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 	}
 }
 
-func TestScalarMultRand(t *testing.T) {
-	// Strategy for this test:
-	//
-	// Get a random exponent from the generator point at first
-	// This creates a new point which is used in the next iteration
-	// Use another random exponent on the new point.
-	// We use BaseMult to verify by multiplying the previous exponent
-	// and the new random exponent together (mod N)
-	var want JacobianPoint
-	var point JacobianPoint
-	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &point)
-	exponent := new(ModNScalar).SetInt(1)
-	for i := 0; i < 1024; i++ {
-		data := make([]byte, 32)
-		_, err := rand.Read(data)
-		if err != nil {
-			t.Fatalf("failed to read random data at %d", i)
-			break
-		}
-		var k ModNScalar
-		k.SetByteSlice(data)
-		ScalarMultNonConst(&k, &point, &point)
-
-		exponent.Mul(&k)
-		ScalarBaseMultNonConst(exponent, &want)
-		point.ToAffine()
-		want.ToAffine()
-		if !point.IsStrictlyEqual(&want) {
-			t.Fatalf("%d: bad output for %x:\ngot (%x, %x, %x)\n"+
-				"want (%x, %x, %x)", i, data, point.X, point.Y, point.Z, want.X,
-				want.Y, want.Z)
-			break
-		}
-	}
-}
-
 func TestSplitK(t *testing.T) {
 	tests := []struct {
 		k      string
@@ -743,6 +707,93 @@ func TestSplitKRand(t *testing.T) {
 		if k.Cmp(gotK) != 0 {
 			t.Errorf("%d: bad k: got %X, want %X", i, gotK.Bytes(), k.Bytes())
 		}
+	}
+}
+
+// TestScalarMultJacobianRandom ensures scalar point multiplication with points
+// projected into Jacobian coordinates works as intended for randomly-generated
+// scalars and points.
+func TestScalarMultJacobianRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := mrand.New(mrand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	// isSamePoint returns whether or not the two Jacobian points represent the
+	// same affine point without modifying the provided points.
+	isSamePoint := func(p1, p2 *JacobianPoint) bool {
+		var p1Affine, p2Affine JacobianPoint
+		p1Affine.Set(p1)
+		p1Affine.ToAffine()
+		p2Affine.Set(p2)
+		p2Affine.ToAffine()
+		return p1Affine.IsStrictlyEqual(&p2Affine)
+	}
+
+	// The overall idea is to compute the same point different ways.  The
+	// strategy uses two properties:
+	//
+	// 1) Compatibility of scalar multiplication with field multiplication
+	// 2) A point added to its negation is the point at infinity (P+(-P) = ∞)
+	//
+	// First, calculate a "chained" point by starting with the base (generator)
+	// point and then consecutively multiply the resulting points by a series of
+	// random scalars.
+	//
+	// Then, multiply the base point by the product of all of the random scalars
+	// and ensure the "chained" point matches.
+	//
+	// In other words:
+	//
+	// k[n]*(...*(k[2]*(k[1]*(k[0]*G)))) = (k[0]*k[1]*k[2]*...*k[n])*G
+	//
+	// Along the way, also calculate (-k)*P for each chained point and ensure it
+	// sums with the current point to the point at infinity.
+	//
+	// That is:
+	//
+	// k*P + ((-k)*P) = ∞
+	const numIterations = 1024
+	var infinity JacobianPoint
+	var chained, negChained, result JacobianPoint
+	var negK ModNScalar
+	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &chained)
+	product := new(ModNScalar).SetInt(1)
+	for i := 0; i < numIterations; i++ {
+		// Generate a random scalar and calculate:
+		//
+		//  P = k*P
+		// -P = (-k)*P
+		//
+		// Notice that this is intentionally doing the full scalar mult with -k
+		// as opposed to just flipping the Y coordinate in order to test scalar
+		// multiplication.
+		k := randModNScalar(t, rng)
+		negK.NegateVal(k)
+		ScalarMultNonConst(&negK, &chained, &negChained)
+		ScalarMultNonConst(k, &chained, &chained)
+
+		// Ensure kP + ((-k)P) = ∞.
+		AddNonConst(&chained, &negChained, &result)
+		if !isSamePoint(&result, &infinity) {
+			t.Fatalf("%d: expected point at infinity\ngot (%v, %v, %v)\n", i,
+				result.X, result.Y, result.Z)
+		}
+
+		product.Mul(k)
+	}
+
+	// Ensure the point calculated above matches the product of the scalars
+	// times the base point.
+	ScalarBaseMultNonConst(product, &result)
+	if !isSamePoint(&chained, &result) {
+		t.Fatalf("unexpected result \ngot (%v, %v, %v)\n"+
+			"want (%v, %v, %v)", chained.X, chained.Y, chained.Z, result.X,
+			result.Y, result.Z)
 	}
 }
 
