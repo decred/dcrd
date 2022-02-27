@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,6 +17,9 @@ func BenchmarkFieldNormalize(b *testing.B) {
 		0x000148f6, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff,
 		0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x00000007,
 	}}
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		f.Normalize()
 	}

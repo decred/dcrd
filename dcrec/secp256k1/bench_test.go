@@ -1,5 +1,5 @@
 // Copyright 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,44 +52,34 @@ func BenchmarkAddNonConstNotZOne(b *testing.B) {
 	}
 }
 
-// BenchmarkScalarBaseMult benchmarks the secp256k1 curve ScalarBaseMult
-// function.
-func BenchmarkScalarBaseMult(b *testing.B) {
-	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
-	curve := S256()
-	for i := 0; i < b.N; i++ {
-		curve.ScalarBaseMult(k.Bytes())
-	}
-}
-
-// BenchmarkScalarBaseMultNonConst benchmarks the ScalarBaseMultNonConst
-// function.
+// BenchmarkScalarBaseMultNonConst benchmarks multiplying a scalar by the base
+// point of the curve.
 func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
 		ScalarBaseMultNonConst(k, &result)
 	}
 }
 
-// BenchmarkScalarBaseMultLarge benchmarks the secp256k1 curve ScalarBaseMult
-// function with abnormally large k values.
-func BenchmarkScalarBaseMultLarge(b *testing.B) {
-	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c005751111111011111110")
-	curve := S256()
-	for i := 0; i < b.N; i++ {
-		curve.ScalarBaseMult(k.Bytes())
-	}
-}
+// BenchmarkScalarMultNonConst benchmarks multiplying a scalar by an arbitrary
+// point on the curve.
+func BenchmarkScalarMultNonConst(b *testing.B) {
+	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	point := jacobianPointFromHex(
+		"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		"1",
+	)
 
-// BenchmarkScalarMult benchmarks the secp256k1 curve ScalarMult function.
-func BenchmarkScalarMult(b *testing.B) {
-	x := fromHex("34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6")
-	y := fromHex("0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232")
-	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
-	curve := S256()
+	b.ReportAllocs()
+	b.ResetTimer()
+	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
-		curve.ScalarMult(x, y, k.Bytes())
+		ScalarMultNonConst(k, &point, &result)
 	}
 }
 

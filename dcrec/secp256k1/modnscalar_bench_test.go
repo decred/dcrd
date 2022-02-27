@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,6 +22,9 @@ func benchmarkVals() [2][]byte {
 // big-endian integer modulo the group order with stdlib big integers.
 func BenchmarkBigIntModN(b *testing.B) {
 	buf := benchmarkVals()[0]
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		v := new(big.Int).SetBytes(buf)
 		v.Mod(v, curveParams.N)
@@ -35,6 +38,8 @@ func BenchmarkModNScalar(b *testing.B) {
 	var buf [32]byte
 	copy(buf[:], slice)
 
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var s ModNScalar
 		s.SetBytes(&buf)
