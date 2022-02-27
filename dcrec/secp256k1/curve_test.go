@@ -688,23 +688,6 @@ func TestSplitKRand(t *testing.T) {
 	}
 }
 
-// Test this curve's usage with the ecdsa package.
-func testKeyGeneration(t *testing.T, tag string) {
-	priv, err := GeneratePrivateKey()
-	if err != nil {
-		t.Errorf("%s: error: %s", tag, err)
-		return
-	}
-	pub := priv.PubKey()
-	if !isOnCurve(&pub.x, &pub.y) {
-		t.Errorf("%s: public key invalid: %s", tag, err)
-	}
-}
-
-func TestKeyGeneration(t *testing.T) {
-	testKeyGeneration(t, "S256")
-}
-
 // TestDecompressY ensures that decompressY works as expected for some edge
 // cases.
 func TestDecompressY(t *testing.T) {
