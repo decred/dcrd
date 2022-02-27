@@ -502,46 +502,6 @@ func TestBaseMultVerify(t *testing.T) {
 	}
 }
 
-func TestScalarMult(t *testing.T) {
-	tests := []struct {
-		x  string
-		y  string
-		k  string
-		rx string
-		ry string
-	}{
-		// base mult, essentially.
-		{
-			"79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-			"483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-			"18e14a7b6a307f426a94f8114701e7c8e774e7f9a47e2c2035db29a206321725",
-			"50863ad64a87ae8a2fe83c1af1a8403cb53f53e486d8511dad8a04887e5b2352",
-			"2cd470243453a299fa9e77237716103abc11a1df38855ed6f2ee187e9c582ba6",
-		},
-		// From btcd issue #709.
-		{
-			"000000000000000000000000000000000000000000000000000000000000002c",
-			"420e7a99bba18a9d3952597510fd2b6728cfeafc21a4e73951091d4d8ddbe94e",
-			"a2e8ba2e8ba2e8ba2e8ba2e8ba2e8ba219b51835b55cc30ebfe2f6599bc56f58",
-			"a2112dcdfbcd10ae1133a358de7b82db68e0a3eb4b492cc8268d1e7118c98788",
-			"27fc7463b7bb3c5f98ecf2c84a6272bb1681ed553d92c69f2dfe25a9f9fd3836",
-		},
-	}
-
-	s256 := S256()
-	for i, test := range tests {
-		x, _ := new(big.Int).SetString(test.x, 16)
-		y, _ := new(big.Int).SetString(test.y, 16)
-		k, _ := new(big.Int).SetString(test.k, 16)
-		xWant, _ := new(big.Int).SetString(test.rx, 16)
-		yWant, _ := new(big.Int).SetString(test.ry, 16)
-		xGot, yGot := s256.ScalarMult(x, y, k.Bytes())
-		if xGot.Cmp(xWant) != 0 || yGot.Cmp(yWant) != 0 {
-			t.Fatalf("%d: bad output: got (%X, %X), want (%X, %X)", i, xGot, yGot, xWant, yWant)
-		}
-	}
-}
-
 func TestScalarMultRand(t *testing.T) {
 	// Strategy for this test:
 	//

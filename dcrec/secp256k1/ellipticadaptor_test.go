@@ -228,3 +228,120 @@ func TestScalarBaseMultAdaptor(t *testing.T) {
 		}
 	}
 }
+
+// TestScalarMultAdaptor ensures the ScalarMult method used to satisfy the
+// elliptic.Curve interface works as intended for some edge cases and known good
+// values.
+func TestScalarMultAdaptor(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		k      string // hex encoded scalar
+		x, y   string // hex encoded coordinates of point to multiply
+		rx, ry string // hex encoded coordinates of expected point
+	}{{
+		name: "0*P = ∞ (point at infinity)",
+		k:    "0",
+		x:    "7e660beda020e9cc20391cef85374576853b0f22b8925d5d81c5845bb834c21e",
+		y:    "2d114a5edb320cc9806527d1daf1bbb96a8fedc6f9e8ead421eaef2c7208e409",
+		rx:   "0",
+		ry:   "0",
+	}, {
+		name: "1*P = P",
+		k:    "1",
+		x:    "c00be8830995d1e44f1420dd3b90d3441fb66f6861c84a35f959c495a3be5440",
+		y:    "ecf9665e6eba45720de652a340600c7356efe24d228bfe6ea2043e7791c51bb7",
+		rx:   "c00be8830995d1e44f1420dd3b90d3441fb66f6861c84a35f959c495a3be5440",
+		ry:   "ecf9665e6eba45720de652a340600c7356efe24d228bfe6ea2043e7791c51bb7",
+	}, {
+		name: "(group order - 1)*P = -P (aka -1*P = -P)",
+		k:    "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		x:    "74a1ad6b5f76e39db2dd249410eac7f99e74c59cb83d2d0ed5ff1543da7703e9",
+		y:    "cc6157ef18c9c63cd6193d83631bbea0093e0968942e8c33d5737fd790e0db08",
+		rx:   "74a1ad6b5f76e39db2dd249410eac7f99e74c59cb83d2d0ed5ff1543da7703e9",
+		ry:   "339ea810e73639c329e6c27c9ce4415ff6c1f6976bd173cc2a8c80276f1f2127",
+	}, {
+		name: "(group order - 1)*-P = P (aka -1*-P = -P, with P from prev test)",
+		k:    "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		x:    "74a1ad6b5f76e39db2dd249410eac7f99e74c59cb83d2d0ed5ff1543da7703e9",
+		y:    "339ea810e73639c329e6c27c9ce4415ff6c1f6976bd173cc2a8c80276f1f2127",
+		rx:   "74a1ad6b5f76e39db2dd249410eac7f99e74c59cb83d2d0ed5ff1543da7703e9",
+		ry:   "cc6157ef18c9c63cd6193d83631bbea0093e0968942e8c33d5737fd790e0db08",
+	}, {
+		name: "known good point from base mult tests (aka k*G)",
+		k:    "aa5e28d6a97a2479a65527f7290311a3624d4cc0fa1578598ee3c2613bf99522",
+		x:    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		y:    "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		rx:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		ry:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+	}, {
+		name: "known good result 1",
+		k:    "7e2b897b8cebc6361663ad410835639826d590f393d90a9538881735256dfae3",
+		x:    "1697ffa6fd9de627c077e3d2fe541084ce13300b0bec1146f95ae57f0d0bd6a5",
+		y:    "b9c398f186806f5d27561506e4557433a2cf15009e498ae7adee9d63d01b2396",
+		rx:   "6951f3b50aafbc63e21707dd53623b7f42badd633a0567ef1b37f6e42a4237ad",
+		ry:   "9c930796a49110122fbfdedc36418af726197ed950b783a2d29058f8c02130de",
+	}, {
+		name: "known good result 2",
+		k:    "6461e6df0fe7dfd05329f41bf771b86578143d4dd1f7866fb4ca7e97c5fa945d",
+		x:    "659214ac1a1790023f53c4cf55a0a63b9e20c1151efa971215b395a558aa151",
+		y:    "b126363aa4243d2759320a356230569a4eea355d9dabd94ed7f4590701e5364d",
+		rx:   "4ffad856833396ef753c0bd4ea40319295f107c476793df0adac2caea53b3df4",
+		ry:   "586fa6b1e9a3ff7df8a2b9b3698badcf40aa06af5600fefc56dd8ae4db5451c5",
+	}, {
+		name: "known good result 3",
+		k:    "376a3a2cdcd12581efff13ee4ad44c4044b8a0524c42422a7e1e181e4deeccec",
+		x:    "3f0e80e574456d8f8fa64e044b2eb72ea22eb53fe1efe3a443933aca7f8cb0e3",
+		y:    "cb66d7d7296cbc91e90b9c08485d01b39501253aa65b53a4cb0289e2ea5f404f",
+		rx:   "35ae6480b18e48070709d9276ed97a50c6ee1fc05ac44386c85826533233d28f",
+		ry:   "f88abee3efabd95e80ce8c664bbc3d4d12b24e1a0f4d2b98ba6542789c6715fd",
+	}, {
+		name: "known good result 4",
+		k:    "1b22644a7be026548810c378d0b2994eefa6d2b9881803cb02ceff865287d1b9",
+		x:    "d7924d4f7d43ea965a465ae3095ff41131e5946f3c85f79e44adbcf8e27e080e",
+		y:    "581e2872a86c72a683842ec228cc6defea40af2bd896d3a5c504dc9ff6a26b58",
+		rx:   "cca7f9a4b0d379c31c438050e163a8945f2f910498bd3b545be20ed862bd6cd9",
+		ry:   "cfc7bbf37bef62da6e5753ed419168fa1376a3fe949c139a8dd0f5303f4ae947",
+	}, {
+		name: "known good result 5",
+		k:    "7f5b2cb4b43840c75e4afad83d792e1965d8c21c1109505f45c7d46df422d73e",
+		x:    "bce74de6d5f98dc027740c2bbff05b6aafe5fd8d103f827e48894a2bd3460117",
+		y:    "5bea1fa17a41b115525a3e7dbf0d8d5a4f7ce5c6fc73a6f4f216512417c9f6b4",
+		rx:   "3d96b9290fe6c4f2d62fe2175f4333907d0c3637fada1010b45c7d80690e16de",
+		ry:   "d59c0e8192d7fbd4846172d6479630b751cd03d0d9be0dca2759c6212b70575d",
+	}, {
+		// From btcd issue #709.
+		name: "early implementation regression point",
+		k:    "a2e8ba2e8ba2e8ba2e8ba2e8ba2e8ba219b51835b55cc30ebfe2f6599bc56f58",
+		x:    "000000000000000000000000000000000000000000000000000000000000002c",
+		y:    "420e7a99bba18a9d3952597510fd2b6728cfeafc21a4e73951091d4d8ddbe94e",
+		rx:   "a2112dcdfbcd10ae1133a358de7b82db68e0a3eb4b492cc8268d1e7118c98788",
+		ry:   "27fc7463b7bb3c5f98ecf2c84a6272bb1681ed553d92c69f2dfe25a9f9fd3836",
+	}}
+
+	curve := S256()
+	for _, test := range tests {
+		// Parse the test data.
+		k := fromHex(test.k)
+		x, y := fromHex(test.x), fromHex(test.y)
+		xWant, yWant := fromHex(test.rx), fromHex(test.ry)
+
+		// Ensure the test data is using points that are actually on the curve
+		// (or the point at infinity).
+		if !isValidAffinePoint(x, y) {
+			t.Errorf("%s: point is not on curve", test.name)
+			continue
+		}
+		if !isValidAffinePoint(xWant, yWant) {
+			t.Errorf("%s: expected point is not on curve", test.name)
+			continue
+		}
+
+		// Perform scalar point multiplication ensure the result matches
+		// expected.
+		rx, ry := curve.ScalarMult(x, y, k.Bytes())
+		if rx.Cmp(xWant) != 0 || ry.Cmp(yWant) != 0 {
+			t.Errorf("%s: wrong result\ngot: (%x, %x)\nwant: (%x, %x)",
+				test.name, rx, ry, xWant, yWant)
+		}
+	}
+}
