@@ -65,6 +65,56 @@ func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 	}
 }
 
+// BenchmarkSplitK benchmarks decomposing scalars into a balanced length-two
+// representation.
+func BenchmarkSplitK(b *testing.B) {
+	// Values computed from the group half order and lambda such that they
+	// exercise the decomposition edge cases and maximize the bit lengths of the
+	// produced scalars.
+	h := "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0"
+	negOne := new(ModNScalar).NegateVal(oneModN)
+	halfOrder := hexToModNScalar(h)
+	halfOrderMOne := new(ModNScalar).Add2(halfOrder, negOne)
+	halfOrderPOne := new(ModNScalar).Add2(halfOrder, oneModN)
+	lambdaMOne := new(ModNScalar).Add2(endoLambda, negOne)
+	lambdaPOne := new(ModNScalar).Add2(endoLambda, oneModN)
+	negLambda := new(ModNScalar).NegateVal(endoLambda)
+	halfOrderMOneMLambda := new(ModNScalar).Add2(halfOrderMOne, negLambda)
+	halfOrderMLambda := new(ModNScalar).Add2(halfOrder, negLambda)
+	halfOrderPOneMLambda := new(ModNScalar).Add2(halfOrderPOne, negLambda)
+	lambdaPHalfOrder := new(ModNScalar).Add2(endoLambda, halfOrder)
+	lambdaPOnePHalfOrder := new(ModNScalar).Add2(lambdaPOne, halfOrder)
+	scalarsN := []*ModNScalar{
+		new(ModNScalar),      // zero
+		oneModN,              // one
+		negOne,               // group order - 1 (aka -1 mod N)
+		halfOrderMOneMLambda, // group half order - 1 - lambda
+		halfOrderMLambda,     // group half order - lambda
+		halfOrderPOneMLambda, // group half order + 1 - lambda
+		halfOrderMOne,        // group half order - 1
+		halfOrder,            // group half order
+		halfOrderPOne,        // group half order + 1
+		lambdaMOne,           // lambda - 1
+		endoLambda,           // lambda
+		lambdaPOne,           // lambda + 1
+		lambdaPHalfOrder,     // lambda + group half order
+		lambdaPOnePHalfOrder, // lambda + 1 + group half order
+	}
+	scalars := make([][]byte, len(scalarsN))
+	for i, scalar := range scalarsN {
+		b := scalar.Bytes()
+		scalars[i] = b[:]
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i += len(scalars) {
+		for j := 0; j < len(scalars); j++ {
+			_, _, _, _ = splitK(scalars[j])
+		}
+	}
+}
+
 // BenchmarkScalarMultNonConst benchmarks multiplying a scalar by an arbitrary
 // point on the curve.
 func BenchmarkScalarMultNonConst(b *testing.B) {
