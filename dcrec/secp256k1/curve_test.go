@@ -7,12 +7,40 @@ package secp256k1
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	mrand "math/rand"
 	"testing"
 	"time"
 )
+
+// hexToModNScalar converts the passed hex string into a ModNScalar and will
+// panic if there is an error.  This is only provided for the hard-coded
+// constants so errors in the source code can be detected. It will only (and
+// must only) be called with hard-coded values.
+func hexToModNScalar(s string) *ModNScalar {
+	var isNegative bool
+	if len(s) > 0 && s[0] == '-' {
+		isNegative = true
+		s = s[1:]
+	}
+	if len(s)%2 != 0 {
+		s = "0" + s
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	var scalar ModNScalar
+	if overflow := scalar.SetByteSlice(b); overflow {
+		panic("hex in source file overflows mod N scalar: " + s)
+	}
+	if isNegative {
+		scalar.Negate()
+	}
+	return &scalar
+}
 
 // isValidJacobianPoint returns true if the point (x,y,z) is on the secp256k1
 // curve or is the point at infinity.
@@ -457,6 +485,117 @@ func TestNAFRandom(t *testing.T) {
 		if err := checkNAFEncoding(pos, neg, bigIntVal); err != nil {
 			t.Fatalf("encoding err: %v\nin: %x\npos: %x\nneg: %x", err,
 				bigIntVal, pos, neg)
+		}
+	}
+}
+
+// TestScalarBaseMultJacobian ensures multiplying a given scalar by the base
+// point projected in Jacobian coordinates works as intended for some edge cases
+// and known values.  It also verifies in affine coordinates as well.
+func TestScalarBaseMultJacobian(t *testing.T) {
+	tests := []struct {
+		name       string // test description
+		k          string // hex encoded scalar
+		x1, y1, z1 string // hex encoded Jacobian coordinates of expected point
+		x2, y2     string // hex encoded affine coordinates of expected point
+	}{{
+		name: "zero",
+		k:    "0000000000000000000000000000000000000000000000000000000000000000",
+		x1:   "0000000000000000000000000000000000000000000000000000000000000000",
+		y1:   "0000000000000000000000000000000000000000000000000000000000000000",
+		z1:   "0000000000000000000000000000000000000000000000000000000000000001",
+		x2:   "0000000000000000000000000000000000000000000000000000000000000000",
+		y2:   "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "one (aka 1*G = G)",
+		k:    "0000000000000000000000000000000000000000000000000000000000000001",
+		x1:   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		y1:   "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		z1:   "0000000000000000000000000000000000000000000000000000000000000001",
+		x2:   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		y2:   "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+	}, {
+		name: "group order - 1 (aka -1*G = -G)",
+		k:    "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		x1:   "667d5346809ba7602db1ea0bd990eee6ff75d7a64004d563534123e6f12a12d7",
+		y1:   "344f2f772f8f4cbd04709dba7837ff1422db8fa6f99a00f93852de2c45284838",
+		z1:   "19e5a058ef4eaada40d19063917bb4dc07f50c3a0f76bd5348a51057a3721c57",
+		x2:   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		y2:   "b7c52588d95c3b9aa25b0403f1eef75702e84bb7597aabe663b82f6f04ef2777",
+	}, {
+		name: "known good point 1",
+		k:    "aa5e28d6a97a2479a65527f7290311a3624d4cc0fa1578598ee3c2613bf99522",
+		x1:   "5f64fd9364bac24dc32bc01b7d63aaa8249babbdc26b03233e14120840ae20f6",
+		y1:   "a4ced9be1e1ed6ef73bec6866c3adc0695347303c30b814fb0dfddb3a22b090d",
+		z1:   "931a3477a1b1d866842b22577618e134c89ba12e5bb38c465265c8a2cefa69dc",
+		x2:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y2:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+	}, {
+		name: "known good point 2",
+		k:    "7e2b897b8cebc6361663ad410835639826d590f393d90a9538881735256dfae3",
+		x1:   "c2cb761af4d6410bea0ed7d5f3c7397b63739b0f37e5c3047f8a45537a9d413e",
+		y1:   "34b9204c55336d2fb94e20e53d5aa2ffe4da6f80d72315b4dcafca11e7c0f768",
+		z1:   "ca5d9e8024575c80fe185416ff4736aff8278873da60cf101d10ab49780ee33b",
+		x2:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y2:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+	}, {
+		name: "known good point 3",
+		k:    "6461e6df0fe7dfd05329f41bf771b86578143d4dd1f7866fb4ca7e97c5fa945d",
+		x1:   "09160b87ee751ef9fd51db49afc7af9c534917fad72bf461d21fec2590878267",
+		y1:   "dbc2757c5038e0b059d1e05c2d3706baf1a164e3836a02c240173b22c92da7c0",
+		z1:   "c157ea3f784c37603d9f55e661dd1d6b8759fccbfb2c8cf64c46529d94c8c950",
+		x2:   "e8aecc370aedd953483719a116711963ce201ac3eb21d3f3257bb48668c6a72f",
+		y2:   "c25caf2f0eba1ddb2f0f3f47866299ef907867b7d27e95b3873bf98397b24ee1",
+	}, {
+		name: "known good point 4",
+		k:    "376a3a2cdcd12581efff13ee4ad44c4044b8a0524c42422a7e1e181e4deeccec",
+		x1:   "7820c46de3b5a0202bea06870013fcb23adb4a000f89d5b86fe1df24be58fa79",
+		y1:   "95e5a977eb53a582677ff0432eef5bc66f1dd983c3e8c07e1c77c3655542c31e",
+		z1:   "7d71ecfdfa66b003fe96f925b5907f67a1a4a6489f4940ec3b78edbbf847334f",
+		x2:   "14890e61fcd4b0bd92e5b36c81372ca6fed471ef3aa60a3e415ee4fe987daba1",
+		y2:   "297b858d9f752ab42d3bca67ee0eb6dcd1c2b7b0dbe23397e66adc272263f982",
+	}, {
+		name: "known good point 5",
+		k:    "1b22644a7be026548810c378d0b2994eefa6d2b9881803cb02ceff865287d1b9",
+		x1:   "68a934fa2d28fb0b0d2b6801a9335d62e65acef9467be2ea67f5b11614b59c78",
+		y1:   "5edd7491e503acf61ed651a10cf466de06bf5c6ba285a7a2885a384bbdd32898",
+		z1:   "f3b28d36c3132b6f4bd66bf0da64b8dc79d66f9a854ba8b609558b6328796755",
+		x2:   "f73c65ead01c5126f28f442d087689bfa08e12763e0cec1d35b01751fd735ed3",
+		y2:   "f449a8376906482a84ed01479bd18882b919c140d638307f0c0934ba12590bde",
+	}}
+
+	for _, test := range tests {
+		// Parse test data.
+		want := jacobianPointFromHex(test.x1, test.y1, test.z1)
+		wantAffine := jacobianPointFromHex(test.x2, test.y2, "01")
+		k := hexToModNScalar(test.k)
+
+		// Ensure the test data is using points that are actually on the curve
+		// (or the point at infinity).
+		if !isValidJacobianPoint(&want) {
+			t.Errorf("%q: expected point is not on the curve", test.name)
+			continue
+		}
+		if !isValidJacobianPoint(&wantAffine) {
+			t.Errorf("%q: expected affine point is not on the curve", test.name)
+			continue
+		}
+
+		// Ensure the result matches the expected value in Jacobian coordinates.
+		var r JacobianPoint
+		ScalarBaseMultNonConst(k, &r)
+		if !r.IsStrictlyEqual(&want) {
+			t.Errorf("%q: wrong result:\ngot: (%s, %s, %s)\nwant: (%s, %s, %s)",
+				test.name, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
+			continue
+		}
+
+		// Ensure the result matches the expected value in affine coordinates.
+		r.ToAffine()
+		if !r.IsStrictlyEqual(&wantAffine) {
+			t.Errorf("%q: wrong affine result:\ngot: (%s, %s)\nwant: (%s, %s)",
+				test.name, r.X, r.Y, wantAffine.X, wantAffine.Y)
+			continue
 		}
 	}
 }
