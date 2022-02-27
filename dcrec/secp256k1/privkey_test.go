@@ -23,36 +23,41 @@ func TestGeneratePrivateKey(t *testing.T) {
 	}
 }
 
+// TestPrivKeys ensures a private key created from bytes produces both the
+// correct associated public key as well serializes back to the original bytes.
 func TestPrivKeys(t *testing.T) {
 	tests := []struct {
 		name string
-		key  []byte
-	}{
-		{
-			name: "check curve",
-			key: []byte{
-				0xea, 0xf0, 0x2c, 0xa3, 0x48, 0xc5, 0x24, 0xe6,
-				0x39, 0x26, 0x55, 0xba, 0x4d, 0x29, 0x60, 0x3c,
-				0xd1, 0xa7, 0x34, 0x7d, 0x9d, 0x65, 0xcf, 0xe9,
-				0x3c, 0xe1, 0xeb, 0xff, 0xdc, 0xa2, 0x26, 0x94,
-			},
-		},
-	}
+		priv string // hex encoded private key to test
+		pub  string // expected hex encoded serialized compressed public key
+	}{{
+		name: "random private key 1",
+		priv: "eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694",
+		pub:  "025ceeba2ab4a635df2c0301a3d773da06ac5a18a7c3e0d09a795d7e57d233edf1",
+	}, {
+		name: "random private key 2",
+		priv: "24b860d0651db83feba821e7a94ba8b87162665509cefef0cbde6a8fbbedfe7c",
+		pub:  "032a6e51bf218085647d330eac2fafaeee07617a777ad9e8e7141b4cdae92cb637",
+	}}
 
 	for _, test := range tests {
-		priv := PrivKeyFromBytes(test.key)
+		// Parse test data.
+		privKeyBytes := hexToBytes(test.priv)
+		wantPubKeyBytes := hexToBytes(test.pub)
+
+		priv := PrivKeyFromBytes(privKeyBytes)
 		pub := priv.PubKey()
 
-		_, err := ParsePubKey(pub.SerializeUncompressed())
-		if err != nil {
-			t.Errorf("%s privkey: %v", test.name, err)
-			continue
+		serializedPubKey := pub.SerializeCompressed()
+		if !bytes.Equal(serializedPubKey, wantPubKeyBytes) {
+			t.Errorf("%s unexpected serialized public key - got: %x, want: %x",
+				test.name, serializedPubKey, wantPubKeyBytes)
 		}
 
-		serializedKey := priv.Serialize()
-		if !bytes.Equal(serializedKey, test.key) {
-			t.Errorf("%s unexpected serialized bytes - got: %x, "+
-				"want: %x", test.name, serializedKey, test.key)
+		serializedPrivKey := priv.Serialize()
+		if !bytes.Equal(serializedPrivKey, privKeyBytes) {
+			t.Errorf("%s unexpected serialized private key - got: %x, want: %x",
+				test.name, serializedPrivKey, privKeyBytes)
 		}
 	}
 }
