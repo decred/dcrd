@@ -19,6 +19,15 @@ func TestIsOnCurveAdaptor(t *testing.T) {
 	}
 }
 
+// isValidAffinePoint returns true if the point (x,y) is on the secp256k1 curve
+// or is the point at infinity.
+func isValidAffinePoint(x, y *big.Int) bool {
+	if x.Sign() == 0 && y.Sign() == 0 {
+		return true
+	}
+	return S256().IsOnCurve(x, y)
+}
+
 // TestScalarBaseMultAdaptor ensures the ScalarBaseMult method used to satisfy
 // the elliptic.Curve interface works as intended.
 func TestScalarBaseMultAdaptor(t *testing.T) {

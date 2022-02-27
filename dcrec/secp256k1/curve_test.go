@@ -351,17 +351,17 @@ func TestAddAffine(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !(x1.Sign() == 0 && y1.Sign() == 0) && !S256().IsOnCurve(x1, y1) {
+		if !isValidAffinePoint(x1, y1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !(x2.Sign() == 0 && y2.Sign() == 0) && !S256().IsOnCurve(x2, y2) {
+		if !isValidAffinePoint(x2, y2) {
 			t.Errorf("#%d second point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !(x3.Sign() == 0 && y3.Sign() == 0) && !S256().IsOnCurve(x3, y3) {
+		if !isValidAffinePoint(x3, y3) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
@@ -508,12 +508,12 @@ func TestDoubleAffine(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !(x1.Sign() == 0 && y1.Sign() == 0) && !S256().IsOnCurve(x1, y1) {
+		if !isValidAffinePoint(x1, y1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !(x3.Sign() == 0 && y3.Sign() == 0) && !S256().IsOnCurve(x3, y3) {
+		if !isValidAffinePoint(x3, y3) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
