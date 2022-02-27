@@ -58,7 +58,7 @@ func TestAddJacobian(t *testing.T) {
 		x2, y2, z2 string // Coordinates (in hex) of second point to add
 		x3, y3, z3 string // Coordinates (in hex) of expected point
 	}{
-		// Addition with a point at infinity (left hand side).
+		// Addition with the point at infinity (left hand side).
 		// ∞ + P = P
 		{
 			"0",
@@ -71,7 +71,7 @@ func TestAddJacobian(t *testing.T) {
 			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
 			"1",
 		},
-		// Addition with a point at infinity (right hand side).
+		// Addition with the point at infinity (right hand side).
 		// P + ∞ = P
 		{
 			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
@@ -286,7 +286,7 @@ func TestAddAffine(t *testing.T) {
 		x2, y2 string // Coordinates (in hex) of second point to add
 		x3, y3 string // Coordinates (in hex) of expected point
 	}{
-		// Addition with a point at infinity (left hand side).
+		// Addition with the point at infinity (left hand side).
 		// ∞ + P = P
 		{
 			"0",
@@ -296,7 +296,7 @@ func TestAddAffine(t *testing.T) {
 			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
 			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
 		},
-		// Addition with a point at infinity (right hand side).
+		// Addition with the point at infinity (right hand side).
 		// P + ∞ = P
 		{
 			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
@@ -382,7 +382,7 @@ func TestDoubleJacobian(t *testing.T) {
 		x1, y1, z1 string // Coordinates (in hex) of point to double
 		x3, y3, z3 string // Coordinates (in hex) of expected point
 	}{
-		// Doubling a point at infinity is still infinity.
+		// Doubling the point at infinity is still infinity.
 		{
 			"0",
 			"0",
@@ -459,7 +459,7 @@ func TestDoubleAffine(t *testing.T) {
 		x1, y1 string // Coordinates (in hex) of point to double
 		x3, y3 string // Coordinates (in hex) of expected point
 	}{
-		// Doubling a point at infinity is still infinity.
+		// Doubling the point at infinity is still infinity.
 		// 2*∞ = ∞ (point at infinity)
 
 		{

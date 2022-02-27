@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
-// Copyright (c) 2013-2021 Dave Collins
+// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2013-2022 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1156,7 +1156,7 @@ func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
 	// 10111111 11111111 11111111 00001100
 	//
 	// Notice that can be broken up into three windows of consecutive 1s (in
-	// order of least to most signifcant) as:
+	// order of least to most significant) as:
 	//
 	//   6-bit window with two bits set (bits 4, 5, 6, 7 unset)
 	//   23-bit window with 22 bits set (bit 30 unset)

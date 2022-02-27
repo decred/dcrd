@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -209,9 +209,9 @@ func (p PublicKey) SerializeCompressed() []byte {
 	return b[:]
 }
 
-// IsEqual compares this PublicKey instance to the one passed, returning true if
-// both PublicKeys are equivalent. A PublicKey is equivalent to another, if they
-// both have the same X and Y coordinate.
+// IsEqual compares this public key instance to the one passed, returning true
+// if both public keys are equivalent.  A public key is equivalent to another,
+// if they both have the same X and Y coordinates.
 func (p *PublicKey) IsEqual(otherPubKey *PublicKey) bool {
 	return p.x.Equals(&otherPubKey.x) && p.y.Equals(&otherPubKey.y)
 }

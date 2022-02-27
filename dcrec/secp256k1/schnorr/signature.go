@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -51,7 +51,7 @@ func NewSignature(r *secp256k1.FieldVal, s *secp256k1.ModNScalar) *Signature {
 
 // Serialize returns the Schnorr signature in the more strict format.
 //
-// The signatures are encoded as
+// The signatures are encoded as:
 //   sig[0:32]  x coordinate of the point R, encoded as a big-endian uint256
 //   sig[32:64] s, encoded also as big-endian uint256
 func (sig Signature) Serialize() []byte {

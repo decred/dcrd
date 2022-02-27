@@ -1,5 +1,5 @@
 // Copyright 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -158,7 +158,7 @@ func BenchmarkSignCompact(b *testing.B) {
 	}
 }
 
-// BenchmarkSignCompact benchmarks how long it takes to recover a public key
+// BenchmarkRecoverCompact benchmarks how long it takes to recover a public key
 // given a compact signature and message.
 func BenchmarkRecoverCompact(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d

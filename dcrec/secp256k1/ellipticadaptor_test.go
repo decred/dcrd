@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,7 @@ import (
 )
 
 // TestIsOnCurveAdaptor ensures the IsOnCurve method used to satisfy the
-// elliptic.Curve interfaces works as intended.
+// elliptic.Curve interface works as intended.
 func TestIsOnCurveAdaptor(t *testing.T) {
 	s256 := S256()
 	if !s256.IsOnCurve(s256.Params().Gx, s256.Params().Gy) {
@@ -20,7 +20,7 @@ func TestIsOnCurveAdaptor(t *testing.T) {
 }
 
 // TestScalarBaseMultAdaptor ensures the ScalarBaseMult method used to satisfy
-// the elliptic.Curve interfaces works as intended.
+// the elliptic.Curve interface works as intended.
 func TestScalarBaseMultAdaptor(t *testing.T) {
 	tests := []struct {
 		k    string

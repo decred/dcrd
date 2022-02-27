@@ -178,7 +178,7 @@ func addZ1AndZ2EqualsOne(p1, p2, result *JacobianPoint) {
 	y3.Set(&v).Add(&negX3).Mul(&r).Add(&j)     // Y3 = r*(V-X3)-2*Y1*J (mag: 4)
 	z3.Set(&h).MulInt(2)                       // Z3 = 2*H (mag: 6)
 
-	// Normalize the resulting field values to a magnitude of 1 as needed.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -248,7 +248,7 @@ func addZ1EqualsZ2(p1, p2, result *JacobianPoint) {
 	y3.Add(e.Add(&negX3).Mul(&c))          // Y3 = C*(E-X3)+Y3 (mag: 5)
 	z3.Mul2(z1, &a)                        // Z3 = Z1*A (mag: 1)
 
-	// Normalize the resulting field values to a magnitude of 1 as needed.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -330,7 +330,7 @@ func addZ2EqualsOne(p1, p2, result *JacobianPoint) {
 	z3.Add2(z1, &h).Square()               // Z3 = (Z1+H)^2 (mag: 1)
 	z3.Add(z1z1.Add(&hh).Negate(2))        // Z3 = Z3-(Z1Z1+HH) (mag: 4)
 
-	// Normalize the resulting field values to a magnitude of 1 as needed.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -397,7 +397,7 @@ func addGeneric(p1, p2, result *JacobianPoint) {
 	var negU1, negS1, negX3 FieldVal
 	negU1.Set(&u1).Negate(1)               // negU1 = -U1 (mag: 2)
 	h.Add2(&u2, &negU1)                    // H = U2-U1 (mag: 3)
-	i.Set(&h).MulInt(2).Square()           // I = (2*H)^2 (mag: 2)
+	i.Set(&h).MulInt(2).Square()           // I = (2*H)^2 (mag: 1)
 	j.Mul2(&h, &i)                         // J = H*I (mag: 1)
 	negS1.Set(&s1).Negate(1)               // negS1 = -S1 (mag: 2)
 	r.Set(&s2).Add(&negS1).MulInt(2)       // r = 2*(S2-S1) (mag: 6)
@@ -412,7 +412,7 @@ func addGeneric(p1, p2, result *JacobianPoint) {
 	z3.Add(z1z1.Add(&z2z2).Negate(2))      // Z3 = Z3-(Z1Z1+Z2Z2) (mag: 4)
 	z3.Mul(&h)                             // Z3 = Z3*H (mag: 1)
 
-	// Normalize the resulting field values to a magnitude of 1 as needed.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -424,7 +424,7 @@ func addGeneric(p1, p2, result *JacobianPoint) {
 // NOTE: The points must be normalized for this function to return the correct
 // result.  The resulting point will be normalized.
 func AddNonConst(p1, p2, result *JacobianPoint) {
-	// A point at infinity is the identity according to the group law for
+	// The point at infinity is the identity according to the group law for
 	// elliptic curve cryptography.  Thus, ∞ + P = P and P + ∞ = P.
 	if (p1.X.IsZero() && p1.Y.IsZero()) || p1.Z.IsZero() {
 		result.Set(p2)
@@ -508,7 +508,7 @@ func doubleZ1EqualsOne(p, result *JacobianPoint) {
 	y3.Set(&c).MulInt(8).Negate(8)           // Y3 = -(8*C) (mag: 9)
 	y3.Add(f.Mul(&e))                        // Y3 = E*F+Y3 (mag: 10)
 
-	// Normalize the field values back to a magnitude of 1.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -562,7 +562,7 @@ func doubleGeneric(p, result *JacobianPoint) {
 	y3.Set(&c).MulInt(8).Negate(8)           // Y3 = -(8*C) (mag: 9)
 	y3.Add(f.Mul(&e))                        // Y3 = E*F+Y3 (mag: 10)
 
-	// Normalize the field values back to a magnitude of 1.
+	// Normalize the resulting field values as needed.
 	x3.Normalize()
 	y3.Normalize()
 	z3.Normalize()
@@ -574,7 +574,7 @@ func doubleGeneric(p, result *JacobianPoint) {
 // NOTE: The point must be normalized for this function to return the correct
 // result.  The resulting point will be normalized.
 func DoubleNonConst(p, result *JacobianPoint) {
-	// Doubling a point at infinity is still infinity.
+	// Doubling the point at infinity is still infinity.
 	if p.Y.IsZero() || p.Z.IsZero() {
 		result.X.SetInt(0)
 		result.Y.SetInt(0)
@@ -883,9 +883,9 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	result.Set(&q)
 }
 
-// ScalarBaseMultNonConst multiplies k*G where G is the base point of the group
-// and k is a big endian integer.  The result is stored in Jacobian coordinates
-// (x1, y1, z1).
+// ScalarBaseMultNonConst multiplies k*G where k is a scalar modulo the curve
+// order and G is the base point of the group and stores the result in the
+// provided Jacobian point.
 //
 // NOTE: The resulting point will be normalized.
 func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
@@ -894,10 +894,10 @@ func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 	// Point Q = ∞ (point at infinity).
 	var q JacobianPoint
 
-	// curve.bytePoints has all 256 byte points for each 8-bit window.  The
-	// strategy is to add up the byte points.  This is best understood by
-	// expressing k in base-256 which it already sort of is.  Each "digit" in
-	// the 8-bit window can be looked up using bytePoints and added together.
+	// bytePoints has all 256 byte points for each 8-bit window.  The strategy
+	// is to add up the byte points.  This is best understood by expressing k in
+	// base-256 which it already sort of is.  Each "digit" in the 8-bit window
+	// can be looked up using bytePoints and added together.
 	var pt JacobianPoint
 	for i, byteVal := range k.Bytes() {
 		p := bytePoints[i][byteVal]
