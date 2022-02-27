@@ -55,218 +55,202 @@ func (p *JacobianPoint) IsStrictlyEqual(other *JacobianPoint) bool {
 	return p.X.Equals(&other.X) && p.Y.Equals(&other.Y) && p.Z.Equals(&other.Z)
 }
 
-// TestAddJacobian tests addition of points projected in Jacobian coordinates.
+// TestAddJacobian tests addition of points projected in Jacobian coordinates
+// works as intended.
 func TestAddJacobian(t *testing.T) {
 	tests := []struct {
-		x1, y1, z1 string // Coordinates (in hex) of first point to add
-		x2, y2, z2 string // Coordinates (in hex) of second point to add
-		x3, y3, z3 string // Coordinates (in hex) of expected point
-	}{
+		name       string // test description
+		x1, y1, z1 string // hex encoded coordinates of first point to add
+		x2, y2, z2 string // hex encoded coordinates of second point to add
+		x3, y3, z3 string // hex encoded coordinates of expected point
+	}{{
 		// Addition with the point at infinity (left hand side).
-		// ∞ + P = P
-		{
-			"0",
-			"0",
-			"0",
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-		},
+		name: "∞ + P = P",
+		x1:   "0",
+		y1:   "0",
+		z1:   "0",
+		x2:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y2:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z2:   "1",
+		x3:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y3:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z3:   "1",
+	}, {
 		// Addition with the point at infinity (right hand side).
-		// P + ∞ = P
-		{
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-			"0",
-			"0",
-			"0",
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-		},
+		name: "P + ∞ = P",
+		x1:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y1:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z1:   "1",
+		x2:   "0",
+		y2:   "0",
+		z2:   "0",
+		x3:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y3:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z3:   "1",
+	}, {
 		// Addition with z1=z2=1 different x values.
-		{
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-			"0cfbc7da1e569b334460788faae0286e68b3af7379d5504efc25e4dba16e46a6",
-			"e205f79361bbe0346b037b4010985dbf4f9e1e955e7d0d14aca876bfa79aad87",
-			"44a5646b446e3877a648d6d381370d9ef55a83b666ebce9df1b1d7d65b817b2f",
-		},
+		name: "P(x1, y1, 1) + P(x2, y1, 1)",
+		x1:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y1:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z1:   "1",
+		x2:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y2:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z2:   "1",
+		x3:   "0cfbc7da1e569b334460788faae0286e68b3af7379d5504efc25e4dba16e46a6",
+		y3:   "e205f79361bbe0346b037b4010985dbf4f9e1e955e7d0d14aca876bfa79aad87",
+		z3:   "44a5646b446e3877a648d6d381370d9ef55a83b666ebce9df1b1d7d65b817b2f",
+	}, {
 		// Addition with z1=z2=1 same x opposite y.
-		// P(x, y, z) + P(x, -y, z) = infinity
-		{
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"f48e156428cf0276dc092da5856e182288d7569f97934a56fe44be60f0d359fd",
-			"1",
-			"0",
-			"0",
-			"0",
-		},
+		name: "P(x, y, 1) + P(x, -y, 1) = ∞",
+		x1:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y1:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z1:   "1",
+		x2:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y2:   "f48e156428cf0276dc092da5856e182288d7569f97934a56fe44be60f0d359fd",
+		z2:   "1",
+		x3:   "0",
+		y3:   "0",
+		z3:   "0",
+	}, {
 		// Addition with z1=z2=1 same point.
-		// P(x, y, z) + P(x, y, z) = 2P
-		{
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"ec9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee64f87c50c27",
-			"b082b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd0755c8f2a",
-			"16e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c1e594464",
-		},
-
+		name: "P(x, y, 1) + P(x, y, 1) = 2P",
+		x1:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y1:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z1:   "1",
+		x2:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y2:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z2:   "1",
+		x3:   "ec9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee64f87c50c27",
+		y3:   "b082b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd0755c8f2a",
+		z3:   "16e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c1e594464",
+	}, {
 		// Addition with z1=z2 (!=1) different x values.
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"5d2fe112c21891d440f65a98473cb626111f8a234d2cd82f22172e369f002147",
-			"98e3386a0a622a35c4561ffb32308d8e1c6758e10ebb1b4ebd3d04b4eb0ecbe8",
-			"2",
-			"cfbc7da1e569b334460788faae0286e68b3af7379d5504efc25e4dba16e46a60",
-			"817de4d86ef80d1ac0ded00426176fd3e787a5579f43452b2a1db021e6ac3778",
-			"129591ad11b8e1de99235b4e04dc367bd56a0ed99baf3a77c6c75f5a6e05f08d",
-		},
+		name: "P(x1, y1, 2) + P(x2, y2, 2)",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "5d2fe112c21891d440f65a98473cb626111f8a234d2cd82f22172e369f002147",
+		y2:   "98e3386a0a622a35c4561ffb32308d8e1c6758e10ebb1b4ebd3d04b4eb0ecbe8",
+		z2:   "2",
+		x3:   "cfbc7da1e569b334460788faae0286e68b3af7379d5504efc25e4dba16e46a60",
+		y3:   "817de4d86ef80d1ac0ded00426176fd3e787a5579f43452b2a1db021e6ac3778",
+		z3:   "129591ad11b8e1de99235b4e04dc367bd56a0ed99baf3a77c6c75f5a6e05f08d",
+	}, {
 		// Addition with z1=z2 (!=1) same x opposite y.
-		// P(x, y, z) + P(x, -y, z) = infinity
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"a470ab21467813b6e0496d2c2b70c11446bab4fcbc9a52b7f225f30e869aea9f",
-			"2",
-			"0",
-			"0",
-			"0",
-		},
+		name: "P(x, y, 2) + P(x, -y, 2) = ∞",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y2:   "a470ab21467813b6e0496d2c2b70c11446bab4fcbc9a52b7f225f30e869aea9f",
+		z2:   "2",
+		x3:   "0",
+		y3:   "0",
+		z3:   "0",
+	}, {
 		// Addition with z1=z2 (!=1) same point.
-		// P(x, y, z) + P(x, y, z) = 2P
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
-			"2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
-			"6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
-		},
-
+		name: "P(x, y, 2) + P(x, y, 2) = 2P",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y2:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z2:   "2",
+		x3:   "9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
+		y3:   "2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
+		z3:   "6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
+	}, {
 		// Addition with z1!=z2 and z2=1 different x values.
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
-			"131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
-			"1",
-			"3ef1f68795a6ccd1181e23eab80a1b9a2cebdcde755413bf097936eb5b91b4f3",
-			"0bef26c377c068d606f6802130bb7e9f3c3d2abcfa1a295950ed81133561cb04",
-			"252b235a2371c3bd3246b69c09b86cf7aad41db3375e74ef8d8ebeb4dc0be11a",
-		},
+		name: "P(x1, y1, 2) + P(x2, y2, 1)",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575",
+		y2:   "131c670d414c4546b88ac3ff664611b1c38ceb1c21d76369d7a7a0969d61d97d",
+		z2:   "1",
+		x3:   "3ef1f68795a6ccd1181e23eab80a1b9a2cebdcde755413bf097936eb5b91b4f3",
+		y3:   "0bef26c377c068d606f6802130bb7e9f3c3d2abcfa1a295950ed81133561cb04",
+		z3:   "252b235a2371c3bd3246b69c09b86cf7aad41db3375e74ef8d8ebeb4dc0be11a",
+	}, {
 		// Addition with z1!=z2 and z2=1 same x opposite y.
-		// P(x, y, z) + P(x, -y, z) = infinity
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"f48e156428cf0276dc092da5856e182288d7569f97934a56fe44be60f0d359fd",
-			"1",
-			"0",
-			"0",
-			"0",
-		},
+		name: "P(x, y, 2) + P(x, -y, 1) = ∞",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y2:   "f48e156428cf0276dc092da5856e182288d7569f97934a56fe44be60f0d359fd",
+		z2:   "1",
+		x3:   "0",
+		y3:   "0",
+		z3:   "0",
+	}, {
 		// Addition with z1!=z2 and z2=1 same point.
-		// P(x, y, z) + P(x, y, z) = 2P
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
-			"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
-			"1",
-			"9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
-			"2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
-			"6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
-		},
-
+		name: "P(x, y, 2) + P(x, y, 1) = 2P",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
+		y2:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
+		z2:   "1",
+		x3:   "9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
+		y3:   "2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
+		z3:   "6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
+	}, {
 		// Addition with z1!=z2 and z2!=1 different x values.
-		// P(x, y, z) + P(x, y, z) = 2P
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"91abba6a34b7481d922a4bd6a04899d5a686f6cf6da4e66a0cb427fb25c04bd4",
-			"03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1",
-			"3",
-			"3f07081927fd3f6dadd4476614c89a09eba7f57c1c6c3b01fa2d64eac1eef31e",
-			"949166e04ebc7fd95a9d77e5dfd88d1492ecffd189792e3944eb2b765e09e031",
-			"eb8cba81bcffa4f44d75427506737e1f045f21e6d6f65543ee0e1d163540c931",
-		}, // Addition with z1!=z2 and z2!=1 same x opposite y.
-		// P(x, y, z) + P(x, -y, z) = infinity
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"dcc3768780c74a0325e2851edad0dc8a566fa61a9e7fc4a34d13dcb509f99bc7",
-			"cafc41904dd5428934f7d075129c8ba46eb622d4fc88d72cd1401452664add18",
-			"3",
-			"0",
-			"0",
-			"0",
-		},
+		name: "P(x1, y1, 2) + P(x2, y2, 3)",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "91abba6a34b7481d922a4bd6a04899d5a686f6cf6da4e66a0cb427fb25c04bd4",
+		y2:   "03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1",
+		z2:   "3",
+		x3:   "3f07081927fd3f6dadd4476614c89a09eba7f57c1c6c3b01fa2d64eac1eef31e",
+		y3:   "949166e04ebc7fd95a9d77e5dfd88d1492ecffd189792e3944eb2b765e09e031",
+		z3:   "eb8cba81bcffa4f44d75427506737e1f045f21e6d6f65543ee0e1d163540c931",
+	}, {
+		// Addition with z1!=z2 and z2!=1 same x opposite y.
+		name: "P(x, y, 2) + P(x, -y, 3) = ∞",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "dcc3768780c74a0325e2851edad0dc8a566fa61a9e7fc4a34d13dcb509f99bc7",
+		y2:   "cafc41904dd5428934f7d075129c8ba46eb622d4fc88d72cd1401452664add18",
+		z2:   "3",
+		x3:   "0",
+		y3:   "0",
+		z3:   "0",
+	}, {
 		// Addition with z1!=z2 and z2!=1 same point.
-		// P(x, y, z) + P(x, y, z) = 2P
-		{
-			"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
-			"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
-			"2",
-			"dcc3768780c74a0325e2851edad0dc8a566fa61a9e7fc4a34d13dcb509f99bc7",
-			"3503be6fb22abd76cb082f8aed63745b9149dd2b037728d32ebfebac99b51f17",
-			"3",
-			"9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
-			"2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
-			"6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
-		},
-	}
+		name: "P(x, y, 2) + P(x, y, 3) = 2P",
+		x1:   "d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		y1:   "5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		z1:   "2",
+		x2:   "dcc3768780c74a0325e2851edad0dc8a566fa61a9e7fc4a34d13dcb509f99bc7",
+		y2:   "3503be6fb22abd76cb082f8aed63745b9149dd2b037728d32ebfebac99b51f17",
+		z2:   "3",
+		x3:   "9f153b13ee7bd915882859635ea9730bf0dc7611b2c7b0e37ee65073c50fabac",
+		y3:   "2b53702c466dcf6e984a35671756c506c67c2fcb8adb408c44dd125dc91cb988",
+		z3:   "6e3d537ae61fb1247eda4b4f523cfbaee5152c0d0d96b520376833c2e5944a11",
+	}}
 
-	t.Logf("Running %d tests", len(tests))
-	for i, test := range tests {
+	for _, test := range tests {
 		// Convert hex to Jacobian points.
 		p1 := jacobianPointFromHex(test.x1, test.y1, test.z1)
 		p2 := jacobianPointFromHex(test.x2, test.y2, test.z2)
 		want := jacobianPointFromHex(test.x3, test.y3, test.z3)
 
-		// Ensure the test data is using points that are actually on
-		// the curve (or the point at infinity).
+		// Ensure the test data is using points that are actually on the curve
+		// (or the point at infinity).
 		if !isValidJacobianPoint(&p1) {
-			t.Errorf("#%d first point is not on the curve -- "+
-				"invalid test data", i)
+			t.Errorf("%s: first point is not on the curve", test.name)
 			continue
 		}
 		if !isValidJacobianPoint(&p2) {
-			t.Errorf("#%d second point is not on the curve -- "+
-				"invalid test data", i)
+			t.Errorf("%s: second point is not on the curve", test.name)
 			continue
 		}
 		if !isValidJacobianPoint(&want) {
-			t.Errorf("#%d expected point is not on the curve -- "+
-				"invalid test data", i)
+			t.Errorf("%s: expected point is not on the curve", test.name)
 			continue
 		}
 
@@ -276,8 +260,8 @@ func TestAddJacobian(t *testing.T) {
 
 		// Ensure result matches expected.
 		if !r.IsStrictlyEqual(&want) {
-			t.Errorf("#%d wrong result\ngot: (%v, %v, %v)\n"+
-				"want: (%v, %v, %v)", i, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
+			t.Errorf("%s: wrong result\ngot: (%v, %v, %v)\nwant: (%v, %v, %v)",
+				test.name, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
 			continue
 		}
 	}
