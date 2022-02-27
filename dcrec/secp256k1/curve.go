@@ -40,12 +40,13 @@ func hexToFieldVal(s string) *FieldVal {
 }
 
 var (
-	// Next 6 constants are from Hal Finney's bitcointalk.org post:
-	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
-	// May he rest in peace.
+	// The following constants are used to accelerate scalar point
+	// multiplication through the use of the endomorphism:
 	//
-	// They have also been independently derived from the code in the
-	// endomorphismVectors function in genprecomps.go.
+	// φ(Q) ⟼ λ*Q = (β*Q.x mod p, Q.y)
+	//
+	// See the code in the deriveEndomorphismParams function in genprecomps.go
+	// for details on their derivation.
 	endomorphismLambda = fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
 	endomorphismBeta   = hexToFieldVal("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
 	endomorphismA1     = fromHex("3086d221a7d46bcde86c90e49284eb15")

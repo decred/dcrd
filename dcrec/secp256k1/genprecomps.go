@@ -104,6 +104,15 @@ func sqrt(n *big.Int) *big.Int {
 	return guess
 }
 
+// endomorphismParams houses the parameters needed to make use of the secp256k1
+// endomorphism.
+type endomorphismParams struct {
+	lambda *big.Int
+	beta   *big.Int
+	a1, b1 *big.Int
+	a2, b2 *big.Int
+}
+
 // endomorphismVectors runs the first 3 steps of algorithm 3.74 from [GECC] to
 // generate the linearly independent vectors needed to generate a balanced
 // length-two representation of a multiplier such that k = k1 + k2λ (mod N) and
@@ -111,8 +120,6 @@ func sqrt(n *big.Int) *big.Int {
 // and λ are fixed, the final results can be accelerated by storing the
 // precomputed values.
 func endomorphismVectors(lambda *big.Int) (a1, b1, a2, b2 *big.Int) {
-	bigMinus1 := big.NewInt(-1)
-
 	// This section uses an extended Euclidean algorithm to generate a
 	// sequence of equations:
 	//  s[i] * N + t[i] * λ = r[i]
@@ -161,7 +168,7 @@ func endomorphismVectors(lambda *big.Int) (a1, b1, a2, b2 *big.Int) {
 
 			// a1 = r[i+1], b1 = -t[i+1]
 			a1.Set(r)
-			b1.Mul(t, bigMinus1)
+			b1.Neg(t)
 			found = true
 			oneMore = true
 
@@ -188,11 +195,11 @@ func endomorphismVectors(lambda *big.Int) (a1, b1, a2, b2 *big.Int) {
 			if sum1.Cmp(sum2) <= 0 {
 				// a2 = r[i], b2 = -t[i]
 				a2.Set(ri)
-				b2.Mul(ti, bigMinus1)
+				b2.Neg(ti)
 			} else {
 				// a2 = r[i+2], b2 = -t[i+2]
 				a2.Set(r)
-				b2.Mul(t, bigMinus1)
+				b2.Neg(t)
 			}
 
 			// All done.
@@ -204,6 +211,110 @@ func endomorphismVectors(lambda *big.Int) (a1, b1, a2, b2 *big.Int) {
 	}
 
 	return a1, b1, a2, b2
+}
+
+// deriveEndomorphismParams calculates and returns parameters needed to make use
+// of the secp256k1 endomorphism.
+func deriveEndomorphismParams() [2]endomorphismParams {
+	// roots returns the solutions of the characteristic polynomial of the
+	// secp256k1 endomorphism.
+	//
+	// The characteristic polynomial for the endomorphism is:
+	//
+	// X^2 + X + 1 ≡ 0 (mod n).
+	//
+	// Solving for X:
+	//
+	// 4X^2 + 4X + 4 ≡ 0 (mod n)       | (*4, possible because gcd(4, n) = 1)
+	// (2X + 1)^2 + 3 ≡ 0 (mod n)      | (factor by completing the square)
+	// (2X + 1)^2 ≡ -3 (mod n)         | (-3)
+	// (2X + 1) ≡ ±sqrt(-3) (mod n)    | (sqrt)
+	// 2X ≡ ±sqrt(-3) - 1 (mod n)      | (-1)
+	// X ≡ (±sqrt(-3)-1)*2^-1 (mod n)  | (*2^-1)
+	//
+	// So, the roots are:
+	// X1 ≡ (-(sqrt(-3)+1)*2^-1 (mod n)
+	// X2 ≡ (sqrt(-3)-1)*2^-1 (mod n)
+	//
+	// It is also worth noting that X is a cube root of unity, meaning
+	// X^3 - 1 ≡ 0 (mod n), hence it can be factored as (X - 1)(X^2 + X + 1) ≡ 0
+	// and (X1)^2 ≡ X2 (mod n) and (X2)^2 ≡ X1 (mod n).
+	roots := func(prime *big.Int) [2]big.Int {
+		var result [2]big.Int
+		one := big.NewInt(1)
+		twoInverse := new(big.Int).ModInverse(big.NewInt(2), prime)
+		negThree := new(big.Int).Neg(big.NewInt(3))
+		sqrtNegThree := new(big.Int).ModSqrt(negThree, prime)
+		sqrtNegThreePlusOne := new(big.Int).Add(sqrtNegThree, one)
+		negSqrtNegThreePlusOne := new(big.Int).Neg(sqrtNegThreePlusOne)
+		result[0].Mul(negSqrtNegThreePlusOne, twoInverse)
+		result[0].Mod(&result[0], prime)
+		sqrtNegThreeMinusOne := new(big.Int).Sub(sqrtNegThree, one)
+		result[1].Mul(sqrtNegThreeMinusOne, twoInverse)
+		result[1].Mod(&result[1], prime)
+		return result
+	}
+
+	// Find the λ's and β's which are the solutions for the characteristic
+	// polynomial of the secp256k1 endomorphism modulo the curve order and
+	// modulo the field order, respectively.
+	lambdas := roots(curveParams.N)
+	betas := roots(curveParams.P)
+
+	// Ensure the calculated roots are actually the roots of the characteristic
+	// polynomial.
+	checkRoots := func(foundRoots [2]big.Int, prime *big.Int) {
+		// X^2 + X + 1 ≡ 0 (mod p)
+		one := big.NewInt(1)
+		for i := 0; i < len(foundRoots); i++ {
+			root := &foundRoots[i]
+			result := new(big.Int).Mul(root, root)
+			result.Add(result, root)
+			result.Add(result, one)
+			result.Mod(result, prime)
+			if result.Sign() != 0 {
+				panic(fmt.Sprintf("%[1]x^2 + %[1]x + 1 != 0 (mod %x)", root,
+					prime))
+			}
+		}
+	}
+	checkRoots(lambdas, curveParams.N)
+	checkRoots(betas, curveParams.P)
+
+	// checkVectors ensures the passed vectors satisfy the equation:
+	// a + b*λ ≡ 0 (mod n)
+	checkVectors := func(a, b *big.Int, lambda *big.Int) {
+		result := new(big.Int).Mul(b, lambda)
+		result.Add(result, a)
+		result.Mod(result, curveParams.N)
+		if result.Sign() != 0 {
+			panic(fmt.Sprintf("%x + %x*lambda != 0 (mod %x)", a, b,
+				curveParams.N))
+		}
+	}
+
+	var endoParams [2]endomorphismParams
+	for i := 0; i < 2; i++ {
+		// Calculate the linearly independent vectors needed to generate a
+		// balanced length-two representation of a scalar such that
+		// k = k1 + k2*λ (mod n) for each of the solutions.
+		lambda := &lambdas[i]
+		a1, b1, a2, b2 := endomorphismVectors(lambda)
+
+		// Ensure the derived vectors satisfy the required equation.
+		checkVectors(a1, b1, lambda)
+		checkVectors(a2, b2, lambda)
+
+		params := &endoParams[i]
+		params.lambda = lambda
+		params.beta = &betas[i]
+		params.a1 = a1
+		params.b1 = b1
+		params.a2 = a2
+		params.b2 = b2
+	}
+
+	return endoParams
 }
 
 func main() {
@@ -246,13 +357,22 @@ func main() {
 	fmt.Fprintln(fi, "	}")
 	fmt.Fprintln(fi, "}")
 
-	lambdaHex := "5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72"
-	lambda, _ := new(big.Int).SetString(lambdaHex, 16)
-	a1, b1, a2, b2 := endomorphismVectors(lambda)
-	fmt.Println("The following values are the computed linearly independent " +
-		"vectors needed to make use of the secp256k1 endomorphism:")
-	fmt.Printf("a1: %x\n", a1)
-	fmt.Printf("b1: %x\n", b1)
-	fmt.Printf("a2: %x\n", a2)
-	fmt.Printf("b2: %x\n", b2)
+	printParams := func(p *endomorphismParams) {
+		fmt.Printf("lambda: %x\n", p.lambda)
+		fmt.Printf("  beta: %x\n", p.beta)
+		fmt.Printf("    a1: %x\n", p.a1)
+		fmt.Printf("    b1: %x\n", p.b1)
+		fmt.Printf("    a2: %x\n", p.a2)
+		fmt.Printf("    b2: %x\n", p.b2)
+	}
+	endoParams := deriveEndomorphismParams()
+	fmt.Println("The following are the computed values to make use of the " +
+		"secp256k1 endomorphism.\nThey consist of the lambda and beta " +
+		"values along with the associated linearly independent vectors " +
+		"(a1, b1, a2, b2) used when decomposing scalars:")
+	printParams(&endoParams[0])
+	fmt.Println()
+
+	fmt.Println("Alternatively, the following parameters are valid as well:")
+	printParams(&endoParams[1])
 }
