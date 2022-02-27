@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
-// Copyright (c) 2013-2020 Dave Collins
+// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2013-2022 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -43,7 +43,7 @@ func randFieldVal(t *testing.T, rng *rand.Rand) *FieldVal {
 		t.Fatalf("failed to read random: %v", err)
 	}
 
-	// Create and return both a big integer and a field value.
+	// Create and return a field value.
 	var fv FieldVal
 	fv.SetBytes(&buf)
 	return &fv
