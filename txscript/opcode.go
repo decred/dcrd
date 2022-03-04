@@ -2575,7 +2575,16 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrTooManyOperations, str)
 	}
 
-	pubKeys := make([][]byte, 0, numPubKeys)
+	// Use an array on the stack for typical sizes to avoid an allocation in the
+	// vast majority of cases.
+	const numPubKeysHint = 5
+	var pubKeys [][]byte
+	if numPubKeys <= numPubKeysHint {
+		var pubKeysArr [numPubKeysHint][]byte
+		pubKeys = pubKeysArr[0:0:numPubKeys]
+	} else {
+		pubKeys = make([][]byte, 0, numPubKeys)
+	}
 	for i := 0; i < numPubKeys; i++ {
 		pubKey, err := vm.dstack.PopByteArray()
 		if err != nil {
@@ -2600,13 +2609,22 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrInvalidSignatureCount, str)
 	}
 
-	signatures := make([]*parsedSigInfo, 0, numSignatures)
+	// Use an array on the stack for typical sizes to avoid an allocation in the
+	// vast majority of cases.  Note that the number of signatures is limited
+	// to the number of public keys, so the same hint constant is reused.
+	var signatures []parsedSigInfo
+	if numSignatures <= numPubKeysHint {
+		var sigsArr [numPubKeysHint]parsedSigInfo
+		signatures = sigsArr[0:0:numSignatures]
+	} else {
+		signatures = make([]parsedSigInfo, 0, numSignatures)
+	}
 	for i := 0; i < numSignatures; i++ {
 		signature, err := vm.dstack.PopByteArray()
 		if err != nil {
 			return err
 		}
-		sigInfo := &parsedSigInfo{signature: signature}
+		sigInfo := parsedSigInfo{signature: signature}
 		signatures = append(signatures, sigInfo)
 	}
 
@@ -2634,7 +2652,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 			break
 		}
 
-		sigInfo := signatures[signatureIdx]
+		sigInfo := &signatures[signatureIdx]
 		pubKey := pubKeys[pubKeyIdx]
 
 		// The order of the signature and public key evaluation is
