@@ -23,6 +23,15 @@ vendor
 playground
 notes
 
+# Testing, profiling, and benchmarking artifacts
+cov.out
+*cpu.out
+*mem.out
+
+# Go 1.18 workspace
+go.work
+go.work.sum
+
 # Architecture specific extensions/prefixes
 *.[568vq]
 [568vq].out
@@ -39,7 +48,6 @@ _testmain.go
 *.exe
 dcrd
 cmd/addblock/addblock
-cmd/checkdevpremine/checkdevpremine
 cmd/findcheckpoint/findcheckpoint
 cmd/gencerts/gencerts
 cmd/promptsecret/promptsecret
