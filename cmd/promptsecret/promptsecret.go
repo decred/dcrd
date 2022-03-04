@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 var n = flag.Int("n", 1, "prompt n times")
@@ -25,7 +25,7 @@ var nl = []byte("\n")
 func prompt() {
 	fmt.Fprint(os.Stderr, "Secret: ")
 
-	secret, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprint(os.Stderr, "\n")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to read secret: %v\n", err)
