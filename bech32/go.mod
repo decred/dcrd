@@ -1,3 +1,3 @@
 module github.com/decred/dcrd/bech32
 
-go 1.11
+go 1.13
