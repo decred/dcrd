@@ -106,7 +106,9 @@ func TestMinimalVotingWallet(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for _, tc := range testCases {
 		var vw *VotingWallet
 		success := t.Run(tc.name, func(t1 *testing.T) {
@@ -115,7 +117,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 				t1.Fatalf("unable to create voting wallet for test: %v", err)
 			}
 
-			err = vw.Start()
+			err = vw.Start(ctx)
 			if err != nil {
 				t1.Fatalf("unable to setup voting wallet: %v", err)
 			}
@@ -129,7 +131,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 
 		if vw != nil {
 			vw.SetErrorReporting(nil)
-			vw.Stop()
+			cancel()
 		}
 
 		if !success {

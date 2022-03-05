@@ -244,12 +244,15 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Create the voting wallet.
-	vw, err := rpctest.NewVotingWallet(context.Background(), hn)
+	vw, err := rpctest.NewVotingWallet(ctx, hn)
 	if err != nil {
 		t.Fatalf("unable to create voting wallet for test: %v", err)
 	}
-	err = vw.Start()
+	err = vw.Start(ctx)
 	if err != nil {
 		t.Fatalf("unable to setup voting wallet: %v", err)
 	}

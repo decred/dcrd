@@ -99,7 +99,6 @@ type VotingWallet struct {
 
 	blockConnectedNtfnChan chan blockConnectedNtfn
 	winningTicketsNtfnChan chan winningTicketsNtfn
-	quitChan               chan struct{}
 
 	p2sstxVer        uint16
 	p2sstx           []byte
@@ -197,7 +196,6 @@ func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
 		maturingVotes:          make(map[int64][]utxoInfo, hintMaturingVotesCap),
 		blockConnectedNtfnChan: make(chan blockConnectedNtfn, bufferLen),
 		winningTicketsNtfnChan: make(chan winningTicketsNtfn, bufferLen),
-		quitChan:               make(chan struct{}),
 	}
 
 	handlers := &rpcclient.NotificationHandlers{
@@ -228,7 +226,7 @@ func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
 }
 
 // Start stars the goroutines necessary for this voting wallet to function.
-func (w *VotingWallet) Start() error {
+func (w *VotingWallet) Start(ctx context.Context) error {
 	value := w.hn.ActiveNet.MinimumStakeDiff * commitAmountMultiplier
 
 	// Create enough outputs to perform the voting, each with twice the amount
@@ -265,14 +263,9 @@ func (w *VotingWallet) Start() error {
 	}
 	w.utxos = utxos
 
-	go w.handleNotifications()
+	go w.handleNotifications(ctx)
 
 	return nil
-}
-
-// Stop signals all goroutines from this wallet to stop their functions.
-func (w *VotingWallet) Stop() {
-	close(w.quitChan)
 }
 
 // SetErrorReporting allows users of the voting wallet to specify a function
@@ -369,7 +362,7 @@ func (w *VotingWallet) GenerateBlocks(ctx context.Context, nb uint32) ([]*chainh
 
 				return nil, fmt.Errorf("timeout waiting for %s "+
 					"at height %d", strings.Join(notGot, ","), genHeight)
-			case <-w.quitChan:
+			case <-ctx.Done():
 				return nil, fmt.Errorf("wallet is stopping")
 			case <-testTimeout:
 				mempoolTickets, _ := w.c.GetRawMempool(ctx, dcrdtypes.GRMTickets)
@@ -407,7 +400,7 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	}
 }
 
-func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
+func (w *VotingWallet) handleBlockConnectedNtfn(ctx context.Context, ntfn *blockConnectedNtfn) {
 	var header wire.BlockHeader
 	err := header.FromBytes(ntfn.blockHeader)
 	if err != nil {
@@ -469,7 +462,7 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 	// Submit all tickets to the network.
 	promises := make([]*rpcclient.FutureSendRawTransactionResult, nbTickets)
 	for i := 0; i < nbTickets; i++ {
-		promises[i] = w.c.SendRawTransactionAsync(context.Background(), &tickets[i], true)
+		promises[i] = w.c.SendRawTransactionAsync(ctx, &tickets[i], true)
 	}
 
 	for i := 0; i < nbTickets; i++ {
@@ -501,7 +494,7 @@ func (w *VotingWallet) onWinningTickets(blockHash *chainhash.Hash, blockHeight i
 	}
 }
 
-func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
+func (w *VotingWallet) handleWinningTicketsNtfn(ctx context.Context, ntfn *winningTicketsNtfn) {
 	blockRefScript, err := txscript.GenerateSSGenBlockRef(*ntfn.blockHash,
 		uint32(ntfn.blockHeight))
 	if err != nil {
@@ -595,7 +588,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 	// Publish the votes.
 	promises := make([]*rpcclient.FutureSendRawTransactionResult, nbVotes)
 	for i := 0; i < nbVotes; i++ {
-		promises[i] = w.c.SendRawTransactionAsync(context.Background(), &votes[i], true)
+		promises[i] = w.c.SendRawTransactionAsync(ctx, &votes[i], true)
 	}
 	for i := 0; i < nbVotes; i++ {
 		h, err := promises[i].Receive()
@@ -613,17 +606,17 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 	w.maturingVotes[maturingHeight] = newUtxos
 }
 
-// handleNotifications handles all notifications. This blocks until quitChan
-// is closed and MUST be run on a separate goroutine.
-func (w *VotingWallet) handleNotifications() {
+// handleNotifications handles all notifications. This blocks until the passed
+// context is cancelled and MUST be run on a separate goroutine.
+func (w *VotingWallet) handleNotifications(ctx context.Context) {
 	for {
 		select {
-		case <-w.quitChan:
+		case <-ctx.Done():
 			return
 		case ntfn := <-w.blockConnectedNtfnChan:
-			w.handleBlockConnectedNtfn(&ntfn)
+			w.handleBlockConnectedNtfn(ctx, &ntfn)
 		case ntfn := <-w.winningTicketsNtfnChan:
-			w.handleWinningTicketsNtfn(&ntfn)
+			w.handleWinningTicketsNtfn(ctx, &ntfn)
 		}
 	}
 }
