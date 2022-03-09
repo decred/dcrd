@@ -1349,20 +1349,6 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 //
 // This must be run as a goroutine.
 func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
-	// Treat the tip block as if it was just connected when starting up so the
-	// existing code paths are run.
-	tipBlock, err := g.tg.cfg.BlockByHash(&g.tg.cfg.BestSnapshot().Hash)
-	if err != nil {
-		g.setCurrentTemplate(nil, turUnknown, err)
-	} else {
-		select {
-		case <-ctx.Done():
-			g.wg.Done()
-			return
-		case g.queueRegenEvent <- regenEvent{rtBlockConnected, tipBlock}:
-		}
-	}
-
 	state := makeRegenHandlerState()
 	for {
 		select {
@@ -1488,14 +1474,56 @@ func (g *BgBlkTmplGenerator) ForceRegen() {
 	g.sendQueueRegenEvent(regenEvent{rtForceRegen, nil})
 }
 
+// initialStartupHandler handles the initial startup of the background template
+// generation process.  This entails treating the tip block as if it was just
+// connected after potentially waiting for the initial chain sync to complete
+// depending on whether or not unsynced mining is allowed.
+//
+// This must be run as a goroutine.
+func (g *BgBlkTmplGenerator) initialStartupHandler(ctx context.Context) {
+	defer g.wg.Done()
+
+	// Wait until the chain is synced when unsynced mining is not allowed.
+	if !g.cfg.AllowUnsyncedMining && !g.cfg.IsCurrent() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+	synced:
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if g.cfg.IsCurrent() {
+					break synced
+				}
+			}
+		}
+	}
+
+	// Treat the tip block as if it was just connected when starting up so the
+	// existing code paths are run.
+	tipBlock, err := g.tg.cfg.BlockByHash(&g.tg.cfg.BestSnapshot().Hash)
+	if err != nil {
+		g.setCurrentTemplate(nil, turUnknown, err)
+	} else {
+		select {
+		case <-ctx.Done():
+			return
+		case g.queueRegenEvent <- regenEvent{rtBlockConnected, tipBlock}:
+		}
+	}
+}
+
 // Run starts the background block template generator and all other goroutines
 // necessary for it to function properly and blocks until the provided context
 // is cancelled.
 func (g *BgBlkTmplGenerator) Run(ctx context.Context) {
-	g.wg.Add(4)
+	g.wg.Add(5)
 	go g.regenQueueHandler(ctx)
 	go g.regenHandler(ctx)
 	go g.notifySubscribersHandler(ctx)
+	go g.initialStartupHandler(ctx)
 	go func() {
 		<-ctx.Done()
 		close(g.quit)
