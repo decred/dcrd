@@ -39,11 +39,6 @@ type AddrManager struct {
 	// is saved to and loaded from.
 	peersFile string
 
-	// lookupFunc is a function provided to the address manager that is used to
-	// perform DNS lookups for a given hostname.
-	// The provided function MUST be safe for concurrent access.
-	lookupFunc func(string) ([]net.IP, error)
-
 	// rand is the address manager's internal PRNG.  It is used to both randomly
 	// retrieve addresses from the address manager's internal new and tried
 	// buckets in addition to deciding whether an unknown address is accepted
@@ -551,13 +546,15 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	for _, v := range sam.Addresses {
 		netAddr, err := a.newAddressFromString(v.Addr)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Addr, err)
+			log.Warnf("skipping unrecognized network address %s: %v",
+				v.Addr, err)
+			continue
 		}
 		srcAddr, err := a.newAddressFromString(v.Src)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Src, err)
+			log.Warnf("skipping unrecognized network address %s: %v",
+				v.Src, err)
+			continue
 		}
 
 		ka := &KnownAddress{
@@ -684,10 +681,11 @@ func (a *AddrManager) NeedMoreAddresses() bool {
 	return a.numAddresses() < needAddressThreshold
 }
 
-// AddressCache returns a randomized subset of all known addresses.
+// AddressCache returns a randomized subset of all addresses known to the
+// address manager with a network address type matching the provided type flags.
 //
 // This function is safe for concurrent access.
-func (a *AddrManager) AddressCache() []*NetAddress {
+func (a *AddrManager) AddressCache(supportedNetAddressType NetAddressTypeFilter) []*NetAddress {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -700,6 +698,10 @@ func (a *AddrManager) AddressCache() []*NetAddress {
 	allAddr := make([]*NetAddress, 0, addrLen)
 	// Iteration order is undefined here, but we randomize it anyway.
 	for _, v := range a.addrIndex {
+		// Skip address types not requested by the caller.
+		if !supportedNetAddressType(v.na.Type) {
+			continue
+		}
 		// Skip low quality addresses.
 		if v.isBad() {
 			continue
@@ -753,39 +755,33 @@ func (a *AddrManager) reset() {
 	}
 }
 
-// HostToNetAddress parses and returns a network address given a hostname in a
-// supported format (IPv4, IPv6, TORv2).  If the hostname cannot be immediately
-// converted from a known address format, it will be resolved using the lookup
-// function provided to the address manager. If it cannot be resolved, an error
-// is returned.
-//
-// This function is safe for concurrent access.
-func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.ServiceFlag) (*NetAddress, error) {
-	// Tor address is 16 char base32 + ".onion"
-	var ip net.IP
-	if len(host) == 22 && host[16:] == ".onion" {
-		// go base32 encoding uses capitals (as does the rfc
-		// but Tor and bitcoind tend to user lowercase, so we switch
-		// case here.
-		data, err := base32.StdEncoding.DecodeString(
-			strings.ToUpper(host[:16]))
-		if err != nil {
-			return nil, err
+// ParseHost deconstructs a given host to its respective []byte representation
+// and also returns the network address type.  If an error occurs while decoding
+// an onion address, the error is returned.  If the host cannot be decoded then
+// an unknown address type is returned without error.
+func ParseHost(host string) (NetAddressType, []byte, error) {
+	if strings.HasSuffix(host, ".onion") {
+		// Check if this is a valid TORv3 address.
+		if len(host) == 62 {
+			torAddressBytes, err := base32.StdEncoding.DecodeString(
+				strings.ToUpper(host[:56]))
+			if err != nil {
+				return UnknownAddressType, nil, err
+			}
+			if pubkey, valid := isTORv3(torAddressBytes); valid {
+				return TORv3Address, pubkey, nil
+			}
 		}
-		prefix := []byte{0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43}
-		ip = net.IP(append(prefix, data...))
-	} else if ip = net.ParseIP(host); ip == nil {
-		ips, err := a.lookupFunc(host)
-		if err != nil {
-			return nil, err
-		}
-		if len(ips) == 0 {
-			return nil, fmt.Errorf("no addresses found for %s", host)
-		}
-		ip = ips[0]
 	}
 
-	return NewNetAddressIPPort(ip, port, services), nil
+	if ip := net.ParseIP(host); ip != nil {
+		if isIPv4(ip) {
+			return IPv4Address, ip.To4(), nil
+		}
+		return IPv6Address, ip, nil
+	}
+
+	return UnknownAddressType, nil, nil
 }
 
 // GetAddress returns a single address that should be routable.  It picks a
@@ -1129,12 +1125,15 @@ func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
 		return Unreachable
 	}
 
-	if isOnionCatTor(remoteAddr.IP) {
-		if isOnionCatTor(localAddr.IP) {
+	isRemoteAddrTOR := remoteAddr.Type == TORv3Address
+	isLocalAddrTOR := localAddr.Type == TORv3Address
+
+	if isRemoteAddrTOR {
+		if isLocalAddrTOR {
 			return Private
 		}
 
-		if localAddr.IsRoutable() && isIPv4(localAddr.IP) {
+		if localAddr.IsRoutable() && localAddr.Type == IPv4Address {
 			return Ipv4
 		}
 
@@ -1150,15 +1149,15 @@ func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
 			return Teredo
 		}
 
-		if isIPv4(localAddr.IP) {
+		if localAddr.Type == IPv4Address {
 			return Ipv4
 		}
 
 		return Ipv6Weak
 	}
 
-	if isIPv4(remoteAddr.IP) {
-		if localAddr.IsRoutable() && isIPv4(localAddr.IP) {
+	if remoteAddr.Type == IPv4Address {
+		if localAddr.IsRoutable() && localAddr.Type == IPv4Address {
 			return Ipv4
 		}
 		return Unreachable
@@ -1179,7 +1178,7 @@ func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
 		return Teredo
 	}
 
-	if isIPv4(localAddr.IP) {
+	if localAddr.Type == IPv4Address {
 		return Ipv4
 	}
 
@@ -1195,7 +1194,7 @@ func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
 // for the given remote address.
 //
 // This function is safe for concurrent access.
-func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
+func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress, supportedNetAddressType NetAddressTypeFilter) *NetAddress {
 	a.lamtx.Lock()
 	defer a.lamtx.Unlock()
 
@@ -1203,6 +1202,10 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 	var bestscore AddressPriority
 	var bestAddress *NetAddress
 	for _, la := range a.localAddresses {
+		// Only return addresses matching the type flags provided by the caller.
+		if !supportedNetAddressType(la.na.Type) {
+			continue
+		}
 		reach := getReachabilityFrom(la.na, remoteAddr)
 		if reach > bestreach ||
 			(reach == bestreach && la.score > bestscore) {
@@ -1219,7 +1222,7 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 
 		// Send something unroutable if nothing suitable.
 		var ip net.IP
-		if !isIPv4(remoteAddr.IP) && !isOnionCatTor(remoteAddr.IP) {
+		if remoteAddr.Type != IPv4Address {
 			ip = net.IPv6zero
 		} else {
 			ip = net.IPv4zero
@@ -1236,8 +1239,12 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 //
 // This function is safe for concurrent access.
 func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *NetAddress) (bool, NetAddressReach) {
-	net := addressType(localAddr.IP)
+	net := localAddr.Type
 	reach := getReachabilityFrom(localAddr, remoteAddr)
+	if isLocal(localAddr.IP) {
+		return false, reach
+	}
+
 	valid := (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
 		(reach == Ipv6Weak || reach == Ipv6Strong || reach == Teredo))
 	return valid, reach
@@ -1245,11 +1252,9 @@ func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *NetAddress) (bool, N
 
 // New constructs a new address manager instance.
 // Use Start to begin processing asynchronous address updates.
-// The address manager uses lookupFunc for necessary DNS lookups.
-func New(dataDir string, lookupFunc func(string) ([]net.IP, error)) *AddrManager {
+func New(dataDir string) *AddrManager {
 	am := AddrManager{
 		peersFile:       filepath.Join(dataDir, peersFilename),
-		lookupFunc:      lookupFunc,
 		rand:            rand.New(rand.NewSource(time.Now().UnixNano())),
 		quit:            make(chan struct{}),
 		localAddresses:  make(map[string]*localAddress),

@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 9
+	ProtocolVersion uint32 = 11
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -51,6 +51,14 @@ const (
 	// RemoveRejectVersion is the protocol version which removes support for the
 	// reject message.
 	RemoveRejectVersion uint32 = 9
+
+	// AddrV2Version is the protocol version which adds the addrv2 and
+	// getaddrv2 messages.
+	AddrV2Version uint32 = 10
+
+	// RelayTORv3Version is the protocol version which adds support for relaying
+	// TORv3 addresses.
+	RelayTORv3Version uint32 = 11
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

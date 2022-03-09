@@ -18,16 +18,16 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/addrmgr/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
 )
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.InitStateVersion
+	MaxProtocolVersion = wire.RelayTORv3Version
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -81,6 +81,9 @@ var (
 	// connection detecting and disconnect logic since they intentionally
 	// do so for testing purposes.
 	allowSelfConns bool
+
+	// zeroIPv4 is an unroutable IPv4 address consisting of all zeros.
+	zeroIPv4 = net.IP([]byte{0, 0, 0, 0})
 )
 
 // MessageListeners defines callback function pointers to invoke with message
@@ -96,8 +99,14 @@ type MessageListeners struct {
 	// OnGetAddr is invoked when a peer receives a getaddr wire message.
 	OnGetAddr func(p *Peer, msg *wire.MsgGetAddr)
 
+	// OnGetAddrV2 is invoked when a peer receives a getaddrV2 wire message.
+	OnGetAddrV2 func(p *Peer, msg *wire.MsgGetAddrV2)
+
 	// OnAddr is invoked when a peer receives an addr wire message.
 	OnAddr func(p *Peer, msg *wire.MsgAddr)
+
+	// OnAddrV2 is invoked when a peer receives an addrV2 wire message.
+	OnAddrV2 func(p *Peer, msg *wire.MsgAddrV2)
 
 	// OnPing is invoked when a peer receives a ping wire message.
 	OnPing func(p *Peer, msg *wire.MsgPing)
@@ -284,40 +293,30 @@ func minUint32(a, b uint32) uint32 {
 
 // newNetAddress attempts to extract the IP address and port from the passed
 // net.Addr interface and create a NetAddress structure using that information.
-func newNetAddress(addr net.Addr, services wire.ServiceFlag) (*wire.NetAddress, error) {
-	// addr will be a net.TCPAddr when not using a proxy.
-	if tcpAddr, ok := addr.(*net.TCPAddr); ok {
-		ip := tcpAddr.IP
-		port := uint16(tcpAddr.Port)
-		na := wire.NewNetAddressIPPort(ip, port, services)
-		return na, nil
-	}
-
-	// addr will be a socks.ProxiedAddr when using a proxy.
-	if proxiedAddr, ok := addr.(*socks.ProxiedAddr); ok {
-		ip := net.ParseIP(proxiedAddr.Host)
-		if ip == nil {
-			ip = net.ParseIP("0.0.0.0")
-		}
-		port := uint16(proxiedAddr.Port)
-		na := wire.NewNetAddressIPPort(ip, port, services)
-		return na, nil
-	}
-
-	// For the most part, addr should be one of the two above cases, but
-	// to be safe, fall back to trying to parse the information from the
-	// address string as a last resort.
+func newNetAddress(addr net.Addr, services wire.ServiceFlag) (*addrmgr.NetAddress, error) {
 	host, portStr, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return nil, err
 	}
-	ip := net.ParseIP(host)
+
+	addrType, addrBytes, err := addrmgr.ParseHost(host)
+	if err != nil {
+		return nil, err
+	}
+
+	if addrType == addrmgr.UnknownAddressType {
+		addrType = addrmgr.IPv4Address
+		addrBytes = zeroIPv4
+	}
+
 	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return nil, err
 	}
-	na := wire.NewNetAddressIPPort(ip, uint16(port), services)
-	return na, nil
+
+	timestamp := time.Unix(time.Now().Unix(), 0)
+	return addrmgr.NewNetAddressByType(addrType, addrBytes, uint16(port),
+		timestamp, services)
 }
 
 // outMsg is used to house a message to be sent along with a channel to signal
@@ -385,7 +384,7 @@ type AddrFunc func(remoteAddr *wire.NetAddress) *wire.NetAddress
 // HostToNetAddrFunc is a func which takes a host, port, services and returns
 // the netaddress.
 type HostToNetAddrFunc func(host string, port uint16,
-	services wire.ServiceFlag) (*wire.NetAddress, error)
+	services wire.ServiceFlag) (*addrmgr.NetAddress, error)
 
 // NOTE: The overall data flow of a peer is split into 3 goroutines.  Inbound
 // messages are read via the inHandler goroutine and generally dispatched to
@@ -431,7 +430,7 @@ type Peer struct {
 	inbound bool
 
 	flagsMtx             sync.Mutex // protects the peer flags below
-	na                   *wire.NetAddress
+	na                   *addrmgr.NetAddress
 	id                   int32
 	userAgent            string
 	services             wire.ServiceFlag
@@ -564,7 +563,7 @@ func (p *Peer) ID() int32 {
 // NA returns the peer network address.
 //
 // This function is safe for concurrent access.
-func (p *Peer) NA() *wire.NetAddress {
+func (p *Peer) NA() *addrmgr.NetAddress {
 	p.flagsMtx.Lock()
 	if p.na == nil {
 		p.flagsMtx.Unlock()
@@ -813,6 +812,41 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 
 	p.QueueMessage(msg, nil)
 	return msg.AddrList, nil
+}
+
+// PushAddrV2Msg sends an addrv2 message to the connected peer using the
+// provided addresses.  This function is useful over manually sending the
+// message via QueueMessage since it automatically limits the addresses to the
+// maximum number allowed by the message and randomizes the chosen addresses
+// when there are too many.  It returns the addresses that were actually sent
+// and no message will be sent if there are no entries in the provided addresses
+// slice.
+//
+// This function is safe for concurrent access.
+func (p *Peer) PushAddrV2Msg(addresses []*wire.NetAddressV2) []*wire.NetAddressV2 {
+	// Nothing to send.
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	msg := wire.NewMsgAddrV2()
+	msg.AddrList = make([]*wire.NetAddressV2, len(addresses))
+	copy(msg.AddrList, addresses)
+
+	// Randomize the addresses sent if there are more than the maximum allowed.
+	if len(msg.AddrList) > wire.MaxAddrPerV2Msg {
+		// Shuffle the address list.
+		for i := range msg.AddrList {
+			j := rand.Intn(i + 1)
+			msg.AddrList[i], msg.AddrList[j] = msg.AddrList[j], msg.AddrList[i]
+		}
+
+		// Truncate it to the maximum size.
+		msg.AddrList = msg.AddrList[:wire.MaxAddrPerV2Msg]
+	}
+
+	p.QueueMessage(msg, nil)
+	return msg.AddrList
 }
 
 // PushGetBlocksMsg sends a getblocks message for the provided block locator
@@ -1280,6 +1314,16 @@ out:
 			p.flagsMtx.Unlock()
 			if p.cfg.Listeners.OnVerAck != nil {
 				p.cfg.Listeners.OnVerAck(p, msg)
+			}
+
+		case *wire.MsgGetAddrV2:
+			if p.cfg.Listeners.OnGetAddrV2 != nil {
+				p.cfg.Listeners.OnGetAddrV2(p, msg)
+			}
+
+		case *wire.MsgAddrV2:
+			if p.cfg.Listeners.OnAddrV2 != nil {
+				p.cfg.Listeners.OnAddrV2(p, msg)
 			}
 
 		case *wire.MsgGetAddr:
@@ -1820,6 +1864,36 @@ func (p *Peer) readRemoteVersionMsg() error {
 	return nil
 }
 
+// addrmgrToWireNetAddress converts an IPv4 or IPv6 address manager network
+// address to a wire network address.  The host name must not match the
+// configured proxy host name.
+//
+// If the address cannot be converted, an IPv4 network address consisting of all
+// zeroes is returned.
+func addrmgrToWireNetAddress(addr *addrmgr.NetAddress, proxyAddr string) *wire.NetAddress {
+	if addr.Type != addrmgr.IPv4Address &&
+		addr.Type != addrmgr.IPv6Address {
+		return wire.NewNetAddressIPPort(zeroIPv4, 0, addr.Services)
+	}
+
+	// If we are behind a proxy and the connection comes from the proxy then
+	// return an unroutable address as their address. This is to prevent
+	// leaking the tor proxy address.
+	if proxyAddr != "" {
+		proxyHost, _, err := net.SplitHostPort(proxyAddr)
+		if err != nil {
+			return wire.NewNetAddressIPPort(zeroIPv4, 0, addr.Services)
+		}
+		peerAddress, _, err := net.SplitHostPort(addr.Key())
+		if err != nil || peerAddress == proxyHost {
+			return wire.NewNetAddressIPPort(zeroIPv4, 0, addr.Services)
+		}
+	}
+
+	return wire.NewNetAddressTimestamp(addr.Timestamp, addr.Services, addr.IP,
+		addr.Port)
+}
+
 // localVersionMsg creates a version message that can be used to send to the
 // remote peer.
 func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
@@ -1829,20 +1903,6 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 		_, blockNum, err = p.cfg.NewestBlock()
 		if err != nil {
 			return nil, err
-		}
-	}
-
-	theirNA := p.NA()
-
-	// If we are behind a proxy and the connection comes from the proxy then
-	// we return an unroutable address as their address. This is to prevent
-	// leaking the tor proxy address.
-	if p.cfg.Proxy != "" {
-		proxyaddress, _, err := net.SplitHostPort(p.cfg.Proxy)
-		// invalid proxy means poorly configured, be on the safe side.
-		if err != nil || p.na.IP.String() == proxyaddress {
-			theirNA = wire.NewNetAddressIPPort(net.IP([]byte{0, 0, 0, 0}), 0,
-				theirNA.Services)
 		}
 	}
 
@@ -1869,6 +1929,7 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 	sentNonces.Add(nonce)
 
 	// Version message.
+	theirNA := addrmgrToWireNetAddress(p.na, p.cfg.Proxy)
 	msg := wire.NewMsgVersion(ourNA, theirNA, nonce, int32(blockNum))
 	msg.AddUserAgent(p.cfg.UserAgentName, p.cfg.UserAgentVersion,
 		p.cfg.UserAgentComments...)
@@ -2077,7 +2138,7 @@ func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
 		}
 		p.na = na
 	} else {
-		p.na = wire.NewNetAddressIPPort(net.ParseIP(host), uint16(port), 0)
+		p.na = addrmgr.NewNetAddressIPPort(net.ParseIP(host), uint16(port), 0)
 	}
 
 	return p, nil
