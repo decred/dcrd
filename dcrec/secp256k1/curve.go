@@ -1223,23 +1223,20 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 	bytePoints := s256BytePoints()
 
-	// Point Q = ∞ (point at infinity).
-	var q JacobianPoint
+	// Start with the point at infinity.
+	result.X.Zero()
+	result.Y.Zero()
+	result.Z.Zero()
 
 	// bytePoints has all 256 byte points for each 8-bit window.  The strategy
 	// is to add up the byte points.  This is best understood by expressing k in
 	// base-256 which it already sort of is.  Each "digit" in the 8-bit window
 	// can be looked up using bytePoints and added together.
-	var pt JacobianPoint
-	for i, byteVal := range k.Bytes() {
-		p := bytePoints[i][byteVal]
-		pt.X.Set(&p[0])
-		pt.Y.Set(&p[1])
-		pt.Z.SetInt(1)
-		AddNonConst(&q, &pt, &q)
+	kb := k.Bytes()
+	for i := 0; i < len(kb); i++ {
+		pt := &bytePoints[i][kb[i]]
+		AddNonConst(result, pt, result)
 	}
-
-	result.Set(&q)
 }
 
 // isOnCurve returns whether or not the affine point (x,y) is on the curve.

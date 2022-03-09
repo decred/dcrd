@@ -17,7 +17,7 @@ import (
 
 // bytePointTable describes a table used to house pre-computed values for
 // accelerating scalar base multiplication.
-type bytePointTable [32][256][2]FieldVal
+type bytePointTable [32][256]JacobianPoint
 
 // compressedBytePointsFn is set to a real function by the code generation to
 // return the compressed pre-computed values for accelerating scalar base
@@ -66,12 +66,12 @@ var s256BytePoints = func() func() *bytePointTable {
 		for byteNum := 0; byteNum < len(bytePoints); byteNum++ {
 			// All points in this window.
 			for i := 0; i < len(bytePoints[byteNum]); i++ {
-				px := &bytePoints[byteNum][i][0]
-				py := &bytePoints[byteNum][i][1]
-				px.SetByteSlice(serialized[offset:])
+				p := &bytePoints[byteNum][i]
+				p.X.SetByteSlice(serialized[offset:])
 				offset += 32
-				py.SetByteSlice(serialized[offset:])
+				p.Y.SetByteSlice(serialized[offset:])
 				offset += 32
+				p.Z.SetInt(1)
 			}
 		}
 		data = &bytePoints
