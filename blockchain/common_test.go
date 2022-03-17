@@ -56,55 +56,39 @@ func isSupportedDbType(dbType string) bool {
 	return false
 }
 
-// createTestDatabase creates a test database with the provided database name
-// and database type for the given network.
-func createTestDatabase(dbName string, dbType string, net wire.CurrencyNet) (database.DB, func(), error) {
+// createTestDatabase creates a test database with the provided database type
+// for the given network.
+func createTestDatabase(t testing.TB, dbType string, net wire.CurrencyNet) (database.DB, error) {
 	// Handle memory database specially since it doesn't need the disk specific
 	// handling.
 	var db database.DB
-	var teardown func()
 	if dbType == "memdb" {
 		ndb, err := database.Create(dbType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error creating db: %w", err)
+			return nil, fmt.Errorf("error creating db: %w", err)
 		}
 		db = ndb
-
-		// Setup a teardown function for cleaning up.  This function is returned to
-		// the caller to be invoked when it is done testing.
-		teardown = func() {
-			db.Close()
-		}
 	} else {
 		// Create the directory for the test database.
-		dbPath, err := os.MkdirTemp("", dbName)
-		if err != nil {
-			err := fmt.Errorf("unable to create test db path: %w",
-				err)
-			return nil, nil, err
-		}
+		dbPath := t.TempDir()
 
 		// Create the test database.
 		ndb, err := database.Create(dbType, dbPath, net)
 		if err != nil {
-			os.RemoveAll(dbPath)
-			return nil, nil, fmt.Errorf("error creating db: %w", err)
+			return nil, fmt.Errorf("error creating db: %w", err)
 		}
 		db = ndb
-
-		// Setup a teardown function for cleaning up.  This function is returned to
-		// the caller to be invoked when it is done testing.
-		teardown = func() {
-			db.Close()
-			os.RemoveAll(dbPath)
-		}
 	}
+	t.Cleanup(func() {
+		db.Close()
+	})
 
-	return db, teardown, nil
+	return db, nil
 }
 
 // createTestUtxoDatabase creates a test UTXO database with the provided
-// database name.
+// database name. It also returns a teardown function the caller should invoke
+// when done testing to clean up.
 func createTestUtxoDatabase(dbName string) (*leveldb.DB, func(), error) {
 	// Construct the database filepath and remove all from that path.
 	dbPath := filepath.Join(os.TempDir(), dbName)
@@ -132,29 +116,26 @@ func createTestUtxoDatabase(dbName string) (*leveldb.DB, func(), error) {
 }
 
 // chainSetup is used to create a new db and chain instance with the genesis
-// block already inserted.  In addition to the new chain instance, it returns
-// a teardown function the caller should invoke when done testing to clean up.
-func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), error) {
+// block already inserted.
+func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 	if !isSupportedDbType(testDbType) {
-		return nil, nil, fmt.Errorf("unsupported db type %v", testDbType)
+		return nil, fmt.Errorf("unsupported db type %v", testDbType)
 	}
 
 	// Create a test block database.
-	db, teardownDb, err := createTestDatabase(dbName, testDbType, blockDataNet)
+	db, err := createTestDatabase(t, testDbType, blockDataNet)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(dbName + "_utxo")
+	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t.Name() + "_utxo")
 	if err != nil {
-		teardownDb()
-		return nil, nil, err
+		return nil, err
 	}
-	teardown := func() {
+	t.Cleanup(func() {
 		teardownUtxoDb()
-		teardownDb()
-	}
+	})
 
 	// Copy the chain params to ensure any modifications the tests do to
 	// the chain parameters do not affect the global instance.
@@ -163,7 +144,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 	// Create a SigCache instance.
 	sigCache, err := txscript.NewSigCache(1000)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create the main chain instance.
@@ -187,12 +168,11 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 		})
 
 	if err != nil {
-		teardown()
 		err := fmt.Errorf("failed to create chain instance: %w", err)
-		return nil, nil, err
+		return nil, err
 	}
 
-	return chain, teardown, nil
+	return chain, nil
 }
 
 // newFakeChain returns a chain that is usable for synthetic tests.  It is
@@ -630,18 +610,17 @@ type chaingenHarness struct {
 
 // newChaingenHarnessWithGen creates and returns a new instance of a chaingen
 // harness that encapsulates the provided test instance and existing chaingen
-// generator along with a teardown function the caller should invoke when done
-// testing to clean up.
+// generator.
 //
 // This differs from newChaingenHarness in that it allows the caller to provide
 // a chaingen generator to use instead of creating a new one.
 //
 // See the documentation for the chaingenHarness type for more details.
-func newChaingenHarnessWithGen(t *testing.T, dbName string, g *chaingen.Generator) (*chaingenHarness, func()) {
+func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) *chaingenHarness {
 	t.Helper()
 
 	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup(dbName, g.Params())
+	chain, err := chainSetup(t, g.Params())
 	if err != nil {
 		t.Fatalf("Failed to setup chain instance: %v", err)
 	}
@@ -652,18 +631,17 @@ func newChaingenHarnessWithGen(t *testing.T, dbName string, g *chaingen.Generato
 		chain:              chain,
 		deploymentVersions: make(map[string]uint32),
 	}
-	return &harness, teardownFunc
+	return &harness
 }
 
 // newChaingenHarness creates and returns a new instance of a chaingen harness
-// that encapsulates the provided test instance along with a teardown function
-// the caller should invoke when done testing to clean up.
+// that encapsulates the provided test instance.
 //
 // This differs from newChaingenHarnessWithGen in that it creates a new chaingen
 // generator to use instead of allowing the caller to provide one.
 //
 // See the documentation for the chaingenHarness type for more details.
-func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*chaingenHarness, func()) {
+func newChaingenHarness(t *testing.T, params *chaincfg.Params) *chaingenHarness {
 	t.Helper()
 
 	// Create a test generator instance initialized with the genesis block as
@@ -673,7 +651,7 @@ func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*
 		t.Fatalf("Failed to create generator: %v", err)
 	}
 
-	return newChaingenHarnessWithGen(t, dbName, &g)
+	return newChaingenHarnessWithGen(t, &g)
 }
 
 // AcceptHeader processes the block header associated with the given name in the

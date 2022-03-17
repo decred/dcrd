@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -388,12 +387,7 @@ func TestTicketHashesDeserializingErrors(t *testing.T) {
 // TestLiveDatabase tests various functions that require a live database.
 func TestLiveDatabase(t *testing.T) {
 	// Create a new database to store the accepted stake node data into.
-	dbName := "ffldb_ticketdb_test"
-	dbPath, err := os.MkdirTemp("", dbName)
-	if err != nil {
-		t.Fatalf("unable to create test db path: %v", err)
-	}
-	defer os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	net := chaincfg.RegNetParams().Net
 	testDb, err := database.Create(testDbType, dbPath, net)
 	if err != nil {

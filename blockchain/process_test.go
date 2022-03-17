@@ -29,8 +29,7 @@ var (
 func TestProcessOrder(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "processordertest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
 	coinbaseMaturity := params.CoinbaseMaturity
@@ -219,8 +218,7 @@ func genSharedProcessTestBlocks(t *testing.T) (*chaingen.Generator, error) {
 	// Create a new database and chain instance needed to create the generator
 	// populated with the desired blocks.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "sharedprocesstestblocks")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
 	coinbaseMaturity := params.CoinbaseMaturity
@@ -532,8 +530,7 @@ func TestProcessLogic(t *testing.T) {
 	}
 
 	// Create a new database and chain instance to run tests against.
-	g, teardownFunc := newChaingenHarnessWithGen(t, "processtest", sharedGen)
-	defer teardownFunc()
+	g := newChaingenHarnessWithGen(t, sharedGen)
 
 	// Shorter versions of useful params for convenience.
 	params := g.Params()
@@ -1188,8 +1185,7 @@ func TestInvalidateReconsider(t *testing.T) {
 	}
 
 	// Create a new database and chain instance to run tests against.
-	g, teardownFunc := newChaingenHarnessWithGen(t, "invalidatetest", sharedGen)
-	defer teardownFunc()
+	g := newChaingenHarnessWithGen(t, sharedGen)
 
 	// Shorter versions of useful params for convenience.
 	params := g.Params()
@@ -1891,8 +1887,7 @@ func TestAssumeValid(t *testing.T) {
 	params.TargetTimePerBlock = time.Hour * 24
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "testassumevalid")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Calculate the expected number of blocks in 2 weeks.
 	const timeInTwoWeeks = time.Hour * 24 * 14

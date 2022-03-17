@@ -15,8 +15,7 @@ import (
 // TestIndexSubscriberAsync ensures the index subscriber
 // behaves as expected sending notifications to its subscribers.
 func TestIndexSubscriberAsync(t *testing.T) {
-	db, path := setupDB(t, "test_indexsubber")
-	defer teardownDB(db, path)
+	db := setupDB(t)
 
 	chain, err := newTestChain()
 	if err != nil {

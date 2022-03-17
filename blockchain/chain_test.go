@@ -79,12 +79,11 @@ func TestBlockchainFunctions(t *testing.T) {
 	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("validateunittests", params)
+	chain, err := chainSetup(t, params)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
 	}
-	defer teardownFunc()
 
 	// Load up the rest of the blocks up to HEAD~1.
 	filename := filepath.Join("testdata", "blocks0to168.bz2")
@@ -155,8 +154,7 @@ func TestBlockchainFunctions(t *testing.T) {
 func TestForceHeadReorg(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "forceheadreorgtest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Define some additional convenience helper functions to process the
 	// current tip block associated with the generator.
