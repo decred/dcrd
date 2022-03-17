@@ -277,7 +277,6 @@ func TestCheckBlockSanity(t *testing.T) {
 func TestCheckBlockHeaderContext(t *testing.T) {
 	// Create a test block database.
 	const testDbType = "ffldb"
-	const dbName = "examplecheckheadercontext"
 	params := chaincfg.RegNetParams()
 	db, err := createTestDatabase(t, testDbType, params.Net)
 	if err != nil {
@@ -285,7 +284,7 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 	}
 
 	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(dbName + "_utxo")
+	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
 	if err != nil {
 		t.Fatalf("Failed to create UTXO database: %v\n", err)
 	}

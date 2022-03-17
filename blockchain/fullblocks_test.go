@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/v4"
@@ -80,10 +79,9 @@ func createTestDatabase(t testing.TB, dbType string, net wire.CurrencyNet) (data
 
 // createTestUtxoDatabase creates a test UTXO database with the provided
 // database name.
-func createTestUtxoDatabase(dbName string) (*leveldb.DB, func(), error) {
-	// Construct the database filepath and remove all from that path.
-	dbPath := filepath.Join(os.TempDir(), dbName)
-	_ = os.RemoveAll(dbPath)
+func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
+	// Construct the database filepath
+	dbPath := t.TempDir()
 
 	// Open the database (will create it if needed).
 	opts := opt.Options{
@@ -120,7 +118,7 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*blockchain.BlockChain, 
 	}
 
 	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t.Name() + "_utxo")
+	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
 	if err != nil {
 		return nil, err
 	}
