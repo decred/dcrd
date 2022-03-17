@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,8 +12,8 @@ import (
 
 	"github.com/decred/dcrd/addrmgr/v2"
 	"github.com/decred/dcrd/blockchain/stake/v4"
-	"github.com/decred/dcrd/blockchain/v4"
-	"github.com/decred/dcrd/blockchain/v4/indexers"
+	"github.com/decred/dcrd/blockchain/v5"
+	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"

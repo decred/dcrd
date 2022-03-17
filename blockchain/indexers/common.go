@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,8 +14,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/v4/internal/progresslog"
-	"github.com/decred/dcrd/blockchain/v4/internal/spendpruner"
+	"github.com/decred/dcrd/blockchain/v5/internal/progresslog"
+	"github.com/decred/dcrd/blockchain/v5/internal/spendpruner"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
