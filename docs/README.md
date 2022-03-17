@@ -164,6 +164,7 @@ https://decred.org/community/
 
 * [JSON-RPC Reference](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki)
 * [RPC Examples](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki#8-example-code)
+* [RPC API Versioning](https://github.com/decred/dcrd/tree/master/docs/rpc_api_versioning.md)
 
 <a name="GoModules" />
 
