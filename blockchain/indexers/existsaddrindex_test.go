@@ -17,8 +17,7 @@ import (
 // TestExistsAddrIndexAsync ensures the exist address index
 // behaves as expected when receiving updates asynchronously.
 func TestExistsAddrIndexAsync(t *testing.T) {
-	db, path := setupDB(t, "test_existsaddrindex")
-	defer teardownDB(db, path)
+	db := setupDB(t)
 
 	chain, err := newTestChain()
 	if err != nil {

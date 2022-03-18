@@ -284,8 +284,7 @@ nextTest:
 // TestAddrIndexAsync ensures the address index behaves
 // receiving updates asynchronously.
 func TestAddrIndexAsync(t *testing.T) {
-	db, path := setupDB(t, "test_addrindex")
-	defer teardownDB(db, path)
+	db := setupDB(t)
 
 	// Create the test chain.
 	chain, err := newTestChain()

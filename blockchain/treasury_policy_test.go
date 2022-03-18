@@ -72,8 +72,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		params.TreasuryExpenditureBootstrap/2)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Helper to verify the tip balance.
 	assertTipTreasuryBalance := func(wantBalance int64) {
@@ -615,8 +614,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	}
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasuryexppolicytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Helper to verify the tip balance.
 	assertTipTreasuryBalance := func(wantBalance int64) {

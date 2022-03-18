@@ -901,11 +901,10 @@ func TestDbPutDeploymentVer(t *testing.T) {
 	t.Parallel()
 
 	// Create a test database.
-	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", wire.RegNet)
+	db, err := createTestDatabase(t, "ffldb", wire.RegNet)
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	defer teardownDb()
 
 	tests := []struct {
 		name    string
@@ -978,11 +977,10 @@ func TestNewDeploymentsStartTime(t *testing.T) {
 	}
 
 	// Create a test database.
-	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", params.Net)
+	db, err := createTestDatabase(t, "ffldb", params.Net)
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	defer teardownDb()
 
 	tests := []struct {
 		name              string
@@ -1063,11 +1061,10 @@ func TestUpdateDeploymentVersion(t *testing.T) {
 	}
 
 	// Create a test database.
-	db, teardownDb, err := createTestDatabase(t.Name(), "ffldb", params.Net)
+	db, err := createTestDatabase(t, "ffldb", params.Net)
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	defer teardownDb()
 
 	tests := []struct {
 		name              string

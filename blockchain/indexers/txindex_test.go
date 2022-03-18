@@ -7,7 +7,6 @@ package indexers
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -323,32 +322,24 @@ func addBlock(t *testing.T, chain *testChain, gen *chaingen.Generator, name stri
 }
 
 // setupDB initializes the test database.
-func setupDB(t *testing.T, dbName string) (database.DB, string) {
-	dbPath, err := os.MkdirTemp("", dbName)
-	if err != nil {
-		t.Fatalf("unable to create test db path: %v", err)
-	}
+func setupDB(t *testing.T) database.DB {
+	dbPath := t.TempDir()
 
 	db, err := database.Create("ffldb", dbPath, wire.SimNet)
 	if err != nil {
-		os.RemoveAll(dbPath)
 		t.Fatalf("error creating db: %v", err)
 	}
+	t.Cleanup(func() {
+		db.Close()
+	})
 
-	return db, dbPath
-}
-
-// teardownDB terminates and purges the test database.
-func teardownDB(db database.DB, dbPath string) {
-	db.Close()
-	os.RemoveAll(dbPath)
+	return db
 }
 
 // TestTxIndexAsync ensures the tx index behaves as expected receiving
 // async notifications.
 func TestTxIndexAsync(t *testing.T) {
-	db, path := setupDB(t, "test_txindex")
-	defer teardownDB(db, path)
+	db := setupDB(t)
 
 	chain, err := newTestChain()
 	if err != nil {

@@ -684,12 +684,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	}
 
 	// Create a new database to store the accepted stake node data into.
-	dbName := "ffldb_staketest"
-	dbPath, err := os.MkdirTemp("", dbName)
-	if err != nil {
-		t.Fatalf("unable to create test db path: %v", err)
-	}
-	defer os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	testDb, err := database.Create(testDbType, dbPath, params.Net)
 	if err != nil {
 		t.Fatalf("error creating db: %v", err)

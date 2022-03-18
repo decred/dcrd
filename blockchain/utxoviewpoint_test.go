@@ -26,8 +26,7 @@ func TestFetchUtxoView(t *testing.T) {
 
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "fetchutxoviewtest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// ---------------------------------------------------------------------
 	// Create some convenience functions to improve test readability.

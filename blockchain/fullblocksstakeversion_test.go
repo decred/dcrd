@@ -17,8 +17,7 @@ import (
 func TestStakeVersion(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "stakeversiontest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
 	ticketsPerBlock := params.TicketsPerBlock

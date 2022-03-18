@@ -58,12 +58,11 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("spendjournalunittest", params)
+	chain, err := chainSetup(t, params)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
 	}
-	defer teardownFunc()
 
 	// Load up the rest of the blocks up to HEAD.
 	filename := filepath.Join("testdata", "reorgto179.bz2")
@@ -278,16 +277,14 @@ func TestCheckBlockSanity(t *testing.T) {
 func TestCheckBlockHeaderContext(t *testing.T) {
 	// Create a test block database.
 	const testDbType = "ffldb"
-	const dbName = "examplecheckheadercontext"
 	params := chaincfg.RegNetParams()
-	db, teardownDb, err := createTestDatabase(dbName, testDbType, params.Net)
+	db, err := createTestDatabase(t, testDbType, params.Net)
 	if err != nil {
 		t.Fatalf("Failed to create database: %v\n", err)
 	}
-	defer teardownDb()
 
 	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(dbName + "_utxo")
+	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
 	if err != nil {
 		t.Fatalf("Failed to create UTXO database: %v\n", err)
 	}
@@ -385,8 +382,7 @@ var badBlock = wire.MsgBlock{
 func TestCheckConnectBlockTemplate(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
-	g, teardownFunc := newChaingenHarness(t, params, "connectblktemplatetest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Define some additional convenience helper functions to process the
 	// current tip block associated with the generator.
@@ -1019,8 +1015,7 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	coinbaseMaturity := params.CoinbaseMaturity
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "explicitverupgradestest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// The following funcs are convenience funcs for asserting the tests are
 	// actually testing what they intend to.
@@ -1789,8 +1784,7 @@ func TestAutoRevocations(t *testing.T) {
 	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "testautorevocations")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceAutoRevocationsVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, vote, and revocation
@@ -1981,8 +1975,7 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "modifiedsubsidysplittest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceCoinbaseSubsidy is a munge function which modifies the provided
 	// block by replacing the coinbase subsidy with the proportion required for

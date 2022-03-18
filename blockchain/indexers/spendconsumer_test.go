@@ -4,7 +4,6 @@
 package indexers
 
 import (
-	"os"
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
@@ -16,20 +15,13 @@ import (
 
 // TestSpendConsumer ensures the spend consumer behaves as expected.
 func TestSpendConsumer(t *testing.T) {
-	dbPath, err := os.MkdirTemp("", "test_spendconsumer")
-	if err != nil {
-		t.Fatalf("unable to create test db path: %v", err)
-	}
+	dbPath := t.TempDir()
 
 	db, err := database.Create("ffldb", dbPath, wire.SimNet)
 	if err != nil {
-		os.RemoveAll(dbPath)
 		t.Fatalf("error creating db: %v", err)
 	}
-	defer func() {
-		db.Close()
-		os.RemoveAll(dbPath)
-	}()
+	defer db.Close()
 
 	chain, err := newTestChain()
 	if err != nil {

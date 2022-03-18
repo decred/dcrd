@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -211,12 +210,7 @@ func TestTreasuryStateSerialization(t *testing.T) {
 // TestTreasuryDatabase tests treasury database functionality.
 func TestTreasuryDatabase(t *testing.T) {
 	// Create a new database to store treasury state.
-	dbName := "ffldb_treasurydb_test"
-	dbPath, err := os.MkdirTemp("", dbName)
-	if err != nil {
-		t.Fatalf("unable to create treasury db path: %v", err)
-	}
-	defer os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	net := chaincfg.RegNetParams().Net
 	testDb, err := database.Create(testDbType, dbPath, net)
 	if err != nil {
@@ -293,12 +287,7 @@ func TestTreasuryDatabase(t *testing.T) {
 // serialization and deserialization.
 func TestTSpendDatabase(t *testing.T) {
 	// Create a new database to store treasury state.
-	dbName := "ffldb_tspenddb_test"
-	dbPath, err := os.MkdirTemp("", dbName)
-	if err != nil {
-		t.Fatalf("unable to create tspend db path: %v", err)
-	}
-	defer os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	net := chaincfg.RegNetParams().Net
 	testDb, err := database.Create(testDbType, dbPath, net)
 	if err != nil {
@@ -519,8 +508,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -935,8 +923,7 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -1074,8 +1061,7 @@ func TestExpendituresReorg(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Helper to check the treasury balance at tip.
 	assertTipTreasuryBalance := func(wantBalance int64) {
@@ -1325,8 +1311,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -1623,8 +1608,7 @@ func TestTSpendDupVote(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -1770,8 +1754,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -1884,8 +1867,7 @@ func TestTSpendWindow(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -2007,8 +1989,7 @@ func TestTSpendSignature(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -2225,8 +2206,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -2373,8 +2353,7 @@ func TestTSpendExists(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -2638,8 +2617,7 @@ func TestTreasuryBalance(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -2937,8 +2915,7 @@ func TestTAddCorners(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with the
@@ -3131,8 +3108,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the provided
 	// block by replacing the block, stake, and vote versions with the treasury
@@ -3330,8 +3306,7 @@ func TestTSpendCorners(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the provided
 	// block by replacing the block, stake, and vote versions with the treasury
@@ -3446,8 +3421,7 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 	t.Logf("svh: %v tvi %v mul %v", svh, tvi, mul)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// With an SVH of 144 and a TVI of 11 and a MUL of 1 create a tspend
 	// that expires on block 156 (voting interval [143,154]). Start voting
@@ -3652,8 +3626,7 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the provided
 	// block by replacing the block, stake, and vote versions with the treasury
@@ -4224,8 +4197,7 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with

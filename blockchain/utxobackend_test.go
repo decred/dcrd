@@ -20,7 +20,7 @@ import (
 func createTestUtxoBackend(t *testing.T) UtxoBackend {
 	t.Helper()
 
-	db, teardown, err := createTestUtxoDatabase(t.Name())
+	db, teardown, err := createTestUtxoDatabase(t)
 	if err != nil {
 		t.Fatalf("error creating test database: %v", err)
 	}

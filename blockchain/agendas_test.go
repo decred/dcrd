@@ -181,8 +181,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 	params = cloneParams(params)
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "fixseqlockstest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// ---------------------------------------------------------------------
 	// Generate and accept enough blocks to reach stake validation height.

@@ -250,8 +250,7 @@ func TestThresholdState(t *testing.T) {
 		})
 
 	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "thresholdstatetest")
-	defer teardownFunc()
+	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
 	ticketsPerBlock := int64(params.TicketsPerBlock)
