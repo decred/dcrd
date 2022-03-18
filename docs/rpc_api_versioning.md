@@ -1,23 +1,22 @@
 ### Table of Contents
-1. [Per-RPC Versioning](#PerRPCVersioning)<br />
+1. [Per-Method Versioning](#PerMethodVersioning)<br />
 2. [Versioning Scheme](#VersioningScheme)<br />
-3. [Versioned Endpoint Accessibilty Scheme](#AccessibiltyScheme)<br />
-4. [Versioned Enpoint Example](#Example)<br />
-5. [Versioned Enpoint Deprecation And Removal Scheme](#DeprecationAndRemovalScheme)<br />
+3. [Versioned Endpoint Accessibility Scheme](#AccessibilityScheme)<br />
+4. [Versioned Endpoint Example](#Example)<br />
+5. [Versioned Endpoint Deprecation And Removal Scheme](#DeprecationAndRemovalScheme)<br />
 6. [Versioned Endpoint JSON-RPC Unit Testing](#UnitTesting)<br />
-7. [Versioned JSON-RPC Documentation](#Documentation)<br />
+7. [Versioned Endpoint Documentation](#Documentation)<br />
 
 
-<a name="PerRPCVersioning" />
+<a name="PerMethodVersioning" />
 
-### 1. Per-RPC Versioning
+### 1. Per-Method Versioning
 
-To streamline API access in the process of transitioning between release 
-versions, decred's RPC endpoints will be versioned individually for each 
-JSON-RPC endpoint. 
-Per-RPC versioning provides the flexibility needed to isolate the development 
-of JSON-RPC endpoints. This allows endpoints to evolve individually and 
-exclusively of each other.
+To prevent API compatibility issues when transitioning between release 
+versions, dcrd's JSON-RPC API methods will each have an individually versioned 
+endpoint. Per-method endpoint versioning provides the flexibility needed to 
+isolate the development of each method, and allows each method to evolve 
+individually and exclusively from each other.
 
 <a name="VersioningScheme" />
 
@@ -34,21 +33,23 @@ handler name.
 `handleExistsAddressV2`. 
 
  - JSON-RPC method names will have the lowercase version appended to the 
- method name. For example the `V2` version of method name `existsaddress` 
- becomes `existsaddressv2`. 
+ method name. For example the `V2` version of method `existsaddress` becomes 
+ `existsaddressv2`. 
 
-<a name="AccessibiltyScheme" />
+<a name="AccessibilityScheme" />
 
-### 3. Versioned Endpoint Accessibilty Scheme
+### 3. Versioned Endpoint Accessibility Scheme
 
-A versioned JSON-RPC endpoint infers there is a current version and an older 
-version of the endpoint. To ensure a smooth transition between JSON-RPC 
-versions for consumers, both versions should be accessible. The current and 
-older versions should be explicitly accessible via their respective method 
-names while the most recent version becomes the version defaulted to. 
+A versioned method endpoint infers there is a current version and an older 
+version of the endpoint. To ensure a smooth transition between method versions 
+for consumers, both versions should be accessible. The current and older 
+versions should be explicitly accessible via their respective method names 
+while the most recent version becomes the default version.
+
 Using `existsaddress` as an example: 
+
  - The `V2` version of the endpoint, which is the current version, should be 
- explictly accessible via `existsaddressv2`.
+ explicitly accessible via `existsaddressv2`.
  
  - The `V1` version of the endpoint, which is now the older version, should be 
  explicitly accessible via `existsaddressv1`.
@@ -60,7 +61,7 @@ Using `existsaddress` as an example:
 
 <a name="Example" />
 
-### 4. Versioned Enpoint Example
+### 4. Versioned Endpoint Example
 
 Taking into consideration the accessibility scheme outlined above, implementing 
 the `V2` version of the `existaddress` JSON-RPC endpoint will comprise of the 
@@ -138,21 +139,22 @@ var rpcResultTypes = map[types.Method][]interface{}{
 
 <a name="DeprecationAndRemovalScheme" />
 
-### 5. Versioned Enpoint Deprecation And Removal Scheme
+### 5. Versioned Endpoint Deprecation And Removal Scheme
 
-Only two versioned endpoints will be maintained per JSON-RPC endpoint. The 
-introduction of a versioned endpoint immediately marks the oldest maintained 
-endpoint for deprecation. This is expected to be done by the contributor in the 
-pull request introducing the new versioned endpoint. Using `existsaddress` as 
-an example, with the introduction of the versioned endpoint `existsaddressv2` 
-`existsaddressv1` will be marked as deprecated and eventually removed when 
-the next versioned endpoint `existsaddressv3` is introduced.
+Each JSON-RPC method will only have two maintained endpoint versions. The 
+introduction of a new endpoint version should immediately indicate that the 
+oldest maintained endpoint will be deprecated. This is expected to be done 
+by the contributor in the pull request introducing the new versioned endpoint. 
+Using `existsaddress` as an example, with the introduction of the versioned 
+endpoint `existsaddressv2` `existsaddressv1` will be marked as deprecated and 
+eventually removed when the next versioned endpoint `existsaddressv3` is 
+introduced.
 
 <a name="UnitTesting" />
 
 ### 6. Versioned Endpoint JSON-RPC Unit Testing
 
-All versioned JSON-RPC handlers are required to have their own set of unit tests.
+All versioned method handlers are required to have their own set of unit tests.
 Contributors versioning these endpoints will be required to include unit tests 
 in the pull request introducing the versioned JSON-RPC endpoint. Usually the 
 existing unit tests for the endpoint being versioned will serve as the base 
@@ -198,9 +200,9 @@ func TestHandleExistsAddressV2(t *testing.T) {
 
 <a name="Documentation" />
 
-### 7. Versioned JSON-RPC Documentation
+### 7. Versioned Endpoint Documentation
 
-Documentation for the newly versioned JSON-RPC endpoint will be expected in the 
+Documentation for the newly versioned endpoint will be expected in the 
 pull request introducing the versioned endpoint. Documentation for versioned 
 endpoints are expected to be grouped, contributors should add the new 
 documentation entry after the old version's documentation. The old version's 
