@@ -45,3 +45,20 @@ The project does not officially provide container images.  However, all of the
 necessary files to build your own lightweight non-root container image based on
 `scratch` from the latest source code are available in the docker directory.
 See [docker/README.md](./docker/README.md) for more details.
+
+### Go Multi-Module Workspace Setup Script
+
+The [dcr_setup_go_workspace.sh](./dcr_setup_go_workspace.sh) script initializes
+a Go multi-module workspace (via `go work init`) and adds all of the modules
+provided by the dcrd repository to it (via `go work use`) on an as needed basis.
+Note that workspaces require Go 1.18+.
+
+This is useful when developing across multiple modules in the repository and
+allows development environments that make use of the Go language server (aka
+`gopls`), such as VSCode, to provide full support without also needing to
+temporarily create replacements in the various `go.mod` files or individually
+add every module.
+
+Do note, however, that workspaces are local, so final submissions to the
+repository will still require the appropriate changes to the relevant `go.mod`
+files to ensure resolution outside of the workspace.
