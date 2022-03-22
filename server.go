@@ -2473,22 +2473,6 @@ func headerApprovesParent(header *wire.BlockHeader) bool {
 	return dcrutil.IsFlagSet16(header.VoteBits, dcrutil.BlockValid)
 }
 
-// isDoubleSpendOrDuplicateError returns whether or not the passed error, which
-// is expected to have come from mempool, indicates a transaction was rejected
-// either due to containing a double spend or already existing in the pool.
-func isDoubleSpendOrDuplicateError(err error) bool {
-	switch {
-	case errors.Is(err, mempool.ErrDuplicate):
-		return true
-	case errors.Is(err, mempool.ErrAlreadyExists):
-		return true
-	case errors.Is(err, blockchain.ErrMissingTxOut):
-		return true
-	}
-
-	return false
-}
-
 // proactivelyEvictSigCacheEntries fetches the block that is
 // txscript.ProactiveEvictionDepth levels deep from bestHeight and passes it to
 // SigCache to evict the entries associated with the transactions in that block.
@@ -2724,14 +2708,9 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// case, anything that happens to be in the pool which depends on the
 		// transaction is still valid.
 		if !headerApprovesParent(&block.MsgBlock().Header) {
-			for _, tx := range parentBlock.Transactions()[1:] {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
-				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
-				}
-			}
+			txns := parentBlock.Transactions()[1:]
+			txMemPool.MaybeAcceptTransactions(txns, true)
 		}
-
 		if r := s.rpcServer; r != nil {
 			// Filter and update the rebroadcast inventory.
 			s.PruneRebroadcastInventory()
@@ -2777,6 +2756,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 	// A block has been disconnected from the main block chain.
 	case blockchain.NTBlockDisconnected:
+		// NOTE: The chain lock is released for this notification.
 		ntfn, ok := notification.Data.(*blockchain.BlockDisconnectedNtfnsData)
 		if !ok {
 			syncLog.Warnf("Block disconnected notification is not " +
@@ -2829,12 +2809,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// those outputs, and, in that case, anything that happens to be in the
 		// pool which depends on the transaction is still valid.
 		handleDisconnectedBlockTxns := func(txns []*dcrutil.Tx) {
-			for _, tx := range txns {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
-				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
-				}
-			}
+			txMemPool.MaybeAcceptTransactions(txns, true)
 		}
 		handleDisconnectedBlockTxns(block.Transactions()[1:])
 

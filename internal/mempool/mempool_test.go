@@ -1059,8 +1059,8 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	harness.chain.utxos.LookupEntry(outpoint).Spend()
 	_, err = harness.txPool.MaybeAcceptTransaction(tx, false, false)
 	if err != nil {
-		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
-			err)
+		t.Fatalf("MaybeAcceptTransaction: failed to accept valid transaction "+
+			"%v", err)
 	}
 
 	testPoolMembership(tc, tx, false, true)
@@ -3249,4 +3249,75 @@ func TestSubsidySplitSemantics(t *testing.T) {
 		t.Fatalf("failed to accept valid vote %v", err)
 	}
 	testPoolMembership(tc, postDCP0010Vote, false, true)
+}
+
+// TestMaybeAcceptTransactions attempts to add a collection of transactions
+// provided in block order and accepted into the mempool in reverse block order.
+// It uses the mining view side effects to verify that transactions were added
+// in the correct order.
+func TestMaybeAcceptTransactions(t *testing.T) {
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create mining harness: %v", err)
+	}
+
+	applyTxFee := func(fee int64) func(*wire.MsgTx) {
+		return func(tx *wire.MsgTx) {
+			tx.TxOut[0].Value -= fee
+		}
+	}
+
+	txA, _ := harness.CreateSignedTx([]spendableOutput{
+		spendableOuts[0],
+	}, 1, applyTxFee(1000))
+
+	txB, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txA, 0, wire.TxTreeRegular),
+	}, 1, applyTxFee(1000))
+
+	txC, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txB, 0, wire.TxTreeRegular),
+	}, 1, applyTxFee(1000))
+
+	// Add transactions to mempool in block order.
+	txPool := harness.txPool
+	for _, tx := range []*dcrutil.Tx{txA, txB, txC} {
+		_, err := txPool.ProcessTransaction(tx, false, true, true, 0)
+		if err != nil {
+			t.Fatalf("failed to accept valid transaction: %v", err)
+			return
+		}
+	}
+
+	testExpectedAncestorFee := func(tx *dcrutil.Tx, expectedFee int64) {
+		txHash := tx.Hash()
+		miningView := txPool.MiningView()
+		ancestorStats, exists := miningView.AncestorStats(txHash)
+		if !exists {
+			t.Fatalf("expected ancestor stats for transaction %v", txHash)
+			return
+		}
+		if ancestorStats.Fees != expectedFee {
+			t.Fatalf("unexpected ancestor fees for transaction %v -- "+
+				"got %v, want %v", txHash, ancestorStats.Fees, expectedFee)
+			return
+		}
+	}
+
+	testExpectedAncestorFee(txC, 2000)
+
+	// Remove leading transactions from mempool.
+	txPool.RemoveTransaction(txA, false)
+	txPool.RemoveTransaction(txB, false)
+
+	testExpectedAncestorFee(txC, 0)
+
+	// Accept transactions provided in block order.
+	err = txPool.MaybeAcceptTransactions([]*dcrutil.Tx{txA, txB}, true)
+	if err != nil {
+		t.Fatalf("failed to accept valid transaction: %v", err)
+		return
+	}
+
+	testExpectedAncestorFee(txC, 2000)
 }
