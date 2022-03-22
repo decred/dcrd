@@ -277,6 +277,8 @@ type TxPool struct {
 	staged          map[chainhash.Hash]*TxDesc
 	stagedOutpoints map[wire.OutPoint]*dcrutil.Tx
 
+	transient map[chainhash.Hash]*dcrutil.Tx
+
 	// Votes on blocks.
 	votesMtx sync.RWMutex
 	votes    map[chainhash.Hash][]mining.VoteDesc
@@ -1094,6 +1096,13 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*bloc
 			utxoView.AddTxOut(stagedTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
 				wire.NullBlockIndex, isTreasuryEnabled)
 		}
+
+		if transientTx, exists := mp.transient[prevOut.Hash]; exists {
+			// AddTxOut ignores out of range index values, so it is safe to call
+			// without bounds checking here.
+			utxoView.AddTxOut(transientTx, prevOut.Index, mining.UnminedHeight,
+				wire.NullBlockIndex, isTreasuryEnabled)
+		}
 	}
 
 	return utxoView, nil
@@ -1885,6 +1894,72 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 	return hashes, err
 }
 
+// isDoubleSpendOrDuplicateError returns whether or not the passed error, which
+// is expected to have come from mempool, indicates a transaction was rejected
+// either due to containing a double spend or already existing in the pool.
+func isDoubleSpendOrDuplicateError(err error) bool {
+	switch {
+	case errors.Is(err, ErrDuplicate):
+		return true
+	case errors.Is(err, ErrAlreadyExists):
+		return true
+	case errors.Is(err, blockchain.ErrMissingTxOut):
+		return true
+	}
+
+	return false
+}
+
+// MaybeAcceptTransactions handles the insertion of a set of not new
+// transactions that may have dependencies within the set.  Transactions MUST be
+// provided in block order, meaning that any transaction that depends on another
+// within the provided set must come after its dependency in the array.  Using
+// this function is preferable when inserting a batch of not new transactions
+// into the mempool to ensure that transactions that have existing mempool
+// inputs are correctly added in reverse order.  Preference should be given to
+// use other mempool functions when adding new transactions to the mempool.
+//
+// This function is safe for concurrent access.
+func (mp *TxPool) MaybeAcceptTransactions(txns []*dcrutil.Tx, rateLimit bool) error {
+	// Create agenda flags for checking transactions based on which ones are
+	// active or should otherwise always be enforced.
+	checkTxFlags, err := mp.determineCheckTxFlags()
+	if err != nil {
+		return err
+	}
+
+	var errors []error
+	mp.mtx.Lock()
+	transientPool := mp.transient
+	for i := 0; i < len(txns)-1; i++ {
+		tx := txns[i]
+		transientPool[*tx.Hash()] = tx
+	}
+	for i := len(txns) - 1; i >= 0; i-- {
+		tx := txns[i]
+		delete(transientPool, *tx.Hash())
+		_, err := mp.maybeAcceptTransaction(tx, false, rateLimit, true, true,
+			checkTxFlags)
+		if err != nil && !isDoubleSpendOrDuplicateError(err) {
+			mp.removeTransaction(tx, true)
+			continue
+		}
+		if err != nil {
+			errors = append(errors, err)
+		}
+	}
+	mp.mtx.Unlock()
+
+	var finalErr error
+	switch {
+	case len(errors) == 1:
+		finalErr = errors[0]
+	case len(errors) > 1:
+		finalErr = blockchain.MultiError(errors)
+	}
+	return finalErr
+}
+
 // processOrphans is the internal function which implements the public
 // ProcessOrphans.  See the comment for ProcessOrphans for more details.
 //
@@ -2329,6 +2404,7 @@ func New(cfg *Config) *TxPool {
 		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
 		staged:          make(map[chainhash.Hash]*TxDesc),
 		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
+		transient:       make(map[chainhash.Hash]*dcrutil.Tx),
 	}
 
 	// for a given transaction, scan the mempool to find which transactions
