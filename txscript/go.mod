@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/txscript/v4
 
-go 1.16
+go 1.17
 
 require (
 	github.com/dchest/siphash v1.2.2
@@ -15,3 +15,5 @@ require (
 	github.com/decred/dcrd/wire v1.5.0
 	github.com/decred/slog v1.2.0
 )
+
+require github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
