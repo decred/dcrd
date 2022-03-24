@@ -128,7 +128,9 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	bk5a := addBlock(t, chain, &g, "bk5a")
 
 	// Resubscribe the index.
+	subber.mtx.Lock()
 	err = idx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +225,9 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	}
 
 	// Resubscribe the index.
+	subber.mtx.Lock()
 	err = idx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/v5/internal/progresslog"
 	"github.com/decred/dcrd/database/v3"
@@ -34,6 +35,10 @@ var (
 
 	// noPrereqs indicates no index prerequisites.
 	noPrereqs = "none"
+
+	// syncUpdateInterval is the time between periodically checking indexes
+	// and notifying their synchronization subscribers if synced.
+	syncUpdateInterval = time.Millisecond * 500
 )
 
 // IndexNtfn represents an index notification detailing a block connection
@@ -80,6 +85,8 @@ func newIndexSubscription(subber *IndexSubscriber, indexer Indexer, prereq strin
 
 // stop prevents any future index updates from being delivered and
 // unsubscribes the associated subscription.
+//
+// This must be called with the index subscriber mutex held for writes.
 func (s *IndexSubscription) stop() error {
 
 	// If the subscription has a prerequisite, find it and remove the
@@ -109,9 +116,7 @@ func (s *IndexSubscription) stop() error {
 
 	// If the subscription is independent, remove it from the
 	// index subscriber's subscriptions.
-	s.mtx.Lock()
 	delete(s.subscriber.subscriptions, s.id)
-	s.mtx.Unlock()
 
 	return nil
 }
@@ -125,6 +130,7 @@ type IndexSubscriber struct {
 	mtx           sync.Mutex
 	ctx           context.Context
 	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 	quit          chan struct{}
 }
 
@@ -348,14 +354,60 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 	return nil
 }
 
-// Run relays index notifications to subscribed indexes.
+// handleSyncSubscribers updates index sync subscribers when a subscribed
+// indexer is fully synced.
 //
 // This should be run as a goroutine.
-func (s *IndexSubscriber) Run(ctx context.Context) {
+func (s *IndexSubscriber) handleSyncSubscribers(ctx context.Context) {
+	ticker := time.NewTicker(syncUpdateInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
+		case <-ctx.Done():
+			s.wg.Done()
+			return
+
+		case <-ticker.C:
+			s.mtx.Lock()
+			for _, sub := range s.subscriptions {
+				err := maybeNotifySubscribers(ctx, sub.idx)
+				if err != nil {
+					log.Errorf("unable to notify sync subscribers: %v", err)
+					s.cancel()
+				}
+			}
+			s.mtx.Unlock()
+		}
+	}
+}
+
+// handleIndexUpdates relays updates to subscribed indexers.
+func (s *IndexSubscriber) handleIndexUpdates(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(s.quit)
+
+			// Stop all updates to subscribed indexes and terminate their
+			// processes.
+			s.mtx.Lock()
+			for _, sub := range s.subscriptions {
+				err := sub.stop()
+				if err != nil {
+					log.Error("unable to stop index subscription: %v", err)
+				}
+			}
+			s.mtx.Unlock()
+
+			s.cancel()
+			s.wg.Done()
+
+			return
+
 		case ntfn := <-s.c:
 			// Relay the index update to subscribed indexes.
+			s.mtx.Lock()
 			for _, sub := range s.subscriptions {
 				err := updateIndex(ctx, sub.idx, &ntfn)
 				if err != nil {
@@ -364,27 +416,23 @@ func (s *IndexSubscriber) Run(ctx context.Context) {
 					break
 				}
 			}
+			s.mtx.Unlock()
 
 			if ntfn.Done != nil {
 				close(ntfn.Done)
 			}
-
-		case <-ctx.Done():
-			log.Infof("Index subscriber shutting down")
-
-			close(s.quit)
-
-			// Stop all updates to subscribed indexes and terminate their
-			// processes.
-			for _, sub := range s.subscriptions {
-				err := sub.stop()
-				if err != nil {
-					log.Error("unable to stop index subscription: %v", err)
-				}
-			}
-
-			s.cancel()
-			return
 		}
 	}
+}
+
+// Run relays index notifications to subscribed indexes.
+//
+// This should be run as a goroutine.
+func (s *IndexSubscriber) Run(ctx context.Context) {
+	s.wg.Add(2)
+	go s.handleIndexUpdates(ctx)
+	go s.handleSyncSubscribers(ctx)
+	s.wg.Wait()
+
+	log.Infof("Index subscriber shutting down")
 }

@@ -129,7 +129,7 @@ func (idx *ExistsAddrIndex) Init(ctx context.Context, chainParams *chaincfg.Para
 
 	// Recover the exists address index and its dependents to the main
 	// chain if needed.
-	if err := recover(ctx, idx); err != nil {
+	if err := recoverIndex(ctx, idx); err != nil {
 		return err
 	}
 
@@ -197,10 +197,20 @@ func (idx *ExistsAddrIndex) IndexSubscription() *IndexSubscription {
 // Subscribers returns all client channels waiting for the next index update.
 //
 // This is part of the Indexer interface.
+// Deprecated: This will be removed in the next major version bump.
 func (idx *ExistsAddrIndex) Subscribers() map[chan bool]struct{} {
 	idx.mtx.Lock()
 	defer idx.mtx.Unlock()
 	return idx.subscribers
+}
+
+// NotifySyncSubscribers signals subscribers of an index sync update.
+//
+// This is part of the Indexer interface.
+func (idx *ExistsAddrIndex) NotifySyncSubscribers() {
+	idx.mtx.Lock()
+	notifySyncSubscribers(idx.subscribers)
+	idx.mtx.Unlock()
 }
 
 // WaitForSync subscribes clients for the next index sync update.
