@@ -7,6 +7,7 @@ package indexers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -37,7 +38,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	defer pCancel()
 
 	subber := NewIndexSubscriber(ctx)
-	go subber.Run(ctx)
 
 	err = AddIndexSpendConsumers(db, chain)
 	if err != nil {
@@ -63,6 +63,8 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	go subber.Run(ctx)
 
 	// Ensure all indexes through their prerequisite/dependency relationships
 	// are synced to the current chain tip (bk3).
@@ -109,6 +111,22 @@ func TestIndexSubscriberAsync(t *testing.T) {
 		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
 			existsAddrIdxTipHash)
 	}
+
+	// Create 3 sync subscribers for the tx index.
+	for idx := 0; idx < 3; idx++ {
+		txIdx.WaitForSync()
+	}
+
+	// Wait for the sync subscriber handler to run.
+	time.Sleep(time.Millisecond * 750)
+
+	// Ensure the tx index no longer has sync subscribers.
+	txIdx.mtx.Lock()
+	if len(txIdx.subscribers) > 0 {
+		txIdx.mtx.Unlock()
+		t.Fatalf("expected no sync subscribers for the tx index")
+	}
+	txIdx.mtx.Unlock()
 
 	// Ensure the address index remains in sync with the main chain when new
 	// blocks are connected.
@@ -168,7 +186,9 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	}
 
 	// Ensure stopping a prequisite subscription stops its dependency as well.
+	subber.mtx.Lock()
 	err = txIdx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -456,12 +456,16 @@ func TestAddrIndexAsync(t *testing.T) {
 	bk5a := addBlock(t, chain, &g, "bk5a")
 
 	// Resubscribe the indexes.
+	subber.mtx.Lock()
 	err = addrIdx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	subber.mtx.Lock()
 	err = txIdx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -619,7 +623,9 @@ func TestAddrIndexAsync(t *testing.T) {
 	}
 
 	// Drop the address index and resubscribe.
+	subber.mtx.Lock()
 	err = addrIdx.sub.stop()
+	subber.mtx.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

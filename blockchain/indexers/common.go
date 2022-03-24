@@ -143,7 +143,12 @@ type Indexer interface {
 	WaitForSync() chan bool
 
 	// Subscribers returns all client channels waiting for the next index update.
+	// Deprecated: This will be removed in the next major version bump.
 	Subscribers() map[chan bool]struct{}
+
+	// NotifySyncSubscribers signals subscribers of an index sync update.
+	// This should only be called when an index is synced.
+	NotifySyncSubscribers()
 }
 
 // IndexDropper provides a method to remove an index from the database. Indexers
@@ -460,9 +465,18 @@ func tip(db database.DB, key []byte) (int64, *chainhash.Hash, error) {
 	return int64(height), hash, err
 }
 
-// recover reverts the index to a block on the main chain by repeatedly
+// notifySyncSubscribers signals provided subscribers the index subcribed to
+// is synced.
+func notifySyncSubscribers(subscribers map[chan bool]struct{}) {
+	for sub := range subscribers {
+		close(sub)
+		delete(subscribers, sub)
+	}
+}
+
+// recoverIndex reverts the index to a block on the main chain by repeatedly
 // disconnecting the index tip if it is not on the main chain.
-func recover(ctx context.Context, idx Indexer) error {
+func recoverIndex(ctx context.Context, idx Indexer) error {
 	// Fetch the current tip for the index.
 	height, hash, err := idx.Tip()
 	if err != nil {
@@ -670,13 +684,6 @@ func upgradeIndex(ctx context.Context, indexer Indexer, genesisHash *chainhash.H
 // maybeNotifySubscribers updates subscribers the index is synced when
 // the tip is identical to the chain tip.
 func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
-	subs := indexer.Subscribers()
-
-	// Exit immediately if the index has no subscribers.
-	if len(subs) == 0 {
-		return nil
-	}
-
 	if interruptRequested(ctx) {
 		return indexerError(ErrInterruptRequested, interruptMsg)
 	}
@@ -689,10 +696,7 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 	}
 
 	if tipHeight == bestHeight && *bestHash == *tipHash {
-		for sub := range subs {
-			close(sub)
-			delete(subs, sub)
-		}
+		indexer.NotifySyncSubscribers()
 	}
 
 	return nil

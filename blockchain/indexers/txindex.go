@@ -369,7 +369,7 @@ func (idx *TxIndex) Init(ctx context.Context, chainParams *chaincfg.Params) erro
 	}
 
 	// Recover the tx index and its dependents to the main chain if needed.
-	if err := recover(ctx, idx); err != nil {
+	if err := recoverIndex(ctx, idx); err != nil {
 		return err
 	}
 
@@ -482,10 +482,20 @@ func (idx *TxIndex) IndexSubscription() *IndexSubscription {
 // Subscribers returns all client channels waiting for the next index update.
 //
 // This is part of the Indexer interface.
+// Deprecated: This will be removed in the next major version bump.
 func (idx *TxIndex) Subscribers() map[chan bool]struct{} {
 	idx.mtx.Lock()
 	defer idx.mtx.Unlock()
 	return idx.subscribers
+}
+
+// NotifySyncSubscribers signals subscribers of an index sync update.
+//
+// This is part of the Indexer interface.
+func (idx *TxIndex) NotifySyncSubscribers() {
+	idx.mtx.Lock()
+	notifySyncSubscribers(idx.subscribers)
+	idx.mtx.Unlock()
 }
 
 // WaitForSync subscribes clients for the next index sync update.
