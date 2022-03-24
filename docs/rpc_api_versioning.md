@@ -6,6 +6,7 @@
 5. [Versioned Endpoint Deprecation And Removal Scheme](#DeprecationAndRemovalScheme)<br />
 6. [Versioned Endpoint JSON-RPC Unit Testing](#UnitTesting)<br />
 7. [Versioned Endpoint Documentation](#Documentation)<br />
+8. [Websocket Endpoints And Example](#Websockets)
 
 
 <a name="PerMethodVersioning" />
@@ -54,8 +55,8 @@ Using `existsaddress` as an example:
  - The `V1` version of the endpoint, which is now the older version, should be 
  explicitly accessible via `existsaddressv1`.
 
- - The default method name, `existsaddress` will resolve to the current version 
- of the endpoint which is `existsaddressv2` in this case.
+ - The default method name, `existsaddress` will resolve to the older version 
+ of the endpoint which is `existsaddress` in this case.
 
  This scheme will be enforced via the JSON-RPC type and handler registrations. 
 
@@ -68,7 +69,7 @@ the `V2` version of the `existaddress` JSON-RPC endpoint will comprise of the
 following components: 
 
 ```go
-     // JSON-RPC versioned endpoint command definition.
+    // JSON-RPC versioned endpoint command definition.
 
     // ExistsAddressV2Cmd defines the existsaddressv2 JSON-RPC command.
     type ExistsAddressV2Cmd struct {
@@ -79,7 +80,7 @@ following components:
 ```
 ```go
     // ExistsAddress JSON-RPC type registrations.
- 	dcrjson.MustRegister(Method("existsaddress"), (*ExistsAddressV2Cmd)(nil), flags)
+ 	dcrjson.MustRegister(Method("existsaddress"), (*ExistsAddressCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddressv1"), (*ExistsAddressCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddressv2"), (*ExistsAddressV2Cmd)(nil), flags)
     // ...
@@ -119,7 +120,7 @@ following components:
     // ExistsAddress JSON-RPC handler registrations.
     var rpcHandlersBeforeInit = map[types.Method]commandHandler{
         // ...
-        "existsaddress":         handleExistsAddressV2,
+        "existsaddress":         handleExistsAddress,
         "existsaddressv1":       handleExistsAddress,
         "existsaddressv2":       handleExistsAddressV2,
         // ...
@@ -269,6 +270,88 @@ the JSON-RPC API documentation will be updated to include documentation for
     // ...
 ```
 
-With the outlined schemes adhered to, the versioned endpoint should be ready 
-for use once `dcrctl` is rebuilt once the `rpc/jsonrpc/types` dependency is 
-replaced with the updated local changes.
+<a name="Websockets" />
+
+### 8. Websocket Endpoints & Example
+Websocket endpoints will be versioned using the accessibility scheme outlined 
+above. Using `rescan` websocket endpoint and the introduction of `rescanv2` 
+as an example:
+
+```go
+// Rescan websocket handler registrations.
+var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{	
+	// ...
+	"rescan":                      handleRescan,
+	"rescanv1":                    handleRescan,
+	"rescanv2":                    handleRescanV2,
+	// ...
+}
+```
+
+```go
+// Versioned JSON-RPC endpoint command definition.
+
+// RescanCmd defines the rescan JSON-RPC command.
+type RescanCmd struct {
+	BlockHashes []string
+}
+
+// RescanV2Cmd defines the rescanv2 JSON-RPC command.
+type RescanV2Cmd struct {
+	From string
+	To   string
+}
+```
+
+```go
+// Rescan JSON-RPC result type registrations.
+var rpcResultTypes = map[types.Method][]interface{}{
+    // Websocket commands.
+
+    // ...
+	"rescan":                        nil,
+    "rescanv1":                      nil,
+    "rescanv2":                      nil,
+    // ...
+}
+```
+
+```go
+// Rescan Websocket type registrations.
+func init() {
+	// The commands in this file are only usable by websockets.
+	flags := dcrjson.UFWebsocketOnly
+
+    //...
+    dcrjson.MustRegister(Method("rescan"), (*RescanCmd)(nil), flags)
+    dcrjson.MustRegister(Method("rescanv1"), (*RescanCmd)(nil), flags)
+    dcrjson.MustRegister(Method("rescanv2"), (*RescanV2Cmd)(nil), flags)
+    //...
+}
+```
+
+```go
+// handleRescan implements the rescan command extension for websocket
+// connections.
+func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	cmd, ok := icmd.(*types.RescanCmd)
+	if !ok {
+		return nil, dcrjson.ErrRPCInternal
+	}
+    // ...
+}
+
+// handleRescanV2 implements the rescanv2 command extension for websocket
+// connections.
+func handleRescanV2(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	cmd, ok := icmd.(*types.RescanV2Cmd)
+	if !ok {
+		return nil, dcrjson.ErrRPCInternal
+	}
+    // ...
+}
+```
+
+Once all dcrd JSON-RPC API methods are updated using the schema outlined above, 
+the versioned endpoints will be ready for use. However, dcrctl and other 
+consumers will need to update their `rpc/jsonrpc/types` dependencies and logic.
