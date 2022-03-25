@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -344,7 +344,7 @@ func TestSignCompact(t *testing.T) {
 	}
 }
 
-// TestSignatureIsEqual ensures that equality testing between to signatures
+// TestSignatureIsEqual ensures that equality testing between two signatures
 // works as expected.
 func TestSignatureIsEqual(t *testing.T) {
 	sig1 := &Signature{
