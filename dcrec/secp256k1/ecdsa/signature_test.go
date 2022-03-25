@@ -11,7 +11,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	mrand "math/rand"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -565,6 +567,84 @@ func TestSignAndVerify(t *testing.T) {
 					test.name, gotSigBytes, wantSig)
 				continue
 			}
+		}
+	}
+}
+
+// TestSignAndVerifyRandom ensures ECDSA signing and verification work as
+// expected for randomly-generated private keys and messages.  It also ensures
+// invalid signatures are not improperly verified by mutating the valid
+// signature and changing the message the signature covers.
+func TestSignAndVerifyRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := mrand.New(mrand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate a random private key.
+		var buf [32]byte
+		if _, err := rng.Read(buf[:]); err != nil {
+			t.Fatalf("failed to read random private key: %v", err)
+		}
+		var privKeyScalar secp256k1.ModNScalar
+		privKeyScalar.SetBytes(&buf)
+		privKey := secp256k1.NewPrivateKey(&privKeyScalar)
+
+		// Generate a random hash to sign.
+		var hash [32]byte
+		if _, err := rng.Read(hash[:]); err != nil {
+			t.Fatalf("failed to read random hash: %v", err)
+		}
+
+		// Sign the hash with the private key and then ensure the produced
+		// signature is valid for the hash and public key associated with the
+		// private key.
+		sig := Sign(privKey, hash[:])
+		pubKey := privKey.PubKey()
+		if !sig.Verify(hash[:], pubKey) {
+			t.Fatalf("failed to verify signature\nsig: %x\nhash: %x\n"+
+				"private key: %x\npublic key: %x", sig.Serialize(), hash,
+				privKey.Serialize(), pubKey.SerializeCompressed())
+		}
+
+		// Change a random bit in the signature and ensure the bad signature
+		// fails to verify the original message.
+		badSig := *sig
+		randByte := rng.Intn(32)
+		randBit := rng.Intn(7)
+		if randComponent := rng.Intn(1); randComponent == 0 {
+			badSigBytes := badSig.r.Bytes()
+			badSigBytes[randByte] ^= 1 << randBit
+			badSig.r.SetBytes(&badSigBytes)
+		} else {
+			badSigBytes := badSig.s.Bytes()
+			badSigBytes[randByte] ^= 1 << randBit
+			badSig.s.SetBytes(&badSigBytes)
+		}
+		if badSig.Verify(hash[:], pubKey) {
+			t.Fatalf("verified bad signature\nsig: %x\nhash: %x\n"+
+				"private key: %x\npublic key: %x", badSig.Serialize(), hash,
+				privKey.Serialize(), pubKey.SerializeCompressed())
+		}
+
+		// Change a random bit in the hash that was originally signed and ensure
+		// the original good signature fails to verify the new bad message.
+		badHash := make([]byte, len(hash))
+		copy(badHash, hash[:])
+		randByte = rng.Intn(len(badHash))
+		randBit = rng.Intn(7)
+		badHash[randByte] ^= 1 << randBit
+		if sig.Verify(badHash[:], pubKey) {
+			t.Fatalf("verified signature for bad hash\nsig: %x\nhash: %x\n"+
+				"pubkey: %x", sig.Serialize(), badHash,
+				pubKey.SerializeCompressed())
 		}
 	}
 }
