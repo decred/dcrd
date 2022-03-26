@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/rpcclient/v7"
+	"github.com/decred/dcrd/rpcclient/v8"
 	"github.com/decred/dcrd/wire"
 )
 

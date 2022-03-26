@@ -19,7 +19,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v4"
-	"github.com/decred/dcrd/rpcclient/v7"
+	"github.com/decred/dcrd/rpcclient/v8"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"

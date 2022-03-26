@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/rpcclient/v7"
+	"github.com/decred/dcrd/rpcclient/v8"
 )
 
 // testCanPassSVH tests whether the wallet can maintain the chain going past SVH

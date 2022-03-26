@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/rpcclient/v7
+module github.com/decred/dcrd/rpcclient/v8
 
 go 1.17
 

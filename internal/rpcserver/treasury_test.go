@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -21,7 +21,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/rpcclient/v7"
+	"github.com/decred/dcrd/rpcclient/v8"
 	"github.com/decred/dcrd/rpctest"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"

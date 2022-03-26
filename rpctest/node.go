@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/certgen"
-	rpc "github.com/decred/dcrd/rpcclient/v7"
+	rpc "github.com/decred/dcrd/rpcclient/v8"
 )
 
 // nodeConfig contains all the args, and data required to launch a dcrd process
