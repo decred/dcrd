@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/lru v1.1.1
 	github.com/decred/dcrd/math/uint256 v1.0.0
 	github.com/decred/dcrd/peer/v3 v3.0.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
 	github.com/decred/dcrd/rpcclient/v7 v7.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
@@ -73,7 +73,7 @@ replace (
 	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/math/uint256 => ./math/uint256
 	github.com/decred/dcrd/peer/v3 => ./peer
-	github.com/decred/dcrd/rpc/jsonrpc/types/v3 => ./rpc/jsonrpc/types
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v7 => ./rpcclient
 	github.com/decred/dcrd/txscript/v4 => ./txscript
 	github.com/decred/dcrd/wire => ./wire

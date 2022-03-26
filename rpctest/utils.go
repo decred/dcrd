@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/rpcclient/v7"
 )
 

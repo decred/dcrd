@@ -7,7 +7,7 @@ require (
 	github.com/decred/dcrd/dcrjson/v4 v4.0.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
 	github.com/decred/dcrd/gcs/v3 v3.0.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
 	github.com/decred/go-socks v1.1.0
@@ -27,4 +27,8 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
+)
+
+replace (
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ../rpc/jsonrpc/types
 )
