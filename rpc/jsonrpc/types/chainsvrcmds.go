@@ -882,16 +882,6 @@ func NewLiveTicketsCmd() *LiveTicketsCmd {
 	return &LiveTicketsCmd{}
 }
 
-// MissedTicketsCmd is a type handling custom marshaling and
-// unmarshaling of missedtickets JSON RPC commands.
-type MissedTicketsCmd struct{}
-
-// NewMissedTicketsCmd returns a new instance which can be used to issue a JSON-RPC
-// missedtickets command.
-func NewMissedTicketsCmd() *MissedTicketsCmd {
-	return &MissedTicketsCmd{}
-}
-
 // NodeCmd defines the dropnode JSON-RPC command.
 type NodeCmd struct {
 	SubCmd        NodeSubCmd `jsonrpcusage:"\"connect|remove|disconnect\""`
@@ -1207,7 +1197,6 @@ func init() {
 	dcrjson.MustRegister(Method("help"), (*HelpCmd)(nil), flags)
 	dcrjson.MustRegister(Method("invalidateblock"), (*InvalidateBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("livetickets"), (*LiveTicketsCmd)(nil), flags)
-	dcrjson.MustRegister(Method("missedtickets"), (*MissedTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("node"), (*NodeCmd)(nil), flags)
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
 	dcrjson.MustRegister(Method("reconsiderblock"), (*ReconsiderBlockCmd)(nil), flags)

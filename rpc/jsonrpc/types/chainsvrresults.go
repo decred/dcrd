@@ -466,12 +466,6 @@ type LiveTicketsResult struct {
 	Tickets []string `json:"tickets"`
 }
 
-// MissedTicketsResult models the data returned from the missedtickets
-// command.
-type MissedTicketsResult struct {
-	Tickets []string `json:"tickets"`
-}
-
 // FeeInfoBlock is ticket fee information about a block.
 type FeeInfoBlock struct {
 	Height uint32  `json:"height"`
