@@ -184,10 +184,6 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns the existence of the provided txs in the mempool.
 |-
-|[[#existsmissedtickets|existsmissedtickets]]
-|Y
-|Returns the existence of the provided tickets in the missed ticket map.
-|-
 |[[#generate|generate]]
 |N
 |When in simnet or regtest mode, generate a set number of blocks.
@@ -897,27 +893,6 @@ the method name for further details such as parameter and return information.
 |-
 !Returns
 |<code>bitset</code> Bitset of bools showing if tx hashes exist or not in the mempool.
-|-
-!Example Return
-|<code>00</code>
-|}
-
-----
-
-====existsmissedtickets====
-{|
-!Method
-|existsmissedtickets
-|-
-!Parameters
-|
-# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
-|-
-!Description
-|Returns the existence of the provided tickets in the missed ticket map.
-|-
-!Returns
-|<code>bitset</code> Bitset of bools showing if tx hashes exist or not as missed tickets.
 |-
 !Example Return
 |<code>00</code>
