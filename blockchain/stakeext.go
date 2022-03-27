@@ -131,34 +131,6 @@ func (b *BlockChain) CheckLiveTickets(hashes []chainhash.Hash) []bool {
 	return existsSlice
 }
 
-// CheckExpiredTicket returns whether or not a ticket was ever expired.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) CheckExpiredTicket(hash chainhash.Hash) bool {
-	b.chainLock.RLock()
-	sn := b.bestChain.Tip().stakeNode
-	b.chainLock.RUnlock()
-
-	return sn.ExistsExpiredTicket(hash)
-}
-
-// CheckExpiredTickets returns whether or not a ticket in a slice of
-// tickets was ever expired.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) CheckExpiredTickets(hashes []chainhash.Hash) []bool {
-	b.chainLock.RLock()
-	sn := b.bestChain.Tip().stakeNode
-	b.chainLock.RUnlock()
-
-	existsSlice := make([]bool, len(hashes))
-	for i := range hashes {
-		existsSlice[i] = sn.ExistsExpiredTicket(hashes[i])
-	}
-
-	return existsSlice
-}
-
 // TicketPoolValue returns the current value of all the locked funds in the
 // ticket pool.
 //
