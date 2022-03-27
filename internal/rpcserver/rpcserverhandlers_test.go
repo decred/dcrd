@@ -154,7 +154,6 @@ type testRPCChain struct {
 	checkExpiredTickets           []bool
 	checkLiveTicket               bool
 	checkLiveTickets              []bool
-	checkMissedTickets            []bool
 	countVoteVersion              uint32
 	countVoteVersionErr           error
 	estimateNextStakeDifficultyFn func(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (diff int64, err error)
@@ -268,12 +267,6 @@ func (c *testRPCChain) CheckLiveTicket(hash chainhash.Hash) bool {
 // whether each ticket exists in the live ticket treap of the best node.
 func (c *testRPCChain) CheckLiveTickets(hashes []chainhash.Hash) []bool {
 	return c.checkLiveTickets
-}
-
-// CheckMissedTickets returns a mocked slice of bools representing
-// whether each ticket hash has been missed.
-func (c *testRPCChain) CheckMissedTickets(hashes []chainhash.Hash) []bool {
-	return c.checkMissedTickets
 }
 
 // CountVoteVersion returns a mocked total number of version votes for the current
@@ -3547,89 +3540,6 @@ func TestHandleExistsMempoolTxs(t *testing.T) {
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
-	}})
-}
-
-func TestHandleExistsMissedTickets(t *testing.T) {
-	t.Parallel()
-
-	defaultCmdTxHashes := []string{
-		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-	}
-	testRPCServerHandler(t, []rpcTest{{
-		name:    "handleExistsMissedTickets: both tickets exist",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkMissedTickets = []bool{true, true}
-			return chain
-		}(),
-		result: "03",
-	}, {
-		name:    "handleExistsMissedTickets: only first ticket exists",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkMissedTickets = []bool{true, false}
-			return chain
-		}(),
-		result: "01",
-	}, {
-		name:    "handleExistsMissedTickets: only second ticket exists",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkMissedTickets = []bool{false, true}
-			return chain
-		}(),
-		result: "02",
-	}, {
-		name:    "handleExistsMissedTickets: none of the tickets exist",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkMissedTickets = []bool{false, false}
-			return chain
-		}(),
-		result: "00",
-	}, {
-		name:    "handleExistsMissedTickets: invalid hash",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: []string{
-				"g189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-			},
-		},
-		wantErr: true,
-		errCode: dcrjson.ErrRPCDecodeHexString,
-	}, {
-		name:    "handleExistsMissedTickets: invalid missed ticket count",
-		handler: handleExistsMissedTickets,
-		cmd: &types.ExistsMissedTicketsCmd{
-			TxHashes: []string{
-				"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-			},
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkMissedTickets = []bool{true, true}
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
 }
 

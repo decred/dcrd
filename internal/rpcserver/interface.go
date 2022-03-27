@@ -260,10 +260,6 @@ type Chain interface {
 	// exists in the live ticket treap of the best node.
 	CheckLiveTickets(hashes []chainhash.Hash) []bool
 
-	// CheckMissedTickets returns a slice of bools representing whether each ticket
-	// hash has been missed in the live ticket treap of the best node.
-	CheckMissedTickets(hashes []chainhash.Hash) []bool
-
 	// CountVoteVersion returns the total number of version votes for the current
 	// rule change activation interval.
 	CountVoteVersion(version uint32) (uint32, error)

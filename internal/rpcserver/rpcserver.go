@@ -171,7 +171,6 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"existsliveticket":      handleExistsLiveTicket,
 	"existslivetickets":     handleExistsLiveTickets,
 	"existsmempooltxs":      handleExistsMempoolTxs,
-	"existsmissedtickets":   handleExistsMissedTickets,
 	"generate":              handleGenerate,
 	"getaddednodeinfo":      handleGetAddedNodeInfo,
 	"getbestblock":          handleGetBestBlock,
@@ -350,7 +349,6 @@ var rpcLimited = map[string]struct{}{
 	"existsliveticket":      {},
 	"existslivetickets":     {},
 	"existsmempooltxs":      {},
-	"existsmissedtickets":   {},
 	"getbestblock":          {},
 	"getbestblockhash":      {},
 	"getblock":              {},
@@ -1652,35 +1650,6 @@ func decodeHashPointers(strs []string) ([]*chainhash.Hash, error) {
 		hashes[i] = h
 	}
 	return hashes, nil
-}
-
-// handleExistsMissedTickets implements the existsmissedtickets command.
-//
-// TODO: Add an upper bound to the number of hashes that can be checked. This
-// will come with a major RPC version bump.
-func handleExistsMissedTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	c := cmd.(*types.ExistsMissedTicketsCmd)
-
-	hashes, err := decodeHashes(c.TxHashes)
-	if err != nil {
-		return nil, err
-	}
-
-	exists := s.cfg.Chain.CheckMissedTickets(hashes)
-	if len(exists) != len(hashes) {
-		return nil, rpcInvalidError("Invalid missed ticket count "+
-			"got %v, want %v", len(exists), len(hashes))
-	}
-
-	// Convert the slice of bools into a compacted set of bit flags.
-	set := bitset.NewBytes(len(hashes))
-	for i := range exists {
-		if exists[i] {
-			set.Set(i)
-		}
-	}
-
-	return hex.EncodeToString([]byte(set)), nil
 }
 
 // handleExistsExpiredTickets implements the existsexpiredtickets command.
