@@ -73,17 +73,6 @@ func (b *BlockChain) LiveTickets() ([]chainhash.Hash, error) {
 	return sn.LiveTickets(), nil
 }
 
-// MissedTickets returns all currently missed tickets from the stake database.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) MissedTickets() ([]chainhash.Hash, error) {
-	b.chainLock.RLock()
-	sn := b.bestChain.Tip().stakeNode
-	b.chainLock.RUnlock()
-
-	return sn.MissedTickets(), nil
-}
-
 // TicketsWithAddress returns a slice of ticket hashes that are currently live
 // corresponding to the given address.
 //
