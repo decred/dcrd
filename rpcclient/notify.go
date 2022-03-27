@@ -33,14 +33,13 @@ var (
 // registered notifications so the state can be automatically re-established on
 // reconnect.
 type notificationState struct {
-	notifyBlocks                bool
-	notifyWork                  bool
-	notifyTSpend                bool
-	notifyWinningTickets        bool
-	notifySpentAndMissedTickets bool
-	notifyNewTickets            bool
-	notifyNewTx                 bool
-	notifyNewTxVerbose          bool
+	notifyBlocks         bool
+	notifyWork           bool
+	notifyTSpend         bool
+	notifyWinningTickets bool
+	notifyNewTickets     bool
+	notifyNewTx          bool
+	notifyNewTxVerbose   bool
 }
 
 // Copy returns a deep copy of the receiver.
@@ -50,7 +49,6 @@ func (s *notificationState) Copy() *notificationState {
 	stateCopy.notifyWork = s.notifyWork
 	stateCopy.notifyTSpend = s.notifyTSpend
 	stateCopy.notifyWinningTickets = s.notifyWinningTickets
-	stateCopy.notifySpentAndMissedTickets = s.notifySpentAndMissedTickets
 	stateCopy.notifyNewTickets = s.notifyNewTickets
 	stateCopy.notifyNewTx = s.notifyNewTx
 	stateCopy.notifyNewTxVerbose = s.notifyNewTxVerbose
@@ -127,15 +125,6 @@ type NotificationHandlers struct {
 	OnWinningTickets func(blockHash *chainhash.Hash,
 		blockHeight int64,
 		tickets []*chainhash.Hash)
-
-	// OnSpentAndMissedTickets is invoked when a block is connected to the
-	// longest (best) chain and tickets are spent or missed.  It will only be
-	// invoked if a preceding call to NotifySpentAndMissedTickets has been made to
-	// register for the notification and the function is non-nil.
-	OnSpentAndMissedTickets func(hash *chainhash.Hash,
-		height int64,
-		stakeDiff int64,
-		tickets map[chainhash.Hash]bool)
 
 	// OnNewTickets is invoked when a block is connected to the longest (best)
 	// chain and tickets have matured to become active.  It will only be invoked
@@ -297,27 +286,6 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		}
 
 		c.ntfnHandlers.OnWinningTickets(blockHash, blockHeight, tickets)
-
-	// OnSpentAndMissedTickets
-	case chainjson.SpentAndMissedTicketsNtfnMethod:
-		// Ignore the notification if the client is not interested in
-		// it.
-		if c.ntfnHandlers.OnSpentAndMissedTickets == nil {
-			return
-		}
-
-		blockSha, blockHeight, stakeDifficulty, tickets, err :=
-			parseSpentAndMissedTicketsNtfnParams(ntfn.Params)
-		if err != nil {
-			log.Warnf("Received invalid spend and missed tickets "+
-				"notification: %v", err)
-			return
-		}
-
-		c.ntfnHandlers.OnSpentAndMissedTickets(blockSha,
-			blockHeight,
-			stakeDifficulty,
-			tickets)
 
 	// OnNewTickets
 	case chainjson.NewTicketsNtfnMethod:
@@ -603,73 +571,6 @@ func parseWinningTicketsNtfnParams(params []json.RawMessage) (
 	}
 
 	return bHash, bHeight, t, nil
-}
-
-// parseSpentAndMissedTicketsNtfnParams parses out the block header hash, height,
-// winner number, and ticket map from a SpentAndMissedTickets notification.
-func parseSpentAndMissedTicketsNtfnParams(params []json.RawMessage) (
-	*chainhash.Hash,
-	int64,
-	int64,
-	map[chainhash.Hash]bool,
-	error) {
-
-	if len(params) != 4 {
-		return nil, 0, 0, nil, wrongNumParams(len(params))
-	}
-
-	// Unmarshal first parameter as a string.
-	var blockShaStr string
-	err := json.Unmarshal(params[0], &blockShaStr)
-	if err != nil {
-		return nil, 0, 0, nil, err
-	}
-
-	// Create ShaHash from block sha string.
-	sha, err := chainhash.NewHashFromStr(blockShaStr)
-	if err != nil {
-		return nil, 0, 0, nil, err
-	}
-
-	// Unmarshal second parameter as an integer.
-	var blockHeight int32
-	err = json.Unmarshal(params[1], &blockHeight)
-	if err != nil {
-		return nil, 0, 0, nil, err
-	}
-	bh := int64(blockHeight)
-
-	// Unmarshal third parameter as an integer.
-	var stakeDiff int64
-	err = json.Unmarshal(params[2], &stakeDiff)
-	if err != nil {
-		return nil, 0, 0, nil, err
-	}
-
-	// Unmarshal fourth parameter as a map[*hash]bool.
-	tickets := make(map[string]string)
-	err = json.Unmarshal(params[3], &tickets)
-	if err != nil {
-		return nil, 0, 0, nil, err
-	}
-	t := make(map[chainhash.Hash]bool)
-
-	for hashStr, spentStr := range tickets {
-		isSpent := false
-		if spentStr == "spent" {
-			isSpent = true
-		}
-
-		// Create and cache ShaHash from tx hash.
-		ticketSha, err := chainhash.NewHashFromStr(hashStr)
-		if err != nil {
-			return nil, 0, 0, nil, err
-		}
-
-		t[*ticketSha] = isSpent
-	}
-
-	return sha, bh, stakeDiff, t, nil
 }
 
 // parseNewTicketsNtfnParams parses out the block header hash, height,
@@ -973,56 +874,6 @@ func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) *FutureNotifyWin
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyWinningTickets(ctx context.Context) error {
 	return c.NotifyWinningTicketsAsync(ctx).Receive()
-}
-
-// FutureNotifySpentAndMissedTicketsResult is a future promise to deliver the result of a
-// NotifySpentAndMissedTicketsAsync RPC invocation (or an applicable error).
-type FutureNotifySpentAndMissedTicketsResult cmdRes
-
-// Receive waits for the response promised by the future and returns an error
-// if the registration was not successful.
-func (r *FutureNotifySpentAndMissedTicketsResult) Receive() error {
-	_, err := receiveFuture(r.ctx, r.c)
-	return err
-}
-
-// NotifySpentAndMissedTicketsAsync returns an instance of a type that can be used
-// to get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-//
-// See NotifySpentAndMissedTickets for the blocking version and more details.
-//
-// NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifySpentAndMissedTicketsAsync(ctx context.Context) *FutureNotifySpentAndMissedTicketsResult {
-	// Not supported in HTTP POST mode.
-	if c.config.HTTPPostMode {
-		return (*FutureNotifySpentAndMissedTicketsResult)(newFutureError(ctx, ErrWebsocketsRequired))
-	}
-
-	// Ignore the notification if the client is not interested in
-	// notifications.
-	if c.ntfnHandlers == nil {
-		return (*FutureNotifySpentAndMissedTicketsResult)(newNilFutureResult(ctx))
-	}
-
-	cmd := chainjson.NewNotifySpentAndMissedTicketsCmd()
-
-	return (*FutureNotifySpentAndMissedTicketsResult)(c.sendCmd(ctx, cmd))
-}
-
-// NotifySpentAndMissedTickets registers the client to receive notifications when
-// blocks are connected to the main chain and tickets are spent or missed.  The
-// notifications are delivered to the notification handlers associated with the
-// client.  Calling this function has no effect if there are no notification
-// handlers and will result in an error if the client is configured to run in HTTP
-// POST mode.
-//
-// The notifications delivered as a result of this call will be those from
-// OnSpentAndMissedTickets.
-//
-// NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifySpentAndMissedTickets(ctx context.Context) error {
-	return c.NotifySpentAndMissedTicketsAsync(ctx).Receive()
 }
 
 // FutureNotifyNewTicketsResult is a future promise to deliver the result of a
