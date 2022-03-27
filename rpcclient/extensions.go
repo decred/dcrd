@@ -790,53 +790,6 @@ func (c *Client) LiveTickets(ctx context.Context) ([]*chainhash.Hash, error) {
 	return c.LiveTicketsAsync(ctx).Receive()
 }
 
-// FutureMissedTicketsResult is a future promise to deliver the result
-// of a FutureMissedTicketsResultAsync RPC invocation (or an applicable error).
-type FutureMissedTicketsResult cmdRes
-
-// Receive waits for the response promised by the future and returns all
-// currently missed tickets from the missed ticket database.
-func (r *FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
-	res, err := receiveFuture(r.ctx, r.c)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal result as a missed tickets result object.
-	var container chainjson.MissedTicketsResult
-	err = json.Unmarshal(res, &container)
-	if err != nil {
-		return nil, err
-	}
-
-	missedTickets := make([]*chainhash.Hash, 0, len(container.Tickets))
-	for _, ticketStr := range container.Tickets {
-		h, err := chainhash.NewHashFromStr(ticketStr)
-		if err != nil {
-			return nil, err
-		}
-		missedTickets = append(missedTickets, h)
-	}
-
-	return missedTickets, nil
-}
-
-// MissedTicketsAsync returns an instance of a type that can be used to get the
-// result of the RPC at some future time by invoking the Receive function on the
-// returned instance.
-func (c *Client) MissedTicketsAsync(ctx context.Context) *FutureMissedTicketsResult {
-	cmd := chainjson.NewMissedTicketsCmd()
-	return (*FutureMissedTicketsResult)(c.sendCmd(ctx, cmd))
-}
-
-// MissedTickets returns all currently missed tickets from the missed
-// ticket database in the daemon.
-//
-// NOTE: This is a dcrd extension.
-func (c *Client) MissedTickets(ctx context.Context) ([]*chainhash.Hash, error) {
-	return c.MissedTicketsAsync(ctx).Receive()
-}
-
 // FutureSessionResult is a future promise to deliver the result of a
 // SessionAsync RPC invocation (or an applicable error).
 type FutureSessionResult cmdRes
