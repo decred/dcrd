@@ -131,23 +131,6 @@ func (b *BlockChain) CheckLiveTickets(hashes []chainhash.Hash) []bool {
 	return existsSlice
 }
 
-// CheckMissedTickets returns a slice of bools representing whether each ticket
-// hash has been missed in the live ticket treap of the best node.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) CheckMissedTickets(hashes []chainhash.Hash) []bool {
-	b.chainLock.RLock()
-	sn := b.bestChain.Tip().stakeNode
-	b.chainLock.RUnlock()
-
-	existsSlice := make([]bool, len(hashes))
-	for i := range hashes {
-		existsSlice[i] = sn.ExistsMissedTicket(hashes[i])
-	}
-
-	return existsSlice
-}
-
 // CheckExpiredTicket returns whether or not a ticket was ever expired.
 //
 // This function is safe for concurrent access.
