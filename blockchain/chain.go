@@ -818,25 +818,12 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			return err
 		}
 
-		// Notify of spent and missed tickets.
-		b.sendNotification(NTSpentAndMissedTickets,
-			&TicketNotificationsData{
-				Hash:            node.hash,
-				Height:          node.height,
-				StakeDifficulty: nextStakeDiff,
-				TicketsSpent:    node.stakeNode.SpentByBlock(),
-				TicketsMissed:   node.stakeNode.MissedByBlock(),
-				TicketsNew:      nil,
-			})
-
 		// Notify of new tickets.
 		b.sendNotification(NTNewTickets,
 			&TicketNotificationsData{
 				Hash:            node.hash,
 				Height:          node.height,
 				StakeDifficulty: nextStakeDiff,
-				TicketsSpent:    nil,
-				TicketsMissed:   nil,
 				TicketsNew:      node.stakeNode.NewTickets(),
 			})
 	}
