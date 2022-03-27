@@ -2687,10 +2687,6 @@ user.  Click the method name for further details such as parameter and return in
 |Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and rescanblocks.
 |[[#relevanttxaccepted|relevanttxaccepted]]
 |-
-|[[#rebroadcastmissed|rebroadcastmissed]]
-|Asks the daemon to rebroadcast missed votes.
-|[[#spentandmissedtickets|spentandmissedtickets]]
-|-
 |[[#rebroadcastwinners|rebroadcastwinners]]
 |Asks the daemon to rebroadcast the winners of the voting lottery.
 |[[#winningtickets|winningtickets]]
@@ -2984,24 +2980,6 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Returns
 |Nothing
-|}
-
-----
-
-====rebroadcastmissed====
-{|
-!Method
-|rebroadcastmissed
-|-
-!Parameters
-|None
-|-
-!Description
-|Asks the daemon to rebroadcast missed votes via a [[#spentandmissedtickets|spentandmissedtickets]] notification.
-|-
-!Returns
-|Nothing
-|-
 |}
 
 ----
