@@ -265,19 +265,6 @@ func NewExistsAddressesCmd(addresses []string) *ExistsAddressesCmd {
 	}
 }
 
-// ExistsExpiredTicketsCmd defines the existsexpiredtickets JSON-RPC command.
-type ExistsExpiredTicketsCmd struct {
-	TxHashes []string
-}
-
-// NewExistsExpiredTicketsCmd returns a new instance which can be used to issue an
-// existsexpiredtickets JSON-RPC command.
-func NewExistsExpiredTicketsCmd(txHashes []string) *ExistsExpiredTicketsCmd {
-	return &ExistsExpiredTicketsCmd{
-		TxHashes: txHashes,
-	}
-}
-
 // ExistsLiveTicketCmd defines the existsliveticket JSON-RPC command.
 type ExistsLiveTicketCmd struct {
 	TxHash string
@@ -1138,7 +1125,6 @@ func init() {
 	dcrjson.MustRegister(Method("estimatestakediff"), (*EstimateStakeDiffCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddress"), (*ExistsAddressCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsaddresses"), (*ExistsAddressesCmd)(nil), flags)
-	dcrjson.MustRegister(Method("existsexpiredtickets"), (*ExistsExpiredTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsliveticket"), (*ExistsLiveTicketCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existslivetickets"), (*ExistsLiveTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("existsmempooltxs"), (*ExistsMempoolTxsCmd)(nil), flags)
