@@ -5521,45 +5521,6 @@ func TestHandleLiveTickets(t *testing.T) {
 	}})
 }
 
-func TestHandleMissedTickets(t *testing.T) {
-	t.Parallel()
-
-	tkt1 := mustParseHash("1f6631957b4060d81ba7e760ec9c8150ba028eb051ddadf2b9749a5ccda1a955")
-	tkt2 := mustParseHash("eca7e802590df60f7d300b6170f63dfab213b26421ed2e70de3ec2224cb9e460")
-
-	testRPCServerHandler(t, []rpcTest{{
-		name:    "handleMissedTickets: no missed tickets",
-		handler: handleMissedTickets,
-		cmd:     &types.MissedTicketsCmd{},
-		result: types.MissedTicketsResult{
-			Tickets: []string{},
-		},
-	}, {
-		name:    "handleMissedTickets: two missed tickets",
-		handler: handleMissedTickets,
-		cmd:     &types.MissedTicketsCmd{},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.missedTickets = []chainhash.Hash{*tkt1, *tkt2}
-			return chain
-		}(),
-		result: types.MissedTicketsResult{
-			Tickets: []string{tkt1.String(), tkt2.String()},
-		},
-	}, {
-		name:    "handleMissedTickets: unable to fetch missed tickets",
-		handler: handleMissedTickets,
-		cmd:     &types.MissedTicketsCmd{},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.missedTicketsErr = errors.New("unable to fetch missed tickets")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}})
-}
-
 func TestHandleNode(t *testing.T) {
 	t.Parallel()
 

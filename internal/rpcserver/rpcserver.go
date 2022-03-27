@@ -213,7 +213,6 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"help":                  handleHelp,
 	"invalidateblock":       handleInvalidateBlock,
 	"livetickets":           handleLiveTickets,
-	"missedtickets":         handleMissedTickets,
 	"node":                  handleNode,
 	"ping":                  handlePing,
 	"reconsiderblock":       handleReconsiderBlock,
@@ -380,7 +379,6 @@ var rpcLimited = map[string]struct{}{
 	"gettxout":              {},
 	"getvoteinfo":           {},
 	"livetickets":           {},
-	"missedtickets":         {},
 	"regentemplate":         {},
 	"searchrawtransactions": {},
 	"sendrawtransaction":    {},
@@ -4057,22 +4055,6 @@ func handleLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface
 	}
 
 	return types.LiveTicketsResult{Tickets: ltString}, nil
-}
-
-// handleMissedTickets implements the missedtickets command.
-func handleMissedTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	mt, err := s.cfg.Chain.MissedTickets()
-	if err != nil {
-		return nil, rpcInternalError("Could not get missed tickets "+
-			err.Error(), "")
-	}
-
-	mtString := make([]string, len(mt))
-	for i, hash := range mt {
-		mtString[i] = hash.String()
-	}
-
-	return types.MissedTicketsResult{Tickets: mtString}, nil
 }
 
 // handlePing implements the ping command.

@@ -900,10 +900,6 @@ var helpDescsEnUS = map[string]string{
 	"livetickets--synopsis":     "Returns live ticket hashes from the ticket database",
 	"liveticketsresult-tickets": "List of live tickets",
 
-	// MissedTickets help.
-	"missedtickets--synopsis":     "Returns missed ticket hashes from the ticket database",
-	"missedticketsresult-tickets": "List of missed tickets",
-
 	// TicketBuckets help.
 	"ticketbuckets--synopsis": "Request for the number of tickets currently in each bucket of the ticket database.",
 	"ticketbucket-tickets":    "Number of tickets in bucket.",
@@ -1047,7 +1043,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"help":                  {(*string)(nil), (*string)(nil)},
 	"invalidateblock":       nil,
 	"livetickets":           {(*types.LiveTicketsResult)(nil)},
-	"missedtickets":         {(*types.MissedTicketsResult)(nil)},
 	"node":                  nil,
 	"ping":                  nil,
 	"reconsiderblock":       nil,
