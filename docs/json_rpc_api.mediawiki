@@ -352,10 +352,6 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns live ticket hashes from the ticket database.
 |-
-|[[#missedtickets|missedtickets]]
-|Y
-|Returns missed ticket hashes from the ticket database.
-|-
 |[[#node|node]]
 |N
 |Attempts to add or remove a peer.
@@ -2219,27 +2215,6 @@ of the best block.
 |-
 !Example Return
 |<code>{"tickets": ["12ce6a03ce0d449cd88f2c0b6796d746be2f2902aedcc2829b9279ce27020ef4","325742e8037cfa2f76e32ed337978cc845001c9a0aeccb387186a6119ea510f4",...]}</code>
-|}
-
-----
-
-====missedtickets====
-{|
-!Method
-|missedtickets
-|-
-!Parameters
-|None
-|-
-!Description
-| Returns missed ticket hashes from the ticket database.
-|-
-!Returns
-|<code>(json object)</code>
-: <code>tickets</code>: <code>(json array)</code> List of missed tickets.
-|-
-!Example Return
-|<code>{"tickets": ["f56cd8250ac399773bd0a5461587fd1512193476278c4e4b05efc3eca35ca3fe","071c140969f6d74b90e98df5713e07f83f246a92b4f13f365952b83e3922c6fe",...]}</code>
 |}
 
 ----
