@@ -151,7 +151,6 @@ type testRPCChain struct {
 	chainTips                     []blockchain.ChainTipInfo
 	chainWork                     *big.Int
 	chainWorkErr                  error
-	checkExpiredTickets           []bool
 	checkLiveTicket               bool
 	checkLiveTickets              []bool
 	countVoteVersion              uint32
@@ -249,12 +248,6 @@ func (c *testRPCChain) ChainTips() []blockchain.ChainTipInfo {
 // of the provided block hash.
 func (c *testRPCChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
 	return c.chainWork, c.chainWorkErr
-}
-
-// CheckExpiredTickets returns a mocked slice of bools representing
-// whether each ticket hash has expired.
-func (c *testRPCChain) CheckExpiredTickets(hashes []chainhash.Hash) []bool {
-	return c.checkExpiredTickets
 }
 
 // CheckLiveTicket returns a mocked result of whether or not a ticket
@@ -3288,94 +3281,6 @@ func TestHandleExistsAddresses(t *testing.T) {
 			existsAddrIndexer := defaultMockExistsAddresser()
 			existsAddrIndexer.existsAddressesErr = errors.New("")
 			return existsAddrIndexer
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInvalidParameter,
-	}})
-}
-
-func TestHandleExistsExpiredTickets(t *testing.T) {
-	t.Parallel()
-
-	defaultCmdTxHashes := []string{
-		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-	}
-	testRPCServerHandler(t, []rpcTest{{
-		name:    "handleExistsExpiredTickets: both tickets exist",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{true, true}
-			return chain
-		}(),
-		result: "03",
-	}, {
-		name:    "handleExistsExpiredTickets: only first ticket exists",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{true, false}
-			return chain
-		}(),
-		result: "01",
-	}, {
-		name:    "handleExistsExpiredTickets: only second ticket exists",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{false, true}
-			return chain
-		}(),
-		result: "02",
-	}, {
-		name:    "handleExistsExpiredTickets: none of the tickets exist",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: defaultCmdTxHashes,
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{false, false}
-			return chain
-		}(),
-		result: "00",
-	}, {
-		name:    "handleExistsExpiredTickets: invalid hash",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: []string{
-				"g189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-			},
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{true, true}
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCDecodeHexString,
-	}, {
-		name:    "handleExistsExpiredTickets: invalid missed ticket count",
-		handler: handleExistsExpiredTickets,
-		cmd: &types.ExistsExpiredTicketsCmd{
-			TxHashes: []string{
-				"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-			},
-		},
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.checkExpiredTickets = []bool{true, true}
-			return chain
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,

@@ -249,9 +249,6 @@ type Chain interface {
 	// provided block hash.
 	ChainWork(hash *chainhash.Hash) (*big.Int, error)
 
-	// CheckExpiredTicket returns whether or not a ticket was ever expired.
-	CheckExpiredTickets(hashes []chainhash.Hash) []bool
-
 	// CheckLiveTicket returns whether or not a ticket exists in the live ticket
 	// treap of the best node.
 	CheckLiveTicket(hash chainhash.Hash) bool
