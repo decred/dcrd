@@ -2656,10 +2656,6 @@ user.  Click the method name for further details such as parameter and return in
 |Send notifications for all tickets that are chosen to vote.
 |[[#winningtickets|winningtickets]]
 |-
-|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
-|Send notifications for all tickets that are spent or missed.
-|[[#spentandmissedtickets|spentandmissedtickets]]
-|-
 |[[#notifynewtickets|notifynewtickets]]
 |Send notifications for all new tickets that have matured.
 |[[#newtickets|newtickets]]
@@ -3042,26 +3038,6 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 
 ----
 
-====notifyspentandmissedtickets====
-{|
-!Method
-|notifyspentandmissedtickets
-|-
-!Notifications
-|[[#spentandmissedtickets|spentandmissedtickets]]
-|-
-!Parameters
-|None
-|-
-!Description
-|Send a spentandmissedtickets notification when tickets are spent or missed.
-|-
-!Returns
-|Nothing
-|}
-
-----
-
 ====notifynewtickets====
 {|
 !Method
@@ -3155,10 +3131,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |[[#winningtickets|winningtickets]]
 |Tickets were chosen to vote.
 |[[#notifywinningtickets|notifywinningtickets]]
-|-
-|[[#spentandmissedtickets|spentandmissedtickets]]
-|Tickets were spent or missed.
-|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
 |-
 |[[#newtickets|newtickets]]
 |New tickets matured.
@@ -3403,30 +3375,6 @@ The redeemingtx notification for the same txout, after the spending transaction 
 !Example
 |Example notifywinningtickets notification for block 479903 on testnet:
 : <code>{"jsonrpc": "1.0", "method": "winningtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, {"0": "37bb1218876ed8d11497130e253e98f7fd75546744aa9d209e40b97dd5ac735f", "1": "05ad6ce380d97f254c9c60669e9a33d044fccb5589789128abf7ca8c113159d3", "2": "0c43fa8b907acff3d35d81655b3c0a6ae41904ddd939f81b48e5df8d89c6283c", "3": "f2e544178e9e2a4473114b7bf0c383808eadf81f454fc11b835cd5083b0fae7e", "4": "c982fd8c7350df4781c0826c059e7675e6fb568cecee33d19f3a1b03aa41b1ce"}], "id": null}</code>
-|}
-----
-
-====spentandmissedtickets====
-{|
-!Method
-|spentandmissedtickets
-|-
-!Request
-|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
-|-
-!Parameters
-|
-# <code>Hash</code>: <code>(string)</code> the hash of the block.
-# <code>Height</code>: <code>(numeric)</code> the height of the block.
-# <code>StakeDiff</code>: <code>(numeric)</code> the stake difficulty of the block.
-# <code>Tickets</code>: <code>(object)</code> the tickets that have been spent or missed.
-|-
-!Description
-|Notifies a client when tickets have been spent or missed.
-|-
-!Example
-|Example spentandmissedtickets notification for block 479903 on testnet:
-: <code>{"jsonrpc": "1.0", "method": "spentandmissedtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525, {"2911dbd36f0bf09e9e84d223b076413d34c39dea7a060c32e5271d0dbb64b332": "spent", "5edc39e2e5f2fccac6d3a10ae7b0cb51031472cc606d450bbf1d5680083f20a1": "spent", "67ec8b66c5bfc1277cc6c6fc00d1b9e9b1c4d61baed7774843ca86200876fe91": "spent", "c2ca81646dc7afb2165354bbe9fcbf8f3d1e97e4a8361934d43db8cdc7ffcdc0": "spent", "da5b300e1a05b9aad2323916cc4ec6eff98962fcb87787dbe24d25b8ea5b102c": "spent"}], "id": null}</code>
 |}
 ----
 
