@@ -111,16 +111,6 @@ func NewNotifyNewTicketsCmd() *NotifyNewTicketsCmd {
 	return &NotifyNewTicketsCmd{}
 }
 
-// RebroadcastMissedCmd is a type handling custom marshaling and
-// unmarshaling of rebroadcastmissed JSON RPC commands.
-type RebroadcastMissedCmd struct{}
-
-// NewRebroadcastMissedCmd returns a new instance which can be used to
-// issue a JSON-RPC rebroadcastmissed command.
-func NewRebroadcastMissedCmd() *RebroadcastMissedCmd {
-	return &RebroadcastMissedCmd{}
-}
-
 // RebroadcastWinnersCmd is a type handling custom marshaling and
 // unmarshaling of rebroadcastwinners JSON RPC commands.
 type RebroadcastWinnersCmd struct{}
@@ -219,7 +209,6 @@ func init() {
 	dcrjson.MustRegister(Method("notifynewtickets"), (*NotifyNewTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifyspentandmissedtickets"), (*NotifySpentAndMissedTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifywinningtickets"), (*NotifyWinningTicketsCmd)(nil), flags)
-	dcrjson.MustRegister(Method("rebroadcastmissed"), (*RebroadcastMissedCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("session"), (*SessionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifyblocks"), (*StopNotifyBlocksCmd)(nil), flags)
