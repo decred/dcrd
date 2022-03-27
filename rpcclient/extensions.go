@@ -191,45 +191,6 @@ func (c *Client) ExistsAddresses(ctx context.Context, addresses []stdaddr.Addres
 	return c.ExistsAddressesAsync(ctx, addresses).Receive()
 }
 
-// FutureExistsMissedTicketsResult is a future promise to deliver the result of
-// an ExistsMissedTicketsAsync RPC invocation (or an applicable error).
-type FutureExistsMissedTicketsResult cmdRes
-
-// Receive waits for the response promised by the future and returns whether
-// or not the tickets exist in the missed ticket database.
-func (r *FutureExistsMissedTicketsResult) Receive() (string, error) {
-	res, err := receiveFuture(r.ctx, r.c)
-	if err != nil {
-		return "", err
-	}
-
-	// Unmarshal the result as a string.
-	var exists string
-	err = json.Unmarshal(res, &exists)
-	if err != nil {
-		return "", err
-	}
-	return exists, nil
-}
-
-// ExistsMissedTicketsAsync returns an instance of a type that can be used to
-// get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-func (c *Client) ExistsMissedTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) *FutureExistsMissedTicketsResult {
-	strHashes := make([]string, len(hashes))
-	for i := range hashes {
-		strHashes[i] = hashes[i].String()
-	}
-	cmd := chainjson.NewExistsMissedTicketsCmd(strHashes)
-	return (*FutureExistsMissedTicketsResult)(c.sendCmd(ctx, cmd))
-}
-
-// ExistsMissedTickets returns a hex-encoded bitset describing whether or not
-// ticket hashes exists in the missed ticket database.
-func (c *Client) ExistsMissedTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
-	return c.ExistsMissedTicketsAsync(ctx, hashes).Receive()
-}
-
 // FutureExistsExpiredTicketsResult is a future promise to deliver the result
 // of a FutureExistsExpiredTicketsResultAsync RPC invocation (or an
 // applicable error).
