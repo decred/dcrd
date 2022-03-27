@@ -89,17 +89,6 @@ func NewNotifyWinningTicketsCmd() *NotifyWinningTicketsCmd {
 	return &NotifyWinningTicketsCmd{}
 }
 
-// NotifySpentAndMissedTicketsCmd is a type handling custom marshaling and
-// unmarshaling of notifyspentandmissedtickets JSON websocket extension
-// commands.
-type NotifySpentAndMissedTicketsCmd struct {
-}
-
-// NewNotifySpentAndMissedTicketsCmd creates a new NotifySpentAndMissedTicketsCmd.
-func NewNotifySpentAndMissedTicketsCmd() *NotifySpentAndMissedTicketsCmd {
-	return &NotifySpentAndMissedTicketsCmd{}
-}
-
 // NotifyNewTicketsCmd is a type handling custom marshaling and
 // unmarshaling of notifynewtickets JSON websocket extension
 // commands.
@@ -207,7 +196,6 @@ func init() {
 	dcrjson.MustRegister(Method("notifytspend"), (*NotifyTSpendCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtransactions"), (*NotifyNewTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtickets"), (*NotifyNewTicketsCmd)(nil), flags)
-	dcrjson.MustRegister(Method("notifyspentandmissedtickets"), (*NotifySpentAndMissedTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifywinningtickets"), (*NotifyWinningTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("session"), (*SessionCmd)(nil), flags)

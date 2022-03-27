@@ -49,10 +49,6 @@ const (
 	// transaction was accepted by the mempool.
 	RelevantTxAcceptedNtfnMethod Method = "relevanttxaccepted"
 
-	// SpentAndMissedTicketsNtfnMethod is the method of the daemon
-	// spentandmissedtickets notification.
-	SpentAndMissedTicketsNtfnMethod Method = "spentandmissedtickets"
-
 	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
 	// notification.
 	WinningTicketsNtfnMethod Method = "winningtickets"
@@ -154,25 +150,6 @@ func NewReorganizationNtfn(oldHash string, oldHeight int32, newHash string,
 	}
 }
 
-// SpentAndMissedTicketsNtfn is a type handling custom marshaling and
-// unmarshaling of spentandmissedtickets JSON websocket notifications.
-type SpentAndMissedTicketsNtfn struct {
-	Hash      string
-	Height    int32
-	StakeDiff int64
-	Tickets   map[string]string
-}
-
-// NewSpentAndMissedTicketsNtfn creates a new SpentAndMissedTicketsNtfn.
-func NewSpentAndMissedTicketsNtfn(hash string, height int32, stakeDiff int64, tickets map[string]string) *SpentAndMissedTicketsNtfn {
-	return &SpentAndMissedTicketsNtfn{
-		Hash:      hash,
-		Height:    height,
-		StakeDiff: stakeDiff,
-		Tickets:   tickets,
-	}
-}
-
 // TxAcceptedNtfn defines the txaccepted JSON-RPC notification.
 type TxAcceptedNtfn struct {
 	TxID   string  `json:"txid"`
@@ -244,6 +221,5 @@ func init() {
 	dcrjson.MustRegister(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
 	dcrjson.MustRegister(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
 	dcrjson.MustRegister(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
-	dcrjson.MustRegister(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
 	dcrjson.MustRegister(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }
