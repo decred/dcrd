@@ -2787,22 +2787,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// guaranteed to no longer be useful.
 		s.proactivelyEvictSigCacheEntries(block.Height())
 
-	// Stake tickets are spent or missed from the most recently connected block.
-	case blockchain.NTSpentAndMissedTickets:
-		// WARNING: The chain lock is not released before sending this
-		// notification, so care must be taken to avoid calling chain functions
-		// which could result in a deadlock.
-		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
-		if !ok {
-			syncLog.Warnf("Tickets connected notification is not " +
-				"TicketNotificationsData")
-			break
-		}
-
-		if r := s.rpcServer; r != nil {
-			r.NotifySpentAndMissedTickets(tnd)
-		}
-
 	// Stake tickets are matured from the most recently connected block.
 	case blockchain.NTNewTickets:
 		// WARNING: The chain lock is not released before sending this

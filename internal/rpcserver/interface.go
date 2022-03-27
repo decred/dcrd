@@ -690,10 +690,6 @@ type NtfnManager interface {
 	// processing.
 	NotifyWinningTickets(wtnd *WinningTicketsNtfnData)
 
-	// NotifySpentAndMissedTickets passes ticket spend and missing data for an
-	// incoming block to the manager for processing.
-	NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData)
-
 	// NotifyNewTickets passes a new ticket data for an incoming block to the
 	// manager for processing.
 	NotifyNewTickets(tnd *blockchain.TicketNotificationsData)
@@ -736,14 +732,6 @@ type NtfnManager interface {
 	// UnregisterWinningTickets removes winning ticket notifications for
 	// the passed websocket client.
 	UnregisterWinningTickets(wsc *wsClient)
-
-	// RegisterSpentAndMissedTickets requests spent/missed tickets update notifications
-	// to the passed websocket client.
-	RegisterSpentAndMissedTickets(wsc *wsClient)
-
-	// UnregisterSpentAndMissedTickets removes spent/missed ticket notifications for
-	// the passed websocket client.
-	UnregisterSpentAndMissedTickets(wsc *wsClient)
 
 	// RegisterNewTickets requests spent/missed tickets update notifications
 	// to the passed websocket client.

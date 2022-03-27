@@ -1195,10 +1195,6 @@ func (mgr *testNtfnManager) NotifyReorganization(rd *blockchain.ReorganizationNt
 // processing.
 func (mgr *testNtfnManager) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {}
 
-// NotifySpentAndMissedTickets passes ticket spend and missing data for an
-// incoming block to the manager for processing.
-func (mgr *testNtfnManager) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {}
-
 // NotifyNewTickets passes new ticket data for an incoming block to the
 // manager for processing.
 func (mgr *testNtfnManager) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {}
@@ -1243,14 +1239,6 @@ func (mgr *testNtfnManager) RegisterWinningTickets(wsc *wsClient) {}
 // UnregisterWinningTickets removes winning ticket notifications for
 // the passed websocket client.
 func (mgr *testNtfnManager) UnregisterWinningTickets(wsc *wsClient) {}
-
-// RegisterSpentAndMissedTickets requests spent/missed tickets update notifications
-// to the passed websocket client.
-func (mgr *testNtfnManager) RegisterSpentAndMissedTickets(wsc *wsClient) {}
-
-// UnregisterSpentAndMissedTickets removes spent/missed ticket notifications for
-// the passed websocket client.
-func (mgr *testNtfnManager) UnregisterSpentAndMissedTickets(wsc *wsClient) {}
 
 // RegisterNewTickets requests spent/missed tickets update notifications
 // to the passed websocket client.

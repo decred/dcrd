@@ -53,17 +53,6 @@ func TestChainSvrWsCmds(t *testing.T) {
 			unmarshalled: &NotifyWinningTicketsCmd{},
 		},
 		{
-			name: "notifyspentandmissedtickets",
-			newCmd: func() (interface{}, error) {
-				return dcrjson.NewCmd(Method("notifyspentandmissedtickets"))
-			},
-			staticCmd: func() interface{} {
-				return NewNotifySpentAndMissedTicketsCmd()
-			},
-			marshalled:   `{"jsonrpc":"1.0","method":"notifyspentandmissedtickets","params":[],"id":1}`,
-			unmarshalled: &NotifySpentAndMissedTicketsCmd{},
-		},
-		{
 			name: "notifynewtickets",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("notifynewtickets"))

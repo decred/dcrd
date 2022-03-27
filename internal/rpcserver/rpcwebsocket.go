@@ -77,22 +77,21 @@ type wsCommandHandler func(*wsClient, interface{}) (interface{}, error)
 // causes a dependency loop.
 var wsHandlers map[types.Method]wsCommandHandler
 var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
-	"help":                        handleWebsocketHelp,
-	"loadtxfilter":                handleLoadTxFilter,
-	"notifyblocks":                handleNotifyBlocks,
-	"notifywork":                  handleNotifyWork,
-	"notifytspend":                handleNotifyTSpend,
-	"notifywinningtickets":        handleWinningTickets,
-	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
-	"notifynewtickets":            handleNewTickets,
-	"notifynewtransactions":       handleNotifyNewTransactions,
-	"rebroadcastwinners":          handleRebroadcastWinners,
-	"rescan":                      handleRescan,
-	"session":                     handleSession,
-	"stopnotifyblocks":            handleStopNotifyBlocks,
-	"stopnotifywork":              handleStopNotifyWork,
-	"stopnotifytspend":            handleStopNotifyTSpend,
-	"stopnotifynewtransactions":   handleStopNotifyNewTransactions,
+	"help":                      handleWebsocketHelp,
+	"loadtxfilter":              handleLoadTxFilter,
+	"notifyblocks":              handleNotifyBlocks,
+	"notifywork":                handleNotifyWork,
+	"notifytspend":              handleNotifyTSpend,
+	"notifywinningtickets":      handleWinningTickets,
+	"notifynewtickets":          handleNewTickets,
+	"notifynewtransactions":     handleNotifyNewTransactions,
+	"rebroadcastwinners":        handleRebroadcastWinners,
+	"rescan":                    handleRescan,
+	"session":                   handleSession,
+	"stopnotifyblocks":          handleStopNotifyBlocks,
+	"stopnotifywork":            handleStopNotifyWork,
+	"stopnotifytspend":          handleStopNotifyTSpend,
+	"stopnotifynewtransactions": handleStopNotifyNewTransactions,
 }
 
 // WebsocketHandler handles a new websocket client by creating a new wsClient,
@@ -257,16 +256,6 @@ func (m *wsNotificationManager) NotifyWinningTickets(wtnd *WinningTicketsNtfnDat
 	}
 }
 
-// NotifySpentAndMissedTickets passes ticket spend and missing data for an
-// incoming block from the best chain to the notification manager for block
-// notification processing.
-func (m *wsNotificationManager) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
-	select {
-	case m.queueNotification <- (*notificationSpentAndMissedTickets)(tnd):
-	case <-m.quit:
-	}
-}
-
 // NotifyNewTickets passes a new ticket data for an incoming block from the best
 // chain to the notification manager for block notification processing.
 func (m *wsNotificationManager) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {
@@ -417,7 +406,6 @@ type notificationWork mining.TemplateNtfn
 type notificationTSpend dcrutil.Tx
 type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
-type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
 type notificationNewTickets blockchain.TicketNotificationsData
 type notificationTxAcceptedByMempool struct {
 	isNew bool
@@ -435,8 +423,6 @@ type notificationRegisterTSpend wsClient
 type notificationUnregisterTSpend wsClient
 type notificationRegisterWinningTickets wsClient
 type notificationUnregisterWinningTickets wsClient
-type notificationRegisterSpentAndMissedTickets wsClient
-type notificationUnregisterSpentAndMissedTickets wsClient
 type notificationRegisterNewTickets wsClient
 type notificationUnregisterNewTickets wsClient
 type notificationRegisterNewMempoolTxs wsClient
@@ -459,7 +445,6 @@ func (m *wsNotificationManager) notificationHandler(ctx context.Context) {
 	workNotifications := make(map[chan struct{}]*wsClient)
 	tspendNotifications := make(map[chan struct{}]*wsClient)
 	winningTicketNotifications := make(map[chan struct{}]*wsClient)
-	ticketSMNotifications := make(map[chan struct{}]*wsClient)
 	ticketNewNotifications := make(map[chan struct{}]*wsClient)
 	txNotifications := make(map[chan struct{}]*wsClient)
 
@@ -505,10 +490,6 @@ out:
 				m.notifyWinningTickets(winningTicketNotifications,
 					(*WinningTicketsNtfnData)(n))
 
-			case *notificationSpentAndMissedTickets:
-				m.notifySpentAndMissedTickets(ticketSMNotifications,
-					(*blockchain.TicketNotificationsData)(n))
-
 			case *notificationNewTickets:
 				m.notifyNewTickets(ticketNewNotifications,
 					(*blockchain.TicketNotificationsData)(n))
@@ -551,14 +532,6 @@ out:
 				wsc := (*wsClient)(n)
 				delete(winningTicketNotifications, wsc.quit)
 
-			case *notificationRegisterSpentAndMissedTickets:
-				wsc := (*wsClient)(n)
-				ticketSMNotifications[wsc.quit] = wsc
-
-			case *notificationUnregisterSpentAndMissedTickets:
-				wsc := (*wsClient)(n)
-				delete(ticketSMNotifications, wsc.quit)
-
 			case *notificationRegisterNewTickets:
 				wsc := (*wsClient)(n)
 				ticketNewNotifications[wsc.quit] = wsc
@@ -580,7 +553,6 @@ out:
 				delete(tspendNotifications, wsc.quit)
 				delete(txNotifications, wsc.quit)
 				delete(winningTicketNotifications, wsc.quit)
-				delete(ticketSMNotifications, wsc.quit)
 				delete(ticketNewNotifications, wsc.quit)
 				delete(clients, wsc.quit)
 
@@ -1001,46 +973,6 @@ func (*wsNotificationManager) notifyWinningTickets(
 	if err != nil {
 		log.Errorf("Failed to marshal winning tickets notification: "+
 			"%v", err)
-		return
-	}
-
-	for _, wsc := range clients {
-		wsc.QueueNotification(marshalledJSON)
-	}
-}
-
-// RegisterSpentAndMissedTickets requests spent/missed tickets update notifications
-// to the passed websocket client.
-func (m *wsNotificationManager) RegisterSpentAndMissedTickets(wsc *wsClient) {
-	m.queueNotification <- (*notificationRegisterSpentAndMissedTickets)(wsc)
-}
-
-// UnregisterSpentAndMissedTickets removes spent/missed ticket notifications for
-// the passed websocket client.
-func (m *wsNotificationManager) UnregisterSpentAndMissedTickets(wsc *wsClient) {
-	m.queueNotification <- (*notificationUnregisterSpentAndMissedTickets)(wsc)
-}
-
-// notifySpentAndMissedTickets notifies websocket clients that have registered for
-// spent and missed ticket updates.
-func (*wsNotificationManager) notifySpentAndMissedTickets(clients map[chan struct{}]*wsClient, tnd *blockchain.TicketNotificationsData) {
-	// Create a ticket map to export as JSON.
-	ticketMap := make(map[string]string)
-	for _, ticket := range tnd.TicketsMissed {
-		ticketMap[ticket.String()] = "missed"
-	}
-	for _, ticket := range tnd.TicketsSpent {
-		ticketMap[ticket.String()] = "spent"
-	}
-
-	// Notify interested websocket clients about the connected block.
-	ntfn := types.NewSpentAndMissedTicketsNtfn(tnd.Hash.String(),
-		int32(tnd.Height), tnd.StakeDifficulty, ticketMap)
-
-	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
-	if err != nil {
-		log.Errorf("Failed to marshal spent and missed tickets "+
-			"notification: %v", err)
 		return
 	}
 
@@ -2188,13 +2120,6 @@ func handleSession(wsc *wsClient, icmd interface{}) (interface{}, error) {
 // extension for websocket connections.
 func handleWinningTickets(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterWinningTickets(wsc)
-	return nil, nil
-}
-
-// handleSpentAndMissedTickets implements the notifyspentandmissedtickets command
-// extension for websocket connections.
-func handleSpentAndMissedTickets(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	wsc.rpcServer.ntfnMgr.RegisterSpentAndMissedTickets(wsc)
 	return nil, nil
 }
 

@@ -5698,12 +5698,6 @@ func (s *Server) NotifyBlockConnected(block *dcrutil.Block) {
 	s.ntfnMgr.NotifyBlockConnected(block)
 }
 
-// NotifySpentAndMissedTickets notifies websocket clients that have registered
-// for spent and missed ticket updates.
-func (s *Server) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
-	s.ntfnMgr.NotifySpentAndMissedTickets(tnd)
-}
-
 // NotifyBlockDisconnected notifies websocket clients that have registered for
 // block updates when a block is disconnected from the main chain.
 func (s *Server) NotifyBlockDisconnected(block *dcrutil.Block) {

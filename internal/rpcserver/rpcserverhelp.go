@@ -807,9 +807,6 @@ var helpDescsEnUS = map[string]string{
 	"session--synopsis":       "Return details regarding a websocket client's current connection session.",
 	"sessionresult-sessionid": "The unique session ID for a client's websocket connection.",
 
-	// NotifySpentAndMissedTicketsCmd help
-	"notifyspentandmissedtickets--synopsis": "Request notifications for whenever tickets are spent or missed.",
-
 	// NotifyNewTicketsCmd help
 	"notifynewtickets--synopsis": "Request notifications for whenever new tickets are found.",
 
@@ -1047,25 +1044,24 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"version":               {(*map[string]types.VersionResult)(nil)},
 
 	// Websocket commands.
-	"loadtxfilter":                nil,
-	"notifywinningtickets":        nil,
-	"notifyspentandmissedtickets": nil,
-	"notifynewtickets":            nil,
-	"notifyblocks":                nil,
-	"notifywork":                  nil,
-	"notifytspend":                nil,
-	"notifynewtransactions":       nil,
-	"notifyreceived":              nil,
-	"notifyspent":                 nil,
-	"rebroadcastwinners":          nil,
-	"rescan":                      nil,
-	"session":                     {(*types.SessionResult)(nil)},
-	"stopnotifyblocks":            nil,
-	"stopnotifywork":              nil,
-	"stopnotifytspend":            nil,
-	"stopnotifynewtransactions":   nil,
-	"stopnotifyreceived":          nil,
-	"stopnotifyspent":             nil,
+	"loadtxfilter":              nil,
+	"notifywinningtickets":      nil,
+	"notifynewtickets":          nil,
+	"notifyblocks":              nil,
+	"notifywork":                nil,
+	"notifytspend":              nil,
+	"notifynewtransactions":     nil,
+	"notifyreceived":            nil,
+	"notifyspent":               nil,
+	"rebroadcastwinners":        nil,
+	"rescan":                    nil,
+	"session":                   {(*types.SessionResult)(nil)},
+	"stopnotifyblocks":          nil,
+	"stopnotifywork":            nil,
+	"stopnotifytspend":          nil,
+	"stopnotifynewtransactions": nil,
+	"stopnotifyreceived":        nil,
+	"stopnotifyspent":           nil,
 }
 
 // helpCacher provides a concurrent safe type that provides help and usage for
