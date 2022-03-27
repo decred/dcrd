@@ -359,9 +359,6 @@ type Chain interface {
 	// or an error if it doesn't exist.
 	MedianTimeByHash(hash *chainhash.Hash) (time.Time, error)
 
-	// MissedTickets returns all currently missed tickets.
-	MissedTickets() ([]chainhash.Hash, error)
-
 	// NextThresholdState returns the current rule change threshold state of the
 	// given deployment ID for the block AFTER the provided block hash.
 	NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (blockchain.ThresholdStateTuple, error)

@@ -735,9 +735,6 @@ var helpDescsEnUS = map[string]string{
 	"ping--synopsis": "Queues a ping to be sent to each connected peer.\n" +
 		"Ping times are provided by getpeerinfo via the pingtime and pingwait fields.",
 
-	// RebroadcastMissed help.
-	"rebroadcastmissed--synopsis": "Asks the daemon to rebroadcast missed votes.",
-
 	// RebroadcastWinnersCmd help.
 	"rebroadcastwinners--synopsis": "Asks the daemon to rebroadcast the winners of the voting lottery.",
 
@@ -1072,7 +1069,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifynewtransactions":       nil,
 	"notifyreceived":              nil,
 	"notifyspent":                 nil,
-	"rebroadcastmissed":           nil,
 	"rebroadcastwinners":          nil,
 	"rescan":                      nil,
 	"session":                     {(*types.SessionResult)(nil)},

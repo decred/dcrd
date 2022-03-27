@@ -86,7 +86,6 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
 	"notifynewtickets":            handleNewTickets,
 	"notifynewtransactions":       handleNotifyNewTransactions,
-	"rebroadcastmissed":           handleRebroadcastMissed,
 	"rebroadcastwinners":          handleRebroadcastWinners,
 	"rescan":                      handleRescan,
 	"session":                     handleSession,
@@ -2134,30 +2133,6 @@ func handleLoadTxFilter(wsc *wsClient, icmd interface{}) (interface{}, error) {
 // websocket connections.
 func handleNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterBlockUpdates(wsc)
-	return nil, nil
-}
-
-// handleRebroadcastMissed implements the rebroadcastmissed command.
-func handleRebroadcastMissed(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	cfg := wsc.rpcServer.cfg
-	best := cfg.Chain.BestSnapshot()
-	mt, err := cfg.Chain.MissedTickets()
-	if err != nil {
-		return nil, rpcInternalError("Could not get missed tickets "+
-			err.Error(), "")
-	}
-
-	missedTicketsNtfn := &blockchain.TicketNotificationsData{
-		Hash:            best.Hash,
-		Height:          best.Height,
-		StakeDifficulty: best.NextStakeDiff,
-		TicketsSpent:    []chainhash.Hash{},
-		TicketsMissed:   mt,
-		TicketsNew:      []chainhash.Hash{},
-	}
-
-	wsc.rpcServer.ntfnMgr.NotifySpentAndMissedTickets(missedTicketsNtfn)
-
 	return nil, nil
 }
 
