@@ -168,10 +168,6 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns the existence of the provided addresses.
 |-
-|[[#existsexpiredtickets|existsexpiredtickets]]
-|Y
-|Returns the existence of the provided tickets in the expired ticket map.
-|-
 |[[#existsliveticket|existsliveticket]]
 |Y
 |Returns the existence of the provided ticket.
@@ -814,28 +810,6 @@ the method name for further details such as parameter and return information.
 |}
 
 ----
-
-====existsexpiredtickets====
-{|
-!Method
-|existsexpiredtickets
-|-
-!Parameters
-|
-# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
-|-
-!Description
-|Returns the existence of the provided tickets in the expired ticket map.
-|-
-!Returns
-|<code>bitset</code> Bitset of bools showing if tx hashes exist or not as expired tickets.
-|-
-!Example Return
-|<code>00</code>
-|}
-
-----
-
 
 ====existsliveticket====
 {|
