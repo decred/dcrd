@@ -988,10 +988,12 @@ func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainPa
 func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, blockHash *chainhash.Hash) bool {
 	switch network {
 	case wire.MainNet:
-		// 430191 is the height of the last block on mainnet that violated
-		// DCP0005, so return false immediately if the height is greater than
-		// that.
-		if header.Height > 430191 {
+		// All blocks that violated DCP0005 on mainnet are version 6 and the
+		// height of the last block that violated it is 430191.
+		//
+		// Avoid additional work for blocks that are either not that version or
+		// are after the final height known to be a violation.
+		if header.Version != 6 || header.Height > 430191 {
 			return false
 		}
 
@@ -1004,14 +1006,48 @@ func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, bloc
 			header.Height == 430191 && *blockHash == *block430191Hash
 
 	case wire.TestNet3:
-		// 323282 is the height of the last block on testnet that violated
-		// DCP0005.  Return true if the height is less than or equal to 323282
-		// so that the DCP0005 version check is not enforced until after that
-		// point.
-		return header.Height <= 323282
+		// All blocks that violated DCP0005 on testnet are version 7 and the
+		// height of the last block that violated it is 323282.
+		//
+		// Return true for all blocks of that version that are before the final
+		// height known to be a violation so that the DCP0005 version check is
+		// not enforced until after that point.
+		return header.Version == 7 && header.Height <= 323282
 	}
 
 	return false
+}
+
+// isOldBlockVersionByMajority determines if the block version specified by the
+// provided header should be rejected due to a majority of the network already
+// being upgraded to a newer version.
+//
+// This function MUST be called with the chain state lock held (for reads).
+func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, blockHash *chainhash.Hash, prevNode *blockNode) bool {
+	// Note that the latest block version for all networks other than the main
+	// network is one higher.
+	latestBlockVersion := int32(9)
+	if b.chainParams.Net != wire.MainNet {
+		latestBlockVersion++
+	}
+
+	// Blocks with a version greater than or equal to the latest enforced block
+	// version are most certainly not an old version.
+	if header.Version >= latestBlockVersion {
+		return false
+	}
+
+	// Skip the version check for blocks that are known to violate DCP0005.  See
+	// isDCP0005Violation for more details.
+	if isDCP0005Violation(b.chainParams.Net, header, blockHash) {
+		return false
+	}
+
+	// The block version is considered old once the majority of the network has
+	// upgraded to a more recent version.
+	rejectNumRequired := b.chainParams.BlockRejectNumRequired
+	nextVersion := header.Version + 1
+	return b.isMajorityVersion(nextVersion, prevNode, rejectNumRequired)
 }
 
 // checkBlockHeaderPositional performs several validation checks on the block
@@ -1092,31 +1128,10 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	if !fastAdd {
 		// Reject old version blocks once a majority of the network has
 		// upgraded.
-		//
-		// Note that the latest block version for all networks other than the
-		// main network is one higher.
-		latestBlockVersion := int32(9)
-		dcp0005Version := int32(7)
-		if b.chainParams.Net != wire.MainNet {
-			latestBlockVersion++
-			dcp0005Version++
-		}
-		for version := latestBlockVersion; version > 1; version-- {
-			// Skip the version check for blocks that are known to violate
-			// DCP0005.  See isDCP0005Violation for more details.
-			if version == dcp0005Version &&
-				isDCP0005Violation(b.chainParams.Net, header, &blockHash) {
-
-				continue
-			}
-
-			if header.Version < version && b.isMajorityVersion(version,
-				prevNode, b.chainParams.BlockRejectNumRequired) {
-
-				str := "new blocks with version %d are no longer valid"
-				str = fmt.Sprintf(str, header.Version)
-				return ruleError(ErrBlockVersionTooOld, str)
-			}
+		if b.isOldBlockVersionByMajority(header, &blockHash, prevNode) {
+			str := "new blocks with version %d are no longer valid"
+			str = fmt.Sprintf(str, header.Version)
+			return ruleError(ErrBlockVersionTooOld, str)
 		}
 	}
 
