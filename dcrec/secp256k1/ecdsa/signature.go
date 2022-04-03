@@ -6,7 +6,6 @@
 package ecdsa
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -851,7 +850,9 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	// A compact signature consists of a recovery byte followed by the R and
 	// S components serialized as 32-byte big-endian values.
 	if len(signature) != compactSigSize {
-		return nil, false, errors.New("invalid compact signature size")
+		str := fmt.Sprintf("malformed signature: wrong size: %d != %d",
+			len(signature), compactSigSize)
+		return nil, false, signatureError(ErrSigInvalidLen, str)
 	}
 
 	// Parse and validate the compact signature recovery code.
@@ -861,7 +862,10 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	)
 	sigRecoveryCode := signature[0]
 	if sigRecoveryCode < minValidCode || sigRecoveryCode > maxValidCode {
-		return nil, false, errors.New("invalid compact signature recovery code")
+		str := fmt.Sprintf("invalid signature: public key recovery code %d is "+
+			"not in the valid range [%d, %d]", sigRecoveryCode, minValidCode,
+			maxValidCode)
+		return nil, false, signatureError(ErrSigInvalidRecoveryCode, str)
 	}
 	sigRecoveryCode -= compactSigMagicOffset
 	wasCompressed := sigRecoveryCode&compactSigCompPubKey != 0
@@ -874,16 +878,20 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	// Fail if r and s are not in [1, N-1].
 	var r, s secp256k1.ModNScalar
 	if overflow := r.SetByteSlice(signature[1:33]); overflow {
-		return nil, false, errors.New("signature R is >= curve order")
+		str := "invalid signature: R >= group order"
+		return nil, false, signatureError(ErrSigRTooBig, str)
 	}
 	if r.IsZero() {
-		return nil, false, errors.New("signature R is 0")
+		str := "invalid signature: R is 0"
+		return nil, false, signatureError(ErrSigRIsZero, str)
 	}
 	if overflow := s.SetByteSlice(signature[33:]); overflow {
-		return nil, false, errors.New("signature S is >= curve order")
+		str := "invalid signature: S >= group order"
+		return nil, false, signatureError(ErrSigSTooBig, str)
 	}
 	if s.IsZero() {
-		return nil, false, errors.New("signature S is 0")
+		str := "invalid signature: S is 0"
+		return nil, false, signatureError(ErrSigSIsZero, str)
 	}
 
 	// Step 2.
@@ -904,7 +912,8 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 		// would exceed the field prime since R originally came from the X
 		// coordinate of a random point on the curve.
 		if fieldR.IsGtOrEqPrimeMinusOrder() {
-			return nil, false, errors.New("signature R + N >= P")
+			str := "invalid signature: signature R + N >= P"
+			return nil, false, signatureError(ErrSigOverflowsPrime, str)
 		}
 
 		// Step 3.2.
@@ -925,7 +934,8 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	oddY := pubKeyRecoveryCode&pubKeyRecoveryCodeOddnessBit != 0
 	var y secp256k1.FieldVal
 	if valid := secp256k1.DecompressY(&fieldR, oddY, &y); !valid {
-		return nil, false, errors.New("signature is not for a valid curve point")
+		str := "invalid signature: not for a valid curve point"
+		return nil, false, signatureError(ErrPointNotOnCurve, str)
 	}
 
 	// Step 5.
@@ -969,7 +979,8 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	// Either the signature or the pubkey recovery code must be invalid if the
 	// recovered pubkey is the point at infinity.
 	if (Q.X.IsZero() && Q.Y.IsZero()) || Q.Z.IsZero() {
-		return nil, false, errors.New("recovered pubkey is the point at infinity")
+		str := "invalid signature: recovered pubkey is the point at infinity"
+		return nil, false, signatureError(ErrPointNotOnCurve, str)
 	}
 
 	// Notice that the public key is in affine coordinates.
