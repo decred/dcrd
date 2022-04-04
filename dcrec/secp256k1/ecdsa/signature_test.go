@@ -7,11 +7,9 @@ package ecdsa
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	mrand "math/rand"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -580,7 +578,7 @@ func TestSignAndVerifyRandom(t *testing.T) {
 
 	// Use a unique random seed each test instance and log it if the tests fail.
 	seed := time.Now().Unix()
-	rng := mrand.New(mrand.NewSource(seed))
+	rng := rand.New(rand.NewSource(seed))
 	defer func(t *testing.T, seed int64) {
 		if t.Failed() {
 			t.Logf("random seed: %d", seed)
@@ -737,79 +735,6 @@ func TestVerifyFailures(t *testing.T) {
 				test.name, sig.Serialize())
 			continue
 		}
-	}
-}
-
-// testSignCompact creates a recoverable public key signature over the provided
-// data by creating a random private key, signing the data, and ensure the
-// public key can be recovered.
-func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
-	priv, err := secp256k1.GeneratePrivateKey()
-	if err != nil {
-		t.Fatalf("failed to generate private key: %v", err)
-	}
-	signingPubKey := priv.PubKey()
-
-	hashed := []byte("testing")
-	sig := SignCompact(priv, hashed, isCompressed)
-
-	pk, wasCompressed, err := RecoverCompact(sig, hashed)
-	if err != nil {
-		t.Errorf("%s: error recovering: %s", tag, err)
-		return
-	}
-	if !pk.IsEqual(signingPubKey) {
-		t.Errorf("%s: recovered pubkey doesn't match original "+
-			"%x vs %x", tag, pk.SerializeCompressed(),
-			signingPubKey.SerializeCompressed())
-		return
-	}
-	if wasCompressed != isCompressed {
-		t.Errorf("%s: recovered pubkey doesn't match compressed state "+
-			"(%v vs %v)", tag, isCompressed, wasCompressed)
-		return
-	}
-
-	// If we change the compressed bit we should get the same key back,
-	// but the compressed flag should be reversed.
-	if isCompressed {
-		sig[0] -= 4
-	} else {
-		sig[0] += 4
-	}
-
-	pk, wasCompressed, err = RecoverCompact(sig, hashed)
-	if err != nil {
-		t.Errorf("%s: error recovering (2): %s", tag, err)
-		return
-	}
-	if !pk.IsEqual(signingPubKey) {
-		t.Errorf("%s: recovered pubkey (2) doesn't match original "+
-			"%x vs %x", tag, pk.SerializeCompressed(),
-			signingPubKey.SerializeCompressed())
-		return
-	}
-	if wasCompressed == isCompressed {
-		t.Errorf("%s: recovered pubkey doesn't match reversed "+
-			"compressed state (%v vs %v)", tag, isCompressed,
-			wasCompressed)
-		return
-	}
-}
-
-// TestSignCompact ensures the public key can be recovered from recoverable
-// public key signatures over random data with random private keys.
-func TestSignCompact(t *testing.T) {
-	for i := 0; i < 256; i++ {
-		name := fmt.Sprintf("test %d", i)
-		data := make([]byte, 32)
-		_, err := rand.Read(data)
-		if err != nil {
-			t.Errorf("failed to read random data for %s", name)
-			continue
-		}
-		compressed := i%2 != 0
-		testSignCompact(t, name, data, compressed)
 	}
 }
 
@@ -1054,6 +979,93 @@ func TestRecoverCompactErrors(t *testing.T) {
 			t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
 				test.err)
 			continue
+		}
+	}
+}
+
+// TestSignAndRecoverCompactRandom ensures compact (recoverable public key)
+// ECDSA signing and recovery work as expected for randomly-generated private
+// keys and messages.  It also ensures mutated signatures and messages do not
+// improperly recover the original public key.
+func TestSignAndRecoverCompactRandom(t *testing.T) {
+	t.Parallel()
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate a random private key.
+		var buf [32]byte
+		if _, err := rng.Read(buf[:]); err != nil {
+			t.Fatalf("failed to read random private key: %v", err)
+		}
+		var privKeyScalar secp256k1.ModNScalar
+		privKeyScalar.SetBytes(&buf)
+		privKey := secp256k1.NewPrivateKey(&privKeyScalar)
+		wantPubKey := privKey.PubKey()
+
+		// Generate a random hash to sign.
+		var hash [32]byte
+		if _, err := rng.Read(hash[:]); err != nil {
+			t.Fatalf("failed to read random hash: %v", err)
+		}
+
+		// Test compact signatures for both the compressed and uncompressed
+		// versions of the public key.
+		for _, compressed := range []bool{true, false} {
+			// Sign the hash with the private key and then ensure the original
+			// public key and compressed flag is recovered from the produced
+			// signature.
+			gotSig := SignCompact(privKey, hash[:], compressed)
+
+			gotPubKey, gotCompressed, err := RecoverCompact(gotSig, hash[:])
+			if err != nil {
+				t.Fatalf("unexpected err: %v\nsig: %x\nhash: %x\nprivate key: %x",
+					err, gotSig, hash, privKey.Serialize())
+			}
+			if gotCompressed != compressed {
+				t.Fatalf("unexpected compressed flag: %v\nsig: %x\nhash: %x\n"+
+					"private key: %x", gotCompressed, gotSig, hash,
+					privKey.Serialize())
+			}
+			if !gotPubKey.IsEqual(wantPubKey) {
+				t.Fatalf("unexpected recovered public key: %x\nsig: %x\nhash: "+
+					"%x\nprivate key: %x", gotPubKey.SerializeUncompressed(),
+					gotSig, hash, privKey.Serialize())
+			}
+
+			// Change a random bit in the signature and ensure the bad signature
+			// fails to recover the original public key.
+			badSig := make([]byte, len(gotSig))
+			copy(badSig, gotSig)
+			randByte := rng.Intn(len(badSig)-1) + 1
+			randBit := rng.Intn(7)
+			badSig[randByte] ^= 1 << randBit
+			badPubKey, _, err := RecoverCompact(badSig, hash[:])
+			if err == nil && badPubKey.IsEqual(wantPubKey) {
+				t.Fatalf("recovered public key for bad sig: %x\nhash: %x\n"+
+					"private key: %x", badSig, hash, privKey.Serialize())
+			}
+
+			// Change a random bit in the hash that was originally signed and
+			// ensure the original good signature fails to recover the original
+			// public key.
+			badHash := make([]byte, len(hash))
+			copy(badHash, hash[:])
+			randByte = rng.Intn(len(badHash))
+			randBit = rng.Intn(7)
+			badHash[randByte] ^= 1 << randBit
+			badPubKey, _, err = RecoverCompact(gotSig, badHash[:])
+			if err == nil && badPubKey.IsEqual(wantPubKey) {
+				t.Fatalf("recovered public key for bad hash: %x\nsig: %x\n"+
+					"private key: %x", badHash, gotSig, privKey.Serialize())
+			}
 		}
 	}
 }
