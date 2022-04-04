@@ -322,26 +322,36 @@ type Params struct {
 	// WorkRewardProportion is the comparative amount of the subsidy given for
 	// creating a block using the proportions prior to the modified values
 	// defined in DCP0010.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	WorkRewardProportion uint16
 
 	// WorkRewardProportionV2 is the comparative amount of the subsidy given for
 	// creating a block using the proportions defined in DCP0010.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	WorkRewardProportionV2 uint16
 
 	// StakeRewardProportion is the comparative amount of the subsidy given for
 	// casting stake votes (collectively, per block) using the proportions prior
 	// to the modified values defined in DCP0010.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	StakeRewardProportion uint16
 
 	// StakeRewardProportionV2 is the comparative amount of the subsidy given
 	// for casting stake votes (collectively, per block) using the proportions
 	// defined in DCP0010.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	StakeRewardProportionV2 uint16
 
 	// BlockTaxProportion is the inverse of the percentage of funds for each
 	// block to allocate to the developer organization.
 	// e.g. 10% --> 10 (or 1 / (1/10))
 	// Special case: disable taxes with a value of 0
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	BlockTaxProportion uint16
 
 	// Checkpoints ordered from oldest to newest.
@@ -635,6 +645,8 @@ func (p *Params) SubsidyReductionIntervalBlocks() int64 {
 // WorkSubsidyProportion:     6 => 6 / (6+3+1) => 6/10 => 60%
 // StakeSubsidyProportion:    3 => 3 / (6+3+1) => 3/10 => 30%
 // TreasurySubsidyProportion: 1 => 1 / (6+3+1) => 1/10 => 10%
+//
+// Deprecated: This will be removed in the next major version bump.
 func (p *Params) WorkSubsidyProportion() uint16 {
 	return p.WorkRewardProportion
 }
@@ -644,6 +656,8 @@ func (p *Params) WorkSubsidyProportion() uint16 {
 // proportions prior to the modified values defined in DCP0010.  See the
 // documentation for WorkSubsidyProportion for more details on how the parameter
 // is used.
+//
+// Deprecated: This will be removed in the next major version bump.
 func (p *Params) StakeSubsidyProportion() uint16 {
 	return p.StakeRewardProportion
 }
@@ -651,6 +665,8 @@ func (p *Params) StakeSubsidyProportion() uint16 {
 // TreasurySubsidyProportion returns the comparative proportion of the
 // subsidy allocated to the project treasury.  See the documentation for
 // WorkSubsidyProportion for more details on how the parameter is used.
+//
+// Deprecated: This will be removed in the next major version bump.
 func (p *Params) TreasurySubsidyProportion() uint16 {
 	return p.BlockTaxProportion
 }
