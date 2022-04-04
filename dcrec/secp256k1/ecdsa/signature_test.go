@@ -840,3 +840,220 @@ func TestSignatureIsEqual(t *testing.T) {
 		t.Fatalf("bad signature equality check: %v != %v", sig1, sig2)
 	}
 }
+
+// TestSignAndRecoverCompact ensures compact (recoverable public key) ECDSA
+// signing and public key recovery works as expected for a selected set of
+// private keys, messages, and nonces that have been verified independently with
+// the Sage computer algebra system.
+func TestSignAndRecoverCompact(t *testing.T) {
+	t.Parallel()
+
+	tests := signTests(t)
+	for _, test := range tests {
+		// Skip tests using nonces that are not RFC6979.
+		if !test.rfc6979 {
+			continue
+		}
+
+		// Parse test data.
+		privKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key))
+		pubKey := privKey.PubKey()
+		hash := hexToBytes(test.hash)
+		wantSig := hexToBytes("00" + test.wantSigR + test.wantSigS)
+
+		// Test compact signatures for both the compressed and uncompressed
+		// versions of the public key.
+		for _, compressed := range []bool{true, false} {
+			// Populate the expected compact signature recovery code.
+			wantRecoveryCode := compactSigMagicOffset + test.wantCode
+			if compressed {
+				wantRecoveryCode += compactSigCompPubKey
+			}
+			wantSig[0] = wantRecoveryCode
+
+			// Sign the hash of the message with the given private key and
+			// ensure the generated signature is the expected value per the
+			// specified compressed flag.
+			gotSig := SignCompact(privKey, hash, compressed)
+			if !bytes.Equal(gotSig, wantSig) {
+				t.Errorf("%s: unexpected signature -- got %x, want %x",
+					test.name, gotSig, wantSig)
+				continue
+			}
+
+			// Ensure the recovered public key and flag that indicates whether
+			// or not the signature was for a compressed public key are the
+			// expected values.
+			gotPubKey, gotCompressed, err := RecoverCompact(gotSig, hash)
+			if err != nil {
+				t.Errorf("%s: unexpected error when recovering: %v", test.name,
+					err)
+				continue
+			}
+			if gotCompressed != compressed {
+				t.Errorf("%s: unexpected compressed flag -- got %v, want %v",
+					test.name, gotCompressed, compressed)
+				continue
+			}
+			if !gotPubKey.IsEqual(pubKey) {
+				t.Errorf("%s: unexpected public key -- got %x, want %x",
+					test.name, gotPubKey.SerializeUncompressed(),
+					pubKey.SerializeUncompressed())
+				continue
+			}
+		}
+	}
+}
+
+// TestRecoverCompactErrors ensures several error paths in compact signature
+// recovery are detected as expected.  When possible, the signatures are
+// otherwise valid with the exception of the specific failure to ensure it's
+// robust against things like fault attacks.
+func TestRecoverCompactErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // test description
+		sig  string // hex encoded signature to recover pubkey from
+		hash string // hex encoded hash of message
+		err  error  // expected error
+	}{{
+		name: "empty signature",
+		sig:  "",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigInvalidLen,
+	}, {
+		// Signature created from private key 0x02, blake256(0x01020304).
+		name: "no compact sig recovery code (otherwise valid sig)",
+		sig: "e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigInvalidLen,
+	}, {
+		// Signature created from private key 0x02, blake256(0x01020304).
+		name: "signature one byte too long (S padded with leading zero)",
+		sig: "1f" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"0044b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigInvalidLen,
+	}, {
+		// Signature created from private key 0x02, blake256(0x01020304).
+		name: "compact sig recovery code too low (otherwise valid sig)",
+		sig: "1a" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigInvalidRecoveryCode,
+	}, {
+		// Signature created from private key 0x02, blake256(0x01020304).
+		name: "compact sig recovery code too high (otherwise valid sig)",
+		sig: "23" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigInvalidRecoveryCode,
+	}, {
+		// Signature invented since finding a signature with an r value that is
+		// exactly the group order prior to the modular reduction is not
+		// calculable without breaking the underlying crypto.
+		name: "R == group order",
+		sig: "1f" +
+			"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigRTooBig,
+	}, {
+		// Signature invented since finding a signature with an r value that
+		// would be valid modulo the group order and is still 32 bytes is not
+		// calculable without breaking the underlying crypto.
+		name: "R > group order and still 32 bytes (order + 1)",
+		sig: "1f" +
+			"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigRTooBig,
+	}, {
+		// Signature invented since the only way a signature could have an r
+		// value of zero is if the nonce were zero which is invalid.
+		name: "R == 0",
+		sig: "1f" +
+			"0000000000000000000000000000000000000000000000000000000000000000" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigRIsZero,
+	}, {
+		// Signature invented since finding a signature with an s value that is
+		// exactly the group order prior to the modular reduction is not
+		// calculable without breaking the underlying crypto.
+		name: "S == group order",
+		sig: "1f" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigSTooBig,
+	}, {
+		// Signature invented since finding a signature with an s value that
+		// would be valid modulo the group order and is still 32 bytes is not
+		// calculable without breaking the underlying crypto.
+		name: "S > group order and still 32 bytes (order + 1)",
+		sig: "1f" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigSTooBig,
+	}, {
+		// Signature created by forcing the key/hash/nonce choices such that s
+		// is zero and is therefore invalid.  The signing code will not produce
+		// such a signature in practice.
+		name: "S == 0",
+		sig: "1f" +
+			"e6f137b52377250760cc702e19b7aee3c63b0e7d95a91939b14ab3b5c4771e59" +
+			"0000000000000000000000000000000000000000000000000000000000000000",
+		hash: "393bec84f1a04037751c0d6c2817f37953eaa204ac0898de7adb038c33a20438",
+		err:  ErrSigSIsZero,
+	}, {
+		// Signature invented since finding a private key needed to create a
+		// valid signature with an r value that is >= group order prior to the
+		// modular reduction is not possible without breaking the underlying
+		// crypto.
+		name: "R >= field prime minus group order with overflow bit",
+		sig: "21" +
+			"000000000000000000000000000000014551231950b75fc4402da1722fc9baee" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrSigOverflowsPrime,
+	}, {
+		// Signature created from private key 0x01, blake256(0x0102030407) over
+		// the secp256r1 curve (note the r1 instead of k1).
+		name: "pubkey not on the curve, signature valid for secp256r1 instead",
+		sig: "1f" +
+			"2a81d1b3facc22185267d3f8832c5104902591bc471253f1cfc5eb25f4f740f2" +
+			"72e65d019f9b09d769149e2be0b55de9b0224d34095bddc6a5dba90bfda33c45",
+		hash: "9165e957708bc95cf62d020769c150b2d7b08e7ab7981860815b1eaabd41d695",
+		err:  ErrPointNotOnCurve,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304) and
+		// manually setting s = -e*k^-1.
+		name: "calculated pubkey point at infinity",
+		sig: "1f" +
+			"c6c4137b0e5fbfc88ae3f293d7e80c8566c43ae20340075d44f75b009c943d09" +
+			"1281d8d90a5774045abd57b453c7eadbc830dbadec89ae8dd7639b9cc55641d0",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrPointNotOnCurve,
+	}}
+
+	for _, test := range tests {
+		// Parse test data.
+		hash := hexToBytes(test.hash)
+		sig := hexToBytes(test.sig)
+
+		// Ensure the expected error is hit.
+		_, _, err := RecoverCompact(sig, hash)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+	}
+}
