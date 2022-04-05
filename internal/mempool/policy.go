@@ -296,8 +296,7 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 // Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
 // instance.
 func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
-	medianTime time.Time, minRelayTxFee dcrutil.Amount,
-	isTreasuryEnabled bool) error {
+	medianTime time.Time, minRelayTxFee dcrutil.Amount) error {
 
 	// The transaction must be a currently supported serialize type.
 	msgTx := tx.MsgTx()

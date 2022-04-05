@@ -1351,7 +1351,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	medianTime := mp.cfg.PastMedianTime()
 	if !mp.cfg.Policy.AcceptNonStd {
 		err := checkTransactionStandard(tx, txType, nextBlockHeight,
-			medianTime, mp.cfg.Policy.MinRelayTxFee, isTreasuryEnabled)
+			medianTime, mp.cfg.Policy.MinRelayTxFee)
 		if err != nil {
 			str := fmt.Sprintf("transaction %v is not standard: %v",
 				txHash, err)
