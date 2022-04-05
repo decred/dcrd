@@ -426,7 +426,7 @@ func (p *fakeTxSource) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx,
 }
 
 // addOrphan adds the passed orphan transaction to the orphan pool.
-func (p *fakeTxSource) addOrphan(tx *dcrutil.Tx, isTreasuryEnabled bool) {
+func (p *fakeTxSource) addOrphan(tx *dcrutil.Tx) {
 	p.orphans[*tx.Hash()] = tx
 	for _, txIn := range tx.MsgTx().TxIn {
 		if _, exists := p.orphansByPrev[txIn.PreviousOutPoint]; !exists {
@@ -438,7 +438,7 @@ func (p *fakeTxSource) addOrphan(tx *dcrutil.Tx, isTreasuryEnabled bool) {
 }
 
 // removeOrphan removes the passed orphan transaction from the orphan pool.
-func (p *fakeTxSource) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
+func (p *fakeTxSource) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool) {
 	// Nothing to do if the passed tx does not exist in the orphan pool.
 	txHash := tx.Hash()
 	tx, exists := p.orphans[*txHash]
@@ -466,7 +466,7 @@ func (p *fakeTxSource) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 		for txOutIdx := range tx.MsgTx().TxOut {
 			prevOut.Index = uint32(txOutIdx)
 			for _, orphan := range p.orphansByPrev[prevOut] {
-				p.removeOrphan(orphan, true, isTreasuryEnabled)
+				p.removeOrphan(orphan, true)
 			}
 		}
 	}
@@ -480,11 +480,11 @@ func (p *fakeTxSource) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 // to removing all orphans which rely on them, recursively.  This is necessary
 // when a transaction is added to the main pool because it may spend outputs
 // that orphans also spend.
-func (p *fakeTxSource) removeOrphanDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled bool) {
+func (p *fakeTxSource) removeOrphanDoubleSpends(tx *dcrutil.Tx) {
 	msgTx := tx.MsgTx()
 	for _, txIn := range msgTx.TxIn {
 		for _, orphan := range p.orphansByPrev[txIn.PreviousOutPoint] {
-			p.removeOrphan(orphan, true, isTreasuryEnabled)
+			p.removeOrphan(orphan, true)
 		}
 	}
 }
@@ -839,7 +839,7 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled,
 				if err != nil {
 					// The orphan is now invalid, so there is no way any other orphans which
 					// redeem any of its outputs can be accepted.  Remove them.
-					p.removeOrphan(tx, true, isTreasuryEnabled)
+					p.removeOrphan(tx, true)
 					break
 				}
 
@@ -855,7 +855,7 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled,
 				// remove it from the orphan pool, and add it to the list of transactions to
 				// process so any orphans that depend on it are handled too.
 				acceptedTxns = append(acceptedTxns, tx)
-				p.removeOrphan(tx, false, isTreasuryEnabled)
+				p.removeOrphan(tx, false)
 				processList = append(processList, tx)
 
 				// Only one transaction for this outpoint can be accepted, so the rest are
@@ -867,9 +867,9 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled,
 
 	// Recursively remove any orphans that also redeem any outputs redeemed by the
 	// accepted transactions since those are now definitive double spends.
-	p.removeOrphanDoubleSpends(acceptedTx, isTreasuryEnabled)
+	p.removeOrphanDoubleSpends(acceptedTx)
 	for _, tx := range acceptedTxns {
-		p.removeOrphanDoubleSpends(tx, isTreasuryEnabled)
+		p.removeOrphanDoubleSpends(tx)
 	}
 
 	return acceptedTxns
@@ -901,7 +901,7 @@ func (p *fakeTxSource) ProcessTransaction(tx *dcrutil.Tx) ([]*dcrutil.Tx, error)
 	}
 
 	// Add the orphan transaction to the tx source.
-	p.addOrphan(tx, isTreasuryEnabled)
+	p.addOrphan(tx)
 
 	return nil, err
 }

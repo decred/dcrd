@@ -525,7 +525,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		txType := stake.DetermineTxType(&test.tx, noTreasury, noAutoRevocations)
 		tx := dcrutil.NewTx(&test.tx)
 		err := checkTransactionStandard(tx, txType, test.height, medianTime,
-			DefaultMinRelayTxFee, noTreasury)
+			DefaultMinRelayTxFee)
 		if err == nil && test.isStandard {
 			// Test passes since function returned standard for a
 			// transaction which is intended to be standard.
