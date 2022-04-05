@@ -543,7 +543,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 	coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64,
 	addr stdaddr.Address, voters uint16, params *chaincfg.Params,
-	isTreasuryEnabled, isSubsidyEnabled bool) (*dcrutil.Tx, error) {
+	isTreasuryEnabled, isSubsidyEnabled bool) *dcrutil.Tx {
 
 	// Coinbase transactions have no inputs, so previous outpoint is zero hash
 	// and max index.
@@ -571,7 +571,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 			})
 		}
 
-		return dcrutil.NewTx(tx), nil
+		return dcrutil.NewTx(tx)
 	}
 
 	// Prior to the decentralized treasury agenda, the transaction version must
@@ -645,7 +645,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 		Version:  workSubsidyScriptVer,
 		PkScript: workSubsidyScript,
 	})
-	return dcrutil.NewTx(tx), nil
+	return dcrutil.NewTx(tx)
 }
 
 // createTreasuryBaseTx returns a treasurybase transaction paying an appropriate
@@ -841,13 +841,10 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		if err != nil {
 			return nil, err
 		}
-		coinbaseTx, err := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
+		coinbaseTx := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 			opReturnPkScript, topBlock.Height(), miningAddress,
 			tipHeader.Voters, g.cfg.ChainParams, isTreasuryEnabled,
 			isSubsidyEnabled)
-		if err != nil {
-			return nil, err
-		}
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if isTreasuryEnabled {
@@ -2108,12 +2105,9 @@ nextPriorityQueueItem:
 		}
 	}
 
-	coinbaseTx, err := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
+	coinbaseTx := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
 		g.cfg.ChainParams, isTreasuryEnabled, isSubsidyEnabled)
-	if err != nil {
-		return nil, err
-	}
 	coinbaseTx.SetTree(wire.TxTreeRegular)
 
 	numCoinbaseSigOps := int64(g.cfg.CountSigOps(coinbaseTx, true,
