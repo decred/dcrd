@@ -25,7 +25,7 @@ var (
 // DropCfIndex drops the CF index from the provided database if it exists.
 func DropCfIndex(ctx context.Context, db database.DB) error {
 	// Nothing to do if the index doesn't already exist.
-	exists, err := existsIndex(db, cfIndexParentBucketKey, cfIndexName)
+	exists, err := existsIndex(db, cfIndexParentBucketKey)
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func DropCfIndex(ctx context.Context, db database.DB) error {
 
 	// Remove the index tip, version, bucket, and in-progress drop flag now
 	// that all index entries have been removed.
-	err = dropIndexMetadata(db, cfIndexParentBucketKey, cfIndexName)
+	err = dropIndexMetadata(db, cfIndexParentBucketKey)
 	if err != nil {
 		return err
 	}

@@ -5334,11 +5334,7 @@ func CheckDBTooOldToUpgrade(db database.DB) error {
 	// Fetch the database versioning information.
 	var dbInfo *databaseInfo
 	err := db.View(func(dbTx database.Tx) error {
-		var err error
-		dbInfo, err = dbFetchDatabaseInfo(dbTx)
-		if err != nil {
-			return err
-		}
+		dbInfo = dbFetchDatabaseInfo(dbTx)
 		return nil
 	})
 	if err != nil {

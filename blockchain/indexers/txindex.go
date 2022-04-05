@@ -530,7 +530,7 @@ func (idx *TxIndex) Create(dbTx database.Tx) error {
 
 // connectBlock adds a hash-to-transaction mapping for every transaction in
 // the passed block.
-func (idx *TxIndex) connectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, _ bool) error {
+func (idx *TxIndex) connectBlock(dbTx database.Tx, block *dcrutil.Block) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -568,7 +568,7 @@ func (idx *TxIndex) connectBlock(dbTx database.Tx, block, parent *dcrutil.Block,
 
 // disconnectBlock removes the hash-to-transaction mapping for every
 // transaction in the passed block.
-func (idx *TxIndex) disconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, _ bool) error {
+func (idx *TxIndex) disconnectBlock(dbTx database.Tx, block *dcrutil.Block) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored when disconnecting blocks because it is also
 	// ignored when connecting the block.  See the comments in ConnectBlock for
@@ -653,7 +653,7 @@ func dropBlockIDIndex(db database.DB) error {
 // dropped when it exists.
 func DropTxIndex(ctx context.Context, db database.DB) error {
 	// Nothing to do if the index doesn't already exist.
-	exists, err := existsIndex(db, txIndexKey, txIndexName)
+	exists, err := existsIndex(db, txIndexKey)
 	if err != nil {
 		return err
 	}
@@ -698,7 +698,7 @@ func DropTxIndex(ctx context.Context, db database.DB) error {
 
 	// Remove the index tip, version, bucket, and in-progress drop flag now
 	// that all index entries have been removed.
-	err = dropIndexMetadata(db, txIndexKey, txIndexName)
+	err = dropIndexMetadata(db, txIndexKey)
 	if err != nil {
 		return err
 	}
@@ -721,8 +721,7 @@ func (*TxIndex) DropIndex(ctx context.Context, db database.DB) error {
 func (idx *TxIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) error {
 	switch ntfn.NtfnType {
 	case ConnectNtfn:
-		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.connectBlock(dbTx, ntfn.Block)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to connect block: %v",
 				idx.Name(), err)
@@ -730,8 +729,7 @@ func (idx *TxIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) error
 		}
 
 	case DisconnectNtfn:
-		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.disconnectBlock(dbTx, ntfn.Block)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to disconnect block: %v",
 				idx.Name(), err)

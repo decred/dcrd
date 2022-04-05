@@ -206,13 +206,13 @@ func TestProcessOrder(t *testing.T) {
 //            \-> b4h -> b5h@ -> b6h  -> b7h
 //            \-> b4i -> b5i  -> b6i@ -> b7i  -> b8i
 //            \-> b4j -> b5j  -> b6j  -> b7j@
-func genSharedProcessTestBlocks(t *testing.T) (*chaingen.Generator, error) {
+func genSharedProcessTestBlocks(t *testing.T) *chaingen.Generator {
 	processTestGeneratorLock.Lock()
 	defer processTestGeneratorLock.Unlock()
 
 	// Only generate the process test chain once.
 	if processTestGenerator != nil {
-		return processTestGenerator, nil
+		return processTestGenerator
 	}
 
 	// Create a new database and chain instance needed to create the generator
@@ -511,7 +511,7 @@ func genSharedProcessTestBlocks(t *testing.T) (*chaingen.Generator, error) {
 	g.NextBlock("b7j", outs[2], ticketOuts[6]) // Double spend
 
 	processTestGenerator = g.Generator
-	return processTestGenerator, nil
+	return processTestGenerator
 }
 
 // TestProcessLogic ensures processing a mix of headers and blocks under a wide
@@ -524,10 +524,7 @@ func TestProcessLogic(t *testing.T) {
 	// some branches are valid and others contain invalid headers and/or blocks
 	// with multiple valid descendants as well as further forks at various
 	// heights from those invalid branches.
-	sharedGen, err := genSharedProcessTestBlocks(t)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
+	sharedGen := genSharedProcessTestBlocks(t)
 
 	// Create a new database and chain instance to run tests against.
 	g := newChaingenHarnessWithGen(t, sharedGen)
@@ -1179,10 +1176,7 @@ func TestInvalidateReconsider(t *testing.T) {
 	// some branches are valid and others contain invalid headers and/or blocks
 	// with multiple valid descendants as well as further forks at various
 	// heights from those invalid branches.
-	sharedGen, err := genSharedProcessTestBlocks(t)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
+	sharedGen := genSharedProcessTestBlocks(t)
 
 	// Create a new database and chain instance to run tests against.
 	g := newChaingenHarnessWithGen(t, sharedGen)

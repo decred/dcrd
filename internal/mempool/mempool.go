@@ -978,7 +978,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 		mp.cfg.AddrIndex.AddUnconfirmedTx(tx, utxoView, isTreasuryEnabled)
 	}
 	if mp.cfg.ExistsAddrIndex != nil {
-		mp.cfg.ExistsAddrIndex.AddUnconfirmedTx(msgTx, isTreasuryEnabled)
+		mp.cfg.ExistsAddrIndex.AddUnconfirmedTx(msgTx)
 	}
 
 	// Inform the associated fee estimator that a new transaction has been added

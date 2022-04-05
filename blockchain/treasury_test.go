@@ -883,15 +883,13 @@ func TestTSpendVoteCount(t *testing.T) {
 
 // getTreasuryState retrieves the treasury state for the provided hash.
 func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*treasuryState, error) {
-	var (
-		tsr *treasuryState
-		err error
-	)
-	err = g.chain.db.View(func(dbTx database.Tx) error {
+	var tsr *treasuryState
+	err := g.chain.db.View(func(dbTx database.Tx) error {
+		var err error
 		tsr, err = dbFetchTreasuryBalance(dbTx, hash)
 		return err
 	})
-	return tsr, nil
+	return tsr, err
 }
 
 // TestTSpendEmptyTreasury tests that we can't generate a tspend that spends

@@ -1476,7 +1476,7 @@ func checkTreasurybaseUniqueHeight(blockHeight int64, block *dcrutil.Block) erro
 // This function is safe for concurrent access.
 func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	expiringNextBlock []chainhash.Hash,
-	existsMissedTicket func(ticket chainhash.Hash) bool, isTreasuryEnabled,
+	existsMissedTicket func(ticket chainhash.Hash) bool,
 	isAutoRevocationsEnabled bool) error {
 
 	// Determine the winning ticket hashes and create a map that tracks whether
@@ -2030,8 +2030,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			// redeeming tickets according to consensus rules.
 			err = checkTicketRedeemers(voteTicketHashes, revocationTicketHashes,
 				parentStakeNode.Winners(), parentStakeNode.ExpiringNextBlock(),
-				parentStakeNode.ExistsMissedTicket, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+				parentStakeNode.ExistsMissedTicket, isAutoRevocationsEnabled)
 			if err != nil {
 				return err
 			}

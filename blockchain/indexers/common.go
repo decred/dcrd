@@ -271,7 +271,7 @@ func dbPutIndexerVersion(dbTx database.Tx, idxKey []byte, version uint32) error 
 }
 
 // existsIndex returns whether the index keyed by idxKey exists in the database.
-func existsIndex(db database.DB, idxKey []byte, idxName string) (bool, error) {
+func existsIndex(db database.DB, idxKey []byte) (bool, error) {
 	var exists bool
 	err := db.View(func(dbTx database.Tx) error {
 		indexesBucket := dbTx.Metadata().Bucket(indexTipsBucketName)
@@ -331,7 +331,7 @@ func indexDropKey(idxKey []byte) []byte {
 
 // dropIndexMetadata drops the passed index from the database by removing the
 // top level bucket for the index, the index tip, and any in-progress drop flag.
-func dropIndexMetadata(db database.DB, idxKey []byte, idxName string) error {
+func dropIndexMetadata(db database.DB, idxKey []byte) error {
 	return db.Update(func(dbTx database.Tx) error {
 		meta := dbTx.Metadata()
 		indexesBucket := meta.Bucket(indexTipsBucketName)
@@ -362,7 +362,7 @@ func dropIndexMetadata(db database.DB, idxKey []byte, idxName string) error {
 // before it is done before the index can be used again.
 func dropFlatIndex(ctx context.Context, db database.DB, idxKey []byte, idxName string) error {
 	// Nothing to do if the index doesn't already exist.
-	exists, err := existsIndex(db, idxKey, idxName)
+	exists, err := existsIndex(db, idxKey)
 	if err != nil {
 		return err
 	}
@@ -394,7 +394,7 @@ func dropFlatIndex(ctx context.Context, db database.DB, idxKey []byte, idxName s
 
 	// Remove the index tip, version, bucket, and in-progress drop flag now that
 	// all index entries have been removed.
-	err = dropIndexMetadata(db, idxKey, idxName)
+	err = dropIndexMetadata(db, idxKey)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func dropFlatIndex(ctx context.Context, db database.DB, idxKey []byte, idxName s
 // which can not be deleted with dropFlatIndex.
 func dropIndex(db database.DB, idxKey []byte, idxName string) error {
 	// Nothing to do if the index doesn't already exist.
-	exists, err := existsIndex(db, idxKey, idxName)
+	exists, err := existsIndex(db, idxKey)
 	if err != nil {
 		return err
 	}
@@ -431,7 +431,7 @@ func dropIndex(db database.DB, idxKey []byte, idxName string) error {
 	// Remove the index tip, version, bucket, and in-progress drop flag.
 	// Removing the index bucket also recursively removes all values saved to
 	// the index.
-	err = dropIndexMetadata(db, idxKey, idxName)
+	err = dropIndexMetadata(db, idxKey)
 	if err != nil {
 		return err
 	}
