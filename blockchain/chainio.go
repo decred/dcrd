@@ -931,13 +931,13 @@ func dbPutDatabaseInfo(dbTx database.Tx, dbi *databaseInfo) error {
 
 // dbFetchDatabaseInfo uses an existing database transaction to fetch the
 // database versioning and creation information.
-func dbFetchDatabaseInfo(dbTx database.Tx) (*databaseInfo, error) {
+func dbFetchDatabaseInfo(dbTx database.Tx) *databaseInfo {
 	meta := dbTx.Metadata()
 	bucket := meta.Bucket(bcdbInfoBucketName)
 
 	// Uninitialized state.
 	if bucket == nil {
-		return nil, nil
+		return nil
 	}
 
 	// Load the database version.
@@ -985,7 +985,7 @@ func dbFetchDatabaseInfo(dbTx database.Tx) (*databaseInfo, error) {
 		bidxVer: bidxVer,
 		created: created,
 		stxoVer: stxoVer,
-	}, nil
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -1455,10 +1455,7 @@ func (b *BlockChain) initChainState(ctx context.Context,
 	var isStateInitialized bool
 	err = b.db.View(func(dbTx database.Tx) error {
 		// Fetch the database versioning information.
-		dbInfo, err := dbFetchDatabaseInfo(dbTx)
-		if err != nil {
-			return err
-		}
+		dbInfo := dbFetchDatabaseInfo(dbTx)
 
 		// The database bucket for the versioning information is missing.
 		if dbInfo == nil {

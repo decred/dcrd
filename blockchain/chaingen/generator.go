@@ -1907,7 +1907,7 @@ func (g *Generator) connectLiveTickets(blockHash *chainhash.Hash, height uint32,
 
 // addMissedVotes adds any of the passed winning tickets as missed votes if the
 // passed block does not cast those votes.
-func (g *Generator) addMissedVotes(blockHash *chainhash.Hash, stakeTxns []*wire.MsgTx, winners []*stakeTicket) {
+func (g *Generator) addMissedVotes(stakeTxns []*wire.MsgTx, winners []*stakeTicket) {
 	// Nothing to do before there are any winning tickets.
 	if len(winners) == 0 {
 		return
@@ -1994,7 +1994,7 @@ func (g *Generator) connectBlockTickets(b *wire.MsgBlock) {
 	}
 
 	// Keep track of any missed votes.
-	g.addMissedVotes(&blockHash, b.STransactions, winners)
+	g.addMissedVotes(b.STransactions, winners)
 
 	// Keep track of revocations.
 	g.connectRevocations(&blockHash, b.STransactions)
@@ -2448,7 +2448,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 		// it.
 		g.originalParents[blockHash] = prevHash
 	}
-	g.addMissedVotes(&blockHash, block.STransactions, ticketWinners)
+	g.addMissedVotes(block.STransactions, ticketWinners)
 	g.connectRevocations(&blockHash, block.STransactions)
 	g.connectLiveTickets(&blockHash, nextHeight, ticketWinners,
 		ticketPurchases)

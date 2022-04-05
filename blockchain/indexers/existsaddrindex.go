@@ -318,7 +318,7 @@ func (idx *ExistsAddrIndex) ExistsAddresses(addrs []stdaddr.Address) ([]bool, er
 // provided block.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) connectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, isTreasuryEnabled bool) error {
+func (idx *ExistsAddrIndex) connectBlock(dbTx database.Tx, block *dcrutil.Block) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though technically
 	// the address might become unused again if its only use was in a
@@ -429,7 +429,7 @@ func (idx *ExistsAddrIndex) connectBlock(dbTx database.Tx, block, parent *dcruti
 // addresses, even in the case of a reorg.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) disconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, _ bool) error {
+func (idx *ExistsAddrIndex) disconnectBlock(dbTx database.Tx, block *dcrutil.Block) error {
 	// The primary purpose of this index is to track whether or not addresses
 	// have ever been seen, so even if they ultimately end up technically
 	// becoming unused due to being in a block that was disconnected and the
@@ -452,7 +452,7 @@ func (idx *ExistsAddrIndex) disconnectBlock(dbTx database.Tx, block, parent *dcr
 // unconfirmed (memory-only) exists address index.
 //
 // This function MUST be called with the unconfirmed lock held.
-func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled bool) {
+func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
 		// Note that the functions used here require v0 scripts.  Hence it is
@@ -518,9 +518,9 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 // unconfirmed (memory-only) exists address index.
 //
 // This function is safe for concurrent access.
-func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled bool) {
+func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx) {
 	idx.unconfirmedLock.Lock()
-	idx.addUnconfirmedTx(tx, isTreasuryEnabled)
+	idx.addUnconfirmedTx(tx)
 	idx.unconfirmedLock.Unlock()
 }
 
@@ -543,8 +543,7 @@ func (*ExistsAddrIndex) DropIndex(ctx context.Context, db database.DB) error {
 func (idx *ExistsAddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) error {
 	switch ntfn.NtfnType {
 	case ConnectNtfn:
-		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.connectBlock(dbTx, ntfn.Block)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to connect block: %v",
 				idx.Name(), err)
@@ -552,8 +551,7 @@ func (idx *ExistsAddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtf
 		}
 
 	case DisconnectNtfn:
-		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.disconnectBlock(dbTx, ntfn.Block)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to disconnect block: %v",
 				idx.Name(), err)

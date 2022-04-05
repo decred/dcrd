@@ -874,7 +874,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 
 // connectBlock adds a mapping for all addresses associated with transactions in
 // the provided block.
-func (idx *AddrIndex) connectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
+func (idx *AddrIndex) connectBlock(dbTx database.Tx, block *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -925,7 +925,7 @@ func (idx *AddrIndex) connectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 
 // disconnectBlock removes the mappings for addresses associated with
 // transactions in the provided block.
-func (idx *AddrIndex) disconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
+func (idx *AddrIndex) disconnectBlock(dbTx database.Tx, block *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -1187,8 +1187,8 @@ func (*AddrIndex) DropIndex(ctx context.Context, db database.DB) error {
 func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) error {
 	switch ntfn.NtfnType {
 	case ConnectNtfn:
-		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.connectBlock(dbTx, ntfn.Block, ntfn.PrevScripts,
+			ntfn.IsTreasuryEnabled)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to connect block: %v",
 				idx.Name(), err)
@@ -1198,8 +1198,8 @@ func (idx *AddrIndex) ProcessNotification(dbTx database.Tx, ntfn *IndexNtfn) err
 		idx.consumer.UpdateTip(ntfn.Block.Hash())
 
 	case DisconnectNtfn:
-		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.Parent,
-			ntfn.PrevScripts, ntfn.IsTreasuryEnabled)
+		err := idx.disconnectBlock(dbTx, ntfn.Block, ntfn.PrevScripts,
+			ntfn.IsTreasuryEnabled)
 		if err != nil {
 			msg := fmt.Sprintf("%s: unable to disconnect block: %v",
 				idx.Name(), err)

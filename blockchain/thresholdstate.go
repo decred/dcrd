@@ -974,14 +974,14 @@ type VoteCounts struct {
 // current rule change activation interval.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) getVoteCounts(node *blockNode, version uint32, d *chaincfg.ConsensusDeployment) (VoteCounts, error) {
+func (b *BlockChain) getVoteCounts(node *blockNode, version uint32, d *chaincfg.ConsensusDeployment) VoteCounts {
 	// Don't try to count votes before the stake validation height since there
 	// could not possibly have been any.
 	svh := b.chainParams.StakeValidationHeight
 	if node.height < svh {
 		return VoteCounts{
 			VoteChoices: make([]uint32, len(d.Vote.Choices)),
-		}, nil
+		}
 	}
 
 	// Calculate the final height of the prior interval.
@@ -1016,7 +1016,7 @@ func (b *BlockChain) getVoteCounts(node *blockNode, version uint32, d *chaincfg.
 		countNode = countNode.parent
 	}
 
-	return result, nil
+	return result
 }
 
 // GetVoteCounts returns the vote counts for the specified version and
@@ -1028,9 +1028,9 @@ func (b *BlockChain) GetVoteCounts(version uint32, deploymentID string) (VoteCou
 		deployment := &b.chainParams.Deployments[version][k]
 		if deployment.Vote.Id == deploymentID {
 			b.chainLock.Lock()
-			counts, err := b.getVoteCounts(b.bestChain.Tip(), version, deployment)
+			counts := b.getVoteCounts(b.bestChain.Tip(), version, deployment)
 			b.chainLock.Unlock()
-			return counts, err
+			return counts, nil
 		}
 	}
 	str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)

@@ -1739,8 +1739,7 @@ func TestCheckTicketRedeemers(t *testing.T) {
 		// Run ticket redeemer validation rules.
 		err := checkTicketRedeemers(test.voteTicketHashes,
 			test.revocationTicketHashes, test.winners, test.expiringNextBlock,
-			existsMissedTicketFunc, test.isTreasuryEnabled,
-			test.isAutoRevocationsEnabled)
+			existsMissedTicketFunc, test.isAutoRevocationsEnabled)
 
 		// Validate that the expected error was returned for negative tests.
 		if test.wantErr != nil {
