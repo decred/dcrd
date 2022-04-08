@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/decred/dcrd/addrmgr/v2"
-	"github.com/decred/dcrd/blockchain/stake/v4"
+	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/connmgr/v3"
