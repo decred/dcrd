@@ -29,8 +29,8 @@ github.com/decred/dcrd/dcrjson/v4 v4.0.0 h1:KsaFhHAYO+vLYz7Qmx/fs1gOY5ouTEz8hRuD
 github.com/decred/dcrd/dcrjson/v4 v4.0.0/go.mod h1:DMnSpU8lsVh+Nt5kHl63tkrjBDA7UIs4+ov8Kwwgvjs=
 github.com/decred/dcrd/dcrutil/v4 v4.0.0 h1:AY00fWy/ETrMHN0DNV3XUbH1aip2RG1AoTy5dp0+sJE=
 github.com/decred/dcrd/dcrutil/v4 v4.0.0/go.mod h1:QQpX5WVH3/ixVtiW15xZMe+neugXX3l2bsrYgq6nz4M=
-github.com/decred/dcrd/gcs/v3 v3.0.0 h1:MjWevhoAzKENUgpaJAbZkJlKDN4HIz2nR/i3laZAT5c=
-github.com/decred/dcrd/gcs/v3 v3.0.0/go.mod h1:/OVb/rYrAz4TCtxcPneYfBs0+YI1pGIp8RA6RUNqOp4=
+github.com/decred/dcrd/gcs/v4 v4.0.0 h1:MjWevhoAzKENUgpaJAbZkJlKDN4HIz2nR/i3laZAT5c=
+github.com/decred/dcrd/gcs/v4 v4.0.0/go.mod h1:/OVb/rYrAz4TCtxcPneYfBs0+YI1pGIp8RA6RUNqOp4=
 github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0 h1:WzG2IARR6OghjhWdxfUbXSPE4GEF2hZlCE5y2L/45f4=
 github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0/go.mod h1:1ILDxMKVS/qY71MylpZzuEX4O0u1SON4RPKbaZP71K0=
 github.com/decred/dcrd/txscript/v4 v4.0.0 h1:BwaBUCMCmg58MCYoBhxVjL8ZZKUIfoJuxu/djmh8h58=
