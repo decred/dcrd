@@ -617,7 +617,7 @@ func TestSignAndVerifyRandom(t *testing.T) {
 		badSig := *sig
 		randByte := rng.Intn(32)
 		randBit := rng.Intn(7)
-		if randComponent := rng.Intn(1); randComponent == 0 {
+		if randComponent := rng.Intn(2); randComponent == 0 {
 			badSigBytes := badSig.r.Bytes()
 			badSigBytes[randByte] ^= 1 << randBit
 			badSig.r.SetBytes(&badSigBytes)
