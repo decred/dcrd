@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/stake/v4/internal/tickettreap"
+	"github.com/decred/dcrd/blockchain/stake/v5/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"

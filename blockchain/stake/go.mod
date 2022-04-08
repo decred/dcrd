@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/blockchain/stake/v4
+module github.com/decred/dcrd/blockchain/stake/v5
 
 go 1.17
 

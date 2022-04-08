@@ -38,7 +38,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/jrick/bitset"
 
-	"github.com/decred/dcrd/blockchain/stake/v4"
+	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"

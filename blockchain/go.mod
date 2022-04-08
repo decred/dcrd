@@ -3,7 +3,7 @@ module github.com/decred/dcrd/blockchain/v5
 go 1.17
 
 require (
-	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0
+	github.com/decred/dcrd/blockchain/stake/v5 v5.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.1.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/chaincfg/v3 v3.1.1
@@ -29,4 +29,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 )
 
-replace github.com/decred/dcrd/gcs/v4 => ../gcs
+replace (
+	github.com/decred/dcrd/blockchain/stake/v5 => ./stake
+	github.com/decred/dcrd/gcs/v4 => ../gcs
+)
