@@ -419,9 +419,7 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 	node.nextWinners = make([]chainhash.Hash, 0)
 	if node.height >= uint32(params.StakeValidationBeginHeight()-1) {
 		node.nextWinners = make([]chainhash.Hash, len(state.NextWinners))
-		for i := range state.NextWinners {
-			node.nextWinners[i] = state.NextWinners[i]
-		}
+		copy(node.nextWinners, state.NextWinners)
 
 		// Calculate the final state from the block header.
 		stateBuffer := make([]byte, 0,
