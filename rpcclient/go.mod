@@ -6,7 +6,7 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/dcrjson/v4 v4.0.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
-	github.com/decred/dcrd/gcs/v3 v3.0.0
+	github.com/decred/dcrd/gcs/v4 v4.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
@@ -30,5 +30,6 @@ require (
 )
 
 replace (
+	github.com/decred/dcrd/gcs/v4 => ../gcs
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ../rpc/jsonrpc/types
 )

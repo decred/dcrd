@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
-	github.com/decred/dcrd/gcs/v3 v3.0.0
+	github.com/decred/dcrd/gcs/v4 v4.0.0
 	github.com/decred/dcrd/lru v1.1.1
 	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.5.0
@@ -28,3 +28,5 @@ require (
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 )
+
+replace github.com/decred/dcrd/gcs/v4 => ../gcs
