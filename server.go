@@ -2972,28 +2972,13 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 
 			case broadcastPruneInventory:
 				best := s.chain.BestSnapshot()
-				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(&best.Hash)
-				if err != nil {
-					srvrLog.Errorf("Could not obtain treasury agenda status: %v",
-						err)
-					break
-				}
-				isAutoRevocationsEnabled, err :=
-					s.chain.IsAutoRevocationsAgendaActive(&best.Hash)
-				if err != nil {
-					srvrLog.Errorf("Could not obtain auto revocations agenda status: %v",
-						err)
-					break
-				}
-
 				for iv, data := range pendingInvs {
 					tx, ok := data.(*dcrutil.Tx)
 					if !ok {
 						continue
 					}
 
-					txType := stake.DetermineTxType(tx.MsgTx(),
-						isTreasuryEnabled, isAutoRevocationsEnabled)
+					txType := stake.DetermineTxType(tx.MsgTx())
 
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.

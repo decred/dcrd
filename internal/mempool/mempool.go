@@ -428,8 +428,7 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers,
 
 	// Remove any orphans that redeem outputs from this one if requested.
 	if removeRedeemers {
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx())
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -829,8 +828,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers,
 	txHash := tx.Hash()
 	if removeRedeemers {
 		// Remove any transactions which rely on this one.
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx())
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -1308,8 +1306,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
@@ -1955,8 +1952,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 		processList[0] = nil
 		processList = processList[1:]
 
-		txType := stake.DetermineTxType(processItem.MsgTx(), isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(processItem.MsgTx())
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake

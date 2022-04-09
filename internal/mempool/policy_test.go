@@ -522,7 +522,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 	medianTime := time.Now()
 	for _, test := range tests {
 		// Ensure standardness is as expected.
-		txType := stake.DetermineTxType(&test.tx, noTreasury, noAutoRevocations)
+		txType := stake.DetermineTxType(&test.tx)
 		tx := dcrutil.NewTx(&test.tx)
 		err := checkTransactionStandard(tx, txType, test.height, medianTime,
 			DefaultMinRelayTxFee)

@@ -115,8 +115,7 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 	// Set encoded flags for the transaction.
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
@@ -152,8 +151,7 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 	// Set encoded flags for the transaction.
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
@@ -314,8 +312,7 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 		msgTx := tx.MsgTx()
 		txType := stake.TxTypeRegular
 		if stakeTree {
-			txType = stake.DetermineTxType(msgTx, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			txType = stake.DetermineTxType(msgTx)
 		}
 		isVote := txType == stake.TxTypeSSGen
 
@@ -879,8 +876,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	// fully spent.
 	filteredSet := make(ViewFilteredSet)
 	msgTx := tx.MsgTx()
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgTx)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
