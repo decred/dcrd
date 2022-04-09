@@ -836,7 +836,7 @@ func scriptSourceFromSpendJournalV1(dbTx database.Tx, block *wire.MsgBlock) (scr
 	var offset int
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
-		isVote := stake.IsSSGen(tx, false)
+		isVote := stake.IsSSGen(tx)
 
 		// Loop backwards through all of the transaction inputs and read the
 		// associated stxo.
@@ -2709,7 +2709,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 			// Calculate the total number of stxos.
 			var numStxos int
 			for _, tx := range blockTxns {
-				if stake.IsSSGen(tx, isTreasuryEnabled) {
+				if stake.IsSSGen(tx) {
 					numStxos++
 					continue
 				}
@@ -2752,7 +2752,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 			offset := 0
 			for txIdx := len(blockTxns) - 1; txIdx > -1; txIdx-- {
 				tx := blockTxns[txIdx]
-				isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+				isVote := stake.IsSSGen(tx)
 
 				// Loop backwards through all of the transaction inputs and read
 				// the associated stxo.
@@ -4242,20 +4242,7 @@ func correctTreasurySpendVoteData(ctx context.Context, db database.DB, params *c
 		revocations := make([]chainhash.Hash, 0, block.Header.Revocations)
 
 		for _, stx := range block.STransactions {
-			// It is safe to use the version as a proxy for treasury activation
-			// here since the format of version 3 votes was invalid prior to its
-			// activation and so even if there were votes with version >= 3
-			// prior to that point, those votes still would've had to conform to
-			// the rules that existed at that time and therefore could not have
-			// simultaneously had the new format and made it into a block.
-			// Further, the old format is still treated as a valid vote when the
-			// flag is set, so the historical consensus rules would not be
-			// violated by incorrectly setting this flag even if there were
-			// votes with version >= 3 prior to treasury activation.  Finally,
-			// there were no votes with versions >= 3 prior to the treasury
-			// activation point on mainnet anyway.
-			isTreasuryEnabled := stx.Version >= 3
-			if stake.IsSSGen(stx, isTreasuryEnabled) {
+			if stake.IsSSGen(stx) {
 				voters = append(voters, stx.TxIn[1].PreviousOutPoint.Hash)
 				votes = append(votes, blockIndexVoteVersionTuple{
 					version: stake.SSGenVersion(stx),
@@ -4263,7 +4250,6 @@ func correctTreasurySpendVoteData(ctx context.Context, db database.DB, params *c
 				})
 				continue
 			}
-
 			if stake.IsSSRtx(stx) {
 				spentTicketHash := stx.TxIn[0].PreviousOutPoint.Hash
 				revocations = append(revocations, spentTicketHash)

@@ -1014,7 +1014,7 @@ func countSpentStakeOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
 	var numSpent int
 	for _, stx := range block.MsgBlock().STransactions {
 		// Exclude the vote stakebase since it has no input.
-		if stake.IsSSGen(stx, isTreasuryEnabled) {
+		if stake.IsSSGen(stx) {
 			numSpent++
 			continue
 		}
@@ -2109,7 +2109,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEna
 			continue
 		}
 
-		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+		isVote := stake.IsSSGen(tx)
 		for txInIdx, txIn := range tx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {

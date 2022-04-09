@@ -33,7 +33,7 @@ type SequenceLock struct {
 // that does not care about the specific reason the transaction is not a
 // stakebase, rather only if it is one or not.
 func isStakeBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
-	return stake.IsSSGen(tx, isTreasuryEnabled)
+	return stake.IsSSGen(tx)
 }
 
 // calcSequenceLock computes the relative lock times for the passed transaction

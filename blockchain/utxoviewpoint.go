@@ -234,7 +234,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
-	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	isVote := stake.IsSSGen(msgTx)
 	var isTSpend bool
 	if isTreasuryEnabled {
 		isTSpend = stake.IsTSpend(msgTx)
@@ -766,7 +766,7 @@ func (view *UtxoViewpoint) fetchInputUtxos(block *dcrutil.Block,
 	// the block.  This applies to both transactions earlier in the stake tree
 	// as well as those in the regular tree.
 	for _, stx := range block.STransactions() {
-		isVote := stake.IsSSGen(stx.MsgTx(), isTreasuryEnabled)
+		isVote := stake.IsSSGen(stx.MsgTx())
 		for txInIdx, txIn := range stx.MsgTx().TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
@@ -891,7 +891,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		filteredSet.add(view, &outpoint)
 	}
 	if !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
-		isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		isVote := stake.IsSSGen(msgTx)
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {

@@ -1128,7 +1128,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 
 	// Stakebase transactions (votes) have two inputs: a null stake base
 	// followed by an input consuming a ticket's stakesubmission.
-	isSSGen := stake.IsSSGen(mtx, isTreasuryEnabled)
+	isSSGen := stake.IsSSGen(mtx)
 
 	for i, txIn := range mtx.TxIn {
 		// Handle only the null input of a stakebase differently.
@@ -4169,7 +4169,7 @@ type retrievedTx struct {
 // then the transaction index for those already mined into blocks.
 func fetchInputTxos(s *Server, tx *wire.MsgTx, isTreasuryEnabled bool) (map[wire.OutPoint]wire.TxOut, error) {
 	originOutputs := make(map[wire.OutPoint]wire.TxOut)
-	voteTx := stake.IsSSGen(tx, isTreasuryEnabled)
+	voteTx := stake.IsSSGen(tx)
 	for txInIndex, txIn := range tx.TxIn {
 		// vote tx have null input for vin[0],
 		// skip since it resolves to an invalid transaction
@@ -4343,7 +4343,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 
 	// Stakebase transactions (votes) have two inputs: a null stake base
 	// followed by an input consuming a ticket's stakesubmission.
-	isSSGen := stake.IsSSGen(mtx, isTreasuryEnabled)
+	isSSGen := stake.IsSSGen(mtx)
 
 	for i, txIn := range mtx.TxIn {
 		// Handle only the null input of a stakebase differently.

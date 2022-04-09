@@ -2303,7 +2303,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 				goto LoopOutputs
 			}
 		} else {
-			if stake.IsSSGen(tx, isTreasuryEnabled) {
+			if stake.IsSSGen(tx) {
 				// Skip the first stakebase input.  These do not
 				// reference a previous output.
 				inputs = inputs[1:]

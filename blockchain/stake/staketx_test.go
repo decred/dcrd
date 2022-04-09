@@ -20,18 +20,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-const (
-	// noTreasury signifies the treasury agenda should be treated as though
-	// it is inactive.  It is used to increase the readability of the
-	// tests.
-	noTreasury = false
-
-	// withTreasury signifies the treasury agenda should be treated as
-	// though it is active.  It is used to increase the readability of
-	// the tests.
-	withTreasury = true
-)
-
 // hexToBytes converts the passed hex string into bytes and will panic if there
 // is an error.  This is only provided for the hard-coded constants so errors in
 // the source code can be detected. It will only (and must only) be called with
@@ -329,7 +317,7 @@ func TestSSGen(t *testing.T) {
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
-	if !IsSSGen(ssgen.MsgTx(), noTreasury) {
+	if !IsSSGen(ssgen.MsgTx()) {
 		t.Errorf("IsSSGen claimed a valid ssgen is invalid")
 	}
 
@@ -357,7 +345,7 @@ func TestSSGen(t *testing.T) {
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
-	if !IsSSGen(ssgen.MsgTx(), noTreasury) {
+	if !IsSSGen(ssgen.MsgTx()) {
 		t.Errorf("IsSSGen claimed a valid ssgen is invalid")
 	}
 }
@@ -387,7 +375,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenWrongNumInputs, err)
 	}
-	if IsSSGen(ssgenExtraInputs.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenExtraInputs.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -403,7 +391,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenTooManyOutputs, err)
 	}
-	if IsSSGen(ssgenExtraOutputs.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenExtraOutputs.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -419,7 +407,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoStakebase, err)
 	}
-	if IsSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenStakeBaseWrong.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -451,7 +439,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenWrongTxTree, err)
 	}
-	if IsSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongTreeIns.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -466,7 +454,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
 	}
-	if IsSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenTxBadVerOut.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -482,7 +470,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoReference, err)
 	}
-	if IsSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongZeroethOut.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -524,7 +512,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadReference, err)
 	}
-	if IsSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongDataPush0Length.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -566,7 +554,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadReference, err)
 	}
-	if IsSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongNullData0Prefix.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -582,7 +570,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoVotePush, err)
 	}
-	if IsSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongFirstOut.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -613,7 +601,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadVotePush, err)
 	}
-	if IsSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongDataPush1Length.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -645,7 +633,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadVotePush, err)
 	}
-	if IsSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongNullData1Prefix.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -677,7 +665,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
 	}
-	if IsSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury) {
+	if IsSSGen(ssgentestGenOutputUntagged.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -695,7 +683,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if IsSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenNoDiscriminator.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -710,7 +698,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if IsSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -725,7 +713,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenUnknownDiscriminator, err)
 	}
-	if IsSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator2.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -739,7 +727,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
 	}
-	if IsSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator3.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 	// Verify we don't crash in this case as well.
@@ -759,7 +747,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
 	}
-	if IsSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -774,7 +762,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
 	}
-	if IsSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote2.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -790,7 +778,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
 	}
-	if IsSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote3.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -806,7 +794,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
 	}
-	if IsSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote4.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -822,7 +810,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if IsSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote5.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -837,7 +825,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTreasuryVote, err)
 	}
-	if IsSSGen(ssgenInvalidTVote.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -852,7 +840,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTreasuryVote, err)
 	}
-	if IsSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote2.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -867,7 +855,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenDuplicateTreasuryVote, err)
 	}
-	if IsSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote3.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -887,7 +875,7 @@ func TestSSGenTreasuryVotes(t *testing.T) {
 	}
 
 	// Make sure ssgen is valid.
-	if !IsSSGen(ssgenValidVote.MsgTx(), withTreasury) {
+	if !IsSSGen(ssgenValidVote.MsgTx()) {
 		t.Error("IsSSGen claimed a valid ssgen is invalid")
 	}
 	err := CheckSSGen(ssgenValidVote.MsgTx())

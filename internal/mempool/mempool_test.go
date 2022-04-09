@@ -201,7 +201,7 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 	msgTx := tx.MsgTx()
 	enforce := msgTx.Version >= 2
 	if !enforce || standalone.IsCoinBaseTx(msgTx, noTreasury) ||
-		stake.IsSSGen(msgTx, noTreasury) {
+		stake.IsSSGen(msgTx) {
 		return sequenceLock, nil
 	}
 
