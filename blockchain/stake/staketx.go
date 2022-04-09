@@ -1155,7 +1155,7 @@ func CheckSSGen(tx *wire.MsgTx) error {
 
 // IsSSGen returns whether or not a transaction is a stake submission generation
 // transaction.  These are also known as votes.
-func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+func IsSSGen(tx *wire.MsgTx) bool {
 	return CheckSSGen(tx) == nil
 }
 
@@ -1263,7 +1263,7 @@ func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled,
 	if IsSStx(tx) {
 		return TxTypeSStx
 	}
-	if IsSSGen(tx, isTreasuryEnabled) {
+	if IsSSGen(tx) {
 		return TxTypeSSGen
 	}
 	if IsSSRtx(tx) {
@@ -1312,19 +1312,7 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 	revocations := make([]chainhash.Hash, 0, block.Header.Revocations)
 
 	for _, stx := range block.STransactions {
-		// It is safe to use the version as a proxy for treasury activation here
-		// since the format of version 3 votes was invalid prior to its
-		// activation and so even if there were votes with version >= 3 prior to
-		// that point, those votes still would've had to conform to the rules
-		// that existed at that time and therefore could not have simultaneously
-		// had the new format and made it into a block.  Further, the old format
-		// is still treated as a valid vote when the flag is set, so the
-		// historical consensus rules would not be violated by incorrectly
-		// setting this flag even if there were votes with version >= 3 prior to
-		// treasury activation.  Finally, there were no votes with versions >= 3
-		// prior to the treasury activation point on mainnet anyway.
-		isTreasuryEnabled := stx.Version >= 3
-		if IsSSGen(stx, isTreasuryEnabled) {
+		if IsSSGen(stx) {
 			voters = append(voters, stx.TxIn[1].PreviousOutPoint.Hash)
 			votes = append(votes, VoteVersionTuple{
 				Version: SSGenVersion(stx),

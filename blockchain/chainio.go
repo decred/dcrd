@@ -650,7 +650,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreas
 	// Calculate the total number of stxos.
 	var numStxos int
 	for _, tx := range txns {
-		if stake.IsSSGen(tx, isTreasuryEnabled) {
+		if stake.IsSSGen(tx) {
 			numStxos++
 			continue
 		}
@@ -678,7 +678,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreas
 	stxos := make([]spentTxOut, numStxos)
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
-		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+		isVote := stake.IsSSGen(tx)
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.

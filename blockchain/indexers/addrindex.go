@@ -829,7 +829,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 		msgTx := tx.MsgTx()
 		thisTxOffset := txIdx + len(regularTxns)
 
-		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		isSSGen := stake.IsSSGen(msgTx)
 		var (
 			isTSpend, isTreasuryBase bool
 		)
@@ -1050,7 +1050,7 @@ func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter,
 	// transaction has already been validated and thus all inputs are
 	// already known to exist.
 	msgTx := tx.MsgTx()
-	isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	isSSGen := stake.IsSSGen(msgTx)
 	for i, txIn := range msgTx.TxIn {
 		// Skip stakebase.
 		if i == 0 && isSSGen {

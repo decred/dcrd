@@ -1933,7 +1933,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		// We could potentially overflow the accumulator so check for overflow.
 		lastSigOps := totalSigOps
 		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		isSSGen := stake.IsSSGen(msgTx)
 		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature operations "+
@@ -2010,7 +2010,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			revocationTicketHashes := make([]chainhash.Hash, 0, ticketsPerBlock)
 			for _, stx := range block.MsgBlock().STransactions {
 				// Append vote ticket hashes.
-				if stake.IsSSGen(stx, isTreasuryEnabled) {
+				if stake.IsSSGen(stx) {
 					ticketHash := stx.TxIn[1].PreviousOutPoint.Hash
 					voteTicketHashes = append(voteTicketHashes, ticketHash)
 
@@ -2889,7 +2889,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	//
 	// Also keep track of whether or not it is a vote since some inputs need
 	// to be skipped later.
-	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	isVote := stake.IsSSGen(msgTx)
 	if isVote {
 		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
 			chainParams, prevHeader, isTreasuryEnabled,
@@ -3290,7 +3290,7 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 // TxTree true == Regular, false == Stake
 func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
 	msgTx := tx.MsgTx()
-	isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	isSSGen := stake.IsSSGen(msgTx)
 	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen,
 		isTreasuryEnabled)
 
@@ -3332,7 +3332,7 @@ func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64,
 
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		if stake.IsSSGen(msgTx, isTreasuryEnabled) {
+		if stake.IsSSGen(msgTx) {
 			// Ensure the input is available.
 			txInOutpoint := msgTx.TxIn[1].PreviousOutPoint
 			txInHash := &txInOutpoint.Hash
@@ -3378,7 +3378,7 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabl
 	totalOutputs := int64(0)
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		if stake.IsSSGen(msgTx, isTreasuryEnabled) {
+		if stake.IsSSGen(msgTx) {
 			// Ensure the input is available.
 			txInOutpoint := msgTx.TxIn[1].PreviousOutPoint
 			txInHash := &txInOutpoint.Hash
@@ -3413,7 +3413,7 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 	totalOutputs := int64(0)
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		isSSGen := stake.IsSSGen(msgTx)
 		var isTSpend, isTreasuryBase bool
 		if isTreasuryEnabled {
 			isTSpend = stake.IsTSpend(msgTx)

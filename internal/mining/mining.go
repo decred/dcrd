@@ -776,7 +776,7 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 		return false
 	}
 	mstx := stx.MsgTx()
-	isSSGen := stake.IsSSGen(mstx, isTreasuryEnabled)
+	isSSGen := stake.IsSSGen(mstx)
 	var isTSpend, isTreasuryBase bool
 	if isTreasuryEnabled {
 		isTSpend = stake.IsTSpend(mstx)
@@ -1954,7 +1954,7 @@ nextPriorityQueueItem:
 		for _, tx := range blockTxns {
 			msgTx := tx.MsgTx()
 
-			if stake.IsSSGen(msgTx, isTreasuryEnabled) {
+			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(tx)
 				if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 					isTreasuryEnabled) {

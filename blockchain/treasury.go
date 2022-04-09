@@ -20,13 +20,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-const (
-	// yesTreasury signifies the treasury agenda should be treated as
-	// though it is active.  It is used to increase the readability of the
-	// code.
-	yesTreasury = true
-)
-
 // errDbTreasury signifies that a problem was encountered when fetching or
 // writing the treasury balance for a given block.
 type errDbTreasury string

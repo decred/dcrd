@@ -139,7 +139,7 @@ func ticketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Voters)
 	for _, stx := range bl.STransactions() {
-		if IsSSGen(stx.MsgTx(), noTreasury) {
+		if IsSSGen(stx.MsgTx()) {
 			tickets = append(tickets, stx.MsgTx().TxIn[1].PreviousOutPoint.Hash)
 		}
 	}

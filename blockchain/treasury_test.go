@@ -367,7 +367,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 	return func(b *wire.MsgBlock) {
 		// Find SSGEN and append votes.
 		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v, yesTreasury) {
+			if !stake.IsSSGen(v) {
 				continue
 			}
 			if len(v.TxOut) != 3 {
@@ -2727,7 +2727,7 @@ func TestTreasuryBalance(t *testing.T) {
 	addTSpendVotes := func(b *wire.MsgBlock) {
 		// Find SSGEN and append Yes vote.
 		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v, yesTreasury) {
+			if !stake.IsSSGen(v) {
 				continue
 			}
 			if len(v.TxOut) != 3 {
