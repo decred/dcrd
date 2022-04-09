@@ -646,7 +646,7 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64,
 // format comments, this function also requires the transactions that spend the
 // txouts and a utxo view that contains any remaining existing utxos in the
 // transactions referenced by the inputs to the passed transactions.
-func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreasuryEnabled bool) ([]spentTxOut, error) {
+func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spentTxOut, error) {
 	// Calculate the total number of stxos.
 	var numStxos int
 	for _, tx := range txns {
@@ -769,8 +769,7 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasury
 		panicf("missing spend journal data for %s", block.Hash())
 	}
 
-	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns,
-		isTreasuryEnabled)
+	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns)
 	if err != nil {
 		// Ensure any deserialization errors are returned as database
 		// corruption errors.

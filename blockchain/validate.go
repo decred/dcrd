@@ -3327,8 +3327,7 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 // single stakebase transactions (votes) within a block.  This function skips a
 // ton of checks already performed by CheckTransactionInputs.
 func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64,
-	txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled,
-	isSubsidySplitEnabled bool) error {
+	txs []*dcrutil.Tx, view *UtxoViewpoint, isSubsidySplitEnabled bool) error {
 
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
@@ -3644,7 +3643,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		}
 
 		err := checkStakeBaseAmounts(b.subsidyCache, node.height, txs, view,
-			isTreasuryEnabled, isSubsidySplitEnabled)
+			isSubsidySplitEnabled)
 		if err != nil {
 			return err
 		}

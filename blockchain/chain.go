@@ -647,10 +647,10 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
+	if len(stxos) != countSpentOutputs(block) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), node.hash, node.height,
-			countSpentOutputs(block, isTreasuryEnabled))
+			countSpentOutputs(block))
 	}
 
 	// Write any modified block index entries to the database before
@@ -689,7 +689,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	curTotalTxns := b.stateSnapshot.TotalTxns
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
-	subsidy := calculateAddedSubsidy(block, parent, isTreasuryEnabled)
+	subsidy := calculateAddedSubsidy(block, parent)
 	numTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	blockSize := uint64(block.MsgBlock().Header.Size)
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
@@ -866,7 +866,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	if err != nil {
 		return err
 	}
-	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 
 	// Write any modified block index entries to the database before
 	// updating the best state.
@@ -895,7 +894,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	numParentTxns := uint64(len(parent.Transactions()) + len(parent.STransactions()))
 	numBlockTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	newTotalTxns := curTotalTxns - numBlockTxns
-	subsidy := calculateAddedSubsidy(block, parent, isTreasuryEnabled)
+	subsidy := calculateAddedSubsidy(block, parent)
 	newTotalSubsidy := curTotalSubsidy - subsidy
 	prevNode := node.parent
 	state := newBestState(prevNode, parentBlockSize, numParentTxns,
@@ -997,7 +996,7 @@ func countSpentRegularOutputs(block *dcrutil.Block) int {
 
 // countSpentStakeOutputs returns the number of utxos the stake transactions in
 // the passed block spend.
-func countSpentStakeOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
+func countSpentStakeOutputs(block *dcrutil.Block) int {
 	var numSpent int
 	for _, stx := range block.MsgBlock().STransactions {
 		// Exclude the vote stakebase since it has no input.
@@ -1017,9 +1016,8 @@ func countSpentStakeOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
 }
 
 // countSpentOutputs returns the number of utxos the passed block spends.
-func countSpentOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
-	return countSpentRegularOutputs(block) +
-		countSpentStakeOutputs(block, isTreasuryEnabled)
+func countSpentOutputs(block *dcrutil.Block) int {
+	return countSpentRegularOutputs(block) + countSpentStakeOutputs(block)
 }
 
 // loadOrCreateFilter attempts to load and return the version 2 GCS filter for
@@ -1239,7 +1237,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// Skip validation if the block has already been validated.  However,
 		// the utxo view still needs to be updated and the stxos and header
 		// commitment data are still needed.
-		numSpentOutputs := countSpentOutputs(block, isTreasuryEnabled)
+		numSpentOutputs := countSpentOutputs(block)
 		stxos := make([]spentTxOut, 0, numSpentOutputs)
 		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).HasValidated() {

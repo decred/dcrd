@@ -975,7 +975,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	// Add unconfirmed address index entries associated with the transaction
 	// if enabled.
 	if mp.cfg.AddrIndex != nil {
-		mp.cfg.AddrIndex.AddUnconfirmedTx(tx, utxoView, isTreasuryEnabled)
+		mp.cfg.AddrIndex.AddUnconfirmedTx(tx, utxoView)
 	}
 	if mp.cfg.ExistsAddrIndex != nil {
 		mp.cfg.ExistsAddrIndex.AddUnconfirmedTx(msgTx)
