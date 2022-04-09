@@ -3741,7 +3741,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		tspendHash: tspendHash,
 		vote:       0x01, // Yes
 	}})
-	_, err = stake.CheckSSGenVotes(yesVote, yesTreasury)
+	_, err = stake.CheckSSGenVotes(yesVote)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3751,7 +3751,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		tspendHash: tspendHash,
 		vote:       0x02, // No
 	}})
-	_, err = stake.CheckSSGenVotes(noVote, yesTreasury)
+	_, err = stake.CheckSSGenVotes(noVote)
 	if err != nil {
 		t.Fatal(err)
 	}

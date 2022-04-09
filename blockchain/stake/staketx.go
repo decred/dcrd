@@ -977,9 +977,9 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 //     designating what the remaining data that is pushed is.  In the case of
 //     'TV' (Treasury Vote) it checks for a <hash><vote> tuple. For example:
 //     OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
-//     NOTE: This output is only appended when the treasury agenda is active
-//     and a treasury spend is being voted on.
-func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTuple, error) {
+//     NOTE: This output is only appended when a treasury spend is being voted
+//     on.
+func CheckSSGenVotes(tx *wire.MsgTx) ([]TreasuryVoteTuple, error) {
 	// Check to make sure there aren't too many inputs.
 	if len(tx.TxIn) != NumInputsPerSSGen {
 		str := "SSgen tx has an invalid number of inputs"
@@ -1102,13 +1102,11 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	// data push that designates what the data is that follows the
 	// discriminator. In the case of 'T','V' the next data push should be N
 	// hashes. If it is we need to decrease the count on OP_SSGEN tests by
-	// one. This check is only valid if the treasury agenda is active.
+	// one.
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
 	var votes []TreasuryVoteTuple
-	if isTreasuryEnabled && IsNullDataScript(lastTxOut.Version,
-		lastTxOut.PkScript) {
-
+	if IsNullDataScript(lastTxOut.Version, lastTxOut.PkScript) {
 		txOutLen--
 
 		// We call this function in order to prevent rolling of
@@ -1151,7 +1149,7 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 // returns TSpend votes if there are any) to maintain consistency and backwards
 // compatibility.
 func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
-	_, err := CheckSSGenVotes(tx, isTreasuryEnabled)
+	_, err := CheckSSGenVotes(tx)
 	return err
 }
 

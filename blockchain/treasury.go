@@ -1003,8 +1003,7 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 			return nil, err
 		}
 		for _, v := range xblock.STransactions() {
-			votes, err := stake.CheckSSGenVotes(v.MsgTx(),
-				yesTreasury)
+			votes, err := stake.CheckSSGenVotes(v.MsgTx())
 			if err != nil {
 				// Not an SSGEN
 				continue
