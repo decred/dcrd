@@ -2488,7 +2488,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 	// one from the length of TxOut slice.
 	var extra int
 	if isTreasuryEnabled {
-		tvt, _ := stake.CheckSSGenVotes(msgTx, isTreasuryEnabled)
+		tvt, _ := stake.CheckSSGenVotes(msgTx)
 		if tvt != nil {
 			extra = 1
 		}
@@ -2718,7 +2718,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	if isTreasuryEnabled {
 		// If we have votes we need to subtract them from the next
 		// check.
-		tvt, _ := stake.CheckSSGenVotes(msgTx, isTreasuryEnabled)
+		tvt, _ := stake.CheckSSGenVotes(msgTx)
 		if tvt != nil {
 			extra = 1
 		}

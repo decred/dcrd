@@ -686,6 +686,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify optional OP_RETURN with no discriminator.
 	var ssgenNoDiscriminator = dcrutil.NewTx(ssgenMsgTxNoDiscriminator)
+	ssgenNoDiscriminator.SetVersion(wire.TxVersionTreasury)
 	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenNoDiscriminator.SetIndex(0)
 
@@ -700,6 +701,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify optional OP_RETURN with an invalid discriminator length.
 	var ssgenInvalidDiscriminator = dcrutil.NewTx(ssgenMsgTxInvalidDiscriminator)
+	ssgenInvalidDiscriminator.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator.SetIndex(0)
 
@@ -714,6 +716,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify optional OP_RETURN with an unknown discriminator.
 	var ssgenInvalidDiscriminator2 = dcrutil.NewTx(ssgenMsgTxUnknownDiscriminator)
+	ssgenInvalidDiscriminator2.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator2.SetIndex(0)
 
@@ -747,6 +750,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify optional OP_RETURN with a valid discriminator but no vote.
 	var ssgenInvalidTVNoVote = dcrutil.NewTx(ssgenMsgTxInvalidTV)
+	ssgenInvalidTVNoVote.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVNoVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote.SetIndex(0)
 
@@ -761,6 +765,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify optional OP_RETURN with a valid discriminator but a short vote.
 	var ssgenInvalidTVNoVote2 = dcrutil.NewTx(ssgenMsgTxInvalidTV2)
+	ssgenInvalidTVNoVote2.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVNoVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote2.SetIndex(0)
 
@@ -776,6 +781,7 @@ func TestSSGenErrors(t *testing.T) {
 	// Verify optional OP_RETURN with a valid discriminator one valid vote
 	// and a short vote.
 	var ssgenInvalidTVNoVote3 = dcrutil.NewTx(ssgenMsgTxInvalidTV3)
+	ssgenInvalidTVNoVote3.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVNoVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote3.SetIndex(0)
 
@@ -791,6 +797,7 @@ func TestSSGenErrors(t *testing.T) {
 	// Verify optional OP_RETURN with a valid discriminator 7 valid votes
 	// and a short vote.
 	var ssgenInvalidTVNoVote4 = dcrutil.NewTx(ssgenMsgTxInvalidTV4)
+	ssgenInvalidTVNoVote4.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVNoVote4.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote4.SetIndex(0)
 
@@ -806,6 +813,7 @@ func TestSSGenErrors(t *testing.T) {
 	// Verify optional OP_RETURN with a valid discriminator 7 valid votes
 	// but with an invalid OP_PUSHDATAX encoding..
 	var ssgenInvalidTVNoVote5 = dcrutil.NewTx(ssgenMsgTxInvalidTV5)
+	ssgenInvalidTVNoVote5.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVNoVote5.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote5.SetIndex(0)
 
@@ -820,6 +828,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify invalid treasury vote bits (too many bits).
 	var ssgenInvalidTVote = dcrutil.NewTx(ssgenMsgTxInvalidTVote)
+	ssgenInvalidTVote.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote.SetIndex(0)
 
@@ -834,6 +843,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify invalid treasury vote bits (no bits).
 	var ssgenInvalidTVote2 = dcrutil.NewTx(ssgenMsgTxInvalidTVote2)
+	ssgenInvalidTVote2.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote2.SetIndex(0)
 
@@ -848,6 +858,7 @@ func TestSSGenErrors(t *testing.T) {
 
 	// Verify duplicate tspend hash.
 	var ssgenInvalidTVote3 = dcrutil.NewTx(ssgenMsgTxInvalidTVote3)
+	ssgenInvalidTVote3.SetVersion(wire.TxVersionTreasury)
 	ssgenInvalidTVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote3.SetIndex(0)
 
