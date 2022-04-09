@@ -325,7 +325,7 @@ func TestSSGen(t *testing.T) {
 	ssgen.SetTree(wire.TxTreeStake)
 	ssgen.SetIndex(0)
 
-	err := CheckSSGen(ssgen.MsgTx(), noTreasury)
+	err := CheckSSGen(ssgen.MsgTx())
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestSSGen(t *testing.T) {
 	ssgen.SetIndex(0)
 	ssgen.MsgTx().TxOut[1].PkScript = biggestPush
 
-	err = CheckSSGen(ssgen.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgen.MsgTx())
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
@@ -382,7 +382,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraInputs.SetTree(wire.TxTreeStake)
 	ssgenExtraInputs.SetIndex(0)
 
-	err = CheckSSGen(ssgenExtraInputs.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenExtraInputs.MsgTx())
 	if !errors.Is(err, ErrSSGenWrongNumInputs) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenWrongNumInputs, err)
@@ -398,7 +398,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraOutputs.SetTree(wire.TxTreeStake)
 	ssgenExtraOutputs.SetIndex(0)
 
-	err = CheckSSGen(ssgenExtraOutputs.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenExtraOutputs.MsgTx())
 	if !errors.Is(err, ErrSSGenTooManyOutputs) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenTooManyOutputs, err)
@@ -414,7 +414,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenStakeBaseWrong.SetTree(wire.TxTreeStake)
 	ssgenStakeBaseWrong.SetIndex(0)
 
-	err = CheckSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenStakeBaseWrong.MsgTx())
 	if !errors.Is(err, ErrSSGenNoStakebase) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoStakebase, err)
@@ -446,7 +446,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongTreeIns.SetTree(wire.TxTreeStake)
 	ssgenWrongTreeIns.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongTreeIns.MsgTx())
 	if !errors.Is(err, ErrSSGenWrongTxTree) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenWrongTxTree, err)
@@ -461,7 +461,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenTxBadVerOut.SetTree(wire.TxTreeStake)
 	ssgenTxBadVerOut.SetIndex(0)
 
-	err = CheckSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenTxBadVerOut.MsgTx())
 	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
@@ -477,7 +477,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongZeroethOut.SetTree(wire.TxTreeStake)
 	ssgenWrongZeroethOut.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongZeroethOut.MsgTx())
 	if !errors.Is(err, ErrSSGenNoReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoReference, err)
@@ -519,7 +519,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush0Length.SetTree(wire.TxTreeStake)
 	ssgenWrongDataPush0Length.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongDataPush0Length.MsgTx())
 	if !errors.Is(err, ErrSSGenBadReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadReference, err)
@@ -561,7 +561,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData0Prefix.SetTree(wire.TxTreeStake)
 	ssgenWrongNullData0Prefix.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongNullData0Prefix.MsgTx())
 	if !errors.Is(err, ErrSSGenBadReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadReference, err)
@@ -577,7 +577,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongFirstOut.SetTree(wire.TxTreeStake)
 	ssgenWrongFirstOut.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongFirstOut.MsgTx())
 	if !errors.Is(err, ErrSSGenNoVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenNoVotePush, err)
@@ -608,7 +608,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush1Length.SetTree(wire.TxTreeStake)
 	ssgenWrongDataPush1Length.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongDataPush1Length.MsgTx())
 	if !errors.Is(err, ErrSSGenBadVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadVotePush, err)
@@ -640,7 +640,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData1Prefix.SetTree(wire.TxTreeStake)
 	ssgenWrongNullData1Prefix.SetIndex(0)
 
-	err = CheckSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgenWrongNullData1Prefix.MsgTx())
 	if !errors.Is(err, ErrSSGenBadVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadVotePush, err)
@@ -672,7 +672,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgentestGenOutputUntagged.SetTree(wire.TxTreeStake)
 	ssgentestGenOutputUntagged.SetIndex(0)
 
-	err = CheckSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgentestGenOutputUntagged.MsgTx())
 	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
@@ -690,7 +690,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenNoDiscriminator.SetIndex(0)
 
-	err = CheckSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenNoDiscriminator.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
@@ -705,7 +705,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidDiscriminator.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
@@ -720,7 +720,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator2.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidDiscriminator2.MsgTx())
 	if !errors.Is(err, ErrSSGenUnknownDiscriminator) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenUnknownDiscriminator, err)
@@ -734,7 +734,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator3.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator3.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidDiscriminator3.MsgTx())
 	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenBadGenOuts, err)
@@ -754,7 +754,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVNoVote.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
@@ -769,7 +769,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote2.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVNoVote2.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
@@ -785,7 +785,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote3.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVNoVote3.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
@@ -801,7 +801,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote4.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote4.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVNoVote4.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTVLength, err)
@@ -817,7 +817,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote5.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote5.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVNoVote5.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidDiscriminatorLength, err)
@@ -832,7 +832,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVote.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVote.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTreasuryVote, err)
@@ -847,7 +847,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote2.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVote2.MsgTx())
 	if !errors.Is(err, ErrSSGenInvalidTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenInvalidTreasuryVote, err)
@@ -862,7 +862,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote3.SetIndex(0)
 
-	err = CheckSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury)
+	err = CheckSSGen(ssgenInvalidTVote3.MsgTx())
 	if !errors.Is(err, ErrSSGenDuplicateTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			ErrSSGenDuplicateTreasuryVote, err)
@@ -890,7 +890,7 @@ func TestSSGenTreasuryVotes(t *testing.T) {
 	if !IsSSGen(ssgenValidVote.MsgTx(), withTreasury) {
 		t.Error("IsSSGen claimed a valid ssgen is invalid")
 	}
-	err := CheckSSGen(ssgenValidVote.MsgTx(), withTreasury)
+	err := CheckSSGen(ssgenValidVote.MsgTx())
 	if err != nil {
 		t.Error(err)
 	}

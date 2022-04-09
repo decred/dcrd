@@ -1148,7 +1148,7 @@ func CheckSSGenVotes(tx *wire.MsgTx) ([]TreasuryVoteTuple, error) {
 // CheckSSGen wraps CheckSSGenVotes (which is the old CheckSSGen plus it
 // returns TSpend votes if there are any) to maintain consistency and backwards
 // compatibility.
-func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
+func CheckSSGen(tx *wire.MsgTx) error {
 	_, err := CheckSSGenVotes(tx)
 	return err
 }
@@ -1156,7 +1156,7 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 // IsSSGen returns whether or not a transaction is a stake submission generation
 // transaction.  These are also known as votes.
 func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
-	return CheckSSGen(tx, isTreasuryEnabled) == nil
+	return CheckSSGen(tx) == nil
 }
 
 // CheckSSRtx returns an error if a transaction is not a stake submission

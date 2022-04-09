@@ -3075,8 +3075,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		if !(isVote || isRevocation) {
 			if stake.IsTicketPurchaseScript(utxoEntry.ScriptVersion(),
 				utxoEntry.PkScript()) {
-				errSSGen := stake.CheckSSGen(msgTx,
-					isTreasuryEnabled)
+				errSSGen := stake.CheckSSGen(msgTx)
 				errSSRtx := stake.CheckSSRtx(msgTx)
 				errStr := fmt.Sprintf("Tx %v attempted to "+
 					"spend an OP_SSTX tagged output, "+
