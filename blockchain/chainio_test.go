@@ -706,7 +706,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 
 		// Deserialize to a spend journal entry.
 		gotEntry, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns, noTreasury)
+			test.blockTxns)
 		if err != nil {
 			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
@@ -778,7 +778,7 @@ func TestSpendJournalErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// slice is nil.
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns, noTreasury)
+			test.blockTxns)
 		if !errors.As(err, &test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)

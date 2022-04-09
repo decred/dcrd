@@ -493,10 +493,10 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 	}
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
+	if len(stxos) != countSpentOutputs(block) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-			countSpentOutputs(block, isTreasuryEnabled))
+			countSpentOutputs(block))
 	}
 
 	return view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled,
@@ -586,10 +586,10 @@ func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block,
 	stxos []spentTxOut, isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
+	if len(stxos) != countSpentOutputs(block) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-			countSpentOutputs(block, isTreasuryEnabled))
+			countSpentOutputs(block))
 	}
 
 	// Load all of the utxos referenced by the inputs for all transactions in

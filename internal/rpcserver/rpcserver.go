@@ -4167,7 +4167,7 @@ type retrievedTx struct {
 // fetchInputTxos fetches the outpoints from all transactions referenced by the
 // inputs to the passed transaction by checking the transaction mempool first
 // then the transaction index for those already mined into blocks.
-func fetchInputTxos(s *Server, tx *wire.MsgTx, isTreasuryEnabled bool) (map[wire.OutPoint]wire.TxOut, error) {
+func fetchInputTxos(s *Server, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, error) {
 	originOutputs := make(map[wire.OutPoint]wire.TxOut)
 	voteTx := stake.IsSSGen(tx)
 	for txInIndex, txIn := range tx.TxIn {
@@ -4335,7 +4335,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 	var originOutputs map[wire.OutPoint]wire.TxOut
 	if vinExtra || len(filterAddrMap) > 0 {
 		var err error
-		originOutputs, err = fetchInputTxos(s, mtx, isTreasuryEnabled)
+		originOutputs, err = fetchInputTxos(s, mtx)
 		if err != nil {
 			return nil, err
 		}

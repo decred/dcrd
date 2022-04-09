@@ -32,7 +32,7 @@ type SequenceLock struct {
 // to the IsSSGen function in the stake package and exists to make calling code
 // that does not care about the specific reason the transaction is not a
 // stakebase, rather only if it is one or not.
-func isStakeBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+func isStakeBaseTx(tx *wire.MsgTx) bool {
 	return stake.IsSSGen(tx)
 }
 
@@ -57,7 +57,7 @@ func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *Utx
 	msgTx := tx.MsgTx()
 	enforce := isActive && msgTx.Version >= 2
 	if !enforce || standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) ||
-		isStakeBaseTx(msgTx, isTreasuryEnabled) {
+		isStakeBaseTx(msgTx) {
 		return sequenceLock, nil
 	}
 
