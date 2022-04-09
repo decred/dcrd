@@ -26,11 +26,6 @@ const (
 	// tests.
 	noTreasury = false
 
-	// noAutoRevocations signifies the automatic ticket revocations agenda should
-	// be treated as though it is inactive.  It is used to increase the
-	// readability of the tests.
-	noAutoRevocations = false
-
 	// withTreasury signifies the treasury agenda should be treated as
 	// though it is active.  It is used to increase the readability of
 	// the tests.

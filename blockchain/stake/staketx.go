@@ -1253,7 +1253,7 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 
 // IsSSRtx returns whether or not a transaction is a stake submission revocation
 // transaction.  These are also known as revocations.
-func IsSSRtx(tx *wire.MsgTx, isAutoRevocationsEnabled bool) bool {
+func IsSSRtx(tx *wire.MsgTx) bool {
 	return CheckSSRtx(tx) == nil
 }
 
@@ -1268,7 +1268,7 @@ func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled,
 	if IsSSGen(tx, isTreasuryEnabled) {
 		return TxTypeSSGen
 	}
-	if IsSSRtx(tx, isAutoRevocationsEnabled) {
+	if IsSSRtx(tx) {
 		return TxTypeSSRtx
 	}
 	if isTreasuryEnabled {
@@ -1334,12 +1334,7 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 			})
 			continue
 		}
-		// Pass false for whether the automatic ticket revocations agenda is active.
-		// This is okay since the auto revocations flag just adds additional rules
-		// that revocations must have an empty signature script for its input and
-		// must have zero fee.  Revocations that don't follow those rules will still
-		// be rejected by consensus.
-		if IsSSRtx(stx, false) {
+		if IsSSRtx(stx) {
 			revocations = append(revocations, stx.TxIn[0].PreviousOutPoint.Hash)
 			continue
 		}

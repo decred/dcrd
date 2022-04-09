@@ -1768,7 +1768,6 @@ func TestAutoRevocations(t *testing.T) {
 	// deployment for the automatic ticket revocations agenda, and, finally,
 	// ensure it is always available to vote by removing the time constraints to
 	// prevent test failures when the real expiration time passes.
-	const autoRevocationsEnabled = true
 	const voteID = chaincfg.VoteIDAutoRevocations
 	params = cloneParams(params)
 	version, deployment, err := findDeployment(params, voteID)
@@ -1879,7 +1878,7 @@ func TestAutoRevocations(t *testing.T) {
 		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions,
 		func(b *wire.MsgBlock) {
 			for _, stx := range b.STransactions {
-				if !stake.IsSSRtx(stx, autoRevocationsEnabled) {
+				if !stake.IsSSRtx(stx) {
 					continue
 				}
 
@@ -1912,7 +1911,7 @@ func TestAutoRevocations(t *testing.T) {
 	revocationTicketHashes := make([]chainhash.Hash, 0, params.TicketsPerBlock)
 	for _, stx := range g.Tip().STransactions {
 		// Append revocation ticket hashes.
-		if stake.IsSSRtx(stx, autoRevocationsEnabled) {
+		if stake.IsSSRtx(stx) {
 			ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
 			revocationTicketHashes = append(revocationTicketHashes, ticketHash)
 

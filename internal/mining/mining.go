@@ -2063,9 +2063,7 @@ nextPriorityQueueItem:
 		}
 
 		msgTx := tx.MsgTx()
-		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx,
-			isAutoRevocationsEnabled) {
-
+		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(tx)
 			if g.maybeInsertStakeTx(txCopy, !knownDisapproved,
 				isTreasuryEnabled) {

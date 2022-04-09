@@ -151,7 +151,7 @@ func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func revokedTicketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Revocations)
 	for _, stx := range bl.STransactions() {
-		if IsSSRtx(stx.MsgTx(), noAutoRevocations) {
+		if IsSSRtx(stx.MsgTx()) {
 			tickets = append(tickets, stx.MsgTx().TxIn[0].PreviousOutPoint.Hash)
 		}
 	}

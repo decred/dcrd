@@ -2018,7 +2018,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				}
 
 				// Append revocation ticket hashes.
-				if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
+				if stake.IsSSRtx(stx) {
 					ticketHash := stx.TxIn[0].PreviousOutPoint.Hash
 					revocationTicketHashes = append(revocationTicketHashes, ticketHash)
 
@@ -2905,7 +2905,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	//
 	// Also keep track of whether or not it is a revocation since some inputs
 	// need to be skipped later.
-	isRevocation := stake.IsSSRtx(msgTx, isAutoRevocationsEnabled)
+	isRevocation := stake.IsSSRtx(msgTx)
 	if isRevocation {
 		err := checkRevocationInputs(tx, txHeight, view, chainParams,
 			prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
