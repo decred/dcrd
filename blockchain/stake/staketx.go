@@ -1269,7 +1269,7 @@ func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled,
 	if IsSSRtx(tx) {
 		return TxTypeSSRtx
 	}
-	if isTreasuryEnabled {
+	if tx.Version >= wire.TxVersionTreasury {
 		if IsTAdd(tx) {
 			return TxTypeTAdd
 		}
