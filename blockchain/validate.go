@@ -3076,7 +3076,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 				utxoEntry.PkScript()) {
 				errSSGen := stake.CheckSSGen(msgTx,
 					isTreasuryEnabled)
-				errSSRtx := stake.CheckSSRtx(msgTx, isAutoRevocationsEnabled)
+				errSSRtx := stake.CheckSSRtx(msgTx)
 				errStr := fmt.Sprintf("Tx %v attempted to "+
 					"spend an OP_SSTX tagged output, "+
 					"however it was not an SSGen or SSRtx"+
