@@ -407,7 +407,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 			}
 
 			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k], yesTreasury)
+			err = stake.CheckSSGen(b.STransactions[k])
 			if err != nil {
 				t.Fatalf("expected SSGen: %v", err)
 			}
@@ -2759,7 +2759,7 @@ func TestTreasuryBalance(t *testing.T) {
 			}
 
 			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k], yesTreasury)
+			err = stake.CheckSSGen(b.STransactions[k])
 			if err != nil {
 				t.Fatalf("expected SSGen: %v", err)
 			}

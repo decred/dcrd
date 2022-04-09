@@ -571,7 +571,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ctx context.Context, ntfn *winni
 		}
 		vote.TxIn[1].SignatureScript = sig
 
-		err = stake.CheckSSGen(vote, true)
+		err = stake.CheckSSGen(vote)
 		if err != nil {
 			w.logError(fmt.Errorf("transaction is not a valid vote: %v", err))
 			return
