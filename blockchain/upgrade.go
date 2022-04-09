@@ -4264,11 +4264,7 @@ func correctTreasurySpendVoteData(ctx context.Context, db database.DB, params *c
 				continue
 			}
 
-			// The automatic ticket revocations agenda is not eligible to vote
-			// prior to this upgrade code running, so it couldn't possibly be
-			// active.
-			const isAutoRevocationsEnabled = false
-			if stake.IsSSRtx(stx, isAutoRevocationsEnabled) {
+			if stake.IsSSRtx(stx) {
 				spentTicketHash := stx.TxIn[0].PreviousOutPoint.Hash
 				revocations = append(revocations, spentTicketHash)
 				continue

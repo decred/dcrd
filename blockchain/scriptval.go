@@ -193,7 +193,7 @@ func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint,
 	msgTx := tx.MsgTx()
 	if isAutoRevocationsEnabled &&
 		msgTx.Version >= stake.TxVersionAutoRevocations &&
-		stake.IsSSRtx(msgTx, isAutoRevocationsEnabled) {
+		stake.IsSSRtx(msgTx) {
 
 		return nil
 	}
@@ -251,7 +251,7 @@ func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree boo
 		msgTx := tx.MsgTx()
 		if isAutoRevocationsEnabled && !txTree &&
 			msgTx.Version >= stake.TxVersionAutoRevocations &&
-			stake.IsSSRtx(msgTx, isAutoRevocationsEnabled) {
+			stake.IsSSRtx(msgTx) {
 
 			continue
 		}
