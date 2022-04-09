@@ -1257,9 +1257,7 @@ func IsSSRtx(tx *wire.MsgTx) bool {
 
 // DetermineTxType determines the type of stake transaction a transaction is; if
 // none, it returns that it is an assumed regular tx.
-func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) TxType {
-
+func DetermineTxType(tx *wire.MsgTx) TxType {
 	if IsSStx(tx) {
 		return TxTypeSStx
 	}

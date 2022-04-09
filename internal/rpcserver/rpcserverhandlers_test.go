@@ -7418,27 +7418,6 @@ func TestHandleSendRawTransaction(t *testing.T) {
 		wantErr: true,
 		errCode: dcrjson.ErrRPCMisc,
 	}, {
-		name:    "handleSendRawTransaction: unable to fetch treasury agenda status",
-		handler: handleSendRawTransaction,
-		cmd: &types.SendRawTransactionCmd{
-			HexTx:         hexTx,
-			AllowHighFees: &allowHighFees,
-		},
-		mockSyncManager: func() *testSyncManager {
-			syncManager := defaultMockSyncManager()
-			syncManager.processTransaction = []*dcrutil.Tx{tx}
-			return syncManager
-		}(),
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.treasuryActive = false
-			chain.treasuryActiveErr =
-				errors.New("unable to fetch treasury agenda status")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}, {
 		name:    "handleSendRawTransaction: ok",
 		handler: handleSendRawTransaction,
 		cmd: &types.SendRawTransactionCmd{

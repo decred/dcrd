@@ -398,8 +398,7 @@ func (p *fakeTxSource) CountTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (in
 func (p *fakeTxSource) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx,
 	tx *dcrutil.Tx, isTreasuryEnabled, isAutoRevocationsEnabled bool) []*dcrutil.Tx {
 
-	txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(tx.MsgTx())
 	if txType != stake.TxTypeRegular {
 		return nil
 	}
@@ -571,8 +570,7 @@ func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
 	txHash := tx.Hash()
 	if removeRedeemers {
 		// Remove any transactions which rely on this one.
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(tx.MsgTx())
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -640,8 +638,7 @@ func (p *fakeTxSource) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
 	var acceptedTxns []*dcrutil.Tx
 	for _, redeemer := range p.fetchRedeemers(p.stagedOutpoints, tx,
 		isTreasuryEnabled, isAutoRevocationsEnabled) {
-		redeemerTxType := stake.DetermineTxType(redeemer.MsgTx(),
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		redeemerTxType := stake.DetermineTxType(redeemer.MsgTx())
 		if redeemerTxType == stake.TxTypeSStx {
 			// Skip tickets with inputs in the main pool.
 			if p.hasPoolInput(redeemer) {
@@ -689,8 +686,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	// Determine what type of transaction we're dealing with (regular or stake).
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
-	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgTx)
 	if txType == stake.TxTypeRegular {
 		tx.SetTree(wire.TxTreeRegular)
 	} else {
@@ -809,8 +805,7 @@ func (p *fakeTxSource) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled,
 		processList[0] = nil
 		processList = processList[1:]
 
-		txType := stake.DetermineTxType(processItem.MsgTx(),
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(processItem.MsgTx())
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -1297,8 +1292,7 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 // CountTotalSigOps returns the total number of signature operations for the
 // given transaction.
 func (m *miningHarness) CountTotalSigOps(tx *dcrutil.Tx) (int, error) {
-	txType := stake.DetermineTxType(tx.MsgTx(), m.chain.isTreasuryAgendaActive,
-		m.chain.isAutoRevocationsAgendaActive)
+	txType := stake.DetermineTxType(tx.MsgTx())
 	return m.txSource.CountTotalSigOps(tx, txType)
 }
 

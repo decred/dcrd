@@ -456,7 +456,7 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool
 	var isTreasuryBase, isTreasuryAdd, isTreasurySpend bool
-	switch stake.DetermineTxType(tx, isTreasuryEnabled, isAutoRevocationsEnabled) {
+	switch stake.DetermineTxType(tx) {
 	case stake.TxTypeSSGen:
 		isVote = true
 	case stake.TxTypeSStx:
@@ -1743,8 +1743,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 
 		// A block must not have stake transactions in the regular transaction
 		// tree.
-		txType := stake.DetermineTxType(tx, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(tx)
 		if txType != stake.TxTypeRegular {
 			str := fmt.Sprintf("block contains a stake transaction in the "+
 				"regular transaction tree at index %d", txIdx)
@@ -1783,8 +1782,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	for txIdx, stx := range msgBlock.STransactions {
 		// A block must not have regular transactions in the stake transaction
 		// tree.
-		txType := stake.DetermineTxType(stx, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		txType := stake.DetermineTxType(stx)
 		if txType == stake.TxTypeRegular {
 			str := fmt.Sprintf("block contains regular transaction in stake "+
 				"transaction tree at index %d", txIdx)

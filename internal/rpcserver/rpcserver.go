@@ -1163,8 +1163,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 	filterAddrMap map[string]struct{}, isTreasuryEnabled,
 	isAutoRevocationsEnabled bool) []types.Vout {
 
-	txType := stake.DetermineTxType(mtx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(mtx)
 	voutList := make([]types.Vout, 0, len(mtx.TxOut))
 	for i, v := range mtx.TxOut {
 		// The disassembled string will contain [error] inline if the
@@ -4777,27 +4776,12 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 	// Notify websocket clients of all newly accepted transactions.
 	s.NotifyNewTransactions(acceptedTxs)
 
-	// Determine if the treasury rules are active as of the current best tip.
-	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
-	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine if the automatic ticket revocations agenda is active as of the
-	// current best tip.
-	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
 	// Keep track of all the regular sendrawtransaction request txns so that
 	// they can be rebroadcast if they don't make their way into a block.
 	//
 	// Note that votes are only valid for a specific block and are time
 	// sensitive, so they should not be added to the rebroadcast logic.
-	txType := stake.DetermineTxType(msgtx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	txType := stake.DetermineTxType(msgtx)
 	if txType != stake.TxTypeSSGen {
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 		s.cfg.ConnMgr.AddRebroadcastInventory(iv, tx)
@@ -5001,20 +4985,6 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 		return nil, err
 	}
 
-	// Determine if the treasury rules are active for the block.
-	prevBlkHash := bl.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine if the automatic ticket revocations agenda is active for the
-	// block.
-	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
 	txNum := 0
 	switch txType {
 	case stake.TxTypeRegular:
@@ -5041,8 +5011,7 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 		}
 	} else {
 		for _, stx := range bl.STransactions() {
-			thisTxType := stake.DetermineTxType(stx.MsgTx(),
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+			thisTxType := stake.DetermineTxType(stx.MsgTx())
 			if thisTxType == txType {
 				txFees[itr] = calcFeePerKb(stx)
 				itr++
@@ -5087,24 +5056,8 @@ func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxTyp
 				txFees = append(txFees, calcFeePerKb(tx))
 			}
 		} else {
-			// Determine if the treasury rules are active for the block.
-			prevBlkHash := bl.MsgBlock().Header.PrevBlock
-			isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
-			if err != nil {
-				return nil, err
-			}
-
-			// Determine if the automatic ticket revocations agenda is active for the
-			// block.
-			isAutoRevocationsEnabled, err :=
-				s.isAutoRevocationsAgendaActive(&prevBlkHash)
-			if err != nil {
-				return nil, err
-			}
-
 			for _, stx := range bl.STransactions() {
-				thisTxType := stake.DetermineTxType(stx.MsgTx(),
-					isTreasuryEnabled, isAutoRevocationsEnabled)
+				thisTxType := stake.DetermineTxType(stx.MsgTx())
 				if thisTxType == txType {
 					txFees = append(txFees, calcFeePerKb(stx))
 				}
