@@ -1051,7 +1051,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	}
 
 	// Check to make sure our SSRtx was created correctly.
-	err = stake.CheckSSRtx(mtx, isAutoRevocationsEnabled)
+	err = stake.CheckSSRtx(mtx)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Invalid SSRtx")
 	}

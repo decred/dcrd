@@ -922,10 +922,9 @@ func TestCheckSSRtx(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                     string
-		tx                       *wire.MsgTx
-		isAutoRevocationsEnabled bool
-		wantErr                  error
+		name    string
+		tx      *wire.MsgTx
+		wantErr error
 	}{{
 		name: "ok",
 		tx:   ssrtxMsgTx,
@@ -933,10 +932,10 @@ func TestCheckSSRtx(t *testing.T) {
 		name: "ok (auto revocations enabled)",
 		tx: func() *wire.MsgTx {
 			tx := ssrtxMsgTx.Copy()
+			tx.Version = TxVersionAutoRevocations
 			tx.TxIn[0].SignatureScript = nil
 			return tx
 		}(),
-		isAutoRevocationsEnabled: true,
 	}, {
 		name:    "too many inputs",
 		tx:      ssrtxMsgTxTooManyInputs,
@@ -976,13 +975,17 @@ func TestCheckSSRtx(t *testing.T) {
 	}, {
 		name: "input contains a non-empty signature script (auto revocations " +
 			"enabled)",
-		tx:                       ssrtxMsgTx,
-		isAutoRevocationsEnabled: true,
-		wantErr:                  ErrSSRtxInputHasSigScript,
+		tx: func() *wire.MsgTx {
+			tx := ssrtxMsgTx.Copy()
+			tx.Version = TxVersionAutoRevocations
+			return tx
+		}(),
+		wantErr: ErrSSRtxInputHasSigScript,
 	}, {
 		name: "non-zero fee (auto revocations enabled)",
 		tx: func() *wire.MsgTx {
 			tx := ssrtxMsgTx.Copy()
+			tx.Version = TxVersionAutoRevocations
 			tx.TxIn[0].SignatureScript = nil
 			outputAmt := int64(0)
 			for _, txOut := range tx.TxOut {
@@ -991,13 +994,12 @@ func TestCheckSSRtx(t *testing.T) {
 			tx.TxIn[0].ValueIn = outputAmt + 1
 			return tx
 		}(),
-		isAutoRevocationsEnabled: true,
-		wantErr:                  ErrSSRtxInvalidFee,
+		wantErr: ErrSSRtxInvalidFee,
 	}}
 
 	for _, test := range tests {
 		// Check if the test transaction is a revocation.
-		err := CheckSSRtx(test.tx, test.isAutoRevocationsEnabled)
+		err := CheckSSRtx(test.tx)
 
 		// Validate that the expected error was returned for negative tests.
 		if test.wantErr != nil {
@@ -1677,7 +1679,7 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		}
 
 		// Validate that the revocation transaction was created correctly.
-		err = CheckSSRtx(revocationTx, test.isAutoRevocationsEnabled)
+		err = CheckSSRtx(revocationTx)
 		if err != nil {
 			t.Errorf("%q: unexpected error checking revocation: %v", test.name, err)
 			continue
