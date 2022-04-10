@@ -1160,8 +1160,7 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
 func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
-	filterAddrMap map[string]struct{}, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) []types.Vout {
+	filterAddrMap map[string]struct{}) []types.Vout {
 
 	txType := stake.DetermineTxType(mtx)
 	voutList := make([]types.Vout, 0, len(mtx.TxOut))
@@ -1255,8 +1254,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params,
 // to a raw transaction JSON object.
 func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 	mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader,
-	blkHash string, blkHeight int64, confirmations int64, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) (*types.TxRawResult, error) {
+	blkHash string, blkHeight int64, confirmations int64,
+	isTreasuryEnabled bool) (*types.TxRawResult, error) {
 
 	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
@@ -1269,11 +1268,10 @@ func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 	}
 
 	txReply := &types.TxRawResult{
-		Hex:  mtxHex,
-		Txid: txHash,
-		Vin:  createVinList(mtx, isTreasuryEnabled),
-		Vout: createVoutList(mtx, chainParams, nil, isTreasuryEnabled,
-			isAutoRevocationsEnabled),
+		Hex:         mtxHex,
+		Txid:        txHash,
+		Vin:         createVinList(mtx, isTreasuryEnabled),
+		Vout:        createVoutList(mtx, chainParams, nil),
 		Version:     int32(mtx.Version),
 		LockTime:    mtx.LockTime,
 		Expiry:      mtx.Expiry,
@@ -1319,12 +1317,6 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 		return nil, err
 	}
 
-	// Determine if the automatic ticket revocations agenda is active.
-	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create and return the result.
 	txReply := types.TxRawDecodeResult{
 		Txid:     mtx.TxHash().String(),
@@ -1332,8 +1324,7 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 		Locktime: mtx.LockTime,
 		Expiry:   mtx.Expiry,
 		Vin:      createVinList(&mtx, isTreasuryEnabled),
-		Vout: createVoutList(&mtx, s.cfg.ChainParams, nil, isTreasuryEnabled,
-			isAutoRevocationsEnabled),
+		Vout:     createVoutList(&mtx, s.cfg.ChainParams, nil),
 	}
 	return txReply, nil
 }
@@ -1973,14 +1964,6 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		return nil, err
 	}
 
-	// Determine if the automatic ticket revocations agenda is active for the
-	// block.
-	isAutoRevocationsEnabled, err :=
-		s.isAutoRevocationsAgendaActive(&blockHeader.PrevBlock)
-	if err != nil {
-		return nil, err
-	}
-
 	if c.VerboseTx == nil || !*c.VerboseTx {
 		transactions := blk.Transactions()
 		txNames := make([]string, len(transactions))
@@ -2006,7 +1989,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations,
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+				isTreasuryEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create transaction")
@@ -2022,7 +2005,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations,
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+				isTreasuryEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create stake transaction")
@@ -2906,15 +2889,9 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		return nil, rpcInternalError(err.Error(), "Treasury Status")
 	}
 
-	// Determine if the automatic ticket revocations agenda is active.
-	isAutoRevocationsEnabled, err := s.isAutoRevocationsAgendaActive(&prevBlkHash)
-	if err != nil {
-		return nil, err
-	}
-
 	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
 		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations,
-		isTreasuryEnabled, isAutoRevocationsEnabled)
+		isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -4604,14 +4581,6 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		return nil, err
 	}
 
-	// Determine if the automatic ticket revocations agenda is active as of the
-	// current best tip for transactions in the mempool.
-	isAutoRevocationsEnabledMempool, err :=
-		s.isAutoRevocationsAgendaActive(&best.PrevHash)
-	if err != nil {
-		return nil, err
-	}
-
 	chainParams := s.cfg.ChainParams
 	srtList := make([]types.SearchRawTransactionsResult, len(addressTxns))
 	for i := range addressTxns {
@@ -4643,7 +4612,6 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		var blkHeight int64
 		var blkIndex uint32
 		isTreasuryEnabled := isTreasuryEnabledMempool
-		isAutoRevocationsEnabled := isAutoRevocationsEnabledMempool
 		if blkHash := rtx.blkHash; blkHash != nil {
 			// Fetch the header from chain.
 			header, err := s.cfg.Chain.HeaderByHash(blkHash)
@@ -4658,14 +4626,6 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			// contains the transaction.
 			prevBlkHash := header.PrevBlock
 			isTreasuryEnabled, err = s.isTreasuryAgendaActive(&prevBlkHash)
-			if err != nil {
-				return nil, err
-			}
-
-			// Determine if the automatic ticket revocations agenda is active for the
-			// block that contains the transaction.
-			isAutoRevocationsEnabled, err =
-				s.isAutoRevocationsAgendaActive(&prevBlkHash)
 			if err != nil {
 				return nil, err
 			}
@@ -4685,8 +4645,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			context := "Could not create vin list"
 			return nil, rpcInternalError(err.Error(), context)
 		}
-		result.Vout = createVoutList(mtx, chainParams, filterAddrMap,
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		result.Vout = createVoutList(mtx, chainParams, filterAddrMap)
 		result.Version = int32(mtx.Version)
 		result.LockTime = mtx.LockTime
 		result.Expiry = mtx.Expiry

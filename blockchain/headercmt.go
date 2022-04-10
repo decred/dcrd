@@ -91,12 +91,6 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 		return nil, err
 	}
 
-	// Determine if the automatic ticket revocations agenda is active.
-	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(tip.parent)
-	if err != nil {
-		return nil, err
-	}
-
 	// Load all of the spent txos for the tip block from the spend journal.
 	var stxos []spentTxOut
 	err = b.db.View(func(dbTx database.Tx) error {
@@ -110,8 +104,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -124,8 +117,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// the parent, also disconnect all of the regular transactions in the parent
 	// block.
 	utilBlock := dcrutil.NewBlock(block)
-	err = view.connectBlock(b.db, utilBlock, parent, nil, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	err = view.connectBlock(b.db, utilBlock, parent, nil, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}

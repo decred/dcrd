@@ -3546,7 +3546,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// Connect the transaction to the UTXO viewpoint, so that in
 		// flight transactions may correctly validate.
 		err = view.connectTransaction(tx, node.height, uint32(idx),
-			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
+			stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -3892,7 +3892,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
 		err = view.disconnectDisapprovedBlock(b.db, parent,
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -3911,8 +3911,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(block, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	err = view.fetchInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -4185,18 +4184,10 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return err
 	}
 
-	// Determine if the automatic ticket revocations agenda is active as of the
-	// block being checked.
-	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}

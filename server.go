@@ -2704,8 +2704,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range txns {
 				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
-				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
 				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
@@ -2829,8 +2828,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range parentBlock.Transactions()[1:] {
 				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
-				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
 				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)

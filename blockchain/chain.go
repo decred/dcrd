@@ -1132,12 +1132,6 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			return err
 		}
 
-		// Determine if the automatic ticket revocations agenda is active.
-		isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(n.parent)
-		if err != nil {
-			return err
-		}
-
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
@@ -1151,8 +1145,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1228,12 +1221,6 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			return err
 		}
 
-		// Determine if the automatic ticket revocations agenda is active.
-		isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(n.parent)
-		if err != nil {
-			return err
-		}
-
 		// Skip validation if the block has already been validated.  However,
 		// the utxo view still needs to be updated and the stxos and header
 		// commitment data are still needed.
@@ -1247,7 +1234,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
 			err := view.connectBlock(b.db, block, parent, &stxos,
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+				isTreasuryEnabled)
 			if err != nil {
 				return err
 			}

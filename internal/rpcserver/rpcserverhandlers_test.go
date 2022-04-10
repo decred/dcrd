@@ -52,11 +52,6 @@ const (
 	// noTreasury signifies the treasury agenda should be treated as though it
 	// is inactive.  It is used to increase the readability of the tests.
 	noTreasury = false
-
-	// noAutoRevocations signifies the automatic ticket revocations agenda should
-	// be treated as though it is inactive.  It is used to increase the
-	// readability of the tests.
-	noAutoRevocations = false
 )
 
 // testDataPath is the path where all rpcserver test fixtures reside.
@@ -3815,7 +3810,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range txns {
 		rawTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, noTreasury, noAutoRevocations)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating tx raw result: %+v", err)
 		}
@@ -3826,7 +3821,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range stxns {
 		rawSTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, noTreasury, noAutoRevocations)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating stx raw result: %+v", err)
 		}
@@ -5541,8 +5536,7 @@ func searchRawTransactionsResult(t *testing.T, s *Server, tx testTx,
 		LockTime: msgTx.LockTime,
 		Expiry:   msgTx.Expiry,
 		Vin:      vinList,
-		Vout: createVoutList(msgTx, defaultChainParams, filterAddr,
-			noTreasury, noAutoRevocations),
+		Vout:     createVoutList(msgTx, defaultChainParams, filterAddr),
 	}
 	if tx.indexEntry != nil {
 		result.BlockHash = tx.indexEntry.BlockRegion.Hash.String()
