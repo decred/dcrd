@@ -484,9 +484,7 @@ func TestAncestorTrackingLimits(t *testing.T) {
 		harness.chain.bestState.Height = newBlockHeight
 
 		harness.RemoveTransactionFromTxSource(tx, false)
-		harness.txSource.MaybeAcceptDependents(tx,
-			harness.chain.isTreasuryAgendaActive,
-			harness.chain.isAutoRevocationsAgendaActive)
+		harness.txSource.MaybeAcceptDependents(tx)
 	}
 
 	// Add all transactions back to the tx source in reverse order to demonstrate

@@ -705,7 +705,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // transaction as spent.  It also adds all outputs in the passed transaction
 // which are not provably unspendable as available unspent transaction outputs.
 func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
-	height int64, isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+	height int64, isTreasuryEnabled bool) {
 
 	for _, txIn := range tx.MsgTx().TxIn {
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
@@ -714,8 +714,7 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
 		}
 	}
 
-	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex, isTreasuryEnabled)
 }
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
@@ -1431,7 +1430,7 @@ mempoolLoop:
 			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
 			blockUtxos.AddTxOuts(tx, nextBlockHeight, wire.NullBlockIndex,
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+				isTreasuryEnabled)
 		}
 
 		if hasParents {
@@ -1821,7 +1820,7 @@ nextPriorityQueueItem:
 			// this one have it available as an input and can ensure they
 			// aren't double spending.
 			spendTransaction(blockUtxos, bundledTxDesc.Tx, nextBlockHeight,
-				isTreasuryEnabled, isAutoRevocationsEnabled)
+				isTreasuryEnabled)
 
 			// Add the transaction to the block, increment counters, and
 			// save the fees and signature operation counts to the block

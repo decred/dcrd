@@ -1099,9 +1099,7 @@ func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 // transaction pool.
 //
 // This function MUST be called with the mempool lock held (for reads).
-func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) (*blockchain.UtxoViewpoint, error) {
-
+func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*blockchain.UtxoViewpoint, error) {
 	knownDisapproved := mp.IsRegTxTreeKnownDisapproved(mp.cfg.BestHash())
 	utxoView, err := mp.cfg.FetchUtxoView(tx, !knownDisapproved)
 	if err != nil {
@@ -1124,14 +1122,14 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled,
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 
 		if stagedTxDesc, exists := mp.staged[prevOut.Hash]; exists {
 			// AddTxOut ignores out of range index values, so it is safe to call without
 			// bounds checking here.
 			utxoView.AddTxOut(stagedTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
-				wire.NullBlockIndex, isTreasuryEnabled, isAutoRevocationsEnabled)
+				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 	}
 
@@ -1186,9 +1184,7 @@ func (mp *TxPool) newTxDesc(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
 // passed those checks prior to entering the stage pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) error {
-
+func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool) error {
 	tx := txDesc.Tx
 	if txDesc.Type == stake.TxTypeSStx && !mp.hasMempoolInput(tx) {
 		log.Tracef("Removing ticket %v with no mempool dependencies from "+
@@ -1198,8 +1194,7 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled,
 		// main pool or back to the stage pool. In the event of an error, the
 		// transaction will be discarded.
 		mp.removeStagedTransaction(tx)
-		utxoView, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		utxoView, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1215,9 +1210,7 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled,
 // no transactions were moved from the stage pool to the main pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) []*dcrutil.Tx {
-
+func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) []*dcrutil.Tx {
 	mp.mtx.Lock()
 	defer mp.mtx.Unlock()
 
@@ -1225,8 +1218,7 @@ func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled,
 	mp.forEachStagedRedeemer(tx, func(redeemerTxDesc *TxDesc) {
 		redeemerTx := redeemerTxDesc.Tx
 		redeemerTxHash := redeemerTx.Hash()
-		err := mp.maybeUnstageTransaction(redeemerTxDesc, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		err := mp.maybeUnstageTransaction(redeemerTxDesc, isTreasuryEnabled)
 		if err != nil {
 			log.Debugf("Failed to add previously staged "+
 				"ticket %v to pool: %v", redeemerTxHash, err)
@@ -1447,8 +1439,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// to this transaction.  This function also attempts to fetch the
 	// transaction itself to be used for detecting a duplicate transaction
 	// without needing to do a separate lookup.
-	utxoView, err := mp.fetchInputUtxos(tx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	utxoView, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -2325,11 +2316,6 @@ func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
 		return nil
 	}
 
-	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
-	if err != nil {
-		return nil
-	}
-
 	mp.mtx.RLock()
 	defer mp.mtx.RUnlock()
 
@@ -2342,8 +2328,7 @@ func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
 		// some reason.
 		tx := desc.Tx
 		var currentPriority float64
-		utxos, err := mp.fetchInputUtxos(tx, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		utxos, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
 		if err == nil {
 			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
 				bestHeight+1)

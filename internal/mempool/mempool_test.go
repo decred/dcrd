@@ -387,8 +387,7 @@ func (p *poolHarness) GetKey(addr stdaddr.Address) ([]byte, dcrec.SignatureType,
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
 func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32) {
-	p.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, noTreasury,
-		noAutoRevocations)
+	p.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, noTreasury)
 }
 
 // CreateCoinbaseTx returns a coinbase transaction with the requested number of
@@ -868,7 +867,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		return nil, nil, err
 	}
 	harness.chain.utxos.AddTxOuts(coinbase, curHeight+1, wire.NullBlockIndex,
-		noTreasury, noAutoRevocations)
+		noTreasury)
 	for i := uint32(0); i < numOutputs; i++ {
 		outputs = append(outputs, txOutToSpendableOut(coinbase, i, wire.TxTreeRegular))
 	}
@@ -1049,7 +1048,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight),
 		wire.NullBlockIndex)
 	harness.txPool.RemoveTransaction(tx, false, noTreasury, noAutoRevocations)
-	harness.txPool.MaybeAcceptDependents(tx, noTreasury, noAutoRevocations)
+	harness.txPool.MaybeAcceptDependents(tx, noTreasury)
 
 	testPoolMembership(tc, tx, false, false)
 	testPoolMembership(tc, ticket, false, true)
@@ -1919,7 +1918,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// are mature for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
 	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
-		noTreasury, noAutoRevocations)
+		noTreasury)
 
 	// Create enough votes all using the same ticket and voting on different
 	// blocks at stake validation height to be able to force rejection due to
@@ -2046,7 +2045,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	// are matured for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
 	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
-		noTreasury, noAutoRevocations)
+		noTreasury)
 
 	// Create a vote that votes on a block at stake validation height.
 	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
@@ -2769,7 +2768,7 @@ func TestStagedTransactionHeight(t *testing.T) {
 	harness.AddFakeUTXO(txA, newBlockHeight, wire.NullBlockIndex)
 	harness.chain.SetHeight(newBlockHeight)
 	harness.txPool.RemoveTransaction(txA, false, noTreasury, noAutoRevocations)
-	harness.txPool.MaybeAcceptDependents(txA, noTreasury, noAutoRevocations)
+	harness.txPool.MaybeAcceptDependents(txA, noTreasury)
 
 	poolTxDescs = harness.txPool.TxDescs()
 	if len(poolTxDescs) != 1 {
@@ -3188,7 +3187,7 @@ func TestSubsidySplitSemantics(t *testing.T) {
 	// are matured for the votes cast at stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
 	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
-		noTreasury, noAutoRevocations)
+		noTreasury)
 
 	// Create a vote that votes on a block at stake validation height using the
 	// proportions required when the modified subsidy split agenda is NOT active.

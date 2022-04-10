@@ -1132,15 +1132,6 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
-	// Determine if the automatic ticket revocations agenda is active as of the
-	// current best tip.
-	isAutoRevocationsEnabled, err :=
-		m.server.isAutoRevocationsAgendaActive(&prevBlkHash)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
 	var verboseNtfn *types.TxAcceptedVerboseNtfn
 	var marshalledJSONVerbose []byte
 	for _, wsc := range clients {
@@ -1152,8 +1143,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 
 			net := m.server.cfg.ChainParams
 			rawTx, err := m.server.createTxRawResult(net, mtx, txHashStr,
-				wire.NullBlockIndex, nil, "", 0, 0, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+				wire.NullBlockIndex, nil, "", 0, 0, isTreasuryEnabled)
 			if err != nil {
 				return
 			}

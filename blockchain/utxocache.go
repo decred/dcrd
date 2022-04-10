@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -805,12 +805,6 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNod
 			return err
 		}
 
-		// Determine if the automatic ticket revocations agenda is active.
-		isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(n.parent)
-		if err != nil {
-			return err
-		}
-
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
@@ -824,8 +818,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNod
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -896,18 +889,11 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNod
 			return err
 		}
 
-		// Determine if the automatic ticket revocations agenda is active.
-		isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(n.parent)
-		if err != nil {
-			return err
-		}
-
 		// Update the view to mark all utxos referenced by the block as
 		// spent and add all transactions being created by this block to it.
 		// In the case the block votes against the parent, also disconnect
 		// all of the regular transactions in the parent block.
-		err = view.connectBlock(b.db, block, parent, nil, isTreasuryEnabled,
-			isAutoRevocationsEnabled)
+		err = view.connectBlock(b.db, block, parent, nil, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
