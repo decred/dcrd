@@ -4026,10 +4026,10 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// earlier in the block which will typically not already be available in the
 	// view for the caller until after this function returns.  That means the
 	// caller would have to perform duplicate work that this function already
-	// performs to be able to create the filter.  Since the filter is is needed
-	// at this point to verify the header commitments, a good option is to
-	// simply create it here and allow the caller to request the filter be
-	// returned to it.
+	// performs to be able to create the filter.  Since the filter is needed at
+	// this point to verify the header commitments, a good option is to simply
+	// create it here and allow the caller to request the filter be returned to
+	// it.
 	filter, err := blockcf2.Regular(block.MsgBlock(), view)
 	if err != nil {
 		return ruleError(ErrMissingTxOut, err.Error())
