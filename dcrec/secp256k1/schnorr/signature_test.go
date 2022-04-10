@@ -265,7 +265,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		// Ensure the test data is sane by comparing the provided hashed message
 		// and nonce, in the case rfc6979 was used, to their calculated values.
 		// These values could just be calculated instead of specified in the
-		// test data, but it's nice to have all of the calcuated values
+		// test data, but it's nice to have all of the calculated values
 		// available in the test data for cross implementation testing and
 		// verification.
 		calcHash := blake256.Sum256(msg)

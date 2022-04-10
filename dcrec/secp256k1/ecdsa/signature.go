@@ -822,7 +822,7 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	// The method described by section 4.1.6 of [SEC1] to determine which one is
 	// the correct one involves calculating each possibility as a candidate
 	// public key and comparing the candidate to the authentic public key.  It
-	// also hints that is is possible to generate the signature in a such a
+	// also hints that it is possible to generate the signature in a such a
 	// way that only one of the candidate public keys is viable.
 	//
 	// A more efficient approach that is specific to the secp256k1 curve is used
