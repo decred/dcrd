@@ -687,7 +687,7 @@ func TestSSGenErrors(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Tresury enabled
+	// Treasury enabled
 
 	// Verify optional OP_RETURN with no discriminator.
 	var ssgenNoDiscriminator = dcrutil.NewTx(ssgenMsgTxNoDiscriminator)
@@ -2262,7 +2262,7 @@ var ssgenMsgTxBadVerOut = &wire.MsgTx{
 // an OP_RETURN push
 var ssgenMsgTxWrongZeroethOut = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2280,7 +2280,7 @@ var ssgenMsgTxWrongZeroethOut = &wire.MsgTx{
 // an OP_RETURN push
 var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2298,7 +2298,7 @@ var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 // invalid OP_RETURN that has no discriminator.
 var ssgenMsgTxNoDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2318,7 +2318,7 @@ var ssgenMsgTxNoDiscriminator = &wire.MsgTx{
 // and an invalid OP_RETURN that has an invalid discriminator.
 var ssgenMsgTxInvalidDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2338,7 +2338,7 @@ var ssgenMsgTxInvalidDiscriminator = &wire.MsgTx{
 // and an invalid OP_RETURN that has an unknown discriminator.
 var ssgenMsgTxUnknownDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2358,7 +2358,7 @@ var ssgenMsgTxUnknownDiscriminator = &wire.MsgTx{
 // and an invalid OP_RETURN that is missing a byte at the end.
 var ssgenMsgTxUnknownDiscriminator2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2378,7 +2378,7 @@ var ssgenMsgTxUnknownDiscriminator2 = &wire.MsgTx{
 // valid OP_RETURN followed by 'T','V' but has no votes.
 var ssgenMsgTxInvalidTV = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2398,7 +2398,7 @@ var ssgenMsgTxInvalidTV = &wire.MsgTx{
 // valid OP_RETURN followed by 'T','V' but has a short vote.
 var ssgenMsgTxInvalidTV2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2418,7 +2418,7 @@ var ssgenMsgTxInvalidTV2 = &wire.MsgTx{
 // OP_RETURN followed by 'T','V' but has one valid and one short vote.
 var ssgenMsgTxInvalidTV3 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2438,7 +2438,7 @@ var ssgenMsgTxInvalidTV3 = &wire.MsgTx{
 // OP_RETURN followed by 'T','V' but has seven valid and one short vote.
 var ssgenMsgTxInvalidTV4 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2458,7 +2458,7 @@ var ssgenMsgTxInvalidTV4 = &wire.MsgTx{
 // OP_RETURN followed by 'T','V' but has invalid OP_PUSHDATAX encoding.
 var ssgenMsgTxInvalidTV5 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2478,7 +2478,7 @@ var ssgenMsgTxInvalidTV5 = &wire.MsgTx{
 // valid OP_RETURN followed by 'T','V' but has an invalid vote.
 var ssgenMsgTxInvalidTVote = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2498,7 +2498,7 @@ var ssgenMsgTxInvalidTVote = &wire.MsgTx{
 // valid OP_RETURN followed by 'T','V' but has an invalid vote.
 var ssgenMsgTxInvalidTVote2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2518,7 +2518,7 @@ var ssgenMsgTxInvalidTVote2 = &wire.MsgTx{
 // valid OP_RETURN followed by 'T','V' but has duplicate votes.
 var ssgenMsgTxInvalidTVote3 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
@@ -2538,7 +2538,7 @@ var ssgenMsgTxInvalidTVote3 = &wire.MsgTx{
 // OP_RETURN followed by 'T','V' that has 7 valid votes.
 var ssgenMsgTxValid = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 0,
+	Version: 1,
 	TxIn: []*wire.TxIn{
 		&ssgenTxIn0,
 		&ssgenTxIn1,
