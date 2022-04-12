@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -27,7 +27,9 @@ Application Options:
   -C, --configfile=            Path to configuration file
   -b, --datadir=               Directory to store data
       --logdir=                Directory to log output
-      --nofilelogging=         Disable file logging
+      --logsize=               Maximum size of log file before it is rotated
+                               (default: 10 MiB)
+      --nofilelogging          Disable file logging
       --dbtype=                Database backend to use for the block chain
                                (default: ffldb)
       --profile=               Enable HTTP profiling on given [addr:]port --
@@ -55,6 +57,11 @@ Application Options:
                                connections (default port: 9109, testnet: 19109)
   -u, --rpcuser=               Username for RPC connections
   -P, --rpcpass=               Password for RPC connections
+      --authtype=              Method for RPC client authentication
+                               (basic or clientcert)
+      --clientcafile=          File containing Certificate Authorities to verify
+                               TLS client certificates;
+                               requires authtype=clientcert
       --rpclimituser=          Username for limited RPC connections
       --rpclimitpass=          Password for limited RPC connections
       --rpccert=               File containing the certificate file
@@ -104,8 +111,9 @@ Application Options:
                                seconds (default: 2m0s)
       --noseeders              Disable seeding for peer discovery
       --nodnsseed              DEPRECATED: use --noseeders
-      --externalip=            Add an ip to the list of local addresses we claim
-                               to listen on to peers
+      --externalip=            Add a public-facing IP to the list of local
+                               external IPs that dcrd will advertise to other
+                               peers
       --nodiscoverip           Disable automatic network address discovery of
                                local external IPs
       --upnp                   Use UPnP to map our listening port outside of NAT
