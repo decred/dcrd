@@ -139,7 +139,7 @@ type config struct {
 	RegNet           bool   `long:"regnet" description:"Use the regression test network"`
 	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	SigCacheMaxSize  uint   `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
-	UtxoCacheMaxSize uint   `long:"utxocachemaxsize" description:"The maximum size in MiB of the utxo cache"`
+	UtxoCacheMaxSize uint   `long:"utxocachemaxsize" description:"The maximum size in MiB of the utxo cache; (min: 25, max: 32768)"`
 
 	// RPC server options and policy.
 	DisableRPC           bool     `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
@@ -182,7 +182,7 @@ type config struct {
 	// P2P network discovery options.
 	DisableSeeders bool     `long:"noseeders" description:"Disable seeding for peer discovery"`
 	DisableDNSSeed bool     `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
-	ExternalIPs    []string `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
+	ExternalIPs    []string `long:"externalip" description:"Add a public-facing IP to the list of local external IPs that dcrd will advertise to other peers"`
 	NoDiscoverIP   bool     `long:"nodiscoverip" description:"Disable automatic network address discovery of local external IPs"`
 	Upnp           bool     `long:"upnp" description:"Use UPnP to map our listening port outside of NAT"`
 
