@@ -118,7 +118,7 @@ type CurrencyNet uint32
 // better idea to simply disconnect clients that are misbehaving over TCP.
 const (
 	// MainNet represents the main Decred network.
-	MainNet CurrencyNet = 0xd9b400f9
+	MainNet CurrencyNet = 0xd9b40fff
 
 	// RegNet represents the regression test network.
 	RegNet CurrencyNet = 0xdab500fa
