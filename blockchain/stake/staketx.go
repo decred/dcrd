@@ -671,7 +671,7 @@ func CalculateRevocationRewards(contribAmounts []int64, ticketPurchaseAmount int
 		prng := NewHash256PRNG(prevHeaderBytes)
 		for i := int64(0); i < remainder; i++ {
 			returnIndex := prng.UniformRandom(numReturnAmounts)
-			returnAmounts[returnIndex] += 1
+			returnAmounts[returnIndex]++
 		}
 	}
 
