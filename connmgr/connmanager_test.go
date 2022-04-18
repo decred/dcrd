@@ -882,7 +882,7 @@ func TestForEachConnReq(t *testing.T) {
 
 	// Ensure the expected number of each type of connection exists.
 	var numConnected, numPermanent, numPending uint32
-	cmgr.ForEachConnReq(func(cr *ConnReq) error {
+	_ = cmgr.ForEachConnReq(func(cr *ConnReq) error {
 		numConnected++
 		if cr.State() == ConnPending {
 			numPending++
