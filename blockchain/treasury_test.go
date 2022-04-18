@@ -2788,7 +2788,7 @@ func TestTreasuryBalance(t *testing.T) {
 		g.SaveTipCoinbaseOutsWithTreasury()
 		g.AcceptTipBlock()
 	}
-	iterations += 1
+	iterations++
 
 	ts, err = getTreasuryState(g, g.Tip().BlockHash())
 	if err != nil {
@@ -3169,13 +3169,13 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// corruptTreasurybaseValueIn is a munge function which modifies the
 	// provided block by mutating the treasurybase in value.
 	corruptTreasurybaseValueIn := func(b *wire.MsgBlock) {
-		b.STransactions[0].TxIn[0].ValueIn -= 1
+		b.STransactions[0].TxIn[0].ValueIn--
 	}
 
 	// corruptTreasurybaseValueOut is a munge function which modifies the
 	// provided block by mutating the treasurybase out value.
 	corruptTreasurybaseValueOut := func(b *wire.MsgBlock) {
-		b.STransactions[0].TxOut[0].Value -= 1
+		b.STransactions[0].TxOut[0].Value--
 	}
 
 	// ---------------------------------------------------------------------

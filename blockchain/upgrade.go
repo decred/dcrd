@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -4855,32 +4855,32 @@ func separateUtxoDatabase(ctx context.Context, db database.DB,
 	return db.Flush()
 }
 
-// fetchLegacyBucketId returns the legacy bucket id for the provided bucket
+// fetchLegacyBucketID returns the legacy bucket id for the provided bucket
 // name.  A Get function must be provided to retrieve key/value pairs from the
 // underlying data store.
-func fetchLegacyBucketId(getFn func(key []byte) ([]byte, error),
+func fetchLegacyBucketID(getFn func(key []byte) ([]byte, error),
 	bucketName []byte) ([]byte, error) {
 
 	// bucketIndexPrefix is the prefix used for all entries in the bucket index.
 	bucketIndexPrefix := []byte("bidx")
 
-	// parentBucketId is the parent bucket id.  This is hardcoded to zero here
+	// parentBucketID is the parent bucket id.  This is hardcoded to zero here
 	// since none of the legacy UTXO database buckets had parent buckets.
-	parentBucketId := []byte{0x00, 0x00, 0x00, 0x00}
+	parentBucketID := []byte{0x00, 0x00, 0x00, 0x00}
 
 	// Construct the key and fetch the corresponding bucket id from the database.
 	// The serialized bucket index key format is:
 	//   <bucketindexprefix><parentbucketid><bucketname>
-	bucketIdKey := prefixedKey(bucketIndexPrefix, parentBucketId)
-	bucketIdKey = append(bucketIdKey, bucketName...)
-	bucketId, err := getFn(bucketIdKey)
+	bucketIDKey := prefixedKey(bucketIndexPrefix, parentBucketID)
+	bucketIDKey = append(bucketIDKey, bucketName...)
+	bucketID, err := getFn(bucketIDKey)
 	if err != nil {
 		str := fmt.Sprintf("error fetching legacy bucket id for %v bucket",
 			string(bucketName))
 		return nil, convertLdbErr(err, str)
 	}
 
-	return bucketId, nil
+	return bucketID, nil
 }
 
 // migrateUtxoDbBuckets migrates the UTXO data to use simple key prefixes rather
@@ -4947,15 +4947,15 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 	}
 
 	// Move the database info from the legacy bucket to the new keys.
-	bucketId, err := fetchLegacyBucketId(utxoBackend.Get,
+	bucketID, err := fetchLegacyBucketID(utxoBackend.Get,
 		utxoDbInfoLegacyBucketName)
 	if err != nil {
 		return err
 	}
-	if bucketId != nil {
+	if bucketID != nil {
 		err := utxoBackend.Update(func(tx UtxoBackendTx) error {
 			// Move the database version from the legacy bucket to the new key.
-			oldKey := prefixedKey(bucketId, utxoDbInfoVersionKeyNameV1)
+			oldKey := prefixedKey(bucketID, utxoDbInfoVersionKeyNameV1)
 			err = moveKey(tx, oldKey, utxoDbInfoVersionKeyNew)
 			if err != nil {
 				return fmt.Errorf("error migrating database version: %w", err)
@@ -4963,7 +4963,7 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 
 			// Move the database compression version from the legacy bucket to the new
 			// key.
-			oldKey = prefixedKey(bucketId, utxoDbInfoCompVerKeyNameV1)
+			oldKey = prefixedKey(bucketID, utxoDbInfoCompVerKeyNameV1)
 			err = moveKey(tx, oldKey, utxoDbInfoCompVerKeyNew)
 			if err != nil {
 				return fmt.Errorf("error migrating database compression version: %w",
@@ -4972,14 +4972,14 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 
 			// Move the database UTXO set version from the legacy bucket to the new
 			// key.
-			oldKey = prefixedKey(bucketId, utxoDbInfoUtxoVerKeyNameV1)
+			oldKey = prefixedKey(bucketID, utxoDbInfoUtxoVerKeyNameV1)
 			err = moveKey(tx, oldKey, utxoDbInfoUtxoVerKeyNew)
 			if err != nil {
 				return fmt.Errorf("error migrating UTXO set version: %w", err)
 			}
 
 			// Move the database creation date from the legacy bucket to the new key.
-			oldKey = prefixedKey(bucketId, utxoDbInfoCreatedKeyNameV1)
+			oldKey = prefixedKey(bucketID, utxoDbInfoCreatedKeyNameV1)
 			err = moveKey(tx, oldKey, utxoDbInfoCreatedKeyNew)
 			if err != nil {
 				return fmt.Errorf("error migrating database creation date: %w", err)
@@ -5008,13 +5008,13 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 	start := time.Now()
 
 	// Move the UTXO set from the legacy bucket to the new keys.
-	bucketId, err = fetchLegacyBucketId(utxoBackend.Get, utxoSetLegacyBucketName)
+	bucketID, err = fetchLegacyBucketID(utxoBackend.Get, utxoSetLegacyBucketName)
 	if err != nil {
 		return err
 	}
 
 	// If the legacy bucket doesn't exist, return as there is nothing to do.
-	if bucketId == nil {
+	if bucketID == nil {
 		return nil
 	}
 
@@ -5032,7 +5032,7 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 		var logProgress bool
 		var numMigrated uint32
 
-		iter := tx.NewIterator(bucketId)
+		iter := tx.NewIterator(bucketID)
 		defer iter.Release()
 		for iter.Next() {
 			// Reset err on each iteration.
@@ -5052,7 +5052,7 @@ func migrateUtxoDbBuckets(ctx context.Context, utxoBackend UtxoBackend) error {
 
 			// Move the UTXO set entry to the new key.
 			oldKey := iter.Key()
-			newKey := prefixedKey(utxoPrefixUtxoSetV3, oldKey[len(bucketId):])
+			newKey := prefixedKey(utxoPrefixUtxoSetV3, oldKey[len(bucketID):])
 			err = moveKey(tx, oldKey, newKey)
 			if err != nil {
 				return false, fmt.Errorf("error migrating UTXO set entry: %w", err)
@@ -5095,7 +5095,7 @@ func dbPutUtxoBackendInfoV1(tx UtxoBackendTx, info *UtxoBackendInfo) error {
 
 	// V1 bucket info.
 	bucketNameV1 := []byte("dbinfo")
-	bucketIdV1, err := fetchLegacyBucketId(tx.Get, bucketNameV1)
+	bucketIDV1, err := fetchLegacyBucketID(tx.Get, bucketNameV1)
 	if err != nil {
 		return err
 	}
@@ -5118,28 +5118,28 @@ func dbPutUtxoBackendInfoV1(tx UtxoBackendTx, info *UtxoBackendInfo) error {
 	}
 
 	// Store the database version.
-	verKey := prefixedKey(bucketIdV1, utxoDbInfoVersionKeyNameV1)
+	verKey := prefixedKey(bucketIDV1, utxoDbInfoVersionKeyNameV1)
 	err = tx.Put(verKey, uint32Bytes(info.version))
 	if err != nil {
 		return err
 	}
 
 	// Store the compression version.
-	compVerKey := prefixedKey(bucketIdV1, utxoDbInfoCompVerKeyNameV1)
+	compVerKey := prefixedKey(bucketIDV1, utxoDbInfoCompVerKeyNameV1)
 	err = tx.Put(compVerKey, uint32Bytes(info.compVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the UTXO set version.
-	utxoVerKey := prefixedKey(bucketIdV1, utxoDbInfoUtxoVerKeyNameV1)
+	utxoVerKey := prefixedKey(bucketIDV1, utxoDbInfoUtxoVerKeyNameV1)
 	err = tx.Put(utxoVerKey, uint32Bytes(info.utxoVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the database creation date.
-	createdKey := prefixedKey(bucketIdV1, utxoDbInfoCreatedKeyNameV1)
+	createdKey := prefixedKey(bucketIDV1, utxoDbInfoCreatedKeyNameV1)
 	return tx.Put(createdKey, uint64Bytes(uint64(info.created.Unix())))
 }
 

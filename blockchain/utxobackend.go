@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -641,11 +641,11 @@ func (l *levelDbUtxoBackend) dbFetchUtxoBackendInfo() (*UtxoBackendInfo, error) 
 		// If the database info was not found, attempt to find it in the legacy
 		// bucket.
 		dbInfoLegacyBucketName := []byte("dbinfo")
-		dbInfoBucketId, err := fetchLegacyBucketId(l.Get, dbInfoLegacyBucketName)
+		dbInfoBucketID, err := fetchLegacyBucketID(l.Get, dbInfoLegacyBucketName)
 		if err != nil {
 			return nil, err
 		}
-		prefix = dbInfoBucketId
+		prefix = dbInfoBucketID
 		versionBytes, err = l.Get(prefixedKey(prefix, utxoDbInfoVersionKeyName))
 		if err != nil {
 			return nil, err

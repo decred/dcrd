@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -150,7 +150,7 @@ func serializeTreasuryState(ts treasuryState) ([]byte, error) {
 			return nil, errDbTreasury(str)
 		}
 
-		serializeSize += 1 // Flag which is currently a 1 byte long VLQ.
+		serializeSize++ // Flag which is currently a 1 byte long VLQ.
 		serializeSize += serializeSizeVLQ(absInt64(value.amount))
 	}
 

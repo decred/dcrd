@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -119,7 +119,7 @@ func (s *SpendJournalPruner) NotifyConnectedBlock(blockHash *chainhash.Hash) {
 
 // dependencyExistsInternal determines whether a spend consumer depends on
 // the spend data of the provided block hash.
-func (s *SpendJournalPruner) dependencyExistsInternal(blockHash *chainhash.Hash, consumerId string) bool {
+func (s *SpendJournalPruner) dependencyExistsInternal(blockHash *chainhash.Hash, consumerID string) bool {
 	s.dependentsMtx.RLock()
 	dependents, ok := s.dependents[*blockHash]
 	s.dependentsMtx.RUnlock()
@@ -130,7 +130,7 @@ func (s *SpendJournalPruner) dependencyExistsInternal(blockHash *chainhash.Hash,
 	}
 
 	for _, id := range dependents {
-		if consumerId == id {
+		if consumerID == id {
 			return true
 		}
 	}
