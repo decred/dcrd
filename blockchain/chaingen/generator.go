@@ -337,8 +337,10 @@ func (g *Generator) calcFullSubsidy(blockHeight uint32) dcrutil.Amount {
 // good tests which exercise that code, so it wouldn't make sense to use the
 // same code to generate them.
 func (g *Generator) calcPoWSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint32, numVotes uint16) dcrutil.Amount {
-	powProportion := dcrutil.Amount(g.params.WorkRewardProportion)
-	totalProportions := dcrutil.Amount(g.params.TotalSubsidyProportions())
+	const (
+		powProportion    = 6
+		totalProportions = 10
+	)
 	powSubsidy := (fullSubsidy * powProportion) / totalProportions
 	if int64(blockHeight) < g.params.StakeValidationHeight {
 		return powSubsidy
@@ -361,9 +363,11 @@ func (g *Generator) calcPoSSubsidy(heightVotedOn uint32) dcrutil.Amount {
 		return 0
 	}
 
+	const (
+		posProportion    = 3
+		totalProportions = 10
+	)
 	fullSubsidy := g.calcFullSubsidy(heightVotedOn)
-	posProportion := dcrutil.Amount(g.params.StakeRewardProportion)
-	totalProportions := dcrutil.Amount(g.params.TotalSubsidyProportions())
 	return (fullSubsidy * posProportion) / totalProportions
 }
 
@@ -374,8 +378,10 @@ func (g *Generator) calcPoSSubsidy(heightVotedOn uint32) dcrutil.Amount {
 // good tests which exercise that code, so it wouldn't make sense to use the
 // same code to generate them.
 func (g *Generator) calcDevSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint32, numVotes uint16) dcrutil.Amount {
-	devProportion := dcrutil.Amount(g.params.BlockTaxProportion)
-	totalProportions := dcrutil.Amount(g.params.TotalSubsidyProportions())
+	const (
+		devProportion    = 1
+		totalProportions = 10
+	)
 	devSubsidy := (fullSubsidy * devProportion) / totalProportions
 	if int64(blockHeight) < g.params.StakeValidationHeight {
 		return devSubsidy
