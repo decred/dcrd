@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -898,34 +898,6 @@ func NewReconsiderBlockCmd(hash string) *ReconsiderBlockCmd {
 	}
 }
 
-// SearchRawTransactionsCmd defines the searchrawtransactions JSON-RPC command.
-type SearchRawTransactionsCmd struct {
-	Address     string
-	Verbose     *int  `jsonrpcdefault:"1"`
-	Skip        *int  `jsonrpcdefault:"0"`
-	Count       *int  `jsonrpcdefault:"100"`
-	VinExtra    *int  `jsonrpcdefault:"0"`
-	Reverse     *bool `jsonrpcdefault:"false"`
-	FilterAddrs *[]string
-}
-
-// NewSearchRawTransactionsCmd returns a new instance which can be used to issue a
-// searchrawtransactions JSON-RPC command.
-//
-// The parameters which are pointers indicate they are optional.  Passing nil
-// for optional parameters will use the default value.
-func NewSearchRawTransactionsCmd(address string, verbose, skip, count *int, vinExtra *int, reverse *bool, filterAddrs *[]string) *SearchRawTransactionsCmd {
-	return &SearchRawTransactionsCmd{
-		Address:     address,
-		Verbose:     verbose,
-		Skip:        skip,
-		Count:       count,
-		VinExtra:    vinExtra,
-		Reverse:     reverse,
-		FilterAddrs: filterAddrs,
-	}
-}
-
 // SendRawTransactionCmd defines the sendrawtransaction JSON-RPC command.
 type SendRawTransactionCmd struct {
 	HexTx         string
@@ -1173,7 +1145,6 @@ func init() {
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
 	dcrjson.MustRegister(Method("reconsiderblock"), (*ReconsiderBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("regentemplate"), (*RegenTemplateCmd)(nil), flags)
-	dcrjson.MustRegister(Method("searchrawtransactions"), (*SearchRawTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("setgenerate"), (*SetGenerateCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stop"), (*StopCmd)(nil), flags)
