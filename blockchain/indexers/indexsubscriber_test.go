@@ -39,17 +39,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 
 	subber := NewIndexSubscriber(ctx)
 
-	err = AddIndexSpendConsumers(db, chain)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	txIdx, err := NewTxIndex(subber, db, chain)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	addrIdx, err := NewAddrIndex(subber, db, chain)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,21 +58,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 
 	// Ensure all indexes through their prerequisite/dependency relationships
 	// are synced to the current chain tip (bk3).
-	addrIdxTipHeight, addrIdxTipHash, err := addrIdx.Tip()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if addrIdxTipHeight != bk3.Height() {
-		t.Fatalf("expected tip height to be %d, got %d",
-			bk3.Height(), addrIdxTipHeight)
-	}
-
-	if *addrIdxTipHash != *bk3.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk3.Hash(),
-			addrIdxTipHash)
-	}
-
 	txIdxTipHeight, txIdxTipHash, err := txIdx.Tip()
 	if err != nil {
 		t.Fatal(err)
@@ -141,21 +116,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	notifyAndWait(t, subber, ntfn)
 
 	// Ensure all indexes synced to the newly added block (bk4).
-	addrIdxTipHeight, addrIdxTipHash, err = addrIdx.Tip()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if addrIdxTipHeight != bk4.Height() {
-		t.Fatalf("expected tip height to be %d, got %d",
-			bk4.Height(), addrIdxTipHeight)
-	}
-
-	if *addrIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(),
-			addrIdxTipHash)
-	}
-
 	txIdxTipHeight, txIdxTipHash, err = txIdx.Tip()
 	if err != nil {
 		t.Fatal(err)
@@ -204,21 +164,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	notifyAndWait(t, subber, ntfn)
 
 	// Ensure only the exists address index synced to the newly added block (bk5).
-	addrIdxTipHeight, addrIdxTipHash, err = addrIdx.Tip()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if addrIdxTipHeight != bk4.Height() {
-		t.Fatalf("expected tip height to be %d, got %d",
-			bk4.Height(), addrIdxTipHeight)
-	}
-
-	if *addrIdxTipHash != *bk4.Hash() {
-		t.Fatalf("expected tip hash to be %s, got %s", bk4.Hash(),
-			addrIdxTipHash)
-	}
-
 	txIdxTipHeight, txIdxTipHash, err = txIdx.Tip()
 	if err != nil {
 		t.Fatal(err)

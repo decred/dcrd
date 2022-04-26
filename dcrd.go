@@ -167,17 +167,14 @@ func dcrdMain() error {
 		return nil
 	}
 
-	// Drop indexes and exit if requested.
+	// Always drop the legacy address index if needed and drop any other indexes
+	// and exit if requested.
 	//
 	// NOTE: The order is important here because dropping the tx index also
 	// drops the address index since it relies on it.
-	if cfg.DropAddrIndex {
-		if err := indexers.DropAddrIndex(ctx, db); err != nil {
-			dcrdLog.Errorf("%v", err)
-			return err
-		}
-
-		return nil
+	if err := indexers.DropAddrIndex(ctx, db); err != nil {
+		dcrdLog.Errorf("%v", err)
+		return err
 	}
 	if cfg.DropTxIndex {
 		if err := indexers.DropTxIndex(ctx, db); err != nil {

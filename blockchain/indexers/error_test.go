@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,6 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrUnsupportedAddressType, "ErrUnsupportedAddressType"},
-		{ErrInvalidSpendConsumerType, "ErrInvalidSpendConsumerType"},
 		{ErrConnectBlock, "ErrConnectBlock"},
 		{ErrDisconnectBlock, "ErrDisconnectBlock"},
 		{ErrRemoveSpendDependency, "ErrRemoveSpendDependency"},

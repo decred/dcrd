@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -150,18 +150,6 @@ func dbRemoveBlockIDIndexEntry(dbTx database.Tx, hash *chainhash.Hash) error {
 	// Remove the block ID to hash mapping.
 	idIndex := meta.Bucket(hashByIDIndexBucketName)
 	return idIndex.Delete(serializedID)
-}
-
-// dbFetchBlockIDByHash uses an existing database transaction to retrieve the
-// block id for the provided hash from the index.
-func dbFetchBlockIDByHash(dbTx database.Tx, hash *chainhash.Hash) (uint32, error) {
-	hashIndex := dbTx.Metadata().Bucket(idByHashIndexBucketName)
-	serializedID := hashIndex.Get(hash[:])
-	if serializedID == nil {
-		return 0, errNoBlockIDEntry
-	}
-
-	return byteOrder.Uint32(serializedID), nil
 }
 
 // dbFetchBlockHashBySerializedID uses an existing database transaction to
@@ -666,13 +654,6 @@ func DropTxIndex(ctx context.Context, db database.DB) error {
 	// can be resumed on the next start if interrupted before the process is
 	// complete.
 	err = markIndexDeletion(db, txIndexKey)
-	if err != nil {
-		return err
-	}
-
-	// Drop the address index if it exists, as it depends on the transaction
-	// index.
-	err = DropAddrIndex(ctx, db)
 	if err != nil {
 		return err
 	}

@@ -54,7 +54,6 @@ type blockImporter struct {
 	startTime         time.Time
 
 	txIndex         *indexers.TxIndex
-	addrIndex       *indexers.AddrIndex
 	existsAddrIndex *indexers.ExistsAddrIndex
 	cancel          context.CancelFunc
 }
@@ -341,27 +340,11 @@ func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r
 
 	// Create the various indexes as needed.
 	var txIndex *indexers.TxIndex
-	var addrIndex *indexers.AddrIndex
 	var existsAddrIndex *indexers.ExistsAddrIndex
-	if cfg.TxIndex || cfg.AddrIndex {
-		// Enable transaction index if address index is enabled since it
-		// requires it.
-		if !cfg.TxIndex {
-			log.Infof("Transaction index enabled because it is " +
-				"required by the address index")
-			cfg.TxIndex = true
-		} else {
-			log.Info("Transaction index is enabled")
-		}
+	if cfg.TxIndex {
+		log.Info("Transaction index is enabled")
 
 		txIndex, err = indexers.NewTxIndex(subber, db, queryer)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if cfg.AddrIndex {
-		log.Info("Address index is enabled")
-		addrIndex, err = indexers.NewAddrIndex(subber, db, queryer)
 		if err != nil {
 			return nil, err
 		}
@@ -390,7 +373,6 @@ func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r
 		lastLogTime:     time.Now(),
 		startTime:       time.Now(),
 		txIndex:         txIndex,
-		addrIndex:       addrIndex,
 		existsAddrIndex: existsAddrIndex,
 		cancel:          cancel,
 	}, nil

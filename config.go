@@ -82,7 +82,6 @@ const (
 
 	// Defaults for indexing options.
 	defaultTxIndex           = false
-	defaultAddrIndex         = false
 	defaultNoExistsAddrIndex = false
 
 	// Authorization types.
@@ -221,8 +220,6 @@ type config struct {
 	// Indexing options.
 	TxIndex             bool `long:"txindex" description:"Maintain a full hash-based transaction index which makes all transactions available via the getrawtransaction RPC"`
 	DropTxIndex         bool `long:"droptxindex" description:"Deletes the hash-based transaction index from the database on start up and then exits"`
-	AddrIndex           bool `long:"addrindex" description:"Maintain a full address-based transaction index which makes the searchrawtransactions RPC available"`
-	DropAddrIndex       bool `long:"dropaddrindex" description:"Deletes the address-based transaction index from the database on start up and then exits"`
 	NoExistsAddrIndex   bool `long:"noexistsaddrindex" description:"Disable the exists address index, which tracks whether or not an address has even been used"`
 	DropExistsAddrIndex bool `long:"dropexistsaddrindex" description:"Deletes the exists address index from the database on start up and then exits"`
 
@@ -655,7 +652,6 @@ func loadConfig(appName string) (*config, []string, error) {
 
 		// Indexing options.
 		TxIndex:           defaultTxIndex,
-		AddrIndex:         defaultAddrIndex,
 		NoExistsAddrIndex: defaultNoExistsAddrIndex,
 
 		// Cooked options ready for use.
@@ -1133,23 +1129,6 @@ func loadConfig(appName string) (*config, []string, error) {
 		err := fmt.Errorf("%s: the --txindex and --droptxindex "+
 			"options may  not be activated at the same time",
 			funcName)
-		return nil, nil, err
-	}
-
-	// --addrindex and --dropaddrindex do not mix.
-	if cfg.AddrIndex && cfg.DropAddrIndex {
-		err := fmt.Errorf("%s: the --addrindex and --dropaddrindex "+
-			"options may not be activated at the same time",
-			funcName)
-		return nil, nil, err
-	}
-
-	// --addrindex and --droptxindex do not mix.
-	if cfg.AddrIndex && cfg.DropTxIndex {
-		err := fmt.Errorf("%s: the --addrindex and --droptxindex "+
-			"options may not be activated at the same time "+
-			"because the address index relies on the transaction "+
-			"index", funcName)
 		return nil, nil, err
 	}
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -266,24 +266,12 @@ const fileContents = `[Application Options]
 
 
 ; ------------------------------------------------------------------------------
-; Optional Transaction Indexes
-; ------------------------------------------------------------------------------
-
-; Delete the entire address index on start up, then exit.
-; dropaddrindex=0
-
-
-; ------------------------------------------------------------------------------
 ; Optional Indexes
 ; ------------------------------------------------------------------------------
 
 ; Build and maintain a full hash-based transaction index which makes all
 ; transactions available via the getrawtransaction RPC.
 ; txindex=1
-
-; Build and maintain a full address-based transaction index which makes the
-; searchrawtransactions RPC available.
-; addrindex=1
 
 
 ; ------------------------------------------------------------------------------

@@ -127,11 +127,6 @@ type Config struct {
 	// SigCache defines a signature cache to use.
 	SigCache *txscript.SigCache
 
-	// AddrIndex defines the optional address index instance to use for
-	// indexing the unconfirmed transactions in the memory pool.
-	// This can be nil if the address index is not enabled.
-	AddrIndex *indexers.AddrIndex
-
 	// ExistsAddrIndex defines the optional exists address index instance
 	// to use for indexing the unconfirmed transactions in the memory pool.
 	// This can be nil if the address index is not enabled.
@@ -853,12 +848,6 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers,
 	if txDesc, exists := mp.pool[*txHash]; exists {
 		log.Tracef("Removing transaction %v", txHash)
 
-		// Remove unconfirmed address index entries associated with the
-		// transaction if enabled.
-		if mp.cfg.AddrIndex != nil {
-			mp.cfg.AddrIndex.RemoveUnconfirmedTx(txHash)
-		}
-
 		// Mark the referenced outpoints as unspent by the pool.
 		for _, txIn := range txDesc.Tx.MsgTx().TxIn {
 			delete(mp.outpoints, txIn.PreviousOutPoint)
@@ -970,11 +959,8 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	}
 	atomic.StoreInt64(&mp.lastUpdated, time.Now().Unix())
 
-	// Add unconfirmed address index entries associated with the transaction
-	// if enabled.
-	if mp.cfg.AddrIndex != nil {
-		mp.cfg.AddrIndex.AddUnconfirmedTx(tx, utxoView)
-	}
+	// Add unconfirmed exists address index entries associated with the
+	// transaction if enabled.
 	if mp.cfg.ExistsAddrIndex != nil {
 		mp.cfg.ExistsAddrIndex.AddUnconfirmedTx(msgTx)
 	}

@@ -26,6 +26,33 @@ const (
 	// existsAddrIndexVersion is the current version of the exists address
 	// index.
 	existsAddrIndexVersion = 2
+
+	// addrKeySize is the number of bytes an address key consumes in the
+	// index.  It consists of 1 byte address type + 20 bytes hash160.
+	addrKeySize = 1 + 20
+
+	// addrKeyTypePubKeyHash is the address type in an address key which
+	// represents both a pay-to-pubkey-hash and a pay-to-pubkey address.  This
+	// is done because both are identical for the purposes of the exists address
+	// index.
+	addrKeyTypePubKeyHash = 0
+
+	// addrKeyTypePubKeyHashEdwards is the address type in an address key which
+	// represents both a pay-to-pubkey-hash and a pay-to-pubkey-alt address
+	// using Schnorr signatures over the Ed25519 curve.  This is done because
+	// both are identical for the purposes of the exists address index.
+	addrKeyTypePubKeyHashEdwards = 1
+
+	// addrKeyTypePubKeyHashSchnorr is the address type in an address key which
+	// represents both a pay-to-pubkey-hash and a pay-to-pubkey-alt address
+	// using Schnorr signatures over the secp256k1 curve.  This is done because
+	// both are identical for the purposes of the exists address index.
+	addrKeyTypePubKeyHashSchnorr = 2
+
+	// addrKeyTypeScriptHash is the address type in an address key which
+	// represents a pay-to-script-hash address.  This is necessary because the
+	// hash of a pubkey address might be the same as that of a script hash.
+	addrKeyTypeScriptHash = 3
 )
 
 var (
@@ -33,6 +60,43 @@ var (
 	// the db bucket used to house it.
 	existsAddrIndexKey = []byte("existsaddridx")
 )
+
+// addrToKey converts known address types to an addrindex key.  An error is
+// returned for unsupported types.
+func addrToKey(addr stdaddr.Address) ([addrKeySize]byte, error) {
+	// Convert public key addresses to public key hash variants.
+	if addrPKH, ok := addr.(stdaddr.AddressPubKeyHasher); ok {
+		addr = addrPKH.AddressPubKeyHash()
+	}
+
+	switch addr := addr.(type) {
+	case *stdaddr.AddressPubKeyHashEcdsaSecp256k1V0:
+		var result [addrKeySize]byte
+		result[0] = addrKeyTypePubKeyHash
+		copy(result[1:], addr.Hash160()[:])
+		return result, nil
+
+	case *stdaddr.AddressPubKeyHashEd25519V0:
+		var result [addrKeySize]byte
+		result[0] = addrKeyTypePubKeyHashEdwards
+		copy(result[1:], addr.Hash160()[:])
+		return result, nil
+
+	case *stdaddr.AddressPubKeyHashSchnorrSecp256k1V0:
+		var result [addrKeySize]byte
+		result[0] = addrKeyTypePubKeyHashSchnorr
+		copy(result[1:], addr.Hash160()[:])
+		return result, nil
+
+	case *stdaddr.AddressScriptHashV0:
+		var result [addrKeySize]byte
+		result[0] = addrKeyTypeScriptHash
+		copy(result[1:], addr.Hash160()[:])
+		return result, nil
+	}
+	return [addrKeySize]byte{}, indexerError(ErrUnsupportedAddressType,
+		"address type is not supported by the exists address index")
+}
 
 // ExistsAddrIndex implements an "ever seen" address index.  Any address that
 // is ever seen in a block or in the mempool is stored here as a key. Values

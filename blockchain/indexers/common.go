@@ -168,22 +168,6 @@ func (e AssertError) Error() string {
 	return "assertion failed: " + string(e)
 }
 
-// errDeserialize signifies that a problem was encountered when deserializing
-// data.
-type errDeserialize string
-
-// Error implements the error interface.
-func (e errDeserialize) Error() string {
-	return string(e)
-}
-
-// isDeserializeErr returns whether or not the passed error is an errDeserialize
-// error.
-func isDeserializeErr(err error) bool {
-	var derr errDeserialize
-	return errors.As(err, &derr)
-}
-
 // internalBucket is an abstraction over a database bucket.  It is used to make
 // the code easier to test since it allows mock objects in the tests to only
 // implement these functions instead of everything a database.Bucket supports.
@@ -787,23 +771,5 @@ func updateIndex(ctx context.Context, indexer Indexer, ntfn *IndexNtfn) error {
 		}
 	}
 
-	return nil
-}
-
-// AddIndexSpendConsumers adds spend consumers for applicable optional indexes
-// to the chain queryer.
-func AddIndexSpendConsumers(db database.DB, chain ChainQueryer) error {
-	// Only the address index requires a spend consumer currently.
-	_, tipHash, err := tip(db, addrIndexKey)
-	if err != nil {
-		if !errors.Is(err, database.ErrValueNotFound) &&
-			!errors.Is(err, database.ErrBucketNotFound) {
-			msg := fmt.Sprintf("unable to fetch index tip for "+
-				"address index %s", err)
-			return indexerError(ErrFetchTip, msg)
-		}
-	}
-
-	chain.AddSpendConsumer(NewSpendConsumer(addrIndexName, tipHash, chain))
 	return nil
 }

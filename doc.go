@@ -180,11 +180,6 @@ Application Options:
                                getrawtransaction RPC
       --droptxindex            Deletes the hash-based transaction index from the
                                database on start up and then exits
-      --addrindex              Maintain a full address-based transaction index
-                               which makes the searchrawtransactions RPC
-                               available
-      --dropaddrindex          Deletes the address-based transaction index from
-                               the database on start up and then exits
       --noexistsaddrindex      Disable the exists address index, which tracks
                                whether or not an address has even been used
       --dropexistsaddrindex    Deletes the exists address index from the

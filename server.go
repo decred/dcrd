@@ -503,7 +503,6 @@ type server struct {
 	// do not need to be protected for concurrent access.
 	indexSubscriber *indexers.IndexSubscriber
 	txIndex         *indexers.TxIndex
-	addrIndex       *indexers.AddrIndex
 	existsAddrIndex *indexers.ExistsAddrIndex
 
 	// These following fields are used to filter duplicate block lottery data
@@ -3504,30 +3503,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 
 	queryer := &blockchain.ChainQueryerAdapter{BlockChain: s.chain}
-	err = indexers.AddIndexSpendConsumers(s.db, queryer)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.TxIndex || cfg.AddrIndex {
-		// Enable transaction index if address index is enabled since it
-		// requires it.
-		if !cfg.TxIndex {
-			indxLog.Infof("Transaction index enabled because it " +
-				"is required by the address index")
-			cfg.TxIndex = true
-		} else {
-			indxLog.Info("Transaction index is enabled")
-		}
-
+	if cfg.TxIndex {
+		indxLog.Info("Transaction index is enabled")
 		s.txIndex, err = indexers.NewTxIndex(s.indexSubscriber, db, queryer)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if cfg.AddrIndex {
-		indxLog.Info("Address index is enabled")
-		s.addrIndex, err = indexers.NewAddrIndex(s.indexSubscriber, db, queryer)
 		if err != nil {
 			return nil, err
 		}
@@ -3587,7 +3565,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		PastMedianTime: func() time.Time {
 			return s.chain.BestSnapshot().MedianTime
 		},
-		AddrIndex:                 s.addrIndex,
 		ExistsAddrIndex:           s.existsAddrIndex,
 		AddTxToFeeEstimation:      s.feeEstimator.AddMemPoolTransaction,
 		RemoveTxFromFeeEstimation: s.feeEstimator.RemoveMemPoolTransaction,

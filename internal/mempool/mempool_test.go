@@ -839,7 +839,6 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			TSpendMinedOnAncestor: chain.TSpendMinedOnAncestor,
 			SubsidyCache:          subsidyCache,
 			SigCache:              nil,
-			AddrIndex:             nil,
 			ExistsAddrIndex:       nil,
 			OnVoteReceived:        nil,
 			IsTreasuryAgendaActive: func() (bool, error) {
