@@ -473,7 +473,6 @@ var helpDescsEnUS = map[string]string{
 	"infochainresult-testnet":         "Whether or not server is using testnet",
 	"infochainresult-relayfee":        "The minimum relay fee for non-free transactions in DCR/KB",
 	"infochainresult-errors":          "Any current errors",
-	"infochainresult-addrindex":       "Deprecated: Whether or not server has address index enabled",
 	"infochainresult-txindex":         "Whether or not server has transaction index enabled",
 
 	// InfoWalletResult help.

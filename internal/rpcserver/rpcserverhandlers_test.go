@@ -4400,7 +4400,6 @@ func TestHandleGetInfo(t *testing.T) {
 			Difficulty:      float64(28147398026.656624),
 			TestNet:         false,
 			RelayFee:        float64(0.0001),
-			AddrIndex:       false,
 			TxIndex:         true,
 		},
 	}})

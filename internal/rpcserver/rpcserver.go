@@ -2432,7 +2432,6 @@ func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 		Difficulty:      getDifficultyRatio(best.Bits, s.cfg.ChainParams),
 		TestNet:         s.cfg.TestNet,
 		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
-		AddrIndex:       false,
 		TxIndex:         s.cfg.TxIndexer != nil,
 	}
 
