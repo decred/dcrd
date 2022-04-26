@@ -169,18 +169,15 @@ func (m *wsNotificationManager) queueHandler(ctx context.Context) {
 	var dequeue chan<- interface{}
 	skipQueue := m.notificationMsgs
 	var next interface{}
-out:
+
 	for {
 		select {
 		case <-ctx.Done():
-			break out
+			close(m.notificationMsgs)
+			m.wg.Done()
+			return
 
-		case n, ok := <-m.queueNotification:
-			if !ok {
-				// Sender closed input channel.
-				break out
-			}
-
+		case n := <-m.queueNotification:
 			// Either send to out immediately if skipQueue is
 			// non-nil (queue is empty) and reader is ready,
 			// or append to the queue and send later.
@@ -205,9 +202,6 @@ out:
 			}
 		}
 	}
-
-	close(m.notificationMsgs)
-	m.wg.Done()
 }
 
 // NotifyBlockConnected passes a block newly-connected to the best chain
