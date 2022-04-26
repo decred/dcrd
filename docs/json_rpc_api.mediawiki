@@ -360,10 +360,6 @@ the method name for further details such as parameter and return information.
 |Y
 |Asks the daemon to regenerate the mining block template.
 |-
-|[[#searchrawtransactions|searchrawtransactions]]
-|Y
-|Query for transactions related to a particular address.
-|-
 |[[#sendrawtransaction|sendrawtransaction]]
 |Y
 |Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.
@@ -2242,41 +2238,6 @@ of the best block.
 !Returns
 |Nothing
 |-
-|}
-
-----
-
-====searchrawtransactions====
-{|
-!Method
-|searchrawtransactions
-|-
-!Parameters
-|
-# <code>address</code>: <code>(string, required)</code> Decred address.
-# <code>verbose</code>: <code>(int, optional, default=true)</code> specifies the transaction is returned as a JSON object instead of hex-encoded string.
-# <code>skip</code>: <code>(int, optional, default=0)</code> the number of leading transactions to leave out of the final response.
-# <code>count</code>: <code>(int, optional, default=100, max=10000)</code> the maximum number of transactions to return.
-# <code>vinextra</code>: <code>(int, optional, default=0)</code> specify that extra data from previous output will be returned in vin.
-# <code>reverse</code>: <code>(boolean, optional, default=false)</code> specify that the transactions should be returned in reverse chronological order.
-# <code>filteraddrs</code>: <code>(json array of strings, optional)</code> specify that only inputs or outputs with matching addresses should be returned.
-|-
-!Description
-|Returns raw data for transactions involving the passed address. Returned transactions are pulled from both the database, and transactions currently in the mempool. Transactions pulled from the mempool will have the <code>"confirmations"</code> field set to 0. Usage of this RPC requires the optional <code>--addrindex</code> flag to be activated, otherwise all responses will simply return with an error stating the address index has not yet been built up. Similarly, until the address index has caught up with the current best height, all requests will return an error response in order to avoid serving stale data.
-|-
-!Notes
-|Each request is limited to a maximum of 10000 transactions. Callers may use the <code>skip</code> parameter in subsequent requests to access additional data if access to more results is required.
-|-
-!Returns (verbose=0)
-|
-<code>(json array of strings)</code>
-: <code>serializedtx</code>: <code>(string)</code> hex-encoded bytes of the serialized transaction.
-<code>["serializedtx", ... ]</code>
-|-
-!Returns (verbose=1)
-|
-<code>(array of json objects)</code>
-: See [[#getrawtransaction|getrawtransaction]] with <code>verbose=1</code> for the format of each individual object.
 |}
 
 ----
