@@ -15,7 +15,6 @@ import (
 	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4"
 	"github.com/decred/dcrd/internal/mempool"
@@ -606,39 +605,6 @@ type TxMempooler interface {
 	// TSpendHashes returns the hashes of the treasury spend transactions
 	// currently in the mempool.
 	TSpendHashes() []chainhash.Hash
-}
-
-// AddrIndexer provides an interface for retrieving transactions for a given
-// address.
-//
-// The interface contract requires that all of these methods are safe for
-// concurrent access.
-type AddrIndexer interface {
-	// Name returns the human-readable name of the index.
-	Name() string
-
-	// Tip returns the current index tip.
-	Tip() (int64, *chainhash.Hash, error)
-
-	// WaitForSync subscribes clients for the next index sync update.
-	WaitForSync() chan bool
-
-	// EntriesForAddress returns a slice of details which identify each transaction,
-	// including a block region, that involves the passed address according to the
-	// specified number to skip, number requested, and whether or not the results
-	// should be reversed.  It also returns the number actually skipped since it
-	// could be less in the case where there are not enough entries.
-	//
-	// NOTE: These results only include transactions confirmed in blocks.  See the
-	// UnconfirmedTxnsForAddress method for obtaining unconfirmed transactions
-	// that involve a given address.
-	EntriesForAddress(dbTx database.Tx, addr stdaddr.Address, numToSkip,
-		numRequested uint32, reverse bool) ([]indexers.TxIndexEntry, uint32, error)
-
-	// UnconfirmedTxnsForAddress returns all transactions currently in the
-	// unconfirmed (memory-only) address index that involve the passed address.
-	// Unsupported address types are ignored and will result in no results.
-	UnconfirmedTxnsForAddress(addr stdaddr.Address) []*dcrutil.Tx
 }
 
 // TxIndexer provides an interface for retrieving details for a given

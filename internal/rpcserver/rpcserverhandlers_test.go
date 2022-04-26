@@ -600,52 +600,6 @@ func (e *testExistsAddresser) ExistsAddresses(addrs []stdaddr.Address) ([]bool, 
 	return e.existsAddresses, e.existsAddressesErr
 }
 
-// testAddrIndexer provides a mock address indexer by implementing the
-// AddrIndexer interface.
-type testAddrIndexer struct {
-	entriesForAddress         []indexers.TxIndexEntry
-	entriesForAddressSkipped  uint32
-	entriesForAddressErr      error
-	unconfirmedTxnsForAddress []*dcrutil.Tx
-	tipHeight                 int64
-	tipHash                   *chainhash.Hash
-	tipErr                    error
-	signalOnWait              bool
-}
-
-// Name returns the human-readable name of the index.
-func (a *testAddrIndexer) Name() string {
-	return "testAddrIndexer"
-}
-
-// Tip returns the current index tip.
-func (a *testAddrIndexer) Tip() (int64, *chainhash.Hash, error) {
-	return a.tipHeight, a.tipHash, a.tipErr
-}
-
-// WaitForSync subscribes clients for the next index sync update.
-func (a *testAddrIndexer) WaitForSync() chan bool {
-	c := make(chan bool)
-	if a.signalOnWait {
-		close(c)
-	}
-	return c
-}
-
-// EntriesForAddress returns a mocked slice of indexers.TxIndexEntry that
-// involve the given address.
-func (a *testAddrIndexer) EntriesForAddress(dbTx database.Tx,
-	addr stdaddr.Address, numToSkip, numRequested uint32, reverse bool) (
-	[]indexers.TxIndexEntry, uint32, error) {
-	return a.entriesForAddress, a.entriesForAddressSkipped, a.entriesForAddressErr
-}
-
-// UnconfirmedTxnsForAddress returns a mocked slice of transactions that are
-// currently in the unconfirmed (memory-only) address index.
-func (a *testAddrIndexer) UnconfirmedTxnsForAddress(addr stdaddr.Address) []*dcrutil.Tx {
-	return a.unconfirmedTxnsForAddress
-}
-
 // testTxIndexer provides a mock transaction indexer by implementing the
 // TxIndexer interface.
 type testTxIndexer struct {
@@ -1391,8 +1345,6 @@ type rpcTest struct {
 	mockSyncManager       *testSyncManager
 	mockExistsAddresser   *testExistsAddresser
 	setExistsAddresserNil bool
-	mockAddrIndexer       *testAddrIndexer
-	setAddrIndexerNil     bool
 	mockTxIndexer         *testTxIndexer
 	setTxIndexerNil       bool
 	mockDB                *testDB
@@ -1624,20 +1576,6 @@ func defaultMockExistsAddresser() *testExistsAddresser {
 	}
 }
 
-// defaultMockAddrIndexer provides a default mock address indexer to be
-// used throughout the tests. Tests can override these defaults by calling
-// defaultMockAddrIndexer, updating fields as necessary on the returned
-// *testAddrIndexer, and then setting rpcTest.mockAddrIndexer as that
-// *testAddrIndexer.
-func defaultMockAddrIndexer() *testAddrIndexer {
-	bestHash := block432100.Header.BlockHash()
-	return &testAddrIndexer{
-		tipHeight:    int64(block432100.Header.Height),
-		tipHash:      &bestHash,
-		signalOnWait: true,
-	}
-}
-
 // defaultMockTxIndexer provides a default mock transaction indexer to be
 // used throughout the tests. Tests can override these defaults by calling
 // defaultMockTxIndexer, updating fields as necessary on the returned
@@ -1824,7 +1762,6 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		FeeEstimator:    defaultMockFeeEstimator(),
 		SyncMgr:         defaultMockSyncManager(),
 		ExistsAddresser: defaultMockExistsAddresser(),
-		AddrIndexer:     defaultMockAddrIndexer(),
 		TxIndexer:       defaultMockTxIndexer(),
 		DB:              defaultMockDB(),
 		ConnMgr:         defaultMockConnManager(),
@@ -7938,12 +7875,6 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.setExistsAddresserNil {
 				rpcserverConfig.ExistsAddresser = nil
-			}
-			if test.mockAddrIndexer != nil {
-				rpcserverConfig.AddrIndexer = test.mockAddrIndexer
-			}
-			if test.setAddrIndexerNil {
-				rpcserverConfig.AddrIndexer = nil
 			}
 			if test.mockTxIndexer != nil {
 				rpcserverConfig.TxIndexer = test.mockTxIndexer

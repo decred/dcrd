@@ -5739,9 +5739,6 @@ type Config struct {
 	// use.
 	TxIndexer TxIndexer
 
-	// AddrIndexer defines the optional address indexer for the RPC server to use.
-	AddrIndexer AddrIndexer
-
 	// NetInfo defines a slice of the available networks.
 	NetInfo []types.NetworksResult
 
