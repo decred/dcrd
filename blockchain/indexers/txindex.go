@@ -485,7 +485,7 @@ func (idx *TxIndex) IndexSubscription() *IndexSubscription {
 func (idx *TxIndex) Subscribers() map[chan bool]struct{} {
 	idx.mtx.Lock()
 	defer idx.mtx.Unlock()
-	return idx.subscribers
+	return fetchIndexerSubscribers(idx.subscribers)
 }
 
 // WaitForSync subscribes clients for the next index sync update.
@@ -493,6 +493,14 @@ func (idx *TxIndex) Subscribers() map[chan bool]struct{} {
 // This is part of the Indexer interface.
 func (idx *TxIndex) WaitForSync() chan bool {
 	c := make(chan bool)
+
+	removeIndexerSub := func() {
+		idx.mtx.Lock()
+		delete(idx.subscribers, c)
+		idx.mtx.Unlock()
+	}
+
+	go purgeIndexerSubscription(c, removeIndexerSub)
 
 	idx.mtx.Lock()
 	idx.subscribers[c] = struct{}{}

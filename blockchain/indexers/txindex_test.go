@@ -598,7 +598,13 @@ func TestTxIndexAsync(t *testing.T) {
 	// Wait for the index to sync with the main chain before terminating.
 	select {
 	case <-idx.WaitForSync():
-		// Nothing to do.
+		// Ensure there are no subscribers for the indexer.
+		idx.mtx.Lock()
+		subs := len(idx.subscribers)
+		idx.mtx.Unlock()
+		if subs != 0 {
+			t.Fatalf("expected no indexer subscribers, got %d", subs)
+		}
 	case <-time.After(time.Second):
 		panic("timeout waiting for index to synchronize")
 	}
@@ -632,5 +638,25 @@ func TestTxIndexAsync(t *testing.T) {
 	if *tipHash != *bk4a.Hash() {
 		t.Fatalf("expected tip hash to be %s, got %s",
 			bk4a.Hash().String(), tipHash.String())
+	}
+
+	// Ensure indexer subscribers are cleaned up after waiting for an update
+	// beyond the indexer sync wait threshold.
+	_ = idx.WaitForSync()
+
+	idx.mtx.Lock()
+	subs := len(idx.subscribers)
+	idx.mtx.Unlock()
+	if subs != 1 {
+		t.Fatalf("expected one indexer subscriber, got %d", subs)
+	}
+
+	time.Sleep(syncWait + (syncWait / 2))
+
+	idx.mtx.Lock()
+	subs = len(idx.subscribers)
+	idx.mtx.Unlock()
+	if subs != 0 {
+		t.Fatalf("expected no indexer subscribers, got %d", subs)
 	}
 }
