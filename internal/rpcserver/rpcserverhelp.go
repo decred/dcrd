@@ -274,21 +274,6 @@ var helpDescsEnUS = map[string]string{
 	"txrawresult-blockheight":   "The height of the block that contains the transaction",
 	"txrawresult-expiry":        "The transacion expiry",
 
-	// SearchRawTransactionsResult help.
-	"searchrawtransactionsresult-hex":           "Hex-encoded transaction",
-	"searchrawtransactionsresult-txid":          "The hash of the transaction",
-	"searchrawtransactionsresult-version":       "The transaction version",
-	"searchrawtransactionsresult-locktime":      "The transaction lock time",
-	"searchrawtransactionsresult-expiry":        "The transacion expiry",
-	"searchrawtransactionsresult-vin":           "The transaction inputs as JSON objects",
-	"searchrawtransactionsresult-vout":          "The transaction outputs as JSON objects",
-	"searchrawtransactionsresult-blockhash":     "The hash of the block the contains the transaction",
-	"searchrawtransactionsresult-blockheight":   "The height of the block that contains the transaction",
-	"searchrawtransactionsresult-blockindex":    "The index within the array of transactions contained by the block",
-	"searchrawtransactionsresult-confirmations": "Number of confirmations of the block",
-	"searchrawtransactionsresult-time":          "Transaction time in seconds since 1 Jan 1970 GMT",
-	"searchrawtransactionsresult-blocktime":     "Block time in seconds since the 1 Jan 1970 GMT",
-
 	// GetBlockVerboseResult help.
 	"getblockverboseresult-hash":              "The hash of the block (same as provided)",
 	"getblockverboseresult-confirmations":     "The number of confirmations",
@@ -733,23 +718,6 @@ var helpDescsEnUS = map[string]string{
 		"Any descendants that are neither themselves marked as having failed validation, nor descendants of another such block, are also made eligibile for best chain selection.",
 	"reconsiderblock-blockhash": "The hash of the block to reconsider",
 
-	// SearchRawTransactionsCmd help.
-	"searchrawtransactions--synopsis": "Returns raw data for transactions involving the passed address.\n" +
-		"Returned transactions are pulled from both the database, and transactions currently in the mempool.\n" +
-		"Transactions pulled from the mempool will have the 'confirmations' field set to 0.\n" +
-		"Usage of this RPC requires the optional --addrindex flag to be activated, otherwise all responses will simply return with an error stating the address index has not yet been built.\n" +
-		"Similarly, until the address index has caught up with the current best height, all requests will return an error response in order to avoid serving stale data.",
-	"searchrawtransactions-address":     "The Decred address to search for",
-	"searchrawtransactions-verbose":     "Specifies the transaction is returned as a JSON object instead of hex-encoded string",
-	"searchrawtransactions--condition0": "verbose=0",
-	"searchrawtransactions--condition1": "verbose=1",
-	"searchrawtransactions-skip":        "The number of leading transactions to leave out of the final response",
-	"searchrawtransactions-count":       "The maximum number of transactions to return",
-	"searchrawtransactions-vinextra":    "Specify that extra data from previous output will be returned in vin",
-	"searchrawtransactions-reverse":     "Specifies that the transactions should be returned in reverse chronological order",
-	"searchrawtransactions-filteraddrs": "Address list.  Only inputs or outputs with matching address will be returned",
-	"searchrawtransactions--result0":    "Hex-encoded serialized transaction",
-
 	// SendRawTransactionCmd help.
 	"sendrawtransaction--synopsis":     "Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.",
 	"sendrawtransaction-hextx":         "Serialized, hex-encoded signed transaction",
@@ -1029,7 +997,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"ping":                  nil,
 	"reconsiderblock":       nil,
 	"regentemplate":         nil,
-	"searchrawtransactions": {(*string)(nil), (*[]types.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
 	"stop":                  {(*string)(nil)},
