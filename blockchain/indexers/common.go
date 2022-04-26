@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/v4/internal/progresslog"
 	"github.com/decred/dcrd/blockchain/v4/internal/spendpruner"
@@ -34,6 +35,10 @@ var (
 
 	// interruptMsg is the error message for interrupt requested errors.
 	interruptMsg = "interrupt requested"
+
+	// syncWait is the maximum time in seconds to wait for an indexer
+	// to sync with the main chain.
+	syncWait = time.Second * 3
 )
 
 // NeedsInputser provides a generic interface for an indexer to specify the it
@@ -460,6 +465,34 @@ func tip(db database.DB, key []byte) (int64, *chainhash.Hash, error) {
 	return int64(height), hash, err
 }
 
+// fetchIndexerSubscribers returns a copy of the provided indexer subscriber
+// set.
+//
+// This should be called with the associated indexer mutex held.
+func fetchIndexerSubscribers(subscribers map[chan bool]struct{}) map[chan bool]struct{} {
+	subs := make(map[chan bool]struct{}, len(subscribers))
+	for k, v := range subscribers {
+		subs[k] = v
+	}
+	return subs
+}
+
+// purgeIndexerSubscription purges the provided indexer subscription using the
+// provided purge function on either a signal from the subscription itself or
+// after waiting over the indexer sync wait time.
+//
+// This should be run as a goroutine.
+func purgeIndexerSubscription(sub chan bool, purgeFunc func()) {
+	select {
+	case <-sub:
+		purgeFunc()
+	case <-time.After(syncWait + (syncWait / 4)):
+		// Receivers stop waiting for subscription updates from the channel
+		// after the sync wait time, removing it should be fine as a result.
+		purgeFunc()
+	}
+}
+
 // recover reverts the index to a block on the main chain by repeatedly
 // disconnecting the index tip if it is not on the main chain.
 func recover(ctx context.Context, idx Indexer) error {
@@ -690,8 +723,9 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 
 	if tipHeight == bestHeight && *bestHash == *tipHash {
 		for sub := range subs {
+			// Close the subscription channel to signal receivers the
+			// indexer is synced.
 			close(sub)
-			delete(subs, sub)
 		}
 	}
 
