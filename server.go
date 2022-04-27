@@ -540,9 +540,10 @@ type serverPeer struct {
 
 	// The following fields are used to synchronize the net sync manager and
 	// server.
-	syncNotified   bool
-	txProcessed    chan struct{}
-	blockProcessed chan struct{}
+	syncNotifiedMtx sync.Mutex
+	syncNotified    bool
+	txProcessed     chan struct{}
+	blockProcessed  chan struct{}
 
 	// peerNa is network address of the peer connected to.
 	peerNa    *wire.NetAddress
@@ -2250,7 +2251,10 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 
 	// Notify the net sync manager the peer is gone if it was ever notified that
 	// the peer existed.
-	if sp.syncNotified {
+	sp.syncNotifiedMtx.Lock()
+	syncNotified := sp.syncNotified
+	sp.syncNotifiedMtx.Unlock()
+	if syncNotified {
 		s.syncManager.DonePeer(sp.Peer)
 	}
 
@@ -2314,7 +2318,9 @@ out:
 			// unless it was disconnected above.
 			if p.Connected() {
 				s.syncManager.NewPeer(p.Peer)
+				p.syncNotifiedMtx.Lock()
 				p.syncNotified = true
+				p.syncNotifiedMtx.Unlock()
 			}
 
 		// Disconnected peers.
