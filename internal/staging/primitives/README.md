@@ -32,6 +32,10 @@ The provided functions fall into the following categories:
 - Inclusion proofs
   - Generating Merkle tree inclusion proofs
   - Verifying Merkle tree inclusion proofs
+- Subsidy calculation
+  - Proof-of-work subsidy for a given height and number of votes
+  - Stake vote subsidy for a given height
+  - Treasury subsidy for a given height and number of votes
 
 ## Maintainer Note
 
