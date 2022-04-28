@@ -8,7 +8,8 @@
 4.3. [Code Documentation and Commenting](#CodeDocumentation)<br />
 4.4. [Model Git Commit Messages](#ModelGitCommitMessages)<br />
 4.5. [Handling Module Breaking Changes](#HandlingModuleBreakingChanges)<br />
-4.6. [Maximum Line Length and Wrapping](#MaximumLineLengthAndWrapping)<br />
+4.6. [Handling Backports](#HandlingBackports)<br />
+4.7. [Maximum Line Length and Wrapping](#MaximumLineLengthAndWrapping)<br />
 5. [Code Approval Process](#CodeApproval)<br />
 5.1 [Code Review](#CodeReview)<br />
 5.2 [Rework Code (if needed)](#CodeRework)<br />
@@ -74,9 +75,9 @@ security and performance implications.
 - [Effective Go](https://golang.org/doc/effective_go.html) - The entire dcrd
   suite follows the guidelines in this document.  For your code to be accepted,
   it must follow the guidelines therein.
-- [Original Satoshi Whitepaper](https://decred.org/research/nakamoto2008.pdf) - This is the
-  white paper that started it all.  Having a solid foundation to build on will
-  make the code much more comprehensible.
+- [Original Satoshi Whitepaper](https://decred.org/research/nakamoto2008.pdf) - 
+  This is the white paper that started it all.  Having a solid foundation to 
+  build on will make the code much more comprehensible.
 
 <a name="DevelopmentPractices" />
 
@@ -307,9 +308,26 @@ new breaking change to a module's API is introduced:
 - Repeat the process for any other modules the require a new major as a result
   of consuming the new major(s).
 
+<a name="HandlingBackports" />
+
+### 4.6 Handling Backports
+
+Backported pull requests are required to reference the pull request being 
+applied to a prior release. The applied pull request number is expected to be
+indicated in the description of the backported pull request. The pull request
+title and commits are also required to clearly indicate they are a backport by 
+prefixing with the release version being backported to:
+
+```
+[release-vX.Y] prefix: Short summary of changes (max 50 chars)
+```
+
+The commit format detailed in [Model Git Commit Messages](#ModelGitCommitMessages) 
+is expected for backport commit messages as well.
+
 <a name="MaximumLineLengthAndWrapping" />
 
-### 4.6 Maximum Line Length and Wrapping
+### 4.7 Maximum Line Length and Wrapping
 
 Lines are generally wrapped at 80 columns, with tabs counted as 4 columns,
 unless it makes sense to be longer for readability purposes.  This is a
