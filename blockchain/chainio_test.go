@@ -792,6 +792,101 @@ func TestSpendJournalErrors(t *testing.T) {
 	}
 }
 
+// TestHeaderCommitmentSerialization ensures serializing and deserializing
+// header commitment journal entries works as expected.
+func TestHeaderCommitmentSerialization(t *testing.T) {
+	t.Parallel()
+
+	cmtOneHash := *mustParseHash("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+	cmtTwoHash := *mustParseHash("02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021")
+	tests := []struct {
+		name        string
+		commitments []chainhash.Hash
+		serialized  []byte
+	}{{
+		name:        "no commitments",
+		commitments: nil,
+		serialized:  nil,
+	}, {
+		name:        "one commitment",
+		commitments: []chainhash.Hash{cmtOneHash},
+		serialized: hexToBytes("01" +
+			"201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201"),
+	}, {
+		name:        "two commitmentments",
+		commitments: []chainhash.Hash{cmtOneHash, cmtTwoHash},
+		serialized: hexToBytes("02" +
+			"201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" +
+			"21201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a0908070605040302"),
+	}}
+
+	for _, test := range tests {
+		// Ensure the commitments serialize to the expected value.
+		gotBytes := serializeHeaderCommitments(test.commitments)
+		if !bytes.Equal(gotBytes, test.serialized) {
+			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name,
+				gotBytes, test.serialized)
+			continue
+		}
+
+		// Ensure the serialized bytes are decoded back to the expected
+		// commitments.
+		commitments, err := deserializeHeaderCommitments(test.serialized)
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", test.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(commitments, test.commitments) {
+			t.Errorf("%q: mismatched commitments - got %v, want %v", test.name,
+				commitments, test.commitments)
+			continue
+		}
+	}
+}
+
+// TestHeaderCommitmentDeserializeErrors peforms negative tests against
+// deserializing header commitment journal entries to ensure error paths work as
+// expected.
+func TestHeaderCommitmentDeserializeErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		serialized []byte
+		err        error
+	}{{
+		name:       "short data in number of commitments",
+		serialized: hexToBytes("80"),
+		err:        database.ErrCorruption,
+	}, {
+		name: "short data in commitment hashes",
+		serialized: hexToBytes("01" +
+			"201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a0908070605040302"),
+		err: database.ErrCorruption,
+	}, {
+		name: "short data in commitment hashes 2 begin",
+		serialized: hexToBytes("02" +
+			"201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201"),
+		err: database.ErrCorruption,
+	}, {
+		name: "short data in commitment hashes 2 end",
+		serialized: hexToBytes("02" +
+			"201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" +
+			"21201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403"),
+		err: database.ErrCorruption,
+	}}
+
+	for _, test := range tests {
+		// Ensure the expected error type and code is returned.
+		_, err := deserializeHeaderCommitments(test.serialized)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: wrong error -- got: %v, want: %v", test.name, err,
+				test.err)
+			continue
+		}
+	}
+}
+
 // TestBestChainStateSerialization ensures serializing and deserializing the
 // best chain state works as expected.
 func TestBestChainStateSerialization(t *testing.T) {

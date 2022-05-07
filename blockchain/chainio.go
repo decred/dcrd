@@ -26,7 +26,7 @@ import (
 
 const (
 	// currentDatabaseVersion indicates the current database version.
-	currentDatabaseVersion = 12
+	currentDatabaseVersion = 13
 
 	// currentBlockIndexVersion indicates the current block index database
 	// version.
@@ -95,6 +95,11 @@ var (
 	// gcsFilterBucketName is the name of the db bucket used to house GCS
 	// filters.
 	gcsFilterBucketName = []byte("gcsfilters")
+
+	// headerCmtsBucketName is the name of the db bucket used to house header
+	// commitment journal entries which consist of the hashes that the
+	// commitment root field of blocks commit to.
+	headerCmtsBucketName = []byte("hdrcmts")
 
 	// treasuryBucketName is the name of the db bucket that is used to house
 	// TADD/TSPEND additions and subtractions from the treasury account.
@@ -855,6 +860,118 @@ func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.Fil
 }
 
 // -----------------------------------------------------------------------------
+// The header commitments journal consists of an entry for each block connected
+// to the main chain (or has ever been connected to it) that contains each of
+// the individual commitments covered by the commitment root field of the header
+// of that block.
+//
+// Note that there will also not be an entry for blocks that do not commit to
+// anything such as those prior to the activation of the header commitments
+// agenda on networks where it is not always active.
+//
+// The serialized key format is:
+//
+//   <block hash>
+//
+//   Field           Type              Size
+//   block hash      chainhash.Hash    chainhash.HashSize
+//
+// The serialized value format is:
+//
+//   <num commitment hashes><commitment hashes>
+//
+//   Field                   Type               Size
+//   num commitment hashes   VLQ                variable
+//   commitment hashes
+//     commitment hash       chainhash.Hash     chainhash.HashSize
+//
+// -----------------------------------------------------------------------------
+
+// serializeHeaderCommitments serializes the passed commitment hashes into a
+// single byte slice according to the format described in detail above.
+func serializeHeaderCommitments(commitments []chainhash.Hash) []byte {
+	// Nothing to serialize when there are no commitments.
+	if len(commitments) == 0 {
+		return nil
+	}
+
+	// Calculate the full size needed to serialize the commitments.
+	numCommitments := len(commitments)
+	serializedLen := serializeSizeVLQ(uint64(numCommitments)) +
+		numCommitments*chainhash.HashSize
+
+	// Serialize the commitments.
+	serialized := make([]byte, serializedLen)
+	offset := putVLQ(serialized, uint64(numCommitments))
+	for i := range commitments {
+		copy(serialized[offset:], commitments[i][:])
+		offset += chainhash.HashSize
+	}
+	return serialized
+}
+
+// deserializeHeaderCommitments decodes the passed serialized byte slice into a
+// slice of commitment hashes according to the format described in detail above.
+func deserializeHeaderCommitments(serialized []byte) ([]chainhash.Hash, error) {
+	// Nothing is serialized when there are no commitments.
+	if len(serialized) == 0 {
+		return nil, nil
+	}
+
+	// Deserialize the number of commitments.
+	numCommitments, offset := deserializeVLQ(serialized)
+	if offset >= len(serialized) {
+		str := "unexpected end of data after num commitments"
+		return nil, makeDbErr(database.ErrCorruption, str)
+	}
+
+	// Ensure there are enough bytes remaining to read for the expected number
+	// of commitments.
+	totalCommitmentsSize := int(numCommitments) * chainhash.HashSize
+	if len(serialized[offset:]) < totalCommitmentsSize {
+		str := fmt.Sprintf("unexpected end of data after number of commitments "+
+			"(got %v, need %v)", len(serialized[offset:]), totalCommitmentsSize)
+		return nil, makeDbErr(database.ErrCorruption, str)
+	}
+
+	// Deserialize the commitments.
+	commitments := make([]chainhash.Hash, numCommitments)
+	for i := 0; i < int(numCommitments); i++ {
+		copy(commitments[i][:], serialized[offset:offset+chainhash.HashSize])
+		offset += chainhash.HashSize
+	}
+
+	return commitments, nil
+}
+
+// dbFetchHeaderCommitments fetches the hashes that the commitment root field of
+// the header commits to for the passed block.
+//
+// When there is no entry for the provided block hash, nil will be returned for
+// both the commitment hashes and the error.
+func dbFetchHeaderCommitments(dbTx database.Tx, blockHash *chainhash.Hash) ([]chainhash.Hash, error) {
+	commitmentsBucket := dbTx.Metadata().Bucket(headerCmtsBucketName)
+	serialized := commitmentsBucket.Get(blockHash[:])
+	return deserializeHeaderCommitments(serialized)
+}
+
+// dbPutHeaderCommitments uses an existing database transaction to update the
+// hashes that the commitment root field of the header commits to for the passed
+// block.
+//
+// No database entry will be created when the provided commitments slice is nil
+// or empty (aka zero length).
+func dbPutHeaderCommitments(dbTx database.Tx, blockHash *chainhash.Hash, commitments []chainhash.Hash) error {
+	serialized := serializeHeaderCommitments(commitments)
+	if len(serialized) == 0 {
+		return nil
+	}
+
+	commitmentsBucket := dbTx.Metadata().Bucket(headerCmtsBucketName)
+	return commitmentsBucket.Put(blockHash[:], serialized)
+}
+
+// -----------------------------------------------------------------------------
 // The database information contains information about the version and date
 // of the blockchain database.
 //
@@ -1233,6 +1350,12 @@ func (b *BlockChain) createChainState() error {
 			return err
 		}
 		_, err = meta.CreateBucket(treasuryTSpendBucketName)
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the header commitments.
+		_, err = meta.CreateBucket(headerCmtsBucketName)
 		return err
 	})
 	return err

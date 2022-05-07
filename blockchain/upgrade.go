@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/gcs/v4"
@@ -4647,6 +4648,436 @@ func upgradeToVersion12(ctx context.Context, db database.DB, chainParams *chainc
 	return nil
 }
 
+// serializeHeaderCommitmentsV1 serializes the passed commitment hashes into a
+// single byte slice according to the version 1 format.
+func serializeHeaderCommitmentsV1(commitments []chainhash.Hash) []byte {
+	// Nothing to serialize when there are no commitments.
+	if len(commitments) == 0 {
+		return nil
+	}
+
+	// Calculate the full size needed to serialize the commitments.
+	numCommitments := len(commitments)
+	serializedLen := serializeSizeVLQ(uint64(numCommitments)) +
+		numCommitments*chainhash.HashSize
+
+	// Serialize the commitments.
+	serialized := make([]byte, serializedLen)
+	offset := putVLQ(serialized, uint64(numCommitments))
+	for i := range commitments {
+		copy(serialized[offset:], commitments[i][:])
+		offset += chainhash.HashSize
+	}
+	return serialized
+}
+
+// initializeHeaderCmts creates and stores the hashes that comprise the header
+// commitments for all applicable blocks.  This ensures the commitments are
+// immediately available for use when constructing inclusion proofs for clients
+// and simplifies the rest of the related code since it can rely on the data
+// being available once the upgrade completes.
+//
+// The database is guaranteed to have the header commitments for all blocks
+// after the point that header commitments activated and also have both the
+// block data data and associated filter data available.  In practice, that
+// includes all blocks that are part of the main chain as well as any side chain
+// blocks that were fully connected at some point.
+func initializeHeaderCmts(ctx context.Context, db database.DB, params *chaincfg.Params) error {
+	log.Info("Storing header commitments.  This may take a while...")
+	start := time.Now()
+
+	// Hardcoded data so updates do not affect old upgrades.
+	const hashSize = chainhash.HashSize
+	v1ChainStateKeyName := []byte("chainstate")
+	v3BlockIdxBucketName := []byte("blockidxv3")
+	gcsBucketName := []byte("gcsfilters")
+	hdrCmtProgressKeyName := []byte("hdrcmtprogress")
+	byteOrder := binary.LittleEndian
+
+	// Determine the current best chain tip using the version 1 chain state.
+	var bestTipHash chainhash.Hash
+	var bestTipHeight uint32
+	err := db.View(func(dbTx database.Tx) error {
+		// Load the current best chain tip hash and height from the v1 chain
+		// state.
+		//
+		// The serialized format of the v1 chain state is roughly:
+		//
+		//   <block hash><block height><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   hashSize
+		//   block height      uint32           4 bytes
+		//   rest of data...
+		meta := dbTx.Metadata()
+		serializedChainState := meta.Get(v1ChainStateKeyName)
+		if serializedChainState == nil {
+			str := fmt.Sprintf("chain state with key %s does not exist",
+				v1ChainStateKeyName)
+			return errDeserialize(str)
+		}
+		if len(serializedChainState) < hashSize+4 {
+			str := "version 1 chain state is malformed"
+			return errDeserialize(str)
+		}
+		copy(bestTipHash[:], serializedChainState[0:hashSize])
+		offset := hashSize
+		bestTipHeight = byteOrder.Uint32(serializedChainState[offset : offset+4])
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Determine the minimum block height that possibly needs to have header
+	// commitments stored since it only applies to blocks once the header
+	// commitments agenda activated.  However, determining if the agenda is
+	// active and the point at which it activated requires a bunch of data that
+	// is not readily available here in the upgrade code, so hard code the data
+	// for the main and test networks to significantly optimize those cases and
+	// just check everything for other networks.  While this does potentially do
+	// more work than is strictly necessary for those other networks, it is
+	// quite rare for them to have old databases in practice, so it is a
+	// reasonable tradeoff.
+	storeFromHeight := uint32(1)
+	switch params.Net {
+	case wire.MainNet:
+		storeFromHeight = 431488
+	case wire.TestNet3:
+		storeFromHeight = 323328
+	}
+
+	// There is nothing to do if the best chain tip is prior to the point after
+	// where header commitments need to be stored.
+	if bestTipHeight < storeFromHeight {
+		return nil
+	}
+
+	// Resume from in-progress upgrades.
+	err = db.View(func(dbTx database.Tx) error {
+		progressHeightBytes := dbTx.Metadata().Get(hdrCmtProgressKeyName)
+		if progressHeightBytes != nil {
+			storeFromHeight = byteOrder.Uint32(progressHeightBytes)
+			log.Infof("Resuming upgrade at height %d", storeFromHeight+1)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// blockTreeEntry represents a version 3 block index entry with the details
+	// needed to be able to determine which blocks need to have the header
+	// commitments stored as well as which ones comprise the main chain.
+	type blockTreeEntry struct {
+		parent    *blockTreeEntry
+		children  []*blockTreeEntry
+		hash      chainhash.Hash
+		height    uint32
+		mainChain bool
+		cmtRoot   chainhash.Hash
+		status    byte
+	}
+
+	// Load the block tree to determine all blocks that need to have the header
+	// commitments stored using the version 3 block index along with the
+	// information determined above.
+	var startParent *blockTreeEntry
+	blockTree := make(map[chainhash.Hash]*blockTreeEntry)
+	err = db.View(func(dbTx database.Tx) error {
+		// Hardcoded data so updates do not affect old upgrades.
+		const blockHdrSize = 180
+
+		// Construct a full block tree from the version 3 block index by mapping
+		// each block to its parent block.
+		var lastEntry, parent *blockTreeEntry
+		meta := dbTx.Metadata()
+		v3BlockIdxBucket := meta.Bucket(v3BlockIdxBucketName)
+		if v3BlockIdxBucket == nil {
+			return fmt.Errorf("bucket %s does not exist", v3BlockIdxBucketName)
+		}
+		cursor := v3BlockIdxBucket.Cursor()
+		for ok := cursor.First(); ok; ok = cursor.Next() {
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			// Deserialize the header from the version 3 block index entry.
+			//
+			// The serialized value format of a v3 block index entry is roughly:
+			//
+			//   <block header><status><rest of data>
+			//
+			//   Field              Type                Size
+			//   block header       wire.BlockHeader    180 bytes
+			//   status             byte                1 byte
+			//   rest of data...
+			serializedBlkIdxEntry := cursor.Value()
+			if len(serializedBlkIdxEntry) < blockHdrSize {
+				return errDeserialize("unexpected end of data while reading " +
+					"block header")
+			}
+			hB := serializedBlkIdxEntry[0:blockHdrSize]
+			var header wire.BlockHeader
+			if err := header.Deserialize(bytes.NewReader(hB)); err != nil {
+				return err
+			}
+			if blockHdrSize+1 > len(serializedBlkIdxEntry) {
+				return errDeserialize("unexpected end of data while reading " +
+					"status")
+			}
+			status := serializedBlkIdxEntry[blockHdrSize]
+
+			// Stop loading if the best chain tip height is exceeded.  This
+			// can happen when there are block index entries for known headers
+			// that haven't had their associated block data fully validated and
+			// connected yet and therefore are not relevant for this upgrade
+			// code.
+			blockHeight := header.Height
+			if blockHeight > bestTipHeight {
+				break
+			}
+
+			// Determine the parent block node.  Since the entries are iterated
+			// in order of height, there is a very good chance the previous
+			// one processed is the parent.
+			blockHash := header.BlockHash()
+			if lastEntry == nil {
+				if blockHash != params.GenesisHash {
+					str := fmt.Sprintf("initializeHeaderCmts: expected first "+
+						"entry to be genesis block, found %s", blockHash)
+					return errDeserialize(str)
+				}
+			} else if header.PrevBlock == lastEntry.hash {
+				parent = lastEntry
+			} else {
+				parent = blockTree[header.PrevBlock]
+				if parent == nil {
+					str := fmt.Sprintf("initializeHeaderCmts: could not find "+
+						"parent for block %s", blockHash)
+					return errDeserialize(str)
+				}
+			}
+
+			// Add the block to the block tree.
+			treeEntry := &blockTreeEntry{
+				parent:  parent,
+				hash:    blockHash,
+				height:  blockHeight,
+				cmtRoot: header.StakeRoot,
+				status:  status,
+			}
+			blockTree[blockHash] = treeEntry
+			if parent != nil {
+				parent.children = append(parent.children, treeEntry)
+			}
+
+			// Determine the parent of the block to start storing the header
+			// commitments.
+			if blockHeight == storeFromHeight && startParent == nil {
+				startParent = parent
+			}
+
+			lastEntry = treeEntry
+		}
+
+		// Determine the blocks that comprise the main chain by starting at the
+		// best tip and walking backwards to the oldest tracked block.
+		bestTip := blockTree[bestTipHash]
+		if bestTip == nil {
+			str := fmt.Sprintf("chain tip %s is not in block index", bestTipHash)
+			return errDeserialize(str)
+		}
+		for entry := bestTip; entry != nil; entry = entry.parent {
+			entry.mainChain = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Start from block 1 when no other starting block was found above.
+	if startParent == nil {
+		startParent = blockTree[params.GenesisHash]
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Create the new header commitments bucket as needed.
+	headerCmtsBucketName := []byte("hdrcmts")
+	err = db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(headerCmtsBucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for storing the header commitments
+	// when moving from database version 12 to 13 in batches.  This is done
+	// because attempting to store them all in a single database transaction
+	// could result in massive memory usage and could potentially crash on many
+	// systems due to ulimits.
+	//
+	// It returns whether or not all entries have been stored.
+	const maxEntries = 20000
+	processQueue := make([]*blockTreeEntry, 0, 5)
+	processQueue = append(processQueue, startParent.children...)
+	var totalStored uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
+		meta := dbTx.Metadata()
+		commitmentsBucket := meta.Bucket(headerCmtsBucketName)
+		if commitmentsBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				headerCmtsBucketName)
+		}
+		filterBucket := meta.Bucket(gcsBucketName)
+		if filterBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist", gcsBucketName)
+		}
+
+		var logProgress bool
+		var numStored uint64
+		err := func() error {
+			for len(processQueue) > 0 {
+				if interruptRequested(ctx) {
+					logProgress = true
+					return errInterruptRequested
+				}
+
+				if numStored >= maxEntries {
+					logProgress = true
+					return errBatchFinished
+				}
+
+				node := processQueue[0]
+				processQueue = processQueue[1:]
+				processQueue = append(processQueue, node.children...)
+
+				// Skip side chain blocks that do not have block data available
+				// since they do not have the filters stored.
+				const v3StatusDataStored = 1 << 0
+				if node.status&v3StatusDataStored == 0 {
+					if node.mainChain {
+						return AssertError(fmt.Sprintf("no block data for "+
+							"main chain block %s (height %d)", node.hash,
+							node.height))
+					}
+					continue
+				}
+
+				// Attempt to load the filter for the block while ensuring that
+				// the data is available for main chain blocks and skipping any
+				// side chain blocks that do not have it available.  Blocks that
+				// were never part of the main chain will not have any filter
+				// data stored.
+				filterBytes := filterBucket.Get(node.hash[:])
+				if len(filterBytes) == 0 {
+					if node.mainChain {
+						return AssertError(fmt.Sprintf("no filter is stored "+
+							"for main chain block %s (height %d)", node.hash,
+							node.height))
+					}
+					continue
+				}
+
+				// Store the filter hash as the one and only commitment when the
+				// header commits to it.
+				//
+				// This approach is used because the headers for all blocks at
+				// database version 12 only committed to the filter once the
+				// header commitments agenda activated and agenda information is
+				// not readily available here in the upgrade code.
+				filterHash := blake256.Sum256(filterBytes)
+				if filterHash != node.cmtRoot {
+					continue
+				}
+
+				// Store the commitment in the database.
+				commitments := []chainhash.Hash{filterHash}
+				serialized := serializeHeaderCommitmentsV1(commitments)
+				if len(serialized) != 0 {
+					err := commitmentsBucket.Put(node.hash[:], serialized)
+					if err != nil {
+						return err
+					}
+				}
+
+				// Update in-progress tracking height for resume.
+				var serializedProgress [4]byte
+				byteOrder.PutUint32(serializedProgress[:], node.height)
+				err = meta.Put(hdrCmtProgressKeyName, serializedProgress[:])
+				if err != nil {
+					return err
+				}
+
+				numStored++
+			}
+
+			return nil
+		}()
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numStored > 0 {
+			totalStored += numStored
+			log.Infof("Stored %d entries (%d total)", numStored, totalStored)
+		}
+		// Remove in-progress tracking key when the upgrade is done.
+		if isFullyDone {
+			_ = meta.Delete(hdrCmtProgressKeyName)
+		}
+		return isFullyDone, err
+	}
+
+	// Store the commitments in batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, db, doBatch); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done storing header commitments.  Total entries: %d in %v",
+		totalStored, elapsed)
+	return nil
+}
+
+// upgradeToVersion13 upgrades a version 12 blockchain database to version 13.
+// This entails populating the header commitments journal for all blocks after
+// the point that header commitments activated and also have the block data
+// and associated filter data available.
+func upgradeToVersion13(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 13...")
+	start := time.Now()
+
+	// Store header commitments for all applicable blocks.
+	err := initializeHeaderCmts(ctx, db, chainParams)
+	if err != nil {
+		return err
+	}
+
+	// Update and persist the overall block database version.
+	err = db.Update(func(dbTx database.Tx) error {
+		dbInfo.version = 13
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // separateUtxoDatabase moves the UTXO set and state from the block database to
 // the UTXO database.
 func separateUtxoDatabase(ctx context.Context, db database.DB,
@@ -5423,6 +5854,16 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// consensus rules.
 	if dbInfo.version == 11 {
 		if err := upgradeToVersion12(ctx, db, chainParams, dbInfo); err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 13 database if needed.  This entails populating the
+	// header commitments journal for all blocks after the point that header
+	// commitments activated and also have the block data and associated filter
+	// data available.
+	if dbInfo.version == 12 {
+		if err := upgradeToVersion13(ctx, db, chainParams, dbInfo); err != nil {
 			return err
 		}
 	}

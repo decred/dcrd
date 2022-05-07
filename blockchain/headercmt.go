@@ -7,6 +7,7 @@ package blockchain
 import (
 	"fmt"
 
+	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -24,6 +25,12 @@ const (
 type headerCommitmentData struct {
 	filter     *gcs.FilterV2
 	filterHash chainhash.Hash
+}
+
+// v1Leaves returns the individual commitment hashes that comprise the leaves of
+// the merkle tree for a v1 header commitment.
+func (c *headerCommitmentData) v1Leaves() []chainhash.Hash {
+	return []chainhash.Hash{c.filterHash}
 }
 
 // CalcCommitmentRootV1 calculates and returns the required v1 block commitment
@@ -153,29 +160,34 @@ func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *He
 		return nil, nil, contextError(ErrNoFilter, str)
 	}
 
+	// Attempt to load the filter and associated header commitments from the
+	// database.
 	var filter *gcs.FilterV2
+	var leaves []chainhash.Hash
 	err := b.db.View(func(dbTx database.Tx) error {
 		var err error
 		filter, err = dbFetchGCSFilter(dbTx, hash)
+		if err != nil {
+			return err
+		}
+		if filter == nil {
+			str := fmt.Sprintf("no filter available for block %s", hash)
+			return contextError(ErrNoFilter, str)
+		}
+
+		leaves, err = dbFetchHeaderCommitments(dbTx, hash)
 		return err
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	if filter == nil {
-		str := fmt.Sprintf("no filter available for block %s", hash)
-		return nil, nil, contextError(ErrNoFilter, str)
-	}
 
-	// NOTE: When more header commitments are added, this will need to load the
-	// inclusion proof for the filter from the database.  However, since there
-	// is only currently a single commitment, there is only a single leaf in the
-	// commitment merkle tree, and hence the proof hashes will always be empty
-	// given there are no siblings.  Adding an additional header commitment will
-	// require a consensus vote anyway and this can be updated at that time.
+	// Generate the header commitment inclusion proof for the filter.
+	const proofIndex = HeaderCmtFilterIndex
+	proof := standalone.GenerateInclusionProof(leaves, proofIndex)
 	headerProof := &HeaderProof{
-		ProofIndex:  HeaderCmtFilterIndex,
-		ProofHashes: nil,
+		ProofIndex:  proofIndex,
+		ProofHashes: proof,
 	}
 	return filter, headerProof, nil
 }

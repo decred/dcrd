@@ -677,14 +677,18 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
-	// NOTE: When more header commitments are added, the inclusion proofs
-	// will need to be generated and stored to the database here (when not
-	// already stored).  There is no need to store them currently because
-	// there is only a single commitment which means there are no sibling
-	// hashes that typically form the inclusion proofs due to the fact a
-	// single leaf merkle tree reduces to having the same root as the leaf
-	// and therefore the proof only consists of checking the leaf hash
-	// itself against the commitment root.
+	// Determine the individual commitment hashes that comprise the leaves of
+	// the header commitment merkle tree depending on the active agendas.  These
+	// are stored in the database below so that inclusion proofs can be
+	// generated for each commitment.
+	var hdrCommitmentLeaves []chainhash.Hash
+	hdrCommitmentsActive, err := b.isHeaderCommitmentsAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+	if hdrCommitmentsActive {
+		hdrCommitmentLeaves = hdrCommitments.v1Leaves()
+	}
 
 	// Generate a new best state snapshot that will be used to update the
 	// database and later memory if all database updates are successful.
@@ -737,6 +741,13 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Insert the GCS filter for the block into the database.
 		err = dbPutGCSFilter(dbTx, block.Hash(), hdrCommitments.filter)
+		if err != nil {
+			return err
+		}
+
+		// Store the leaf hashes of the header commitment merkle tree in the
+		// database.  Nothing is written when there aren't any.
+		err = dbPutHeaderCommitments(dbTx, block.Hash(), hdrCommitmentLeaves)
 		if err != nil {
 			return err
 		}
@@ -923,6 +934,10 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		// NOTE: The GCS filter is intentionally not removed on disconnect to
 		// ensure that lightweight clients still have access to them if they
 		// happen to be on a side chain after coming back online after a reorg.
+		//
+		// Similarly, the commitment hashes needed to generate the associated
+		// inclusion proof for the header commitment are not removed for the
+		// same reason.
 
 		return nil
 	})
