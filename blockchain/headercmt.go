@@ -22,7 +22,8 @@ const (
 // headerCommitmentData houses information the block header commits to via the
 // commitment root.
 type headerCommitmentData struct {
-	filter *gcs.FilterV2
+	filter     *gcs.FilterV2
+	filterHash chainhash.Hash
 }
 
 // CalcCommitmentRootV1 calculates and returns the required v1 block commitment

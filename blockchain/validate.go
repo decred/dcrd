@@ -3960,8 +3960,10 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	if err != nil {
 		return ruleError(ErrMissingTxOut, err.Error())
 	}
+	filterHash := filter.Hash()
 	if hdrCommitments != nil {
 		hdrCommitments.filter = filter
+		hdrCommitments.filterHash = filterHash
 	}
 
 	// The calculated commitment root must match the associated entry in the
@@ -3975,7 +3977,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 	if hdrCommitmentsActive {
-		wantCommitmentRoot := CalcCommitmentRootV1(filter.Hash())
+		wantCommitmentRoot := CalcCommitmentRootV1(filterHash)
 		header := &block.MsgBlock().Header
 		if header.StakeRoot != wantCommitmentRoot {
 			str := fmt.Sprintf("block commitment root is invalid - block "+

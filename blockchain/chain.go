@@ -1248,6 +1248,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 				return err
 			}
 			hdrCommitments.filter = filter
+			hdrCommitments.filterHash = filter.Hash()
 		} else {
 			// The block must pass all of the validation rules which depend on
 			// having the full block data for all of its ancestors available.
