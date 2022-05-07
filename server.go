@@ -1332,20 +1332,14 @@ func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
 	//
 	// Ignore request for unknown block or otherwise missing filters.
 	chain := sp.server.chain
-	filter, err := chain.FilterByBlockHash(&msg.BlockHash)
+	filter, proof, err := chain.FilterByBlockHash(&msg.BlockHash)
 	if err != nil {
 		return
 	}
 
-	// NOTE: When more header commitments are added, this will need to load the
-	// inclusion proof for the filter from the database.  However, since there
-	// is only currently a single commitment, there is only a single leaf in the
-	// commitment merkle tree, and hence the proof hashes will always be empty
-	// given there are no siblings.  Adding an additional header commitment will
-	// require a consensus vote anyway and this can be updated at that time.
-	cfilterMsg := wire.NewMsgCFilterV2(&msg.BlockHash, filter.Bytes(),
-		blockchain.HeaderCmtFilterIndex, nil)
-	sp.QueueMessage(cfilterMsg, nil)
+	filterMsg := wire.NewMsgCFilterV2(&msg.BlockHash, filter.Bytes(),
+		proof.ProofIndex, proof.ProofHashes)
+	sp.QueueMessage(filterMsg, nil)
 }
 
 // OnGetCFHeaders is invoked when a peer receives a getcfheader wire message.

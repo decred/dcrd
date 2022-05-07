@@ -2370,7 +2370,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 		return nil, rpcDecodeHexError(c.BlockHash)
 	}
 
-	filter, err := s.cfg.FiltererV2.FilterByBlockHash(hash)
+	filter, proof, err := s.cfg.FiltererV2.FilterByBlockHash(hash)
 	if err != nil {
 		if errors.Is(err, blockchain.ErrNoFilter) {
 			return nil, &dcrjson.RPCError{
@@ -2383,17 +2383,19 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 		return nil, rpcInternalError(err.Error(), context)
 	}
 
-	// NOTE: When more header commitments are added, this will need to load the
-	// inclusion proof for the filter from the database.  However, since there
-	// is only currently a single commitment, there is only a single leaf in the
-	// commitment merkle tree, and hence the proof hashes will always be empty
-	// given there are no siblings.  Adding an additional header commitment will
-	// require a consensus vote anyway and this can be updated at that time.
+	var proofHashes []string
+	if len(proof.ProofHashes) > 0 {
+		proofHashes = make([]string, 0, len(proof.ProofHashes))
+		for i := range proof.ProofHashes {
+			proofHashes[i] = proof.ProofHashes[i].String()
+		}
+	}
+
 	result := &types.GetCFilterV2Result{
 		BlockHash:   c.BlockHash,
 		Data:        hex.EncodeToString(filter.Bytes()),
-		ProofIndex:  blockchain.HeaderCmtFilterIndex,
-		ProofHashes: nil,
+		ProofIndex:  proof.ProofIndex,
+		ProofHashes: proofHashes,
 	}
 	return result, nil
 }

@@ -539,12 +539,13 @@ type BlockTemplater interface {
 // concurrent access.
 type FiltererV2 interface {
 	// FilterByBlockHash returns the version 2 GCS filter for the given block
-	// hash when it exists.  This function returns the filters regardless of
-	// whether or not their associated block is part of the main chain.
+	// hash along with a header commitment inclusion proof when they exist.
+	// This function returns the filters regardless of whether or not their
+	// associated block is part of the main chain.
 	//
 	// An error of type blockchain.ErrNoFilter must be returned when the filter
 	// for the given block hash does not exist.
-	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error)
+	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *blockchain.HeaderProof, error)
 }
 
 // ExistsAddresser represents a source of exists address methods for the RPC

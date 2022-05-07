@@ -1022,14 +1022,15 @@ func (s *testSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
 // testFiltererV2 provides a mock V2 filterer by implementing the FiltererV2
 // interface.
 type testFiltererV2 struct {
-	filterByBlockHash    *gcs.FilterV2
-	filterByBlockHashErr error
+	filterByBlockHash      *gcs.FilterV2
+	filterByBlockHashProof *blockchain.HeaderProof
+	filterByBlockHashErr   error
 }
 
 // FilterByBlockHash returns a mocked version 2 GCS filter for the given block
 // hash.
-func (f *testFiltererV2) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error) {
-	return f.filterByBlockHash, f.filterByBlockHashErr
+func (f *testFiltererV2) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *blockchain.HeaderProof, error) {
+	return f.filterByBlockHash, f.filterByBlockHashProof, f.filterByBlockHashErr
 }
 
 // testMiningState provides a mock mining state.
@@ -1776,8 +1777,18 @@ func defaultMockFiltererV2() *testFiltererV2 {
 	block432100Filter := hexToBytes("11cdaad289eb092b5fd6ad60c7f7f197c2234dcbc74" +
 		"b14e1a477b319eae9d189cfae45f06a225965c7e932fc7600")
 	filter, _ := gcs.FromBytesV2(blockcf2.B, blockcf2.M, block432100Filter)
+
+	const proofIndex = blockchain.HeaderCmtFilterIndex
+	commitments := []chainhash.Hash{filter.Hash()}
+	proof := standalone.GenerateInclusionProof(commitments, proofIndex)
+	headerProof := blockchain.HeaderProof{
+		ProofIndex:  proofIndex,
+		ProofHashes: proof,
+	}
+
 	return &testFiltererV2{
-		filterByBlockHash: filter,
+		filterByBlockHash:      filter,
+		filterByBlockHashProof: &headerProof,
 	}
 }
 

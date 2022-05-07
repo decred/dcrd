@@ -125,24 +125,48 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	return view, nil
 }
 
+// HeaderProof houses a merkle tree inclusion proof and associated proof index
+// for a header commitment.  This information allows clients to efficiently
+// prove whether or not the commitment root of a block header commits to
+// specific data at the given index.
+type HeaderProof struct {
+	ProofIndex  uint32
+	ProofHashes []chainhash.Hash
+}
+
 // FilterByBlockHash returns the version 2 GCS filter for the given block hash
-// when it exists.  This function returns the filters regardless of whether or
-// not their associated block is part of the main chain.
+// along with a header commitment inclusion proof when they exist.  This
+// function returns the filters regardless of whether or not their associated
+// block is part of the main chain.
 //
 // An error that wraps ErrNoFilter will be returned when the filter for the
 // given block hash does not exist.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error) {
+func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *HeaderProof, error) {
 	var filter *gcs.FilterV2
 	err := b.db.View(func(dbTx database.Tx) error {
 		var err error
 		filter, err = dbFetchGCSFilter(dbTx, hash)
 		return err
 	})
-	if err == nil && filter == nil {
-		str := fmt.Sprintf("no filter available for block %s", hash)
-		err = contextError(ErrNoFilter, str)
+	if err != nil {
+		return nil, nil, err
 	}
-	return filter, err
+	if filter == nil {
+		str := fmt.Sprintf("no filter available for block %s", hash)
+		return nil, nil, contextError(ErrNoFilter, str)
+	}
+
+	// NOTE: When more header commitments are added, this will need to load the
+	// inclusion proof for the filter from the database.  However, since there
+	// is only currently a single commitment, there is only a single leaf in the
+	// commitment merkle tree, and hence the proof hashes will always be empty
+	// given there are no siblings.  Adding an additional header commitment will
+	// require a consensus vote anyway and this can be updated at that time.
+	headerProof := &HeaderProof{
+		ProofIndex:  HeaderCmtFilterIndex,
+		ProofHashes: nil,
+	}
+	return filter, headerProof, nil
 }

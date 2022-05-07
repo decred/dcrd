@@ -1466,7 +1466,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 
 	// Ensure the CFilter committed to the outputs of the TSpend and TAdds.
 	tipHash = &g.chain.BestSnapshot().Hash
-	bcf, err := g.chain.FilterByBlockHash(tipHash)
+	bcf, _, err := g.chain.FilterByBlockHash(tipHash)
 	if err != nil {
 		t.Fatal(err)
 	}
