@@ -145,6 +145,14 @@ type HeaderProof struct {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *HeaderProof, error) {
+	// Avoid a database lookup when there is no way the filter data for the
+	// requested block is available.
+	node := b.index.LookupNode(hash)
+	if node == nil || !b.index.NodeStatus(node).HaveData() {
+		str := fmt.Sprintf("no filter available for block %s", hash)
+		return nil, nil, contextError(ErrNoFilter, str)
+	}
+
 	var filter *gcs.FilterV2
 	err := b.db.View(func(dbTx database.Tx) error {
 		var err error
