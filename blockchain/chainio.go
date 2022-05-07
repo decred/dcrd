@@ -826,8 +826,7 @@ func dbRemoveSpendJournalEntry(dbTx database.Tx, blockHash *chainhash.Hash) erro
 //
 // -----------------------------------------------------------------------------
 
-// dbFetchGCSFilter fetches the GCS filter for the passed block and deserializes
-// it into a slice of spent txout entries.
+// dbFetchGCSFilter fetches the version 2 GCS filter for the passed block.
 //
 // When there is no entry for the provided hash, nil will be returned for both
 // the filter and the error.
@@ -847,8 +846,8 @@ func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV
 	return filter, nil
 }
 
-// dbPutGCSFilter uses an existing database transaction to update the GCS filter
-// for the given block hash using the provided filter.
+// dbPutGCSFilter uses an existing database transaction to update the version 2
+// GCS filter for the given block hash using the provided filter.
 func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.FilterV2) error {
 	filterBucket := dbTx.Metadata().Bucket(gcsFilterBucketName)
 	serialized := filter.Bytes()
