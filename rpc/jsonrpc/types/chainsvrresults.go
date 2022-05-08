@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -90,6 +90,16 @@ type GetBlockVerboseResult struct {
 	PreviousHash  string        `json:"previousblockhash"`
 	NextHash      string        `json:"nextblockhash,omitempty"`
 }
+
+// The following constants specify the possible status strings for an agenda in
+// a consensus deployment of a getblockchaininfo result.
+const (
+	AgendaInfoStatusDefined  = "defined"
+	AgendaInfoStatusStarted  = "started"
+	AgendaInfoStatusLockedIn = "lockedin"
+	AgendaInfoStatusActive   = "active"
+	AgendaInfoStatusFailed   = "failed"
+)
 
 // AgendaInfo provides an overview of an agenda in a consensus deployment.
 type AgendaInfo struct {
