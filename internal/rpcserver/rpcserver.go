@@ -2018,6 +2018,26 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 	return blockReply, nil
 }
 
+// thresholdStateToAgendaStatus converts a threshold state tuple to an agenda
+// status string suitable for use in the response to the getblockchaininfo
+// command.
+func thresholdStateToAgendaStatus(state blockchain.ThresholdStateTuple) string {
+	switch state.State {
+	case blockchain.ThresholdDefined:
+		return types.AgendaInfoStatusDefined
+	case blockchain.ThresholdStarted:
+		return types.AgendaInfoStatusStarted
+	case blockchain.ThresholdLockedIn:
+		return types.AgendaInfoStatusLockedIn
+	case blockchain.ThresholdActive:
+		return types.AgendaInfoStatusActive
+	case blockchain.ThresholdFailed:
+		return types.AgendaInfoStatusFailed
+	}
+
+	return types.AgendaInfoStatusDefined
+}
+
 // handleGetBlockchainInfo implements the getblockchaininfo command.
 func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
@@ -2052,9 +2072,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 	// Fetch the agendas of the consensus deployments as well as their
 	// threshold states and state activation heights.
 	dInfo := make(map[string]types.AgendaInfo)
-	defaultStatus := blockchain.ThresholdStateTuple{
-		State: blockchain.ThresholdDefined,
-	}.String()
+	defaultStatus := types.AgendaInfoStatusDefined
 	for version, deployments := range params.Deployments {
 		for _, agenda := range deployments {
 			aInfo := types.AgendaInfo{
@@ -2087,7 +2105,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 			}
 
 			aInfo.Since = stateChangedHeight
-			aInfo.Status = state.String()
+			aInfo.Status = thresholdStateToAgendaStatus(state)
 			dInfo[agenda.Vote.Id] = aInfo
 		}
 	}
