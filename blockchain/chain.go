@@ -135,18 +135,19 @@ type BlockChain struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
-	assumeValid      chainhash.Hash
-	latestCheckpoint *chaincfg.Checkpoint
-	deploymentVers   map[string]uint32
-	db               database.DB
-	dbInfo           *databaseInfo
-	chainParams      *chaincfg.Params
-	timeSource       MedianTimeSource
-	notifications    NotificationCallback
-	sigCache         *txscript.SigCache
-	indexSubscriber  *indexers.IndexSubscriber
-	interrupt        <-chan struct{}
-	utxoCache        UtxoCacher
+	assumeValid              chainhash.Hash
+	latestCheckpoint         *chaincfg.Checkpoint
+	expectedBlocksInTwoWeeks int64
+	deploymentVers           map[string]uint32
+	db                       database.DB
+	dbInfo                   *databaseInfo
+	chainParams              *chaincfg.Params
+	timeSource               MedianTimeSource
+	notifications            NotificationCallback
+	sigCache                 *txscript.SigCache
+	indexSubscriber          *indexers.IndexSubscriber
+	interrupt                <-chan struct{}
+	utxoCache                UtxoCacher
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -2355,9 +2356,15 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		subsidyCache = standalone.NewSubsidyCache(params)
 	}
 
+	// Calculate the expected number of blocks in 2 weeks and cache it in order
+	// to avoid repeated calculation.
+	const timeInTwoWeeks = time.Hour * 24 * 14
+	expectedBlksInTwoWeeks := int64(timeInTwoWeeks / params.TargetTimePerBlock)
+
 	b := BlockChain{
 		assumeValid:                   config.AssumeValid,
 		latestCheckpoint:              config.LatestCheckpoint,
+		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,
 		chainParams:                   params,

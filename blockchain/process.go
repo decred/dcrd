@@ -8,7 +8,6 @@ package blockchain
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -94,21 +93,16 @@ func (b *BlockChain) isAssumeValidAncestor(node *blockNode) bool {
 		return false
 	}
 
-	// Calculate the expected number of blocks in 2 weeks.
-	const timeInTwoWeeks = time.Hour * 24 * 14
-	targetTimePerBlock := b.chainParams.TargetTimePerBlock
-	expectedBlocksInTwoWeeks := int64(timeInTwoWeeks / targetTimePerBlock)
-
 	// Return false if the best header height is less than the number of blocks
 	// expected in 2 weeks.
-	if bestHeader.height < expectedBlocksInTwoWeeks {
+	if bestHeader.height < b.expectedBlocksInTwoWeeks {
 		return false
 	}
 
 	// Clamp the assumed valid node back as needed to ensure that it is at least
 	// 2 weeks worth of blocks behind the best header.
 	assumeValidNode := b.assumeValidNode
-	clampToHeight := bestHeader.height - expectedBlocksInTwoWeeks
+	clampToHeight := bestHeader.height - b.expectedBlocksInTwoWeeks
 	if assumeValidNode.height > clampToHeight {
 		assumeValidNode = assumeValidNode.Ancestor(clampToHeight)
 	}
