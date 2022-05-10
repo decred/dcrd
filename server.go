@@ -2578,7 +2578,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		//   voting begins
 		// - The block that would build on this one would not cause a reorg
 		//   larger than the max reorg notify depth
-		// - This block is after the final checkpoint height
 		// - A notification for this block has not already been sent
 		//
 		// To help visualize the math here, consider the following two competing
@@ -2610,7 +2609,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		if s.rpcServer != nil &&
 			blockHeight >= s.chainParams.StakeValidationHeight-1 &&
 			reorgDepth < maxReorgDepthNotify &&
-			blockHeight > s.chainParams.LatestCheckpointHeight() &&
 			!isOldMainnetBlock &&
 			!s.notifiedWinningTickets(blockHash) {
 
