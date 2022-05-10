@@ -763,6 +763,8 @@ func (p *Params) TotalSubsidyProportions() uint16 {
 
 // LatestCheckpointHeight is the height of the latest checkpoint block in the
 // parameters.
+//
+// Deprecated: This will be removed in the next major version bump.
 func (p *Params) LatestCheckpointHeight() int64 {
 	if len(p.Checkpoints) == 0 {
 		return 0
