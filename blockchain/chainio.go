@@ -1587,15 +1587,8 @@ func (b *BlockChain) initChainState(ctx context.Context,
 			return err
 		}
 
-		// Find the most recent checkpoint.
-		if b.latestCheckpoint != nil {
-			node := b.index.lookupNode(b.latestCheckpoint.Hash)
-			if node != nil {
-				log.Debugf("Most recent checkpoint is %s (height %d)",
-					node.hash, node.height)
-				b.checkpointNode = node
-			}
-		}
+		// Attempt to discover and set the old fork rejection checkpoint node.
+		b.maybeSetForkRejectionCheckpoint()
 
 		// Find the assumed valid node.
 		if b.assumeValid != *zeroHash {

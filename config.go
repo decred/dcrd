@@ -193,9 +193,9 @@ type config struct {
 	Whitelists     []string      `long:"whitelist" description:"Add an IP network or IP that will not be banned. (eg. 192.168.1.0/24 or ::1)"`
 
 	// Chain related options.
-	DisableCheckpoints bool   `long:"nocheckpoints" description:"Disable built-in checkpoints.  Don't do this unless you know what you're doing"`
-	DumpBlockchain     string `long:"dumpblockchain" description:"Write blockchain as a flat file of blocks for use with addblock, to the specified filename"`
-	AssumeValid        string `long:"assumevalid" description:"Hash of an assumed valid block.  Defaults to the hard-coded assumed valid block that is updated periodically with new releases.  Don't use a different hash unless you understand the implications.  Set to 0 to disable"`
+	AllowOldForks  bool   `long:"allowoldforks" description:"Process forks deep in history.  Don't do this unless you know what you're doing"`
+	DumpBlockchain string `long:"dumpblockchain" description:"Write blockchain as a flat file of blocks for use with addblock, to the specified filename"`
+	AssumeValid    string `long:"assumevalid" description:"Hash of an assumed valid block.  Defaults to the hard-coded assumed valid block that is updated periodically with new releases.  Don't use a different hash unless you understand the implications.  Set to 0 to disable"`
 
 	// Relay and mempool policy.
 	MinRelayTxFee    float64 `long:"minrelaytxfee" description:"The minimum transaction fee in DCR/kB to be considered a non-zero fee"`

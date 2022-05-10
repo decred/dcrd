@@ -114,7 +114,8 @@ func SimNetParams() *Params {
 		Checkpoints: nil,
 
 		// AssumeValid is the hash of a block that has been externally verified
-		// to be valid.
+		// to be valid.  It is also used to determine the old forks rejection
+		// checkpoint.
 		//
 		// Not set for simnet test network since its chain is dynamic.
 		AssumeValid: chainhash.Hash{},

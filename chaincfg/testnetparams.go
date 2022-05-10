@@ -116,7 +116,8 @@ func TestNet3Params() *Params {
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It allows several validation checks to be skipped for
 		// blocks that are both an ancestor of the assumed valid block and an
-		// ancestor of the best header.  This is intended to be updated
+		// ancestor of the best header.  It is also used to determine the old
+		// forks rejection checkpoint.  This is intended to be updated
 		// periodically with new releases.
 		//
 		// Block 00000000d64ceb1a686315ed56235e9a6838e3a22e9ec9bd92c2e04c09e0778b

@@ -17,7 +17,6 @@ import (
 	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
@@ -321,23 +320,14 @@ func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r
 		MaxSize:      100 * 1024 * 1024, // 100 MiB
 	})
 
-	var latestCheckpoint *chaincfg.Checkpoint
-	numCheckpoints := len(activeNetParams.Checkpoints)
-	if numCheckpoints != 0 {
-		// Only use the most recent checkpoint, which is the last entry in the
-		// slice.
-		latestCheckpoint = &activeNetParams.Checkpoints[numCheckpoints-1]
-	}
-
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
-			DB:               db,
-			ChainParams:      activeNetParams,
-			LatestCheckpoint: latestCheckpoint,
-			TimeSource:       blockchain.NewMedianTime(),
-			IndexSubscriber:  subber,
-			UtxoBackend:      blockchain.NewLevelDbUtxoBackend(utxoDb),
-			UtxoCache:        utxoCache,
+			DB:              db,
+			ChainParams:     activeNetParams,
+			TimeSource:      blockchain.NewMedianTime(),
+			IndexSubscriber: subber,
+			UtxoBackend:     blockchain.NewLevelDbUtxoBackend(utxoDb),
+			UtxoCache:       utxoCache,
 		})
 	if err != nil {
 		return nil, err

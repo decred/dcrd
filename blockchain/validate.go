@@ -1102,27 +1102,20 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		return ruleError(ErrBadBlockHeight, errStr)
 	}
 
-	// Prevent blocks that fork the main chain before the most recently known
-	// checkpoint.  This prevents storage of new, otherwise valid, blocks which
-	// build off of old blocks that are likely at a much easier difficulty and
-	// therefore could be used to waste cache and disk space.
-	checkpoint := b.checkpointNode
+	// Prevent blocks that fork the main chain prior to the old fork rejection
+	// checkpoint.  This prevents storage of new, otherwise valid, block headers
+	// which build off of old blocks that are likely at a much easier difficulty
+	// and therefore could be used to waste cache and disk space.
+	checkpoint := b.rejectForksCheckpoint
 	blockHash := header.BlockHash()
 	if checkpoint != nil && blockHeight < checkpoint.height &&
 		(!prevNode.IsAncestorOf(checkpoint) ||
 			b.index.LookupNode(&blockHash) == nil) {
 
 		str := fmt.Sprintf("block at height %d forks the main chain before "+
-			"the previous checkpoint at height %d", blockHeight,
+			"the fork rejection checkpoint at height %d", blockHeight,
 			checkpoint.height)
 		return ruleError(ErrForkTooOld, str)
-	}
-
-	// Ensure chain matches up to predetermined checkpoints.
-	if !b.verifyCheckpoint(blockHeight, &blockHash) {
-		str := fmt.Sprintf("block at height %d does not match "+
-			"checkpoint hash", blockHeight)
-		return ruleError(ErrBadCheckpoint, str)
 	}
 
 	if !fastAdd {

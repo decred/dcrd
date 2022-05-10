@@ -125,7 +125,7 @@ Application Options:
                                and banning misbehaving peers (default: 100)
       --whitelist=             Add an IP network or IP that will not be banned.
                                (eg. 192.168.1.0/24 or ::1)
-      --nocheckpoints          Disable built-in checkpoints.  Don't do this
+      --allowoldforks          Process forks deep in history.  Don't do this
                                unless you know what you're doing
       --dumpblockchain=        Write blockchain as a flat file of blocks for use
                                with addblock, to the specified filename

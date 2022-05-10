@@ -364,7 +364,8 @@ type Params struct {
 	// AssumeValid is the hash of a block that has been externally verified to
 	// be valid.  It allows several validation checks to be skipped for blocks
 	// that are both an ancestor of the assumed valid block and an ancestor of
-	// the best header.  This is intended to be updated periodically with new
+	// the best header.  It is also used to determine the old forks rejection
+	// checkpoint.  This is intended to be updated periodically with new
 	// releases.  It may not be set for networks that do not require it.
 	AssumeValid chainhash.Hash
 

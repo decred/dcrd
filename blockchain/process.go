@@ -56,6 +56,38 @@ func (b *BlockChain) checkKnownInvalidBlock(node *blockNode) error {
 	return nil
 }
 
+// maybeSetForkRejectionCheckpoint attempts to discover and set the old fork
+// rejection checkpoint node when it has not already been discovered and old
+// forks are not allowed for the current network.
+//
+// This function MUST be called with the chain lock held (for writes).
+func (b *BlockChain) maybeSetForkRejectionCheckpoint() {
+	// Nothing to do when the old fork rejection checkpoint has already been
+	// determined or old forks are allowed for the current network.
+	if b.rejectForksCheckpoint != nil || b.allowOldForks {
+		return
+	}
+
+	// Nothing to do when the hard-coded assume valid node is not yet known.
+	hardCodedAssumeValid := b.index.LookupNode(&b.chainParams.AssumeValid)
+	if hardCodedAssumeValid == nil {
+		return
+	}
+
+	// Set the old fork rejection point to 2 weeks worth of blocks behind the
+	// hard-coded assumed valid block or the genesis block in the case there
+	// are not enough blocks.
+	checkpointHeight := hardCodedAssumeValid.height - b.expectedBlocksInTwoWeeks
+	if checkpointHeight < 0 {
+		checkpointHeight = 0
+	}
+	b.rejectForksCheckpoint = hardCodedAssumeValid.Ancestor(checkpointHeight)
+	if node := b.rejectForksCheckpoint; node != nil {
+		log.Debugf("Fork rejection checkpoint set to %s (height %d)", node.hash,
+			node.height)
+	}
+}
+
 // maybeUpdateAssumeValid potentially updates the assumed valid node to the
 // provided block node.
 //
@@ -186,9 +218,9 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeade
 	newNode.status = statusNone
 	b.index.AddNode(newNode)
 
-	// Potentially update the most recently known checkpoint to this block
-	// header.
-	b.maybeUpdateMostRecentCheckpoint(newNode)
+	// Attempt to discover and set the old fork rejection checkpoint node if
+	// needed now that a new header is available.
+	b.maybeSetForkRejectionCheckpoint()
 
 	// Potentially update the assumed valid node to this block header.
 	b.maybeUpdateAssumeValid(newNode)

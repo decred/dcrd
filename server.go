@@ -3455,6 +3455,10 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.feeEstimator = fe
 
+	if cfg.AllowOldForks {
+		srvrLog.Info("Processing forks deep in history is enabled")
+	}
+
 	// Set assume valid when enabled.
 	var assumeValid chainhash.Hash
 	if cfg.AssumeValid != "0" {
@@ -3475,15 +3479,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		srvrLog.Info("Assume valid is disabled")
 	}
 
-	// Only configure checkpoints when enabled.
-	var latestCheckpoint *chaincfg.Checkpoint
-	numCheckpoints := len(s.chainParams.Checkpoints)
-	if !cfg.DisableCheckpoints && numCheckpoints != 0 {
-		// Only use the most recent checkpoint, which is the last entry in the
-		// slice.
-		latestCheckpoint = &s.chainParams.Checkpoints[numCheckpoints-1]
-	}
-
 	// Create a new block chain instance with the appropriate configuration.
 	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
 	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
@@ -3493,17 +3488,16 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	})
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
-			DB:               s.db,
-			UtxoBackend:      utxoBackend,
-			ChainParams:      s.chainParams,
-			AssumeValid:      assumeValid,
-			LatestCheckpoint: latestCheckpoint,
-			TimeSource:       s.timeSource,
-			Notifications:    s.handleBlockchainNotification,
-			SigCache:         s.sigCache,
-			SubsidyCache:     s.subsidyCache,
-			IndexSubscriber:  s.indexSubscriber,
-			UtxoCache:        utxoCache,
+			DB:              s.db,
+			UtxoBackend:     utxoBackend,
+			ChainParams:     s.chainParams,
+			AssumeValid:     assumeValid,
+			TimeSource:      s.timeSource,
+			Notifications:   s.handleBlockchainNotification,
+			SigCache:        s.sigCache,
+			SubsidyCache:    s.subsidyCache,
+			IndexSubscriber: s.indexSubscriber,
+			UtxoCache:       utxoCache,
 		})
 	if err != nil {
 		return nil, err
@@ -3626,10 +3620,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.txMemPool = mempool.New(&txC)
 
-	// Create a new sync manager instance with the appropriate configuration.
-	if cfg.DisableCheckpoints {
-		srvrLog.Info("Checkpoints are disabled")
-	}
 	s.syncManager = netsync.New(&netsync.Config{
 		PeerNotifier:          &s,
 		Chain:                 s.chain,

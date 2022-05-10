@@ -136,7 +136,7 @@ type BlockChain struct {
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
 	assumeValid              chainhash.Hash
-	latestCheckpoint         *chaincfg.Checkpoint
+	allowOldForks            bool
 	expectedBlocksInTwoWeeks int64
 	deploymentVers           map[string]uint32
 	db                       database.DB
@@ -205,15 +205,17 @@ type BlockChain struct {
 	disapprovedViewLock sync.Mutex
 	disapprovedView     *UtxoViewpoint
 
+	// rejectForksCheckpoint tracks the block to treat as a checkpoint for the
+	// purposes of rejecting old forks.  It will be nil when no suitable block
+	// is known or old forks are allowed for the current network.
+	//
+	// It is protected by the chain lock.
+	rejectForksCheckpoint *blockNode
+
 	// assumeValidNode tracks the assumed valid block.  It will be nil when a
 	// block header with the assumed valid block hash has not been discovered or
 	// when assume valid is disabled.  It is protected by the chain lock.
 	assumeValidNode *blockNode
-
-	// checkpointNode tracks the most recently known checkpoint.  It will be nil
-	// when no checkpoints are known or are disabled.  It is protected by the
-	// chain lock.
-	checkpointNode *blockNode
 
 	// The state is used as a fairly efficient way to cache information
 	// about the current best chain state that is returned to callers when
@@ -2270,6 +2272,14 @@ type Config struct {
 	// This field is required.
 	ChainParams *chaincfg.Params
 
+	// AllowOldForks enables processing of blocks that are forks deep in the
+	// chain history.  This should realistically never need to be enabled in
+	// practice, however, it is provided for testing purposes as well as a
+	// recovery mechanism in the extremely unlikely case that a node were to
+	// somehow get stuck on a bad fork and be unable to reorg to the good one
+	// due to the old fork rejection semantics.
+	AllowOldForks bool
+
 	// AssumeValid is the hash of a block that has been externally verified to
 	// be valid.  It allows several validation checks to be skipped for blocks
 	// that are both an ancestor of the assumed valid block and an ancestor of
@@ -2277,12 +2287,6 @@ type Config struct {
 	//
 	// This field may not be set for networks that do not require it.
 	AssumeValid chainhash.Hash
-
-	// LatestCheckpoint specifies the most recent known checkpoint that is
-	// typically the default checkpoint in ChainParams.
-	//
-	// This field can be nil if the caller does not wish to specify a checkpoint.
-	LatestCheckpoint *chaincfg.Checkpoint
 
 	// TimeSource defines the median time source to use for things such as
 	// block processing and determining whether or not the chain is current.
@@ -2361,9 +2365,17 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	const timeInTwoWeeks = time.Hour * 24 * 14
 	expectedBlksInTwoWeeks := int64(timeInTwoWeeks / params.TargetTimePerBlock)
 
+	// Fork rejection semantics are disabled when explicitly requested or the
+	// hard-coded assume valid hash is not set for the current network.
+	//
+	// Note that this is very intentionally using the hard-coded value specified
+	// in the chain params as opposed to the one that a user might have
+	// overridden in the passed config since fork rejection affects consensus.
+	allowOldForks := config.AllowOldForks || params.AssumeValid == *zeroHash
+
 	b := BlockChain{
 		assumeValid:                   config.AssumeValid,
-		latestCheckpoint:              config.LatestCheckpoint,
+		allowOldForks:                 allowOldForks,
 		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,

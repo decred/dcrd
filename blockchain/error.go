@@ -98,12 +98,8 @@ const (
 	// not match the expected value.
 	ErrBadCommitmentRoot = ErrorKind("ErrBadCommitmentRoot")
 
-	// ErrBadCheckpoint indicates a block that is expected to be at a
-	// checkpoint height does not match the expected one.
-	ErrBadCheckpoint = ErrorKind("ErrBadCheckpoint")
-
 	// ErrForkTooOld indicates a block is attempting to fork the block chain
-	// before the most recent checkpoint.
+	// before the fork rejection checkpoint.
 	ErrForkTooOld = ErrorKind("ErrForkTooOld")
 
 	// ErrNoTransactions indicates the block does not have a least one

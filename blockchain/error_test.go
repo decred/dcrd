@@ -32,7 +32,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrHighHash, "ErrHighHash"},
 		{ErrBadMerkleRoot, "ErrBadMerkleRoot"},
 		{ErrBadCommitmentRoot, "ErrBadCommitmentRoot"},
-		{ErrBadCheckpoint, "ErrBadCheckpoint"},
 		{ErrForkTooOld, "ErrForkTooOld"},
 		{ErrNoTransactions, "ErrNoTransactions"},
 		{ErrNoTxInputs, "ErrNoTxInputs"},

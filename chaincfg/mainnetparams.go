@@ -121,7 +121,8 @@ func MainNetParams() *Params {
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It allows several validation checks to be skipped for
 		// blocks that are both an ancestor of the assumed valid block and an
-		// ancestor of the best header.  This is intended to be updated
+		// ancestor of the best header.  It is also used to determine the old
+		// forks rejection checkpoint.  This is intended to be updated
 		// periodically with new releases.
 		//
 		// Block 00000000000000001251efb83ad1a5c71351b50fe9195f009cf0bf5a7cd99d52
