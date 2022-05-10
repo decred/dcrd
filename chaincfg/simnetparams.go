@@ -110,9 +110,6 @@ func SimNetParams() *Params {
 		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
-		// Checkpoints ordered from oldest to newest.
-		Checkpoints: nil,
-
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It is also used to determine the old forks rejection
 		// checkpoint.

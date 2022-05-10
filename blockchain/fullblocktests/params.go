@@ -133,9 +133,6 @@ var regNetParams = &chaincfg.Params{
 	StakeRewardProportionV2:  8,
 	BlockTaxProportion:       1,
 
-	// Checkpoints ordered from oldest to newest.
-	Checkpoints: nil,
-
 	// Consensus rule change deployments.
 	//
 	// The miner confirmation window is defined as:

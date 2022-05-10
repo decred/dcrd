@@ -354,11 +354,11 @@ type Params struct {
 	// Deprecated: This will be removed in the next major version bump.
 	BlockTaxProportion uint16
 
-	// Checkpoints ordered from oldest to newest.
+	// Checkpoints previously housed manual checkpoints ordered from oldest to
+	// newest. It is no longer used in any way since manual checkpoints no
+	// longer exist.
 	//
-	// Note: Only the most recent checkpoint is used and all others are ignored.
-	// This is left as a slice to avoid a major version bump for the module and
-	// will likely be changed to only allow a single checkpoint in the future.
+	// Deprecated: This will be removed in the next major version bump.
 	Checkpoints []Checkpoint
 
 	// AssumeValid is the hash of a block that has been externally verified to

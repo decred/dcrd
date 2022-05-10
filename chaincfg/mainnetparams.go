@@ -111,13 +111,6 @@ func MainNetParams() *Params {
 		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
-		// Checkpoints ordered from oldest to newest.  Note that only the latest
-		// checkpoint is provided since with headers first syncing the most recent
-		// checkpoint will be discovered before block syncing even starts.
-		Checkpoints: []Checkpoint{
-			{601900, newHashFromStr("00000000000000001c1865a45a038bb680fc076d70cd88c1843e3e669cb54942")},
-		},
-
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It allows several validation checks to be skipped for
 		// blocks that are both an ancestor of the assumed valid block and an

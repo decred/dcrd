@@ -106,13 +106,6 @@ func TestNet3Params() *Params {
 		StakeRewardProportionV2:  8,
 		BlockTaxProportion:       1,
 
-		// Checkpoints ordered from oldest to newest.  Note that only the latest
-		// checkpoint is provided since with headers first syncing the most recent
-		// checkpoint will be discovered before block syncing even starts.
-		Checkpoints: []Checkpoint{
-			{803810, newHashFromStr("000000016e841f4d94c3b253bc7bdf3a13217c7f28a5935bbaec37c7752678e9")},
-		},
-
 		// AssumeValid is the hash of a block that has been externally verified
 		// to be valid.  It allows several validation checks to be skipped for
 		// blocks that are both an ancestor of the assumed valid block and an
