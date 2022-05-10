@@ -828,14 +828,15 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			})
 	}
 
-	// Optimization: Before checkpoints, immediately dump the parent's stake
-	// node because we no longer need it.
-	var latestCheckpointHeight int64
-	if b.latestCheckpoint != nil {
-		latestCheckpointHeight = b.latestCheckpoint.Height
+	// Optimization:  Immediately prune the parent's stake node when it is no
+	// longer needed due to being too far behind the best known header.
+	var pruneHeight int64
+	bestHeader := b.index.BestHeader()
+	if bestHeader.height > minMemoryStakeNodes {
+		pruneHeight = bestHeader.height - minMemoryStakeNodes
 	}
-	if node.height < latestCheckpointHeight {
-		parent := b.bestChain.Tip().parent
+	if node.height < pruneHeight {
+		parent := node.parent
 		parent.stakeNode = nil
 		parent.newTickets = nil
 		parent.ticketsVoted = nil
