@@ -1531,7 +1531,7 @@ func (b *BlockChain) flushBlockIndex() error {
 			return err
 		}
 	}
-	return b.index.flush()
+	return b.index.Flush()
 }
 
 // flushBlockIndexWarnOnly attempts to flush any modified block index nodes to

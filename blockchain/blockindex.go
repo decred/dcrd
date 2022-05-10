@@ -1362,9 +1362,11 @@ func (bi *blockIndex) FindBestChainCandidate() *blockNode {
 	return bestCandidate
 }
 
-// flush writes all of the modified block nodes to the database and clears the
+// Flush writes all of the modified block nodes to the database and clears the
 // set of modified nodes if it succeeds.
-func (bi *blockIndex) flush() error {
+//
+// This function is safe for concurrent access.
+func (bi *blockIndex) Flush() error {
 	// Nothing to flush if there are no modified nodes.
 	bi.Lock()
 	if len(bi.modified) == 0 {
