@@ -1069,6 +1069,23 @@ func (bi *blockIndex) maybeUpdateBestHeaderForTip(tip *blockNode) {
 	}
 }
 
+// BestHeader returns the header with the most cumulative work that is NOT known
+// to be invalid.  This is not necessarily the same as the active best chain,
+// especially when block data is not yet known.  However, since block nodes are
+// only added to the index for block headers that pass all sanity and positional
+// checks, which include checking proof of work, it does represent the tip of
+// the header chain with the highest known work that has a reasonably high
+// chance of becoming the best chain tip and is useful for things such as
+// reporting progress and discovering the most suitable blocks to download.
+//
+// This function is safe for concurrent access.
+func (bi *blockIndex) BestHeader() *blockNode {
+	bi.RLock()
+	bestHeader := bi.bestHeader
+	bi.RUnlock()
+	return bestHeader
+}
+
 // MarkBlockFailedValidation marks the passed node as having failed validation
 // and then marks all of its descendants (if any) as having a failed ancestor.
 //

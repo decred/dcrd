@@ -1578,9 +1578,7 @@ func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
 
 		// Not current if the best block is not synced to the header with the
 		// most cumulative work that is not known to be invalid.
-		b.index.RLock()
-		bestHeader := b.index.bestHeader
-		b.index.RUnlock()
+		bestHeader := b.index.BestHeader()
 		syncedToBestHeader := curBest.height == bestHeader.height ||
 			bestHeader.IsAncestorOf(curBest)
 		if !syncedToBestHeader {
@@ -2412,9 +2410,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	log.Infof("UTXO database version info: version: %d, compression: %d, utxo "+
 		"set: %d", utxoDbInfo.version, utxoDbInfo.compVer, utxoDbInfo.utxoVer)
 
-	b.index.RLock()
-	bestHdr := b.index.bestHeader
-	b.index.RUnlock()
+	bestHdr := b.index.BestHeader()
 	log.Infof("Best known header: height %d, hash %v", bestHdr.height,
 		bestHdr.hash)
 

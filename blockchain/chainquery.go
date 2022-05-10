@@ -141,9 +141,7 @@ func (b *BlockChain) ChainTips() []ChainTipInfo {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) BestHeader() (chainhash.Hash, int64) {
-	b.index.RLock()
-	header := b.index.bestHeader
-	b.index.RUnlock()
+	header := b.index.BestHeader()
 	return header.hash, header.height
 }
 
@@ -244,9 +242,7 @@ func (b *BlockChain) PutNextNeededBlocks(out []chainhash.Hash) []chainhash.Hash 
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) VerifyProgress() float64 {
-	b.index.RLock()
-	bestHdr := b.index.bestHeader
-	b.index.RUnlock()
+	bestHdr := b.index.BestHeader()
 	if bestHdr.height == 0 {
 		return 0.0
 	}

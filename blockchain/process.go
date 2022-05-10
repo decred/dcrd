@@ -89,9 +89,7 @@ func (b *BlockChain) isAssumeValidAncestor(node *blockNode) bool {
 	}
 
 	// Return false if the node is not an ancestor of the best header.
-	b.index.RLock()
-	bestHeader := b.index.bestHeader
-	b.index.RUnlock()
+	bestHeader := b.index.BestHeader()
 	if !node.IsAncestorOf(bestHeader) {
 		return false
 	}
