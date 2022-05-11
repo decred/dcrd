@@ -76,6 +76,8 @@ type ChainTipInfo struct {
 
 // ChainTips returns information, in JSON-RPC format, about all of the currently
 // known chain tips in the block index.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) ChainTips() []ChainTipInfo {
 	b.index.RLock()
 	chainTips := make([]*blockNode, 0, b.index.totalTips)
@@ -136,6 +138,8 @@ func (b *BlockChain) ChainTips() []ChainTipInfo {
 
 // BestHeader returns the header with the most cumulative work that is NOT
 // known to be invalid.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) BestHeader() (chainhash.Hash, int64) {
 	b.index.RLock()
 	header := b.index.bestHeader
@@ -146,6 +150,8 @@ func (b *BlockChain) BestHeader() (chainhash.Hash, int64) {
 // BestInvalidHeader returns the header with the most cumulative work that is
 // known to be invalid.  It will be a hash of all zeroes if there is no such
 // header.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) BestInvalidHeader() chainhash.Hash {
 	var hash chainhash.Hash
 	b.index.RLock()
