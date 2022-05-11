@@ -106,18 +106,10 @@ const (
 	// before the most recent checkpoint.
 	ErrForkTooOld = ErrorKind("ErrForkTooOld")
 
-	// ErrCheckpointTimeTooOld indicates a block has a timestamp before the
-	// most recent checkpoint.
-	ErrCheckpointTimeTooOld = ErrorKind("ErrCheckpointTimeTooOld")
-
 	// ErrNoTransactions indicates the block does not have a least one
 	// transaction.  A valid block must have at least the coinbase
 	// transaction.
 	ErrNoTransactions = ErrorKind("ErrNoTransactions")
-
-	// ErrTooManyTransactions indicates the block has more transactions than
-	// are allowed.
-	ErrTooManyTransactions = ErrorKind("ErrTooManyTransactions")
 
 	// ErrNoTxInputs indicates a transaction does not have any inputs.  A
 	// valid transaction must have at least one input.
@@ -126,10 +118,6 @@ const (
 	// ErrNoTxOutputs indicates a transaction does not have any outputs.  A
 	// valid transaction must have at least one output.
 	ErrNoTxOutputs = ErrorKind("ErrNoTxOutputs")
-
-	// ErrInvalidTxOutputs indicates a transaction does not have the exact
-	// number of outputs.
-	ErrInvalidTxOutputs = ErrorKind("ErrInvalidTxOutputs")
 
 	// ErrTxTooBig indicates a transaction exceeds the maximum allowed size
 	// when serialized.
@@ -364,10 +352,6 @@ const (
 	// ErrInvalidRevokeInput indicates that an input to a revocation transaction
 	// is either not a stake ticket submission or is not a supported version.
 	ErrInvalidRevokeInput = ErrorKind("ErrInvalidRevokeInput")
-
-	// ErrSSRtxPayees indicates that the SSRtx failed to pay out to the committed
-	// addresses or amounts from the originating SStx.
-	ErrSSRtxPayees = ErrorKind("ErrSSRtxPayees")
 
 	// ErrTxSStxOutSpend indicates that a non SSGen or SSRtx tx attempted to spend
 	// an OP_SSTX tagged output from an SStx.
