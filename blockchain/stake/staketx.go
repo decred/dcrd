@@ -126,6 +126,11 @@ const (
 	// is set.
 	SStxRevReturnFractionMask = 0x3f00
 
+	// SStxRevReturnFractionShift is the number of bits to shift to the right
+	// to yield the correct value after applying the SStxRevReturnFractionMask
+	// bitmask with AND.
+	SStxRevReturnFractionShift = 8
+
 	// SStxVoteFractionFlag is a bitflag mask specifying whether or not to
 	// apply a fractional limit to the amount used for fees in a vote.
 	// 00000000 00000000 = No fees allowed
@@ -384,7 +389,7 @@ func SStxStakeOutputInfo(outs []*MinimalOutput) ([]bool, [][]byte, []int64,
 			// This is the fraction to use out of 64.
 			spendLimits[0] = feeLimitUint16 & SStxVoteReturnFractionMask
 			spendLimits[1] = feeLimitUint16 & SStxRevReturnFractionMask
-			spendLimits[1] >>= 8
+			spendLimits[1] >>= SStxRevReturnFractionShift
 			allSpendLimits[idx/2] = spendLimits
 		}
 

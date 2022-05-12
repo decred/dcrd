@@ -2461,11 +2461,13 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 	reqStakeOpcode := byte(txscript.OP_SSGEN)
 	hasFeeLimitFlag := uint16(stake.SStxVoteFractionFlag)
 	feeLimitMask := uint16(stake.SStxVoteReturnFractionMask)
+	var feeLimitShift uint16
 	if !isVote {
 		startIdx = 0
 		reqStakeOpcode = txscript.OP_SSRTX
 		hasFeeLimitFlag = stake.SStxRevFractionFlag
 		feeLimitMask = stake.SStxRevReturnFractionMask
+		feeLimitShift = stake.SStxRevReturnFractionShift
 	}
 	ticketPaidAmt := ticketOuts[submissionOutputIdx].Value
 
@@ -2577,7 +2579,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash,
 			// limit while preventing degenerate cases such as negative numbers
 			// for 63.
 			var amtLimitLow int64
-			feeLimitLog2 := feeLimitsEncoded & feeLimitMask
+			feeLimitLog2 := (feeLimitsEncoded & feeLimitMask) >> feeLimitShift
 			if feeLimitLog2 < 63 {
 				feeLimit := int64(1 << uint64(feeLimitLog2))
 				if feeLimit < expectedOutAmt {
