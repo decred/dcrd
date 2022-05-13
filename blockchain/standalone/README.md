@@ -34,6 +34,10 @@ The provided functions fall into the following categories:
   - Stake vote subsidy for a given height
   - Treasury subsidy for a given height and number of votes
 - Coinbase transaction identification
+ - Merkle tree inclusion proofs
+   - Generate an inclusion proof for a given tree and leaf index
+   - Verify a leaf is a member of the tree at a given index via the proof
+- Transaction sanity checking
 
 ## Installation and Updating
 

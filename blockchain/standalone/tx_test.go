@@ -1,11 +1,13 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package standalone
 
 import (
+	"bytes"
 	"encoding/hex"
+	"errors"
 	"testing"
 
 	"github.com/decred/dcrd/wire"
@@ -276,6 +278,113 @@ func TestIsTreasurybaseTx(t *testing.T) {
 		if result != test.want {
 			t.Errorf("%s: unexpected result -- got %v, want %v", test.name,
 				result, test.want)
+			continue
+		}
+	}
+}
+
+// TestCheckTransactionSanity ensures transaction sanity checking works as
+// intended.
+func TestCheckTransactionSanity(t *testing.T) {
+	// Create a base transaction that is further manipulated in the tests below
+	// to test error conditions.
+	//
+	// This is mainnet block 373, tx[5] (two inputs, two outputs).
+	txHex := "010000000201261057a5ecaf6edede86c5446c62f067f30d654117668325090" +
+		"9ac3e45bec00100000000ffffffff03c65ad19cb990cc916e38dc94f0255f344c5e9" +
+		"b7af3b69bfa19931f6027e44c0100000000ffffffff02c1c57600000000000000197" +
+		"6a914e07c0b2a499312f5d95e3bd4f126e618087a15a588ac402c420600000000000" +
+		"01976a91411f2b3135e457259009bdd14cfcb942eec58bd7a88ac000000000000000" +
+		"0023851f6050000000073010000040000006a473044022009ff5aed5d2e5eeec8931" +
+		"9d0a700b7abdf842e248641804c82dee17df446c24202207c252cc36199ea8a6cc71" +
+		"d2252a3f7e61f9cce272dff82c5818e3bf08167e3a6012102773925f9ee53837aa0e" +
+		"fba2212f71ee8ab20aeb603fa7324a8c2555efe5c482709ec0e01000000002501000" +
+		"0050000006a47304402201165136a2b792cc6d7e75f576ed64e1919cbf954afb989f" +
+		"8590844a628e58def02206ba7e60f5ae9810794297359cc883e7ff97ecd21bc7177f" +
+		"cc668a84f64a4b9120121026a4151513b4e6650e3d213451037cd6b78ed829d12ed1" +
+		"d43d5d34ce0834831e9"
+	txBytes, err := hex.DecodeString(txHex)
+	if err != nil {
+		t.Fatalf("unexpected err parsing base tx hex: %v", err)
+	}
+	var baseTx wire.MsgTx
+	if err := baseTx.FromBytes(txBytes); err != nil {
+		t.Fatalf("nexpected err parsing base tx: %v", err)
+	}
+
+	const maxTxSize = 393216
+	tests := []struct {
+		name string      // test description
+		tx   *wire.MsgTx // transaction to test
+		err  error       // expected error
+	}{{
+		name: "ok",
+		tx:   &baseTx,
+		err:  nil,
+	}, {
+		name: "transaction has no inputs",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxIn = nil
+			return tx
+		}(),
+		err: ErrNoTxInputs,
+	}, {
+		name: "transaction has no outputs",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxOut = nil
+			return tx
+		}(),
+		err: ErrNoTxOutputs,
+	}, {
+		name: "transaction too big",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxOut[0].PkScript = bytes.Repeat([]byte{0x00}, maxTxSize)
+			return tx
+		}(),
+		err: ErrTxTooBig,
+	}, {
+		name: "transaction with negative output amount",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxOut[0].Value = -1
+			return tx
+		}(),
+		err: ErrBadTxOutValue,
+	}, {
+		name: "transaction with single output amount > max per tx",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxOut[0].Value = maxAtoms + 1
+			return tx
+		}(),
+		err: ErrBadTxOutValue,
+	}, {
+		name: "transaction with outputs sum > max per tx",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxOut[0].Value = maxAtoms
+			tx.TxOut[1].Value = 1
+			return tx
+		}(),
+		err: ErrBadTxOutValue,
+	}, {
+		name: "transaction spending duplicate input",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxIn[1].PreviousOutPoint = tx.TxIn[0].PreviousOutPoint
+			return tx
+		}(),
+		err: ErrDuplicateTxInputs,
+	}}
+
+	for _, test := range tests {
+		err := CheckTransactionSanity(test.tx, maxTxSize)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 	}

@@ -35,6 +35,7 @@ The provided functions fall into the following categories:
  - Merkle tree inclusion proofs
    - Generate an inclusion proof for a given tree and leaf index
    - Verify a leaf is a member of the tree at a given index via the proof
+- Transaction sanity checking
 
 Errors
 

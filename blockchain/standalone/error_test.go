@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,6 +19,11 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
 		{ErrInvalidTSpendExpiry, "ErrInvalidTSpendExpiry"},
+		{ErrNoTxInputs, "ErrNoTxInputs"},
+		{ErrNoTxOutputs, "ErrNoTxOutputs"},
+		{ErrTxTooBig, "ErrTxTooBig"},
+		{ErrBadTxOutValue, "ErrBadTxOutValue"},
+		{ErrDuplicateTxInputs, "ErrDuplicateTxInputs"},
 	}
 
 	t.Logf("Running %d tests", len(tests))

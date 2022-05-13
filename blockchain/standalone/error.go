@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,6 +23,26 @@ const (
 	// ErrInvalidTSpendExpiry indicates that an invalid expiry was
 	// provided when calculating the treasury spend voting window.
 	ErrInvalidTSpendExpiry = ErrorKind("ErrInvalidTSpendExpiry")
+
+	// ErrNoTxInputs indicates a transaction does not have any inputs.  A valid
+	// transaction must have at least one input.
+	ErrNoTxInputs = ErrorKind("ErrNoTxInputs")
+
+	// ErrNoTxOutputs indicates a transaction does not have any outputs.  A
+	// valid transaction must have at least one output.
+	ErrNoTxOutputs = ErrorKind("ErrNoTxOutputs")
+
+	// ErrTxTooBig indicates a transaction exceeds the maximum allowed size when
+	// serialized.
+	ErrTxTooBig = ErrorKind("ErrTxTooBig")
+
+	// ErrBadTxOutValue indicates an output value for a transaction is
+	// invalid in some way such as being out of range.
+	ErrBadTxOutValue = ErrorKind("ErrBadTxOutValue")
+
+	// ErrDuplicateTxInputs indicates a transaction references the same
+	// input more than once.
+	ErrDuplicateTxInputs = ErrorKind("ErrDuplicateTxInputs")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
