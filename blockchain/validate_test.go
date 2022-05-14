@@ -329,31 +329,6 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 	}
 }
 
-// TestTxValidationErrors ensures certain malformed freestanding transactions
-// are rejected as as expected.
-func TestTxValidationErrors(t *testing.T) {
-	// Create a transaction that is too large
-	tx := wire.NewMsgTx()
-	prevOut := wire.NewOutPoint(&chainhash.Hash{0x01}, 0, wire.TxTreeRegular)
-	tx.AddTxIn(wire.NewTxIn(prevOut, 0, nil))
-	pkScript := bytes.Repeat([]byte{0x00}, wire.MaxBlockPayload)
-	tx.AddTxOut(wire.NewTxOut(0, pkScript))
-
-	// Assert the transaction is larger than the max allowed size.
-	txSize := tx.SerializeSize()
-	if txSize <= wire.MaxBlockPayload {
-		t.Fatalf("generated transaction is not large enough -- got "+
-			"%d, want > %d", txSize, wire.MaxBlockPayload)
-	}
-
-	// Ensure transaction is rejected due to being too large.
-	err := CheckTransactionSanity(tx, chaincfg.MainNetParams())
-	if !errors.Is(err, ErrTxTooBig) {
-		t.Fatalf("CheckTransactionSanity: unexpected error for transaction "+
-			"that is too large -- got %v, want %v", err, ErrTxTooBig)
-	}
-}
-
 // badBlock is an intentionally bad block that should fail the context-less
 // sanity checks.
 var badBlock = wire.MsgBlock{

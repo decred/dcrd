@@ -31,5 +31,6 @@ require (
 
 replace (
 	github.com/decred/dcrd/blockchain/stake/v5 => ./stake
+	github.com/decred/dcrd/blockchain/standalone/v2 => ./standalone
 	github.com/decred/dcrd/gcs/v4 => ../gcs
 )

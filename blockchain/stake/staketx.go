@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -712,7 +712,7 @@ func CalculateRevocationRewards(contribAmounts []int64, ticketPurchaseAmount int
 // The output OP_RETURN pushes should be of size 20 bytes (standard address).
 func CheckSStx(tx *wire.MsgTx) error {
 	// Check to make sure there aren't too many inputs.
-	// CheckTransactionSanity already makes sure that number of inputs is
+	// Transaction sanity checks already make sure that number of inputs is
 	// greater than 0, so no need to check that.
 	if len(tx.TxIn) > MaxInputsPerSStx {
 		str := "SStx has too many inputs"

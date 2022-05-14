@@ -242,76 +242,6 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 	return true
 }
 
-// checkTransactionSanity performs some preliminary checks on a transaction to
-// ensure it is sane.  These checks are context free.
-func checkTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
-	// A transaction must have at least one input.
-	if len(tx.TxIn) == 0 {
-		return ruleError(ErrNoTxInputs, "transaction has no inputs")
-	}
-
-	// A transaction must have at least one output.
-	if len(tx.TxOut) == 0 {
-		return ruleError(ErrNoTxOutputs, "transaction has no outputs")
-	}
-
-	// A transaction must not exceed the maximum allowed size when serialized.
-	serializedTxSize := tx.SerializeSize()
-	if serializedTxSize > params.MaxTxSize {
-		str := fmt.Sprintf("serialized transaction is too big - got %d, max %d",
-			serializedTxSize, params.MaxTxSize)
-		return ruleError(ErrTxTooBig, str)
-	}
-
-	// Ensure the transaction amounts are in range.  Each transaction output
-	// must not be negative or more than the max allowed per transaction.  Also,
-	// the total of all outputs must abide by the same restrictions.  All
-	// amounts in a transaction are in a unit value known as an atom.  One
-	// Decred is a quantity of atoms as defined by the AtomsPerCoin constant.
-	var totalAtom int64
-	for _, txOut := range tx.TxOut {
-		atom := txOut.Value
-		if atom < 0 {
-			str := fmt.Sprintf("transaction output has negative value of %v",
-				atom)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-		if atom > dcrutil.MaxAmount {
-			str := fmt.Sprintf("transaction output value of %v is higher than "+
-				"max allowed value of %v", atom, dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-
-		// Two's complement int64 overflow guarantees that any overflow is
-		// detected and reported.  This is impossible for Decred, but perhaps
-		// possible if an alt increases the total money supply.
-		totalAtom += atom
-		if totalAtom < 0 {
-			str := fmt.Sprintf("total value of all transaction outputs "+
-				"exceeds max allowed value of %v", dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-		if totalAtom > dcrutil.MaxAmount {
-			str := fmt.Sprintf("total value of all transaction outputs is %v "+
-				"which is higher than max allowed value of %v", totalAtom,
-				dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-	}
-
-	// Check for duplicate transaction inputs.
-	existingTxOut := make(map[wire.OutPoint]struct{})
-	for _, txIn := range tx.TxIn {
-		if _, exists := existingTxOut[txIn.PreviousOutPoint]; exists {
-			str := "transaction contains duplicate inputs"
-			return ruleError(ErrDuplicateTxInputs, str)
-		}
-		existingTxOut[txIn.PreviousOutPoint] = struct{}{}
-	}
-
-	return nil
-}
-
 // AgendaFlags is a bitmask defining additional agendas to consider as active
 // when checking transactions.  This can be useful for callers who are able to
 // accurately determine what agendas are active or otherwise desire any
@@ -646,12 +576,6 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 	return nil
 }
 
-// CheckTransactionSanity performs some preliminary checks on a transaction to
-// ensure it is sane.  These checks are context free.
-func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
-	return checkTransactionSanity(tx, params)
-}
-
 // CheckTransaction performs several validation checks on a transaction that
 // include both preliminary sanity checks that are context free as well as those
 // which depend on whether or not an agenda is active.
@@ -659,9 +583,9 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 // The flags may be used to specify which agendas should be considered as active
 // in order to change how the validation rules are applied accordingly.
 func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags) error {
-	err := checkTransactionSanity(tx, params)
+	err := standalone.CheckTransactionSanity(tx, uint64(params.MaxTxSize))
 	if err != nil {
-		return err
+		return standaloneToChainRuleError(err)
 	}
 	return checkTransactionContext(tx, params, flags)
 }
@@ -720,6 +644,16 @@ func standaloneToChainRuleError(err error) error {
 		return ruleError(ErrUnexpectedDifficulty, err.Error())
 	case errors.Is(err, standalone.ErrHighHash):
 		return ruleError(ErrHighHash, err.Error())
+	case errors.Is(err, standalone.ErrNoTxInputs):
+		return ruleError(ErrNoTxInputs, err.Error())
+	case errors.Is(err, standalone.ErrNoTxOutputs):
+		return ruleError(ErrNoTxOutputs, err.Error())
+	case errors.Is(err, standalone.ErrTxTooBig):
+		return ruleError(ErrTxTooBig, err.Error())
+	case errors.Is(err, standalone.ErrBadTxOutValue):
+		return ruleError(ErrBadTxOutValue, err.Error())
+	case errors.Is(err, standalone.ErrDuplicateTxInputs):
+		return ruleError(ErrDuplicateTxInputs, err.Error())
 	}
 
 	return err
@@ -920,12 +854,13 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// Do some preliminary checks on each regular transaction to ensure they
 	// are sane.
+	maxTxSize := uint64(chainParams.MaxTxSize)
 	transactions := block.Transactions()
 	for _, tx := range transactions {
 		msgTx := tx.MsgTx()
-		err := checkTransactionSanity(msgTx, chainParams)
+		err := standalone.CheckTransactionSanity(msgTx, maxTxSize)
 		if err != nil {
-			return err
+			return standaloneToChainRuleError(err)
 		}
 	}
 
@@ -934,9 +869,9 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// tallying each type before continuing.
 	var totalTickets int64
 	for _, stx := range msgBlock.STransactions {
-		err := checkTransactionSanity(stx, chainParams)
+		err := standalone.CheckTransactionSanity(stx, maxTxSize)
 		if err != nil {
-			return err
+			return standaloneToChainRuleError(err)
 		}
 
 		if stake.IsSStx(stx) {
@@ -2844,7 +2779,7 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 // that value.
 //
 // NOTE: The transaction MUST have already been sanity checked with the
-// CheckTransactionSanity function prior to calling this function.
+// standalone.CheckTransactionSanity function prior to calling this function.
 func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool,
 	chainParams *chaincfg.Params, prevHeader *wire.BlockHeader,
@@ -3151,7 +3086,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 	// Calculate the total output amount for this transaction.  It is safe
 	// to ignore overflow and out of range errors here because those error
-	// conditions would have already been caught by checkTransactionSanity.
+	// conditions would have already been caught by the transaction sanity
+	// checks.
 	var totalAtomOut int64
 	for _, txOut := range tx.MsgTx().TxOut {
 		totalAtomOut += txOut.Value
@@ -3551,7 +3487,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 	// the expected subsidy value plus total transaction fees gained from
 	// mining the block.  It is safe to ignore overflow and out of range
 	// errors here because those error conditions would have already been
-	// caught by checkTransactionSanity.
+	// caught by the transaction sanity checks.
 	if txTree { //TxTreeRegular
 		// Apply penalty to fees if we're at stake validation height.
 		if node.height >= b.chainParams.StakeValidationHeight {
