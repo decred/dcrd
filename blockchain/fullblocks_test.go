@@ -3,165 +3,159 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package blockchain_test
+package blockchain
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"fmt"
-	"os"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/blockchain/v5/fullblocktests"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
-const (
-	// testDbType is the database backend type to use for the tests.
-	testDbType = "ffldb"
+// fullBlockTestErrToLocalErr converts the provided full block test error kind
+// to the associated local blockchain error kind.
+func fullBlockTestErrToLocalErr(t *testing.T, kind fullblocktests.ErrorKind) ErrorKind {
+	t.Helper()
 
-	// blockDataNet is the expected network in the test block data.
-	blockDataNet = wire.MainNet
-)
-
-// isSupportedDbType returns whether or not the passed database type is
-// currently supported.
-func isSupportedDbType(dbType string) bool {
-	supportedDrivers := database.SupportedDrivers()
-	for _, driver := range supportedDrivers {
-		if dbType == driver {
-			return true
-		}
+	switch kind {
+	case fullblocktests.ErrDuplicateBlock:
+		return ErrDuplicateBlock
+	case fullblocktests.ErrBlockTooBig:
+		return ErrBlockTooBig
+	case fullblocktests.ErrWrongBlockSize:
+		return ErrWrongBlockSize
+	case fullblocktests.ErrInvalidTime:
+		return ErrInvalidTime
+	case fullblocktests.ErrTimeTooOld:
+		return ErrTimeTooOld
+	case fullblocktests.ErrTimeTooNew:
+		return ErrTimeTooNew
+	case fullblocktests.ErrUnexpectedDifficulty:
+		return ErrUnexpectedDifficulty
+	case fullblocktests.ErrHighHash:
+		return ErrHighHash
+	case fullblocktests.ErrBadMerkleRoot:
+		return ErrBadMerkleRoot
+	case fullblocktests.ErrNoTransactions:
+		return ErrNoTransactions
+	case fullblocktests.ErrNoTxInputs:
+		return ErrNoTxInputs
+	case fullblocktests.ErrNoTxOutputs:
+		return ErrNoTxOutputs
+	case fullblocktests.ErrBadTxOutValue:
+		return ErrBadTxOutValue
+	case fullblocktests.ErrDuplicateTxInputs:
+		return ErrDuplicateTxInputs
+	case fullblocktests.ErrBadTxInput:
+		return ErrBadTxInput
+	case fullblocktests.ErrMissingTxOut:
+		return ErrMissingTxOut
+	case fullblocktests.ErrUnfinalizedTx:
+		return ErrUnfinalizedTx
+	case fullblocktests.ErrDuplicateTx:
+		return ErrDuplicateTx
+	case fullblocktests.ErrImmatureSpend:
+		return ErrImmatureSpend
+	case fullblocktests.ErrSpendTooHigh:
+		return ErrSpendTooHigh
+	case fullblocktests.ErrTooManySigOps:
+		return ErrTooManySigOps
+	case fullblocktests.ErrFirstTxNotCoinbase:
+		return ErrFirstTxNotCoinbase
+	case fullblocktests.ErrCoinbaseHeight:
+		return ErrCoinbaseHeight
+	case fullblocktests.ErrMultipleCoinbases:
+		return ErrMultipleCoinbases
+	case fullblocktests.ErrStakeTxInRegularTree:
+		return ErrStakeTxInRegularTree
+	case fullblocktests.ErrRegTxInStakeTree:
+		return ErrRegTxInStakeTree
+	case fullblocktests.ErrBadCoinbaseScriptLen:
+		return ErrBadCoinbaseScriptLen
+	case fullblocktests.ErrBadCoinbaseValue:
+		return ErrBadCoinbaseValue
+	case fullblocktests.ErrBadCoinbaseFraudProof:
+		return ErrBadCoinbaseFraudProof
+	case fullblocktests.ErrBadCoinbaseAmountIn:
+		return ErrBadCoinbaseAmountIn
+	case fullblocktests.ErrBadStakebaseAmountIn:
+		return ErrBadStakebaseAmountIn
+	case fullblocktests.ErrBadStakebaseScriptLen:
+		return ErrBadStakebaseScriptLen
+	case fullblocktests.ErrBadStakebaseScrVal:
+		return ErrBadStakebaseScrVal
+	case fullblocktests.ErrScriptMalformed:
+		return ErrScriptMalformed
+	case fullblocktests.ErrScriptValidation:
+		return ErrScriptValidation
+	case fullblocktests.ErrNotEnoughStake:
+		return ErrNotEnoughStake
+	case fullblocktests.ErrStakeBelowMinimum:
+		return ErrStakeBelowMinimum
+	case fullblocktests.ErrNotEnoughVotes:
+		return ErrNotEnoughVotes
+	case fullblocktests.ErrTooManyVotes:
+		return ErrTooManyVotes
+	case fullblocktests.ErrFreshStakeMismatch:
+		return ErrFreshStakeMismatch
+	case fullblocktests.ErrInvalidEarlyStakeTx:
+		return ErrInvalidEarlyStakeTx
+	case fullblocktests.ErrTicketUnavailable:
+		return ErrTicketUnavailable
+	case fullblocktests.ErrVotesOnWrongBlock:
+		return ErrVotesOnWrongBlock
+	case fullblocktests.ErrVotesMismatch:
+		return ErrVotesMismatch
+	case fullblocktests.ErrIncongruentVotebit:
+		return ErrIncongruentVotebit
+	case fullblocktests.ErrInvalidSSRtx:
+		return ErrInvalidSSRtx
+	case fullblocktests.ErrRevocationsMismatch:
+		return ErrRevocationsMismatch
+	case fullblocktests.ErrTicketCommitment:
+		return ErrTicketCommitment
+	case fullblocktests.ErrBadNumPayees:
+		return ErrBadNumPayees
+	case fullblocktests.ErrMismatchedPayeeHash:
+		return ErrMismatchedPayeeHash
+	case fullblocktests.ErrBadPayeeValue:
+		return ErrBadPayeeValue
+	case fullblocktests.ErrTxSStxOutSpend:
+		return ErrTxSStxOutSpend
+	case fullblocktests.ErrRegTxCreateStakeOut:
+		return ErrRegTxCreateStakeOut
+	case fullblocktests.ErrInvalidFinalState:
+		return ErrInvalidFinalState
+	case fullblocktests.ErrPoolSize:
+		return ErrPoolSize
+	case fullblocktests.ErrBadBlockHeight:
+		return ErrBadBlockHeight
+	case fullblocktests.ErrBlockOneOutputs:
+		return ErrBlockOneOutputs
+	case fullblocktests.ErrNoTreasury:
+		return ErrNoTreasury
+	case fullblocktests.ErrExpiredTx:
+		return ErrExpiredTx
+	case fullblocktests.ErrFraudAmountIn:
+		return ErrFraudAmountIn
+	case fullblocktests.ErrFraudBlockHeight:
+		return ErrFraudBlockHeight
+	case fullblocktests.ErrFraudBlockIndex:
+		return ErrFraudBlockIndex
+	case fullblocktests.ErrInvalidEarlyVoteBits:
+		return ErrInvalidEarlyVoteBits
+	case fullblocktests.ErrInvalidEarlyFinalState:
+		return ErrInvalidEarlyFinalState
+	default:
+		t.Fatalf("unconverted fullblocktest error kind %v", kind)
 	}
 
-	return false
-}
-
-// createTestDatabase creates a test database with the provided database name
-// and database type for the given network.
-func createTestDatabase(t testing.TB, dbType string, net wire.CurrencyNet) (database.DB, error) {
-	// Handle memory database specially since it doesn't need the disk specific
-	// handling.
-	var db database.DB
-	if dbType == "memdb" {
-		ndb, err := database.Create(dbType)
-		if err != nil {
-			return nil, fmt.Errorf("error creating db: %w", err)
-		}
-		db = ndb
-	} else {
-		// Create the directory for the test database.
-		dbPath := t.TempDir()
-
-		// Create the test database.
-		ndb, err := database.Create(dbType, dbPath, net)
-		if err != nil {
-			return nil, fmt.Errorf("error creating db: %w", err)
-		}
-		db = ndb
-	}
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	return db, nil
-}
-
-// createTestUtxoDatabase creates a test UTXO database with the provided
-// database name.
-func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
-	// Construct the database filepath
-	dbPath := t.TempDir()
-
-	// Open the database (will create it if needed).
-	opts := opt.Options{
-		Strict:      opt.DefaultStrict,
-		Compression: opt.NoCompression,
-		Filter:      filter.NewBloomFilter(10),
-	}
-	db, err := leveldb.OpenFile(dbPath, &opts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Setup a teardown function for cleaning up.  This function is returned to
-	// the caller to be invoked when it is done testing.
-	teardown := func() {
-		_ = db.Close()
-		_ = os.RemoveAll(dbPath)
-	}
-
-	return db, teardown, nil
-}
-
-// chainSetup is used to create a new db and chain instance with the genesis
-// block already inserted.
-func chainSetup(t testing.TB, params *chaincfg.Params) (*blockchain.BlockChain, error) {
-	if !isSupportedDbType(testDbType) {
-		return nil, fmt.Errorf("unsupported db type %v", testDbType)
-	}
-
-	// Create a test block database.
-	db, err := createTestDatabase(t, testDbType, blockDataNet)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
-	if err != nil {
-		return nil, err
-	}
-	t.Cleanup(func() {
-		teardownUtxoDb()
-	})
-
-	// Copy the chain params to ensure any modifications the tests do to
-	// the chain parameters do not affect the global instance.
-	paramsCopy := *params
-
-	// Create a SigCache instance.
-	sigCache, err := txscript.NewSigCache(1000)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the main chain instance.
-	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
-	chain, err := blockchain.New(context.Background(),
-		&blockchain.Config{
-			DB:          db,
-			UtxoBackend: utxoBackend,
-			ChainParams: &paramsCopy,
-			TimeSource:  blockchain.NewMedianTime(),
-			SigCache:    sigCache,
-			UtxoCache: blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-				Backend: utxoBackend,
-				FlushBlockDB: func() error {
-					// Don't flush to disk since it is slow and this is used in a lot of
-					// tests.
-					return nil
-				},
-				MaxSize: 100 * 1024 * 1024, // 100 MiB
-			}),
-		})
-
-	if err != nil {
-		err := fmt.Errorf("failed to create chain instance: %w", err)
-		return nil, err
-	}
-
-	return chain, nil
+	panic("unreachable")
 }
 
 // TestFullBlocks ensures all tests generated by the fullblocktests package
@@ -189,7 +183,7 @@ func TestFullBlocks(t *testing.T) {
 
 		var isOrphan bool
 		forkLen, err := chain.ProcessBlock(block)
-		if errors.Is(err, blockchain.ErrMissingParent) {
+		if errors.Is(err, ErrMissingParent) {
 			isOrphan = true
 			err = nil
 		}
@@ -232,12 +226,16 @@ func TestFullBlocks(t *testing.T) {
 				blockHeight)
 		}
 
+		// Convert the full block test error kind to the associated local
+		// blockchain error kind.
+		wantRejectKind := fullBlockTestErrToLocalErr(t, item.RejectKind)
+
 		// Ensure the error reject kind matches the value specified in the test
 		// instance.
-		if !errors.Is(err, item.RejectKind) {
+		if !errors.Is(err, wantRejectKind) {
 			t.Fatalf("block %q (hash %s, height %d) does not have "+
 				"expected reject code -- got %v, want %v",
-				item.Name, block.Hash(), blockHeight, err, item.RejectKind)
+				item.Name, block.Hash(), blockHeight, err, wantRejectKind)
 		}
 	}
 
@@ -280,7 +278,7 @@ func TestFullBlocks(t *testing.T) {
 			// Ensure the error is of the expected type.  Note that orphans are
 			// rejected with ErrMissingParent, so this check covers both
 			// conditions.
-			var rerr blockchain.RuleError
+			var rerr RuleError
 			if !errors.As(err, &rerr) {
 				t.Fatalf("block %q (hash %s, height %d) "+
 					"returned unexpected error type -- "+
