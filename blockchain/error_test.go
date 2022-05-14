@@ -27,7 +27,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalidTime, "ErrInvalidTime"},
 		{ErrTimeTooOld, "ErrTimeTooOld"},
 		{ErrTimeTooNew, "ErrTimeTooNew"},
-		{ErrDifficultyTooLow, "ErrDifficultyTooLow"},
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
 		{ErrBadMerkleRoot, "ErrBadMerkleRoot"},

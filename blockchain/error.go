@@ -76,10 +76,6 @@ const (
 	// the current time.
 	ErrTimeTooNew = ErrorKind("ErrTimeTooNew")
 
-	// ErrDifficultyTooLow indicates the difficulty for the block is lower
-	// than the difficulty required by the most recent checkpoint.
-	ErrDifficultyTooLow = ErrorKind("ErrDifficultyTooLow")
-
 	// ErrUnexpectedDifficulty indicates specified bits do not align with
 	// the expected value either because it doesn't match the calculated
 	// value based on difficulty regarding the rules or it is out of the
