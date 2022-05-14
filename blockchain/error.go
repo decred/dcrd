@@ -57,7 +57,7 @@ const (
 	// to a newer version.
 	ErrBlockVersionTooOld = ErrorKind("ErrBlockVersionTooOld")
 
-	// ErrBadStakeVersionindicates the block version is too old and is no
+	// ErrBadStakeVersion indicates the block version is too old and is no
 	// longer accepted since the majority of the network has upgraded to a
 	// newer version.
 	ErrBadStakeVersion = ErrorKind("ErrBadStakeVersion")
@@ -102,9 +102,8 @@ const (
 	// before the fork rejection checkpoint.
 	ErrForkTooOld = ErrorKind("ErrForkTooOld")
 
-	// ErrNoTransactions indicates the block does not have a least one
-	// transaction.  A valid block must have at least the coinbase
-	// transaction.
+	// ErrNoTransactions indicates the block does not have at least one
+	// transaction.  A valid block must have at least the coinbase transaction.
 	ErrNoTransactions = ErrorKind("ErrNoTransactions")
 
 	// ErrNoTxInputs indicates a transaction does not have any inputs.  A
@@ -231,10 +230,10 @@ const (
 	// length or fail to parse.
 	ErrScriptMalformed = ErrorKind("ErrScriptMalformed")
 
-	// ErrScriptValidation indicates the result of executing transaction
+	// ErrScriptValidation indicates the result of executing a transaction
 	// script failed.  The error covers any failure when executing scripts
-	// such signature verification failures and execution past the end of
-	// the stack.
+	// such as signature verification failures and execution past the end
+	// of the stack.
 	ErrScriptValidation = ErrorKind("ErrScriptValidation")
 
 	// ErrNotEnoughStake indicates that there was for some SStx in a given block,
@@ -274,8 +273,8 @@ const (
 	// that could not be found.
 	ErrTicketUnavailable = ErrorKind("ErrTicketUnavailable")
 
-	// ErrVotesOnWrongBlock indicates that an SSGen voted on a block not the
-	// block's parent, and so was ineligible for inclusion into that block.
+	// ErrVotesOnWrongBlock indicates that an SSGen voted on a block that is not
+	// the block's parent, and so was ineligible for inclusion into that block.
 	ErrVotesOnWrongBlock = ErrorKind("ErrVotesOnWrongBlock")
 
 	// ErrVotesMismatch indicates that the number of SSGen in the block was not
@@ -392,12 +391,12 @@ const (
 	// was different from where it was actually embedded in the block chain.
 	ErrBadBlockHeight = ErrorKind("ErrBadBlockHeight")
 
-	// ErrBlockOneTx indicates that block height 1 failed to correct generate
+	// ErrBlockOneTx indicates that block height 1 failed to correctly generate
 	// the block one initial payout transaction.
 	ErrBlockOneTx = ErrorKind("ErrBlockOneTx")
 
-	// ErrBlockOneTx indicates that block height 1 coinbase transaction in
-	// zero was incorrect in some way.
+	// ErrBlockOneInputs indicates that block height 1 coinbase transaction
+	// input zero was incorrect in some way.
 	ErrBlockOneInputs = ErrorKind("ErrBlockOneInputs")
 
 	// ErrBlockOneOutputs indicates that block height 1 failed to incorporate
