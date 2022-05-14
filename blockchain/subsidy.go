@@ -102,12 +102,12 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 	if treasuryOutput.Version != params.OrganizationPkScriptVersion {
 		str := fmt.Sprintf("treasury output version %d is instead of %d",
 			treasuryOutput.Version, params.OrganizationPkScriptVersion)
-		return ruleError(ErrNoTax, str)
+		return ruleError(ErrNoTreasury, str)
 	}
 	if !bytes.Equal(treasuryOutput.PkScript, params.OrganizationPkScript) {
 		str := fmt.Sprintf("treasury output script is %x instead of %x",
 			treasuryOutput.PkScript, params.OrganizationPkScript)
-		return ruleError(ErrNoTax, str)
+		return ruleError(ErrNoTreasury, str)
 	}
 
 	// Calculate the amount of subsidy that should have been paid out to the
@@ -117,7 +117,7 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 	if orgSubsidy != treasuryOutput.Value {
 		str := fmt.Sprintf("treasury output amount is %s instead of %s",
 			dcrutil.Amount(treasuryOutput.Value), dcrutil.Amount(orgSubsidy))
-		return ruleError(ErrNoTax, str)
+		return ruleError(ErrNoTreasury, str)
 	}
 
 	return nil

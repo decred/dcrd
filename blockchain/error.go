@@ -399,9 +399,10 @@ const (
 	// the ledger addresses correctly into the transaction's outputs.
 	ErrBlockOneOutputs = ErrorKind("ErrBlockOneOutputs")
 
-	// ErrNoTax indicates that there was no tax present in the coinbase of a
-	// block after height 1.
-	ErrNoTax = ErrorKind("ErrNoTax")
+	// ErrNoTreasury indicates that there was no treasury payout present in the
+	// coinbase of a block after height 1 and prior to the activation of the
+	// decentralized treasury.
+	ErrNoTreasury = ErrorKind("ErrNoTreasury")
 
 	// ErrExpiredTx indicates that the transaction is currently expired.
 	ErrExpiredTx = ErrorKind("ErrExpiredTx")

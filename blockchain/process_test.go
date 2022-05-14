@@ -155,7 +155,7 @@ func TestProcessOrder(t *testing.T) {
 	g.AcceptHeader("bdc1")
 	g.AcceptBlockData("bdc2")
 	g.AcceptBlockData("bdc3")
-	g.RejectBlock("bdc1", ErrNoTax)
+	g.RejectBlock("bdc1", ErrNoTreasury)
 	g.ExpectTip("bdc2")
 }
 

@@ -833,7 +833,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			taxOutput.Version = p2pkhScriptVer
 			taxOutput.PkScript = p2pkhScript
 		})
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// Create a block that uses a newer output script version than is
 	// supported for the dev-org tax output.
@@ -846,7 +846,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		func(b *wire.MsgBlock) {
 			b.Transactions[0].TxOut[0].Version = 1
 		})
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// ---------------------------------------------------------------------
 	// Too much dev-org coinbase tests.
@@ -859,7 +859,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	//    \-> bf3(1) -> bf4(2)
 	g.SetTip("bf6")
 	g.NextBlock("bdc1", outs[4], ticketOuts[4], additionalCoinbaseDev(1))
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// Create a fork that ends with block that generates too much dev-org
 	// coinbase.
@@ -872,7 +872,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	acceptedToSideChainWithExpectedTip("bf6")
 
 	g.NextBlock("bdc3", outs[4], ticketOuts[4], additionalCoinbaseDev(1))
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// There was originally some processing order related tests here which
 	// extended the chain, but they have since been separated into tests
@@ -2013,7 +2013,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bmf29", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
 		b.Transactions[0].TxOut[0] = b.Transactions[0].TxOut[1]
 	})
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// Create block with an incorrect dev subsidy output amount.
 	//
@@ -2023,7 +2023,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bmf30", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
 		b.Transactions[0].TxOut[0].Value--
 	})
-	rejected(blockchain.ErrNoTax)
+	rejected(blockchain.ErrNoTreasury)
 
 	// Create block that tries to buy a ticket with the block's coinbase
 	// transaction.

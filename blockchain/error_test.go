@@ -104,7 +104,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBlockOneTx, "ErrBlockOneTx"},
 		{ErrBlockOneInputs, "ErrBlockOneInputs"},
 		{ErrBlockOneOutputs, "ErrBlockOneOutputs"},
-		{ErrNoTax, "ErrNoTax"},
+		{ErrNoTreasury, "ErrNoTreasury"},
 		{ErrExpiredTx, "ErrExpiredTx"},
 		{ErrExpiryTxSpentEarly, "ErrExpiryTxSpentEarly"},
 		{ErrFraudAmountIn, "ErrFraudAmountIn"},
