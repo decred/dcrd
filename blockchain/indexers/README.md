@@ -3,7 +3,7 @@ indexers
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v3/indexers)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v4/indexers)
 
 Package indexers implements optional block chain indexes.
 
@@ -28,7 +28,7 @@ via an RPC interface.
 
 ## Installation and Updating
 
-This package is part of the `github.com/decred/dcrd/blockchain/v3` module.  Use
+This package is part of the `github.com/decred/dcrd/blockchain/v4` module.  Use
 the standard go tooling for working with modules to incorporate it.
 
 ## License
