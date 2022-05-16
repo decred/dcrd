@@ -15,16 +15,19 @@ via an RPC interface.
 - Transaction-by-hash (txbyhashidx) Index
   - Creates a mapping from the hash of each transaction to the block that
     contains it along with its offset and length within the serialized block
+- Address-ever-seen (existsaddridx) Index
+  - Stores a key with an empty value for every address that has ever existed
+    and was seen by the client
+
+## Removed Legacy Indexers
+
+- Committed Filter (cfindexparentbucket) Index
+  - Stores all committed filters and committed filter headers for all blocks in
+    the main chain
 - Transaction-by-address (txbyaddridx) Index
   - Creates a mapping from every address to all transactions which either credit
     or debit the address
   - Requires the transaction-by-hash index
-- Address-ever-seen (existsaddridx) Index
-  - Stores a key with an empty value for every address that has ever existed
-    and was seen by the client
-- Committed Filter (cfindexparentbucket) Index
-  - Stores all committed filters and committed filter headers for all blocks in
-    the main chain
 
 ## Installation and Updating
 
