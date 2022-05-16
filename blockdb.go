@@ -12,9 +12,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/progresslog"
 )
 

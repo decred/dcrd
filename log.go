@@ -12,10 +12,10 @@ import (
 
 	"github.com/decred/dcrd/addrmgr/v2"
 	"github.com/decred/dcrd/blockchain/stake/v5"
-	"github.com/decred/dcrd/blockchain/v5"
-	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/internal/blockchain"
+	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"

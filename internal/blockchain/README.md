@@ -1,9 +1,10 @@
-// Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
-// Use of this source code is governed by an ISC
-// license that can be found in the LICENSE file.
+blockchain
+==========
 
-/*
+[![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/blockchain)
+
 Package blockchain implements Decred block handling and chain selection rules.
 
 The Decred block handling and chain selection rules are an integral, and quite
@@ -22,7 +23,9 @@ communication or wallets, it provides a notification system which gives the
 caller a high level of flexibility in how they want to react to certain events
 such as newly connected main chain blocks which might result in wallet updates.
 
-Decred Chain Processing Overview
+A comprehensive suite of tests is provided to ensure proper functionality.
+
+## Decred Chain Processing Overview
 
 Before a block is allowed into the block chain, it must go through an intensive
 series of validation rules.  The following list serves as a general outline of
@@ -53,14 +56,14 @@ is by no means exhaustive:
    coins
  - Insert the block into the block database
 
-Processing Order
+ ## Processing Order
 
-This package supports headers-first semantics such that block data can be
-processed out of order so long as the associated header is already known.
+ This package supports headers-first semantics such that block data can be
+ processed out of order so long as the associated header is already known.
 
-The headers themselves, however, must be processed in the correct order since
-headers that do not properly connect are rejected.  In other words, orphan
-headers are not allowed.
+ The headers themselves, however, must be processed in the correct order since
+ headers that do not properly connect are rejected.  In other words, orphan
+ headers are not allowed.
 
 The processing code always maintains the best chain as the branch tip that has
 the most cumulative proof of work, so it is important to keep that in mind when
@@ -76,7 +79,7 @@ available makes any of its direct descendants that already have their data
 available eligible for validation, an error being returned does not necessarily
 mean the block being processed is the one that failed validation.
 
-Errors
+## Errors
 
 Errors returned by this package have full support for the standard library
 errors.Is and errors.As methods and are either the raw errors provided by
@@ -86,5 +89,21 @@ unexpected errors, such as database errors, versus errors due to rule violations
 through errors.As.  In addition, callers can programmatically determine the
 specific rule violation by making use of errors.Is with any of the wrapped error
 kinds.
-*/
-package blockchain
+
+## Installation and Updating
+
+This package is internal and therefore is neither directly installed nor needs
+to be manually updated.
+
+## Examples
+
+* [ProcessBlock Example](https://pkg.go.dev/github.com/decred/dcrd/internal/blockchain#example-BlockChain.ProcessBlock)
+  Demonstrates how to create a new chain instance and use ProcessBlock to
+  attempt to add a block to the chain.  This example intentionally
+  attempts to insert a duplicate genesis block to illustrate how an invalid
+  block is handled.
+
+## License
+
+Package blockchain is licensed under the [copyfree](http://copyfree.org) ISC
+License.

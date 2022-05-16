@@ -3,6 +3,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package blockchain implements Decred block handling and chain selection
+// rules.
 package blockchain
 
 import (
@@ -15,14 +17,14 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
-	"github.com/decred/dcrd/blockchain/v5/indexers"
-	"github.com/decred/dcrd/blockchain/v5/internal/spendpruner"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
+	"github.com/decred/dcrd/internal/blockchain/indexers"
+	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"

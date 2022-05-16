@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
-	"github.com/decred/dcrd/blockchain/v5/internal/spendpruner"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/wire"
 )
 

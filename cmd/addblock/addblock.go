@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/decred/dcrd/blockchain/v5"
-	"github.com/decred/dcrd/blockchain/v5/indexers"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/internal/blockchain"
+	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/limits"
 	"github.com/decred/slog"
 )

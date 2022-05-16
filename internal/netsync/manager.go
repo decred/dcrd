@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
-	"github.com/decred/dcrd/blockchain/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/container/apbf"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
 	peerpkg "github.com/decred/dcrd/peer/v3"

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/v5"
+	"github.com/decred/dcrd/internal/blockchain"
 )
 
 // ErrorKind identifies a kind of error.  It has full support for errors.Is and
