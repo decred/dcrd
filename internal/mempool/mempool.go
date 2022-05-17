@@ -554,9 +554,7 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag) {
 // maybeAddOrphan potentially adds an orphan to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
-
+func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag) error {
 	// Ignore orphan transactions that are too large.  This helps avoid
 	// a memory exhaustion attack based on sending a lot of really large
 	// orphans.  In the case there is a valid transaction larger than this,
@@ -2175,8 +2173,6 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	if err != nil {
 		return nil, err
 	}
-	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
-	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
@@ -2231,7 +2227,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}
 
 	// Potentially add the orphan transaction to the orphan pool.
-	err = mp.maybeAddOrphan(tx, tag, isTreasuryEnabled, isAutoRevocationsEnabled)
+	err = mp.maybeAddOrphan(tx, tag)
 	return nil, err
 }
 
