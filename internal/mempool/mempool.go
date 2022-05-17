@@ -523,9 +523,7 @@ func (mp *TxPool) limitNumOrphans() {
 // addOrphan adds an orphan transaction to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag) {
 	// Nothing to do if no orphans are allowed.
 	if mp.cfg.Policy.MaxOrphanTxs <= 0 {
 		return
@@ -578,7 +576,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag,
 	}
 
 	// Add the orphan if the none of the above disqualified it.
-	mp.addOrphan(tx, tag, isTreasuryEnabled, isAutoRevocationsEnabled)
+	mp.addOrphan(tx, tag)
 
 	return nil
 }
