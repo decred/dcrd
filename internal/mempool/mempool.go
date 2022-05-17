@@ -395,9 +395,7 @@ var _ mining.TxSource = (*TxPool)(nil)
 // RemoveOrphan.  See the comment for RemoveOrphan for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool) {
 	// Nothing to do if the passed tx does not exist in the orphan pool.
 	txHash := tx.Hash()
 	otx, exists := mp.orphans[*txHash]
@@ -433,8 +431,7 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers,
 		for txOutIdx := range tx.MsgTx().TxOut {
 			outpoint.Index = uint32(txOutIdx)
 			for _, orphan := range mp.orphansByPrev[outpoint] {
-				mp.removeOrphan(orphan, true, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				mp.removeOrphan(orphan, true)
 			}
 		}
 	}
@@ -451,7 +448,7 @@ func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx, isTreasuryEnabled,
 	isAutoRevocationsEnabled bool) {
 
 	mp.mtx.Lock()
-	mp.removeOrphan(tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
+	mp.removeOrphan(tx, false)
 	mp.mtx.Unlock()
 }
 
@@ -466,7 +463,7 @@ func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled,
 	mp.mtx.Lock()
 	for _, otx := range mp.orphans {
 		if otx.tag == tag {
-			mp.removeOrphan(otx.tx, true, isTreasuryEnabled, isAutoRevocationsEnabled)
+			mp.removeOrphan(otx.tx, true)
 			numEvicted++
 		}
 	}
@@ -489,8 +486,7 @@ func (mp *TxPool) limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled bo
 				// Remove redeemers too because the missing parents are very
 				// unlikely to ever materialize since the orphan has already
 				// been around more than long enough for them to be delivered.
-				mp.removeOrphan(otx.tx, true, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				mp.removeOrphan(otx.tx, true)
 			}
 		}
 
@@ -519,7 +515,7 @@ func (mp *TxPool) limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled bo
 	for _, otx := range mp.orphans {
 		// Don't remove redeemers in the case of a random eviction since
 		// it is quite possible it might be needed again shortly.
-		mp.removeOrphan(otx.tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
+		mp.removeOrphan(otx.tx, false)
 		break
 	}
 }
@@ -600,7 +596,7 @@ func (mp *TxPool) removeOrphanDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
 	msgTx := tx.MsgTx()
 	for _, txIn := range msgTx.TxIn {
 		for _, orphan := range mp.orphansByPrev[txIn.PreviousOutPoint] {
-			mp.removeOrphan(orphan, true, isTreasuryEnabled, isAutoRevocationsEnabled)
+			mp.removeOrphan(orphan, true)
 		}
 	}
 }
@@ -1964,8 +1960,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 					// is no way any other orphans which
 					// redeem any of its outputs can be
 					// accepted.  Remove them.
-					mp.removeOrphan(tx, true,
-						isTreasuryEnabled, isAutoRevocationsEnabled)
+					mp.removeOrphan(tx, true)
 					break
 				}
 
@@ -1983,7 +1978,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 				// transactions to process so any orphans that
 				// depend on it are handled too.
 				acceptedTxns = append(acceptedTxns, tx)
-				mp.removeOrphan(tx, false, isTreasuryEnabled, isAutoRevocationsEnabled)
+				mp.removeOrphan(tx, false)
 				processList = append(processList, tx)
 
 				// Only one transaction for this outpoint can be

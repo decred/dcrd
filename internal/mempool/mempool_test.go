@@ -1524,8 +1524,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// remove redeemer flag set and ensure that only the first orphan was
 	// removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[1], false, noTreasury,
-		noAutoRevocations)
+	harness.txPool.removeOrphan(chainedTxns[1], false)
 	harness.txPool.mtx.Unlock()
 	testPoolMembership(tc, chainedTxns[1], false, false)
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
@@ -1535,8 +1534,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// Remove the first remaining orphan that starts the orphan chain with
 	// the remove redeemer flag set and ensure they are all removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[2], true, noTreasury,
-		noAutoRevocations)
+	harness.txPool.removeOrphan(chainedTxns[2], true)
 	harness.txPool.mtx.Unlock()
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
 		testPoolMembership(tc, tx, false, false)
