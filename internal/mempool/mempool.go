@@ -1987,9 +1987,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 // PruneStakeTx.  See the comment for PruneStakeTx for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64, isAutoRevocationsEnabled bool) {
 	for _, txDesc := range mp.pool {
 		txType := txDesc.Type
 		if txType == stake.TxTypeSStx &&
@@ -2052,11 +2050,6 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 // pruned from mempool since they will never be mined.  The same idea stands
 // for SSGen and SSRtx
 func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
-	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
-	if err != nil {
-		return
-	}
-
 	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
 	if err != nil {
 		return
@@ -2064,8 +2057,7 @@ func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.pruneStakeTx(requiredStakeDifficulty, height, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	mp.pruneStakeTx(requiredStakeDifficulty, height, isAutoRevocationsEnabled)
 	mp.mtx.Unlock()
 }
 
