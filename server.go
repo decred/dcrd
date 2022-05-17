@@ -2644,7 +2644,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		// Determine active agendas based on flags.
 		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
-		isAutoRevocationsEnabled := ntfn.CheckTxFlags.IsAutoRevocationsEnabled()
 
 		// Account for transactions mined in the newly connected block for fee
 		// estimation. This must be done before attempting to remove
@@ -2681,8 +2680,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range txns {
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
-				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
 				acceptedTxs := txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 				s.AnnounceNewTransactions(acceptedTxs)
@@ -2790,7 +2788,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		// Determine active agendas based on flags.
 		isTreasuryEnabled := ntfn.CheckTxFlags.IsTreasuryEnabled()
-		isAutoRevocationsEnabled := ntfn.CheckTxFlags.IsAutoRevocationsEnabled()
 
 		// In the case the regular tree of the previous block was disapproved,
 		// disconnecting the current block makes all of those transactions valid
@@ -2803,8 +2800,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range parentBlock.Transactions()[1:] {
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
-				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
 				txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 			}

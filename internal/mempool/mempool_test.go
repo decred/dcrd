@@ -2318,8 +2318,7 @@ func TestRemoveDoubleSpends(t *testing.T) {
 
 	// If a staged transaction double-spends an input due to a reorg,
 	// it should be removed from the stage pool.
-	tc.harness.txPool.RemoveDoubleSpends(doubleSpendTx, noTreasury,
-		noAutoRevocations)
+	tc.harness.txPool.RemoveDoubleSpends(doubleSpendTx)
 
 	// FetchTransaction should not be able to retrieve the ticket anymore.
 	_, err = harness.txPool.FetchTransaction(ticket.Hash())

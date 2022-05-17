@@ -879,9 +879,7 @@ func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 // contain transactions which were previously unknown to the memory pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	for _, txIn := range tx.MsgTx().TxIn {

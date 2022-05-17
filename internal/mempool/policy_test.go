@@ -26,11 +26,6 @@ const (
 	// noTreasury signifies the treasury agenda should be treated as though it
 	// is inactive.  It is used to increase the readability of the tests.
 	noTreasury = false
-
-	// noAutoRevocations signifies the automatic ticket revocations agenda should
-	// be treated as though it is inactive.  It is used to increase the
-	// readability of the tests.
-	noAutoRevocations = false
 )
 
 // TestCalcMinRequiredTxRelayFee tests the calcMinRequiredTxRelayFee API.
