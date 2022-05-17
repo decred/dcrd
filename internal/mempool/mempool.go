@@ -2065,9 +2065,7 @@ func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 // longer able to be included into a block.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) pruneExpiredTx() {
 	nextBlockHeight := mp.cfg.BestHeight() + 1
 
 	for _, txDesc := range mp.pool {
@@ -2094,19 +2092,9 @@ func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled,
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) PruneExpiredTx() {
-	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
-	if err != nil {
-		return
-	}
-
-	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
-	if err != nil {
-		return
-	}
-
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.pruneExpiredTx(isTreasuryEnabled, isAutoRevocationsEnabled)
+	mp.pruneExpiredTx()
 	mp.mtx.Unlock()
 }
 
