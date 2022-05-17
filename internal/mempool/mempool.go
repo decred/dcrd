@@ -586,9 +586,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag) error {
 // that orphans also spend.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeOrphanDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) removeOrphanDoubleSpends(tx *dcrutil.Tx) {
 	msgTx := tx.MsgTx()
 	for _, txIn := range msgTx.TxIn {
 		for _, orphan := range mp.orphansByPrev[txIn.PreviousOutPoint] {
@@ -1909,10 +1907,6 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain.AgendaFlags) []*dcrutil.Tx {
 	var acceptedTxns []*dcrutil.Tx
 
-	// Determine active agendas based on flags.
-	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
-	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
-
 	// Start with processing at least the passed transaction.
 	processList := []*dcrutil.Tx{acceptedTx}
 	for len(processList) > 0 {
@@ -1988,10 +1982,9 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 	// Recursively remove any orphans that also redeem any outputs redeemed
 	// by the accepted transactions since those are now definitive double
 	// spends.
-	mp.removeOrphanDoubleSpends(acceptedTx, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	mp.removeOrphanDoubleSpends(acceptedTx)
 	for _, tx := range acceptedTxns {
-		mp.removeOrphanDoubleSpends(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
+		mp.removeOrphanDoubleSpends(tx)
 	}
 
 	return acceptedTxns
