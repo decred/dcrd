@@ -865,9 +865,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 // they would otherwise become orphans.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
-
+func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	mp.removeTransaction(tx, removeRedeemers)

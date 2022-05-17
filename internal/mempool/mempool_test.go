@@ -1046,7 +1046,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	// in the stage pool to enter the mempool.
 	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight),
 		wire.NullBlockIndex)
-	harness.txPool.RemoveTransaction(tx, false, noTreasury, noAutoRevocations)
+	harness.txPool.RemoveTransaction(tx, false)
 	harness.txPool.MaybeAcceptDependents(tx, noTreasury)
 
 	testPoolMembership(tc, tx, false, false)
@@ -1987,7 +1987,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// Remove one of the votes from the pool and ensure it is not in the orphan
 	// pool, not in the transaction pool, and not reported as available.
 	vote := votes[2]
-	harness.txPool.RemoveTransaction(vote, true, noTreasury, noAutoRevocations)
+	harness.txPool.RemoveTransaction(vote, true)
 	testPoolMembership(tc, vote, false, false)
 
 	// Add one of the votes that was rejected above due to the pool being at the
@@ -2089,7 +2089,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 
 	// Remove the original vote from the pool and ensure it is not in the orphan
 	// pool, not in the transaction pool, and not reported as available.
-	harness.txPool.RemoveTransaction(vote, true, noTreasury, noAutoRevocations)
+	harness.txPool.RemoveTransaction(vote, true)
 	testPoolMembership(tc, vote, false, false)
 
 	// Add the duplicate vote which should now be accepted.  Also, ensure it is
@@ -2489,7 +2489,7 @@ func TestHandlesTSpends(t *testing.T) {
 
 	// Remove the first tspend from the mempool and assert TSpendHashes()
 	// is working as intended.
-	harness.txPool.RemoveTransaction(tspends[0], true, true, noAutoRevocations)
+	harness.txPool.RemoveTransaction(tspends[0], true)
 	testPoolMembership(tc, tspends[0], false, false)
 	assertTSpendHashes(tspends[1:maxTSpends])
 
@@ -2500,7 +2500,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// Remove all tspends from the mempool and ensure TSpendHashes() is
 	// empty again.
 	for _, tx := range tspends[1 : maxTSpends+1] {
-		harness.txPool.RemoveTransaction(tx, true, true, noAutoRevocations)
+		harness.txPool.RemoveTransaction(tx, true)
 		testPoolMembership(tc, tx, false, false)
 	}
 	assertTSpendHashes(nil)
@@ -2688,7 +2688,7 @@ func TestHandlesTAdds(t *testing.T) {
 			t.Fatalf("ProcessTransaction: failed to accept valid tadd %v", err)
 		}
 		testPoolMembership(tc, tx, false, true)
-		harness.txPool.RemoveTransaction(tx, true, true, noAutoRevocations)
+		harness.txPool.RemoveTransaction(tx, true)
 	}
 
 	// Create a few valid tadds that can enter the mempool. Generate a TAdd
@@ -2764,7 +2764,7 @@ func TestStagedTransactionHeight(t *testing.T) {
 	newBlockHeight := initialBlockHeight + 1
 	harness.AddFakeUTXO(txA, newBlockHeight, wire.NullBlockIndex)
 	harness.chain.SetHeight(newBlockHeight)
-	harness.txPool.RemoveTransaction(txA, false, noTreasury, noAutoRevocations)
+	harness.txPool.RemoveTransaction(txA, false)
 	harness.txPool.MaybeAcceptDependents(txA, noTreasury)
 
 	poolTxDescs = harness.txPool.TxDescs()
@@ -3229,8 +3229,7 @@ func TestSubsidySplitSemantics(t *testing.T) {
 
 	// Remove the vote from the pool and ensure it is not in the orphan pool,
 	// not in the transaction pool, and not reported as available.
-	harness.txPool.RemoveTransaction(preDCP0010Vote, true, noTreasury,
-		noAutoRevocations)
+	harness.txPool.RemoveTransaction(preDCP0010Vote, true)
 	testPoolMembership(tc, preDCP0010Vote, false, false)
 
 	// Attempt to add the vote with the original subsidy when the agenda is

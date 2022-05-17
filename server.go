@@ -2679,8 +2679,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		txMemPool := s.txMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
@@ -2730,8 +2729,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range parentBlock.Transactions()[1:] {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled,
-						isAutoRevocationsEnabled)
+					txMemPool.RemoveTransaction(tx, true)
 				}
 			}
 		}
@@ -2803,8 +2801,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		txMemPool := s.txMemPool
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
@@ -2839,8 +2836,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			for _, tx := range txns {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true, isTreasuryEnabled,
-						isAutoRevocationsEnabled)
+					txMemPool.RemoveTransaction(tx, true)
 				}
 			}
 		}
