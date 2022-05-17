@@ -475,7 +475,7 @@ func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled,
 // orphan if adding a new one would cause it to overflow the max allowed.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+func (mp *TxPool) limitNumOrphans() {
 	// Scan through the orphan pool and remove any expired orphans when it's
 	// time.  This is done for efficiency so the scan only happens periodically
 	// instead of on every orphan added to the pool.
@@ -534,7 +534,7 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag, isTreasuryEnabled,
 	// Limit the number orphan transactions to prevent memory exhaustion.
 	// This will periodically remove any expired orphans and evict a random
 	// orphan if space is still needed.
-	mp.limitNumOrphans(isTreasuryEnabled, isAutoRevocationsEnabled)
+	mp.limitNumOrphans()
 
 	mp.orphans[*tx.Hash()] = &orphanTx{
 		tx:         tx,
