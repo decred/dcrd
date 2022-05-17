@@ -808,8 +808,7 @@ func (mp *TxPool) HaveAllTransactions(hashes []chainhash.Hash) bool {
 // RemoveTransaction.  See the comment for RemoveTransaction for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers,
-	isTreasuryEnabled, isAutoRevocationsEnabled bool) {
+func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 	txHash := tx.Hash()
 	if removeRedeemers {
 		// Remove any transactions which rely on this one.
@@ -823,8 +822,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers,
 		for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
 			outpoint.Index = i
 			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
-				mp.removeTransaction(txRedeemer, true,
-					isTreasuryEnabled, isAutoRevocationsEnabled)
+				mp.removeTransaction(txRedeemer, true)
 				continue
 			}
 			if txRedeemer, exists := mp.stagedOutpoints[outpoint]; exists {
@@ -875,8 +873,7 @@ func (mp *TxPool) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.removeTransaction(tx, removeRedeemers, isTreasuryEnabled,
-		isAutoRevocationsEnabled)
+	mp.removeTransaction(tx, removeRedeemers)
 	mp.mtx.Unlock()
 }
 
@@ -895,8 +892,7 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled,
 	for _, txIn := range tx.MsgTx().TxIn {
 		if txRedeemer, ok := mp.outpoints[txIn.PreviousOutPoint]; ok {
 			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
-				mp.removeTransaction(txRedeemer, true,
-					isTreasuryEnabled, isAutoRevocationsEnabled)
+				mp.removeTransaction(txRedeemer, true)
 			}
 		}
 		if txRedeemer, ok := mp.stagedOutpoints[txIn.PreviousOutPoint]; ok {
@@ -1814,8 +1810,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		mp.forEachRedeemer(tx, func(redeemerTxDesc *TxDesc) {
 			redeemerTx := redeemerTxDesc.Tx
 			if redeemerTxDesc.Type == stake.TxTypeSStx {
-				mp.removeTransaction(redeemerTx, true, isTreasuryEnabled,
-					isAutoRevocationsEnabled)
+				mp.removeTransaction(redeemerTx, true)
 				mp.stageTransaction(redeemerTxDesc)
 				log.Debugf("Moved ticket %v dependent on %v into stage pool",
 					redeemerTx.Hash(), txHash)
@@ -2001,20 +1996,17 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 		txType := txDesc.Type
 		if txType == stake.TxTypeSStx &&
 			txDesc.Height+int64(heightDiffToPruneTicket) < height {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(txDesc.Tx, true)
 			continue
 		}
 		if txType == stake.TxTypeSStx &&
 			txDesc.Tx.MsgTx().TxOut[0].Value < requiredStakeDifficulty {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(txDesc.Tx, true)
 			continue
 		}
 		if (txType == stake.TxTypeSSRtx || txType == stake.TxTypeSSGen) &&
 			txDesc.Height+int64(heightDiffToPruneVotes) < height {
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(txDesc.Tx, true)
 			continue
 		}
 		if isAutoRevocationsEnabled && txType == stake.TxTypeSSRtx {
@@ -2023,8 +2015,7 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 			// longer valid and should be removed since they require using the header
 			// of the previous block in order to properly calculate the return
 			// amounts.
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(txDesc.Tx, true)
 			continue
 		}
 	}
@@ -2050,8 +2041,7 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64,
 			// longer valid and should be removed since they require using the header
 			// of the previous block in order to properly calculate the return
 			// amounts.
-			mp.removeTransaction(txDesc.Tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(txDesc.Tx, true)
 			continue
 		}
 	}
@@ -2095,8 +2085,7 @@ func (mp *TxPool) pruneExpiredTx(isTreasuryEnabled,
 		if blockchain.IsExpired(tx, nextBlockHeight) {
 			log.Debugf("Pruning expired transaction %v from the mempool",
 				tx.Hash())
-			mp.removeTransaction(tx, true, isTreasuryEnabled,
-				isAutoRevocationsEnabled)
+			mp.removeTransaction(tx, true)
 		}
 	}
 
