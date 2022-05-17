@@ -922,9 +922,7 @@ func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
 // helper for maybeAcceptTransaction and maybeUnstageTransaction.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
-	txDesc *TxDesc, isTreasuryEnabled bool) {
-
+func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxDesc) {
 	tx := txDesc.Tx
 	txHash := tx.Hash()
 	txType := txDesc.Type
@@ -1170,7 +1168,7 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool
 		if err != nil {
 			return err
 		}
-		mp.addTransaction(utxoView, txDesc, isTreasuryEnabled)
+		mp.addTransaction(utxoView, txDesc)
 	}
 	return nil
 }
@@ -1802,7 +1800,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	}
 
 	// Add to transaction pool.
-	mp.addTransaction(utxoView, txDesc, isTreasuryEnabled)
+	mp.addTransaction(utxoView, txDesc)
 
 	// A regular transaction entering the mempool causes
 	// mempool tickets that redeem it to move to the stage pool.
