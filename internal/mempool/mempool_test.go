@@ -1455,7 +1455,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 		t.Fatalf("unable to create signed tx: %v", err)
 	}
 
-	harness.txPool.RemoveOrphan(nonChainedOrphanTx, noTreasury, noAutoRevocations)
+	harness.txPool.RemoveOrphan(nonChainedOrphanTx)
 	testPoolMembership(tc, nonChainedOrphanTx, false, false)
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
 		testPoolMembership(tc, tx, true, false)
@@ -1464,7 +1464,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	// Attempt to remove an orphan that has an existing redeemer but itself
 	// is not present and ensure the state of all other orphans (including
 	// the one that redeems it) are unaffected.
-	harness.txPool.RemoveOrphan(chainedTxns[0], noTreasury, noAutoRevocations)
+	harness.txPool.RemoveOrphan(chainedTxns[0])
 	testPoolMembership(tc, chainedTxns[0], false, false)
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
 		testPoolMembership(tc, tx, true, false)
@@ -1473,7 +1473,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	// Remove each orphan one-by-one and ensure they are removed as
 	// expected.
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
-		harness.txPool.RemoveOrphan(tx, noTreasury, noAutoRevocations)
+		harness.txPool.RemoveOrphan(tx)
 		testPoolMembership(tc, tx, false, false)
 	}
 }

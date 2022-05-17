@@ -2698,7 +2698,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
-				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
+				txMemPool.RemoveOrphan(tx)
 				acceptedTxs := txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 				s.AnnounceNewTransactions(acceptedTxs)
 
@@ -2822,7 +2822,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
 				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled,
 					isAutoRevocationsEnabled)
-				txMemPool.RemoveOrphan(tx, isTreasuryEnabled, isAutoRevocationsEnabled)
+				txMemPool.RemoveOrphan(tx)
 				txMemPool.ProcessOrphans(tx, ntfn.CheckTxFlags)
 			}
 		}
