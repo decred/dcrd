@@ -2252,22 +2252,8 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	}
 
 	if sp.VersionKnown() {
-		tipHash := &s.chain.BestSnapshot().Hash
-		isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(tipHash)
-		if err != nil {
-			srvrLog.Errorf("Could not obtain treasury agenda status: %v", err)
-		}
-
-		isAutoRevocationsEnabled, err :=
-			s.chain.IsAutoRevocationsAgendaActive(tipHash)
-		if err != nil {
-			srvrLog.Errorf("Could not obtain automatic ticket revocations agenda "+
-				"status: %v", err)
-		}
-
 		// Evict any remaining orphans that were sent by the peer.
-		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
 		if numEvicted > 0 {
 			srvrLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
 				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())

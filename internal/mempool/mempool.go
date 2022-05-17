@@ -454,8 +454,7 @@ func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx) {
 // identifier.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) RemoveOrphansByTag(tag Tag, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) uint64 {
+func (mp *TxPool) RemoveOrphansByTag(tag Tag) uint64 {
 
 	var numEvicted uint64
 	mp.mtx.Lock()
