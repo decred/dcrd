@@ -26,6 +26,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/lru"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -141,6 +142,7 @@ type BlockChain struct {
 	allowOldForks            bool
 	expectedBlocksInTwoWeeks int64
 	deploymentVers           map[string]uint32
+	minKnownWork             *uint256.Uint256
 	db                       database.DB
 	dbInfo                   *databaseInfo
 	chainParams              *chaincfg.Params
@@ -467,7 +469,7 @@ func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
 		return nil, unknownBlockError(hash)
 	}
 
-	return node.workSum, nil
+	return node.workSum.ToBig(), nil
 }
 
 // TipGeneration returns the entire generation of blocks stemming from the
@@ -710,7 +712,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	// Atomically insert info into the database.
 	err = b.db.Update(func(dbTx database.Tx) error {
 		// Update best block state.
-		err := dbPutBestState(dbTx, state, node.workSum)
+		err := dbPutBestState(dbTx, state, &node.workSum)
 		if err != nil {
 			return err
 		}
@@ -922,7 +924,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 
 	err = b.db.Update(func(dbTx database.Tx) error {
 		// Update best block state.
-		err := dbPutBestState(dbTx, state, node.workSum)
+		err := dbPutBestState(dbTx, state, &node.workSum)
 		if err != nil {
 			return err
 		}
@@ -1593,8 +1595,7 @@ func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
 	if !b.isCurrentLatch {
 		// Not current if the latest best block has a cumulative work less than
 		// the minimum known work specified by the network parameters.
-		minKnownWork := b.chainParams.MinKnownChainWork
-		if minKnownWork != nil && curBest.workSum.Cmp(minKnownWork) < 0 {
+		if b.minKnownWork != nil && curBest.workSum.Lt(b.minKnownWork) {
 			return
 		}
 
@@ -2371,6 +2372,15 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
+	// Convert the minimum known work to a uint256 when it exists.  Ideally, the
+	// chain params should be updated to use the new type, but that will be a
+	// major version bump, so a one-time conversion is a good tradeoff in the
+	// mean time.
+	var minKnownWork *uint256.Uint256
+	if params.MinKnownChainWork != nil {
+		minKnownWork = new(uint256.Uint256).SetBig(params.MinKnownChainWork)
+	}
+
 	// Either use the subsidy cache provided by the caller or create a new
 	// one when one was not provided.
 	subsidyCache := config.SubsidyCache
@@ -2396,6 +2406,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		allowOldForks:                 allowOldForks,
 		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
 		deploymentVers:                deploymentVers,
+		minKnownWork:                  minKnownWork,
 		db:                            config.DB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,

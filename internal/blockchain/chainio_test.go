@@ -10,16 +10,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
-	"math/big"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
-	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/internal/staging/primitives"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -892,7 +892,7 @@ func TestHeaderCommitmentDeserializeErrors(t *testing.T) {
 func TestBestChainStateSerialization(t *testing.T) {
 	t.Parallel()
 
-	workSum := new(big.Int)
+	var workSum uint256.Uint256
 	tests := []struct {
 		name       string
 		state      bestChainState
@@ -905,9 +905,10 @@ func TestBestChainStateSerialization(t *testing.T) {
 				height:       0,
 				totalTxns:    1,
 				totalSubsidy: 0,
-				workSum: func() *big.Int {
-					workSum.Add(workSum, standalone.CalcWork(486604799))
-					return new(big.Int).Set(workSum)
+				workSum: func() uint256.Uint256 {
+					work := primitives.CalcWork(486604799)
+					workSum.Add(&work)
+					return workSum
 				}(), // 0x0100010001
 			},
 			serialized: hexToBytes("6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d61900000000000000000001000000000000000000000000000000050000000100010001"),
@@ -919,9 +920,10 @@ func TestBestChainStateSerialization(t *testing.T) {
 				height:       1,
 				totalTxns:    2,
 				totalSubsidy: 123456789,
-				workSum: func() *big.Int {
-					workSum.Add(workSum, standalone.CalcWork(486604799))
-					return new(big.Int).Set(workSum)
+				workSum: func() uint256.Uint256 {
+					work := primitives.CalcWork(486604799)
+					workSum.Add(&work)
+					return workSum
 				}(), // 0x0200020002,
 			},
 			serialized: hexToBytes("4860eb18bf1b1620e37e9490fc8a427514416fd75159ab86688e9a830000000001000000020000000000000015cd5b0700000000050000000200020002"),

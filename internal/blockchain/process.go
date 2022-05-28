@@ -736,7 +736,7 @@ func (b *BlockChain) InvalidateBlock(hash *chainhash.Hash) error {
 		// Chain tips that have less work than the new tip are not best chain
 		// candidates nor are any of their ancestors since they have even less
 		// work.
-		if tip.workSum.Cmp(newTip.workSum) < 0 {
+		if tip.workSum.Lt(&newTip.workSum) {
 			return nil
 		}
 
@@ -748,7 +748,7 @@ func (b *BlockChain) InvalidateBlock(hash *chainhash.Hash) error {
 		for n != nil && (n.status.KnownInvalid() || !b.index.canValidate(n)) {
 			n = n.parent
 		}
-		if n != nil && n != newTip && n.workSum.Cmp(newTip.workSum) >= 0 {
+		if n != nil && n != newTip && n.workSum.GtEq(&newTip.workSum) {
 			b.index.addBestChainCandidate(n)
 		}
 
@@ -826,7 +826,7 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 			b.recentContextChecks.Delete(n.hash)
 		}
 
-		if b.index.canValidate(n) && n.workSum.Cmp(curBestTip.workSum) >= 0 {
+		if b.index.canValidate(n) && n.workSum.GtEq(&curBestTip.workSum) {
 			b.index.addBestChainCandidate(n)
 		}
 
@@ -875,7 +875,7 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 		for n := finalNotKnownInvalidDescendant; n != vfNode; n = n.parent {
 			b.index.unsetStatusFlags(n, statusInvalidAncestor)
 			b.recentContextChecks.Delete(n.hash)
-			if b.index.canValidate(n) && n.workSum.Cmp(curBestTip.workSum) >= 0 {
+			if b.index.canValidate(n) && n.workSum.GtEq(&curBestTip.workSum) {
 				b.index.addBestChainCandidate(n)
 			}
 

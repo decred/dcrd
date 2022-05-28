@@ -8,15 +8,15 @@ package blockchain
 import (
 	"bytes"
 	"encoding/binary"
-	"math/big"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
-	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/internal/staging/primitives"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -128,7 +128,7 @@ type blockNode struct {
 
 	// workSum is the total amount of work in the chain up to and including
 	// this node.
-	workSum *big.Int
+	workSum uint256.Uint256
 
 	// Some fields from block headers to aid in best chain selection and
 	// reconstructing headers from memory.  These must be treated as
@@ -233,7 +233,7 @@ func calcSkipListHeight(height int64) int64 {
 func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *blockNode) {
 	*node = blockNode{
 		hash:         blockHeader.BlockHash(),
-		workSum:      standalone.CalcWork(blockHeader.Bits),
+		workSum:      primitives.CalcWork(blockHeader.Bits),
 		height:       int64(blockHeader.Height),
 		blockVersion: blockHeader.Version,
 		voteBits:     blockHeader.VoteBits,
@@ -256,7 +256,7 @@ func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *block
 	if parent != nil {
 		node.parent = parent
 		node.skipToAncestor = parent.Ancestor(calcSkipListHeight(node.height))
-		node.workSum = node.workSum.Add(parent.workSum, node.workSum)
+		node.workSum.Add(&parent.workSum)
 	}
 }
 
@@ -448,7 +448,7 @@ func betterCandidate(a, b *blockNode) bool {
 	//
 	// Blocks with more cumulative work are better candidates for best chain
 	// selection.
-	if workCmp := a.workSum.Cmp(b.workSum); workCmp != 0 {
+	if workCmp := a.workSum.Cmp(&b.workSum); workCmp != 0 {
 		return workCmp > 0
 	}
 
@@ -1249,7 +1249,7 @@ func (bi *blockIndex) removeLessWorkCandidates(node *blockNode) {
 	// Remove all best chain candidates that have less work than the passed
 	// node.
 	for n := range bi.bestChainCandidates {
-		if n.workSum.Cmp(node.workSum) < 0 {
+		if n.workSum.Lt(&node.workSum) {
 			bi.removeBestChainCandidate(n)
 		}
 	}
@@ -1306,7 +1306,7 @@ func (bi *blockIndex) linkBlockData(node, tip *blockNode) []*blockNode {
 
 		// The block is now a candidate to potentially become the best chain if
 		// it has the same or more work than the current best chain tip.
-		if linkedNode.workSum.Cmp(tip.workSum) >= 0 {
+		if linkedNode.workSum.GtEq(&tip.workSum) {
 			bi.addBestChainCandidate(linkedNode)
 		}
 

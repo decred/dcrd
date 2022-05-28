@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
@@ -21,6 +20,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1120,7 +1120,7 @@ func dbFetchDatabaseInfo(dbTx database.Tx) *databaseInfo {
 //   total txns        uint64           8 bytes
 //   total subsidy     int64            8 bytes
 //   work sum length   uint32           4 bytes
-//   work sum          big.Int          work sum length
+//   work sum          uint256          work sum length
 // -----------------------------------------------------------------------------
 
 // bestChainState represents the data to be stored the database for the current
@@ -1130,14 +1130,30 @@ type bestChainState struct {
 	height       uint32
 	totalTxns    uint64
 	totalSubsidy int64
-	workSum      *big.Int
+	workSum      uint256.Uint256
 }
 
 // serializeBestChainState returns the serialization of the passed block best
 // chain state.  This is data to be stored in the chain state bucket.
 func serializeBestChainState(state bestChainState) []byte {
 	// Calculate the full size needed to serialize the chain state.
-	workSumBytes := state.workSum.Bytes()
+	//
+	// NOTE: The leading zero bytes are truncated in order to match the
+	// semantics of legacy code that made use of stdlib big.Ints which returns a
+	// variable number of bytes versus the new uint256 type that returns a
+	// fixed-size array.  This is needed because the bytes are stored in the
+	// database and changing the format would require a version bump and the
+	// associated migration which does not seem worth it given the difference is
+	// easily handled efficiently as implemented here.
+	workSumBytesArray := state.workSum.Bytes()
+	var firstNonzero int
+	for i, b := range workSumBytesArray {
+		if b != 0 {
+			firstNonzero = i
+			break
+		}
+	}
+	workSumBytes := workSumBytesArray[firstNonzero:]
 	workSumBytesLen := uint32(len(workSumBytes))
 	serializedLen := chainhash.HashSize + 4 + 8 + 8 + 4 + workSumBytesLen
 
@@ -1196,21 +1212,21 @@ func deserializeBestChainState(serializedData []byte) (bestChainState, error) {
 		return bestChainState{}, makeDbErr(database.ErrCorruption, str)
 	}
 	workSumBytes := serializedData[offset : offset+workSumBytesLen]
-	state.workSum = new(big.Int).SetBytes(workSumBytes)
+	state.workSum = *new(uint256.Uint256).SetByteSlice(workSumBytes)
 
 	return state, nil
 }
 
 // dbPutBestState uses an existing database transaction to update the best chain
 // state with the given parameters.
-func dbPutBestState(dbTx database.Tx, snapshot *BestState, workSum *big.Int) error {
+func dbPutBestState(dbTx database.Tx, snapshot *BestState, workSum *uint256.Uint256) error {
 	// Serialize the current best chain state.
 	serializedData := serializeBestChainState(bestChainState{
 		hash:         snapshot.Hash,
 		height:       uint32(snapshot.Height),
 		totalTxns:    snapshot.TotalTxns,
 		totalSubsidy: snapshot.TotalSubsidy,
-		workSum:      workSum,
+		workSum:      *workSum,
 	})
 
 	// Store the current best chain state into the database.
@@ -1308,7 +1324,7 @@ func (b *BlockChain) createChainState() error {
 		}
 
 		// Store the current best chain state into the database.
-		err = dbPutBestState(dbTx, stateSnapshot, node.workSum)
+		err = dbPutBestState(dbTx, stateSnapshot, &node.workSum)
 		if err != nil {
 			return err
 		}

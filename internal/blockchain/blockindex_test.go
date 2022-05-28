@@ -6,13 +6,13 @@ package blockchain
 
 import (
 	"fmt"
-	"math/big"
 	"math/rand"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -406,13 +406,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "exactly equal, both data",
 		nodeA: &blockNode{
 			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
@@ -422,12 +422,12 @@ func TestBetterCandidate(t *testing.T) {
 		name: "exactly equal, no data",
 		nodeA: &blockNode{
 			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		wantCmp:    0,
@@ -436,12 +436,12 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has more cumulative work, same order, higher hash, b has data",
 		nodeA: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(4),
+			workSum:         *new(uint256.Uint256).SetUint64(4),
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
@@ -451,13 +451,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has less cumulative work, same order, lower hash, a has data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(4),
+			workSum:         *new(uint256.Uint256).SetUint64(4),
 			receivedOrderID: 0,
 		},
 		wantCmp:    -1,
@@ -466,12 +466,12 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, same order, lower hash, b has data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
@@ -481,13 +481,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, same order, higher hash, a has data",
 		nodeA: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		wantCmp:    1,
@@ -496,13 +496,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, higher order, lower hash, both data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 1,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
@@ -512,13 +512,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, lower order, lower hash, both data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 1,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 2,
 		},
@@ -528,12 +528,12 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, same order, lower hash, no data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			receivedOrderID: 0,
 		},
 		wantCmp:    -1,
@@ -542,13 +542,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, same order, lower hash, both data",
 		nodeA: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
@@ -558,13 +558,13 @@ func TestBetterCandidate(t *testing.T) {
 		name: "a has same cumulative work, same order, higher hash, both data",
 		nodeA: &blockNode{
 			hash:            *higherHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
 		nodeB: &blockNode{
 			hash:            *lowerHash,
-			workSum:         big.NewInt(2),
+			workSum:         *new(uint256.Uint256).SetUint64(2),
 			status:          statusDataStored,
 			receivedOrderID: 0,
 		},
