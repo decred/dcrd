@@ -6,7 +6,6 @@ package rpcserver
 
 import (
 	"context"
-	"math/big"
 	"net"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -246,7 +246,7 @@ type Chain interface {
 
 	// ChainWork returns the total work up to and including the block of the
 	// provided block hash.
-	ChainWork(hash *chainhash.Hash) (*big.Int, error)
+	ChainWork(hash *chainhash.Hash) (uint256.Uint256, error)
 
 	// CheckLiveTicket returns whether or not a ticket exists in the live ticket
 	// treap of the best node.

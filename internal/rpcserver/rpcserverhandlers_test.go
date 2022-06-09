@@ -40,6 +40,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
@@ -144,7 +145,7 @@ type testRPCChain struct {
 	blockHeightByHashErr          error
 	calcWantHeight                int64
 	chainTips                     []blockchain.ChainTipInfo
-	chainWork                     *big.Int
+	chainWork                     uint256.Uint256
 	chainWorkErr                  error
 	checkLiveTicket               bool
 	checkLiveTickets              []bool
@@ -241,7 +242,7 @@ func (c *testRPCChain) ChainTips() []blockchain.ChainTipInfo {
 
 // ChainWork returns returns a mocked total work up to and including the block
 // of the provided block hash.
-func (c *testRPCChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
+func (c *testRPCChain) ChainWork(hash *chainhash.Hash) (uint256.Uint256, error) {
 	return c.chainWork, c.chainWorkErr
 }
 
@@ -1272,6 +1273,19 @@ func hexToBytes(s string) []byte {
 	return b
 }
 
+// hexToUint256 interprets the passed hex string as a 256-bit big-endian
+// unsigned integer and returns the resulting uint256.  It will panic if there
+// is an error.  This is only provided for the hard-coded constants so errors in
+// the source code can be detected. It will only (and must only) be called with
+// hard-coded values.
+func hexToUint256(s string) uint256.Uint256 {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	return *new(uint256.Uint256).SetByteSlice(b)
+}
+
 // hexToMsgTx converts the passed hex string into a wire.MsgTx and will panic if
 // there is an error.  This is only provided for hard-coded constants so errors
 // in the source code can be detected.  It will only (and must only) be called
@@ -1416,7 +1430,7 @@ func defaultMockRPCChain() *testRPCChain {
 	headerByHashFn := func() wire.BlockHeader { return blkHeader }
 	blkHash := blk.Hash()
 	blkHeight := blk.Height()
-	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
+	chainWork := hexToUint256("0e805fb85284503581c57c")
 	return &testRPCChain{
 		bestSnapshot: &blockchain.BestState{
 			Hash:           *blkHash,
@@ -3579,8 +3593,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 			}
 			chain.bestHeaderHash = *hash
 			chain.bestHeaderHeight = 463073
-			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.chainWork = hexToUint256("115d2833849090b0026506")
 			chain.isCurrent = false
 			chain.maxBlockSize = 393216
 			chain.stateLastChangedHeight = int64(149248)
@@ -3619,8 +3632,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 				Hash:     *genesisHash,
 				PrevHash: *genesisPrevHash,
 			}
-			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x80, 0x00, 0x40, 0x00, 0x20,
-				0x00})
+			chain.chainWork = hexToUint256("800040002000")
 			chain.isCurrent = false
 			chain.maxBlockSize = 393216
 			chain.nextThresholdState = blockchain.ThresholdStateTuple{
@@ -3681,8 +3693,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 				Hash:     *hash,
 				PrevHash: *prevHash,
 			}
-			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.chainWork = hexToUint256("115d2833849090b0026506")
 			chain.maxBlockSizeErr = errors.New("could not fetch max block size")
 			return chain
 		}(),
@@ -3700,8 +3711,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 				Hash:     *hash,
 				PrevHash: *prevHash,
 			}
-			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.chainWork = hexToUint256("115d2833849090b0026506")
 			chain.maxBlockSize = 393216
 			chain.nextThresholdStateErr = errors.New("could not fetch threshold state")
 			return chain
@@ -3720,8 +3730,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 				Hash:     *hash,
 				PrevHash: *prevHash,
 			}
-			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.chainWork = hexToUint256("115d2833849090b0026506")
 			chain.maxBlockSize = 393216
 			chain.stateLastChangedHeightErr = errors.New("could not fetch state last changed")
 			return chain

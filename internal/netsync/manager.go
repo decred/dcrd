@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
+	"github.com/decred/dcrd/math/uint256"
 	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -271,6 +272,14 @@ type SyncManager struct {
 	// cfg specifies the configuration of the sync manager and is set at
 	// creation time and treated as immutable after that.
 	cfg Config
+
+	// minKnownWork houses the minimum known work from the associated network
+	// params converted to a uint256 so the conversion only needs to be
+	// performed once when the sync manager is initialized.  Ideally, the chain
+	// params should be updated to use the new type, but that will be a major
+	// version bump, so a one-time conversion is a good tradeoff in the mean
+	// time.
+	minKnownWork *uint256.Uint256
 
 	rejectedTxns    *apbf.Filter
 	requestedTxns   map[chainhash.Hash]struct{}
@@ -1094,10 +1103,9 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	isChainCurrent := chain.IsCurrent()
 	receivedMaxHeaders := len(headers) == wire.MaxBlockHeadersPerMsg
 	if !isChainCurrent && !peer.Inbound() && !receivedMaxHeaders {
-		minKnownWork := m.cfg.ChainParams.MinKnownChainWork
-		if minKnownWork != nil {
+		if m.minKnownWork != nil {
 			workSum, err := chain.ChainWork(finalReceivedHash)
-			if err == nil && workSum.Cmp(minKnownWork) < 0 {
+			if err == nil && workSum.Lt(m.minKnownWork) {
 				log.Debugf("Best known chain for peer %s has too little "+
 					"cumulative work -- disconnecting", peer)
 				peer.Disconnect()
@@ -1771,12 +1779,23 @@ type Config struct {
 // New returns a new network chain synchronization manager.  Use Run to begin
 // processing asynchronous events.
 func New(config *Config) *SyncManager {
+	// Convert the minimum known work to a uint256 when it exists.  Ideally, the
+	// chain params should be updated to use the new type, but that will be a
+	// major version bump, so a one-time conversion is a good tradeoff in the
+	// mean time.
+	var minKnownWork *uint256.Uint256
+	minKnownWorkBig := config.ChainParams.MinKnownChainWork
+	if minKnownWorkBig != nil {
+		minKnownWork = new(uint256.Uint256).SetBig(minKnownWorkBig)
+	}
+
 	return &SyncManager{
 		cfg:             *config,
 		rejectedTxns:    apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
 		requestedTxns:   make(map[chainhash.Hash]struct{}),
 		requestedBlocks: make(map[chainhash.Hash]struct{}),
 		peers:           make(map[*peerpkg.Peer]*syncMgrPeer),
+		minKnownWork:    minKnownWork,
 		hdrSyncState:    makeHeaderSyncState(),
 		progressLogger:  progresslog.New("Processed", log),
 		msgChan:         make(chan interface{}, config.MaxPeers*3),

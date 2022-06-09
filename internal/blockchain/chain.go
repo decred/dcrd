@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 	"time"
 
@@ -463,13 +462,13 @@ func (b *BlockChain) HaveBlock(hash *chainhash.Hash) bool {
 
 // ChainWork returns the total work up to and including the block of the
 // provided block hash.
-func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
+func (b *BlockChain) ChainWork(hash *chainhash.Hash) (uint256.Uint256, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil {
-		return nil, unknownBlockError(hash)
+		return uint256.Uint256{}, unknownBlockError(hash)
 	}
 
-	return node.workSum.ToBig(), nil
+	return node.workSum, nil
 }
 
 // TipGeneration returns the entire generation of blocks stemming from the
