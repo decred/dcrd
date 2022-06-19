@@ -3072,14 +3072,6 @@ func (s *server) Run(ctx context.Context) {
 		}
 	}
 
-	// Start the chain's spend pruner handler which processes spend journal
-	// prune signals.
-	s.wg.Add(1)
-	go func(ctx context.Context, s *server) {
-		s.chain.SpendPrunerHandler(ctx)
-		s.wg.Done()
-	}(ctx, s)
-
 	// Start the chain's index subscriber.
 	s.wg.Add(1)
 	go func(ctx context.Context, s *server) {

@@ -4,17 +4,13 @@
 
 package spendpruner
 
+// NB: This package is scehduled for removal once DropConsumerDepsBucket no
+// longer needs to be called to remove unneeded persisted data.
+
 import (
-	"bytes"
+	"errors"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v3"
-)
-
-const (
-	// depsSeparator is the character used in separating spend journal consumer
-	// dependencies when serializing.
-	depsSeparator = ','
 )
 
 var (
@@ -23,74 +19,16 @@ var (
 	spendConsumerDepsBucketName = []byte("spendconsumerdeps")
 )
 
-// initConsumerDepsBucket creates the spend consumer dependencies bucket if it
-// does not exist.
-func initConsumerDepsBucket(db database.DB) error {
-	// Create the spend consumer dependencies bucket if it does not exist yet.
+// DropConsumerDepsBucket removes the spend pruner consumer dependencies bucket
+// if it exists.
+func DropConsumerDepsBucket(db database.DB) error {
 	return db.Update(func(dbTx database.Tx) error {
 		meta := dbTx.Metadata()
-		_, err := meta.CreateBucketIfNotExists(spendConsumerDepsBucketName)
-		return err
+		err := meta.DeleteBucket(spendConsumerDepsBucketName)
+		if !errors.Is(err, database.ErrBucketNotFound) {
+			return err
+		}
+
+		return nil
 	})
-}
-
-// serializeSpendConsumerDeps returns serialized bytes of the provided spend
-// journal consumer dependencies.
-func serializeSpendConsumerDeps(deps []string) []byte {
-	var buf bytes.Buffer
-	for idx := 0; idx < len(deps); idx++ {
-		buf.WriteString(deps[idx])
-		if idx < len(deps)-1 {
-			buf.WriteByte(depsSeparator)
-		}
-	}
-
-	return buf.Bytes()
-}
-
-// deserializeSpendConsumerDeps returns deserialized spend consumer
-// dependencies from the provided serialized bytes.
-func deserializeSpendConsumerDeps(serializedBytes []byte) []string {
-	depBytes := bytes.Split(serializedBytes, []byte{depsSeparator})
-	deps := make([]string, len(depBytes))
-	for idx := 0; idx < len(depBytes); idx++ {
-		deps[idx] = string(depBytes[idx])
-	}
-
-	return deps
-}
-
-// dbUpdateSpendConsumerDeps uses an existing database transaction to update
-// the spend consumer dependency entry for the provided block hash.
-func dbUpdateSpendConsumerDeps(dbTx database.Tx, blockHash chainhash.Hash, consumerDeps []string) error {
-	depsBucket := dbTx.Metadata().Bucket(spendConsumerDepsBucketName)
-
-	// Remove the dependency entry if there are no spend consumer dependencies
-	// left for the block hash.
-	if len(consumerDeps) == 0 {
-		return depsBucket.Delete(blockHash[:])
-	}
-
-	// Update the dependency entry.
-	serialized := serializeSpendConsumerDeps(consumerDeps)
-	return depsBucket.Put(blockHash[:], serialized)
-}
-
-// dbFetchSpendConsumerDeps uses an existing database transaction to fetch all
-// spend consumer dependency entries in the database.
-func dbFetchSpendConsumerDeps(dbTx database.Tx) (map[chainhash.Hash][]string, error) {
-	depsBucket := dbTx.Metadata().Bucket(spendConsumerDepsBucketName)
-	consumerDeps := make(map[chainhash.Hash][]string)
-	cursor := depsBucket.Cursor()
-	for ok := cursor.First(); ok; ok = cursor.Next() {
-		hash, err := chainhash.NewHash(cursor.Key())
-		if err != nil {
-			return nil, err
-		}
-
-		deps := deserializeSpendConsumerDeps(cursor.Value())
-		consumerDeps[*hash] = deps
-	}
-
-	return consumerDeps, nil
 }

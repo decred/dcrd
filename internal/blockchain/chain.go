@@ -257,10 +257,6 @@ type BlockChain struct {
 	calcVoterVersionIntervalCache map[[chainhash.HashSize]byte]uint32
 	calcStakeVersionCache         map[[chainhash.HashSize]byte]uint32
 
-	// spendPruner prunes spend journal data for disconnected blocks
-	// if there are no consumers left for it.
-	spendPruner *spendpruner.SpendJournalPruner
-
 	// bulkImportMode provides a mechanism to indicate that several validation
 	// checks can be avoided when bulk importing blocks already known to be valid.
 	// It is protected by the chain lock.
@@ -813,9 +809,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		log.Debugf("New target %08x (%064x)", node.bits, newDiff)
 	}
 
-	// Notify the spend pruner of the connected block.
-	go b.spendPruner.NotifyConnectedBlock(block.Hash())
-
 	// Notify the caller that the block was connected to the main chain.
 	// The caller would typically want to react with actions such as
 	// updating wallets.
@@ -967,13 +960,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	// will be removed below.
 	err = b.utxoCache.MaybeFlush(&node.parent.hash, uint32(node.parent.height),
 		true, false)
-	if err != nil {
-		return err
-	}
-
-	// Prune the associated spend data for the provided block hash if there
-	// are no spend dependencies for it.
-	err = b.spendPruner.MaybePruneSpendData(block.Hash(), nil)
 	if err != nil {
 		return err
 	}
@@ -2231,43 +2217,9 @@ func (q *ChainQueryerAdapter) Best() (int64, *chainhash.Hash) {
 	return snapshot.Height, &snapshot.Hash
 }
 
-// Ancestor returns the ancestor of the provided block at the provided height.
-//
-// This function is safe for concurrent access and is part of the
-// indexers.ChainQueryer interface.
-func (q *ChainQueryerAdapter) Ancestor(block *chainhash.Hash, height int64) *chainhash.Hash {
-	node := q.index.LookupNode(block)
-	ancestor := node.Ancestor(height)
-	return &ancestor.hash
-}
-
-// AddSpendConsumer adds the provided spend consumer to the spend pruner.
-func (q *ChainQueryerAdapter) AddSpendConsumer(consumer spendpruner.SpendConsumer) {
-	q.spendPruner.AddConsumer(consumer)
-}
-
-// RemoveSpendConsumerDependency removes the provided spend consumer dependency
-// associated with the provided block hash from the spend pruner.
-func (q *ChainQueryerAdapter) RemoveSpendConsumerDependency(dbTx database.Tx, blockHash *chainhash.Hash, consumerID string) error {
-	return q.spendPruner.RemoveSpendConsumerDependency(dbTx, blockHash, consumerID)
-}
-
-// FetchSpendConsumer returns the spend journal consumer associated with the
-// provided id.
-func (q *ChainQueryerAdapter) FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error) {
-	return q.spendPruner.FetchConsumer(id)
-}
-
 // BlockHeaderByHash returns the block header identified by the given hash.
 func (q *ChainQueryerAdapter) BlockHeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
 	return q.HeaderByHash(hash)
-}
-
-// SpendPrunerHandler processes incoming spending pruner signals.
-//
-// This must be run as a goroutine.
-func (b *BlockChain) SpendPrunerHandler(ctx context.Context) {
-	b.spendPruner.HandleSignals(ctx)
 }
 
 // Config is a descriptor which specifies the blockchain instance configuration.
@@ -2441,8 +2393,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db, b.RemoveSpendEntry)
-	if err != nil {
+	// Drop the spendpruner consumer dependencies bucket if it exists.
+	if err := spendpruner.DropConsumerDepsBucket(b.db); err != nil {
 		return nil, err
 	}
 
