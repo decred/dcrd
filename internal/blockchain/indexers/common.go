@@ -19,7 +19,6 @@ import (
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain/progresslog"
-	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -79,21 +78,6 @@ type ChainQueryer interface {
 
 	// BlockByHash returns the block of the provided hash.
 	BlockByHash(*chainhash.Hash) (*dcrutil.Block, error)
-
-	// Ancestor returns the ancestor of the provided block at the
-	// provided height.
-	Ancestor(block *chainhash.Hash, height int64) *chainhash.Hash
-
-	// AddSpendConsumer adds the provided spend consumer.
-	AddSpendConsumer(consumer spendpruner.SpendConsumer)
-
-	// RemoveSpendConsumerDependency removes the provided spend consumer
-	// dependency associated with the provided block hash.
-	RemoveSpendConsumerDependency(dbTx database.Tx, blockHash *chainhash.Hash, consumerID string) error
-
-	// FetchSpendConsumer returns the spend journal consumer associated with
-	// the provided id.
-	FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error)
 
 	// PrevScripts returns a source of previous transaction scripts and their
 	// associated versions spent by the given block.

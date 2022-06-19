@@ -17,7 +17,6 @@ import (
 	"github.com/decred/dcrd/database/v3"
 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -30,7 +29,6 @@ type testChain struct {
 	keyedByHeight    map[int64]*dcrutil.Block
 	keyedByHash      map[chainhash.Hash]*dcrutil.Block
 	orphans          map[chainhash.Hash]*dcrutil.Block
-	consumers        map[string]spendpruner.SpendConsumer
 	removedSpendDeps map[chainhash.Hash][]string
 	mtx              sync.Mutex
 }
@@ -41,7 +39,6 @@ func newTestChain() (*testChain, error) {
 		keyedByHeight:    make(map[int64]*dcrutil.Block),
 		keyedByHash:      make(map[chainhash.Hash]*dcrutil.Block),
 		orphans:          make(map[chainhash.Hash]*dcrutil.Block),
-		consumers:        make(map[string]spendpruner.SpendConsumer),
 		removedSpendDeps: make(map[chainhash.Hash][]string),
 	}
 	genesis := dcrutil.NewBlock(chaincfg.SimNetParams().GenesisBlock)
@@ -167,13 +164,6 @@ func (tc *testChain) Ancestor(block *chainhash.Hash, height int64) *chainhash.Ha
 	}
 }
 
-// AddSpendConsumer adds the provided spend consumer.
-func (tc *testChain) AddSpendConsumer(consumer spendpruner.SpendConsumer) {
-	tc.mtx.Lock()
-	tc.consumers[consumer.ID()] = consumer
-	tc.mtx.Unlock()
-}
-
 // RemoveSpendConsumerDependency removes the provided spend consumer dependency
 // associated with the provided block hash.
 func (tc *testChain) RemoveSpendConsumerDependency(_ database.Tx, blockHash *chainhash.Hash, consumerID string) error {
@@ -209,19 +199,6 @@ func (tc *testChain) IsRemovedSpendConsumerDependency(blockHash *chainhash.Hash,
 	}
 
 	return false
-}
-
-// FetchSpendConsumer returns the spend journal consumer associated with
-// the provided id.
-func (tc *testChain) FetchSpendConsumer(id string) (spendpruner.SpendConsumer, error) {
-	tc.mtx.Lock()
-	defer tc.mtx.Unlock()
-	consumer, ok := tc.consumers[id]
-	if !ok {
-		return nil, fmt.Errorf("no spend consumer found with id %s", id)
-	}
-
-	return consumer, nil
 }
 
 // ChainParams returns the parameters of the chain.
