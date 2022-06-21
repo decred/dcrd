@@ -390,6 +390,15 @@ func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64, blockIndex 
 	p.chain.utxos.AddTxOuts(tx, blockHeight, blockIndex, noTreasury)
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 // CreateCoinbaseTx returns a coinbase transaction with the requested number of
 // outputs paying an appropriate subsidy based on the passed block height to the
 // address associated with the harness.  It automatically uses a standard
@@ -422,10 +431,7 @@ func (p *poolHarness) CreateCoinbaseTx(blockHeight int64, numOutputs uint32) (*d
 		if i == numOutputs-1 {
 			amount = amountPerOutput + remainder
 		}
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: p.payScript,
-			Value:    amount,
-		})
+		tx.AddTxOut(newTxOut(amount, p.payScriptVer, p.payScript))
 	}
 
 	return dcrutil.NewTx(tx), nil
@@ -460,17 +466,37 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 			ValueIn:          int64(input.amount),
 		})
 	}
+
+	// Calculate the total fee and split it amongst the requested number of
+	// outputs.
+	const maxSigScriptLen = 107
+	txOutTemplate := wire.TxOut{
+		PkScript: p.payScript,
+		Version:  p.payScriptVer,
+	}
+	estimatedSize := int64(tx.SerializeSize()) +
+		int64(txOutTemplate.SerializeSize())*int64(numOutputs) +
+		int64(maxSigScriptLen)*int64(len(inputs))
+	minRelayTxFee := p.txPool.cfg.Policy.MinRelayTxFee
+	totalFee := calcMinRequiredTxRelayFee(estimatedSize, minRelayTxFee)
+	feePerOutput := totalFee / int64(numOutputs)
+	feeRemainder := totalFee % int64(numOutputs)
+
+	// Ensure the fee does not exceed the total available input amount.
+	if totalFee > int64(totalInput) {
+		return nil, fmt.Errorf("unable to create signed transaction: required "+
+			"fee %s > input amount %s", dcrutil.Amount(totalFee), totalInput)
+	}
+
 	for i := uint32(0); i < numOutputs; i++ {
 		// Ensure the final output accounts for any remainder that might
 		// be left from splitting the input amount.
-		amount := amountPerOutput
+		amount := amountPerOutput - feePerOutput
 		if i == numOutputs-1 {
 			amount += remainder
+			amount -= feeRemainder
 		}
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: p.payScript,
-			Value:    amount,
-		})
+		tx.AddTxOut(newTxOut(amount, p.payScriptVer, p.payScript))
 	}
 
 	// Perform any transaction munging just before signing.
@@ -497,36 +523,18 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 // amount of the previous one and as such does not include any fees.
 func (p *poolHarness) CreateTxChain(firstOutput spendableOutput, numTxns uint32) ([]*dcrutil.Tx, error) {
 	txChain := make([]*dcrutil.Tx, 0, numTxns)
-	prevOutPoint := firstOutput.outPoint
-	spendableAmount := firstOutput.amount
+	var inputs [1]spendableOutput
+	inputs[0] = firstOutput
 	for i := uint32(0); i < numTxns; i++ {
-		// Create the transaction using the previous transaction output
-		// and paying the full amount to the payment address associated
-		// with the harness.
-		tx := wire.NewMsgTx()
-		tx.AddTxIn(&wire.TxIn{
-			PreviousOutPoint: prevOutPoint,
-			SignatureScript:  nil,
-			Sequence:         wire.MaxTxInSequenceNum,
-			ValueIn:          int64(spendableAmount),
-		})
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: p.payScript,
-			Value:    int64(spendableAmount),
-		})
-
-		// Sign the new transaction.
-		sigScript, err := sign.SignatureScript(tx, 0, p.payScript,
-			txscript.SigHashAll, p.signKey, dcrec.STEcdsaSecp256k1, true)
+		tx, err := p.CreateSignedTx(inputs[:], 1)
 		if err != nil {
 			return nil, err
 		}
-		tx.TxIn[0].SignatureScript = sigScript
 
-		txChain = append(txChain, dcrutil.NewTx(tx))
+		txChain = append(txChain, tx)
 
 		// Next transaction uses outputs from this one.
-		prevOutPoint = wire.OutPoint{Hash: tx.TxHash(), Index: 0}
+		inputs[0] = txOutToSpendableOut(tx, 0, wire.TxTreeRegular)
 	}
 
 	return txChain, nil
@@ -602,15 +610,6 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 	binary.LittleEndian.PutUint16(b[0:2], voteBits.Bits)
 	copy(b[2:], voteBits.ExtendedBits)
 	return stdscript.ProvablyPruneableScriptV0(b)
-}
-
-// newTxOut returns a new transaction output with the given parameters.
-func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
-	return &wire.TxOut{
-		Value:    amount,
-		Version:  pkScriptVer,
-		PkScript: pkScript,
-	}
 }
 
 // CreateVote creates a vote transaction using the provided ticket.  The vote
@@ -1823,10 +1822,8 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		// The output value adds the test index in order to ensure the resulting
 		// transaction hash is unique.
 		inputMsgTx := wire.NewMsgTx()
-		inputMsgTx.AddTxOut(&wire.TxOut{
-			PkScript: harness.payScript,
-			Value:    1000000000 + int64(i),
-		})
+		inputMsgTx.AddTxOut(newTxOut(1000000000+int64(i), harness.payScriptVer,
+			harness.payScript))
 		inputTx := dcrutil.NewTx(inputMsgTx)
 		harness.AddFakeUTXO(inputTx, baseHeight, wire.NullBlockIndex)
 		harness.chain.AddFakeUtxoMedianTime(inputTx, 0, baseTime)
@@ -2878,11 +2875,7 @@ func TestExplicitVersionSemantics(t *testing.T) {
 	// with script versions that are no longer valid for new outputs remain
 	// spendable.
 	mockInputMsgTx := wire.NewMsgTx()
-	mockInputMsgTx.AddTxOut(&wire.TxOut{
-		Value:    1000000000,
-		Version:  ^uint16(0),
-		PkScript: []byte{txscript.OP_FALSE},
-	})
+	mockInputMsgTx.AddTxOut(newTxOut(1e9, ^uint16(0), []byte{txscript.OP_FALSE}))
 	mockInputTx := dcrutil.NewTx(mockInputMsgTx)
 	harness.AddFakeUTXO(mockInputTx, harness.chain.BestHeight(),
 		wire.NullBlockIndex)
@@ -3261,33 +3254,39 @@ func TestMaybeAcceptTransactions(t *testing.T) {
 		t.Fatalf("unable to create mining harness: %v", err)
 	}
 
-	applyTxFee := func(fee int64) func(*wire.MsgTx) {
-		return func(tx *wire.MsgTx) {
-			tx.TxOut[0].Value -= fee
-		}
+	// Create a chain of transactions rooted with the first spendable output
+	// provided by the harness.
+	chainedTxns, err := harness.CreateTxChain(spendableOuts[0], 3)
+	if err != nil {
+		t.Fatalf("unable to create transaction chain: %v", err)
 	}
 
-	txA, _ := harness.CreateSignedTx([]spendableOutput{
-		spendableOuts[0],
-	}, 1, applyTxFee(1000))
-
-	txB, _ := harness.CreateSignedTx([]spendableOutput{
-		txOutToSpendableOut(txA, 0, wire.TxTreeRegular),
-	}, 1, applyTxFee(1000))
-
-	txC, _ := harness.CreateSignedTx([]spendableOutput{
-		txOutToSpendableOut(txB, 0, wire.TxTreeRegular),
-	}, 1, applyTxFee(1000))
+	// calcFee calculates and returns the fee paid by the provided transaction.
+	calcFee := func(utilTx *dcrutil.Tx) int64 {
+		var totalIn, totalOut int64
+		tx := utilTx.MsgTx()
+		for _, txIn := range tx.TxIn {
+			totalIn += txIn.ValueIn
+		}
+		for _, txOut := range tx.TxOut {
+			totalOut += txOut.Value
+		}
+		return totalIn - totalOut
+	}
 
 	// Add transactions to mempool in block order.
 	txPool := harness.txPool
-	for _, tx := range []*dcrutil.Tx{txA, txB, txC} {
+	for _, tx := range chainedTxns {
 		_, err := txPool.ProcessTransaction(tx, false, true, true, 0)
 		if err != nil {
 			t.Fatalf("failed to accept valid transaction: %v", err)
 			return
 		}
 	}
+
+	txA, txAFee := chainedTxns[0], calcFee(chainedTxns[0])
+	txB, txBFee := chainedTxns[1], calcFee(chainedTxns[1])
+	txC := chainedTxns[2]
 
 	testExpectedAncestorFee := func(tx *dcrutil.Tx, expectedFee int64) {
 		txHash := tx.Hash()
@@ -3304,7 +3303,7 @@ func TestMaybeAcceptTransactions(t *testing.T) {
 		}
 	}
 
-	testExpectedAncestorFee(txC, 2000)
+	testExpectedAncestorFee(txC, txAFee+txBFee)
 
 	// Remove leading transactions from mempool.
 	txPool.RemoveTransaction(txA, false)
@@ -3313,11 +3312,11 @@ func TestMaybeAcceptTransactions(t *testing.T) {
 	testExpectedAncestorFee(txC, 0)
 
 	// Accept transactions provided in block order.
-	err = txPool.MaybeAcceptTransactions([]*dcrutil.Tx{txA, txB}, true)
+	err = txPool.MaybeAcceptTransactions(chainedTxns[0:2], true)
 	if err != nil {
 		t.Fatalf("failed to accept valid transaction: %v", err)
 		return
 	}
 
-	testExpectedAncestorFee(txC, 2000)
+	testExpectedAncestorFee(txC, txAFee+txBFee)
 }
