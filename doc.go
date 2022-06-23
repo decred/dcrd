@@ -136,9 +136,9 @@ Application Options:
                                implications. Set to 0 to disable
       --minrelaytxfee=         The minimum transaction fee in DCR/kB to be
                                considered a non-zero fee (default: 0.0001)
-      --limitfreerelay=        Limit relay of transactions with no transaction
-                               fee to the given amount in thousands of bytes per
-                               minute (default: 15)
+      --limitfreerelay=        DEPRECATED: This behavior is no longer available
+                               and this option will be removed in a future
+                               version of the software
       --norelaypriority        DEPRECATED: This behavior is no longer available
                                and this option will be removed in a future
                                version of the software

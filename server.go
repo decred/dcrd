@@ -3472,7 +3472,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		Policy: mempool.Policy{
 			EnableAncestorTracking: len(cfg.miningAddrs) > 0,
 			AcceptNonStd:           cfg.AcceptNonStd,
-			FreeTxRelayLimit:       cfg.FreeTxRelayLimit,
 			MaxOrphanTxs:           cfg.MaxOrphanTxs,
 			MaxOrphanTxSize:        mempool.MaxStandardTxSize,
 			MaxSigOpsPerTx:         blockchain.MaxSigOpsPerBlock / 5,

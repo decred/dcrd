@@ -175,10 +175,6 @@ type Policy struct {
 	// network. Otherwise, all non-standard transactions will be rejected.
 	AcceptNonStd bool
 
-	// FreeTxRelayLimit defines the given amount in thousands of bytes
-	// per minute that transactions with no fee are rate limited to.
-	FreeTxRelayLimit float64
-
 	// MaxOrphanTxs is the maximum number of orphan transactions
 	// that can be queued.
 	MaxOrphanTxs int
@@ -1646,7 +1642,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		mp.lastPennyUnix = nowUnix
 
 		// Are we still over the limit?
-		if mp.pennyTotal >= mp.cfg.Policy.FreeTxRelayLimit*10*1000 {
+		const freeTxRelayLimit = 15.0 // 15kB per minute
+		if mp.pennyTotal >= freeTxRelayLimit*10*1000 {
 			str := fmt.Sprintf("transaction %v has been rejected "+
 				"by the rate limiter due to low fees", txHash)
 			return nil, txRuleError(ErrInsufficientFee, str)
@@ -1655,8 +1652,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 
 		mp.pennyTotal += float64(serializedSize)
 		log.Tracef("rate limit: curTotal %v, nextTotal: %v, "+
-			"limit %v", oldTotal, mp.pennyTotal,
-			mp.cfg.Policy.FreeTxRelayLimit*10*1000)
+			"limit %v", oldTotal, mp.pennyTotal, freeTxRelayLimit*10*1000)
 	}
 
 	// Check that tickets also pay the minimum of the relay fee.  This fee is

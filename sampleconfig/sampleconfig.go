@@ -244,10 +244,6 @@ const fileContents = `[Application Options]
 ; Set the minimum transaction fee to be considered a non-zero fee,
 ; minrelaytxfee=0.0001
 
-; Rate-limit free transactions to the value 15 * 1000 bytes per
-; minute.
-; limitfreerelay=15
-
 ; Limit orphan transaction pool to 100 transactions.
 ; maxorphantx=100
 

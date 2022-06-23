@@ -68,7 +68,6 @@ const (
 	defaultBanThreshold = 100
 
 	// Defaults for relay and mempool policy options.
-	defaultFreeTxRelayLimit      = 15.0
 	defaultMaxOrphanTransactions = 100
 	defaultAllowOldVotes         = false
 
@@ -198,7 +197,7 @@ type config struct {
 
 	// Relay and mempool policy.
 	MinRelayTxFee    float64 `long:"minrelaytxfee" description:"The minimum transaction fee in DCR/kB to be considered a non-zero fee"`
-	FreeTxRelayLimit float64 `long:"limitfreerelay" description:"Limit relay of transactions with no transaction fee to the given amount in thousands of bytes per minute"`
+	FreeTxRelayLimit float64 `long:"limitfreerelay" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	NoRelayPriority  bool    `long:"norelaypriority" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	MaxOrphanTxs     int     `long:"maxorphantx" description:"Max number of orphan transactions to keep in memory"`
 	BlocksOnly       bool    `long:"blocksonly" description:"Do not accept transactions from remote peers"`
@@ -637,10 +636,9 @@ func loadConfig(appName string) (*config, []string, error) {
 		BanThreshold: defaultBanThreshold,
 
 		// Relay and mempool policy.
-		MinRelayTxFee:    mempool.DefaultMinRelayTxFee.ToCoin(),
-		FreeTxRelayLimit: defaultFreeTxRelayLimit,
-		MaxOrphanTxs:     defaultMaxOrphanTransactions,
-		AllowOldVotes:    defaultAllowOldVotes,
+		MinRelayTxFee: mempool.DefaultMinRelayTxFee.ToCoin(),
+		MaxOrphanTxs:  defaultMaxOrphanTransactions,
+		AllowOldVotes: defaultAllowOldVotes,
 
 		// Mining options and policy.
 		Generate:            defaultGenerate,
@@ -828,6 +826,14 @@ func loadConfig(appName string) (*config, []string, error) {
 			"used together -- choose one of the three"
 		err := fmt.Errorf(str, funcName)
 		return nil, nil, err
+	}
+
+	// Warn on use of deprecated option to modify the rate limit of low-fee/free
+	// transaction rate limiting.
+	if cfg.FreeTxRelayLimit != 0 {
+		fmt.Fprintln(os.Stderr, "The --limitfreerelay option is deprecated "+
+			"and will be removed in a future version of the software: please "+
+			"remove it from your config")
 	}
 
 	// Warn on use of deprecated option to disable relaying of low-fee/free
