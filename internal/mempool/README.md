@@ -57,8 +57,7 @@ be an exhaustive list.
 - Configurable transaction acceptance policy
   - Option to accept or reject standard transactions
   - Option to accept or reject transactions based on priority calculations
-  - Rate limiting of low-fee and free transactions
-  - Non-zero fee threshold
+  - Minimum fee threshold
   - Max signature operations per transaction
   - Max orphan transaction size
   - Max number of orphan transactions allowed
