@@ -24,6 +24,15 @@ func (e AssertError) Error() string {
 	return "assertion failed: " + string(e)
 }
 
+// Is implements the interface to work with the standard library's errors.Is.
+//
+// It returns true in the following cases:
+// - The target is AssertError
+func (e AssertError) Is(target error) bool {
+	var err AssertError
+	return errors.As(target, &err)
+}
+
 // ErrorKind identifies a kind of error.  It has full support for errors.Is and
 // errors.As, so the caller can directly check against an error kind when
 // determining the reason for an error.
