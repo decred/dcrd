@@ -2709,7 +2709,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// transaction is still valid.
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			txns := parentBlock.Transactions()[1:]
-			txMemPool.MaybeAcceptTransactions(txns, true)
+			txMemPool.MaybeAcceptTransactions(txns)
 		}
 		if r := s.rpcServer; r != nil {
 			// Filter and update the rebroadcast inventory.
@@ -2809,7 +2809,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// those outputs, and, in that case, anything that happens to be in the
 		// pool which depends on the transaction is still valid.
 		handleDisconnectedBlockTxns := func(txns []*dcrutil.Tx) {
-			txMemPool.MaybeAcceptTransactions(txns, true)
+			txMemPool.MaybeAcceptTransactions(txns)
 		}
 		handleDisconnectedBlockTxns(block.Transactions()[1:])
 

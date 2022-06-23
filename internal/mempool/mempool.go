@@ -1822,7 +1822,7 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 // rules, orphan transaction handling, and insertion into the memory pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) ([]*chainhash.Hash, error) {
+func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*chainhash.Hash, error) {
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	checkTxFlags, err := mp.determineCheckTxFlags()
@@ -1865,7 +1865,7 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 // use other mempool functions when adding new transactions to the mempool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptTransactions(txns []*dcrutil.Tx, rateLimit bool) error {
+func (mp *TxPool) MaybeAcceptTransactions(txns []*dcrutil.Tx) error {
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	checkTxFlags, err := mp.determineCheckTxFlags()

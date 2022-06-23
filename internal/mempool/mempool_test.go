@@ -1054,7 +1054,7 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	harness.AddFakeUTXO(tx, int64(mining.UnminedHeight), wire.NullBlockIndex)
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: wire.TxTreeRegular, Index: 0}
 	harness.chain.utxos.LookupEntry(outpoint).Spend()
-	_, err = harness.txPool.MaybeAcceptTransaction(tx, false, false)
+	_, err = harness.txPool.MaybeAcceptTransaction(tx, false)
 	if err != nil {
 		t.Fatalf("MaybeAcceptTransaction: failed to accept valid transaction "+
 			"%v", err)
@@ -3382,7 +3382,7 @@ func TestMaybeAcceptTransactions(t *testing.T) {
 	testExpectedAncestorFee(txC, 0)
 
 	// Accept transactions provided in block order.
-	err = txPool.MaybeAcceptTransactions(chainedTxns[0:2], true)
+	err = txPool.MaybeAcceptTransactions(chainedTxns[0:2])
 	if err != nil {
 		t.Fatalf("failed to accept valid transaction: %v", err)
 		return
