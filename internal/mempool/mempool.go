@@ -8,7 +8,6 @@ package mempool
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -277,9 +276,6 @@ type TxPool struct {
 
 	// TSpends. Access MUST be protected by the mempool mutex.
 	tspends map[chainhash.Hash]*dcrutil.Tx
-
-	pennyTotal    float64 // exponentially decaying total for penny spends.
-	lastPennyUnix int64   // unix time of last ``penny spend''
 
 	// nextExpireScan is the time after which the orphan pool will be
 	// scanned in order to evict orphans.  This is NOT a hard deadline as
@@ -1589,85 +1585,41 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 
 	// Don't allow transactions with fees too low to get into a mined block.
 	//
-	// Most miners allow a free transaction area in blocks they mine to go
-	// alongside the area used for high-priority transactions as well as
-	// transactions with fees.  A transaction size of up to 1000 bytes is
-	// considered safe to go into this section.  Further, the minimum fee
-	// calculated below on its own would encourage several small
-	// transactions to avoid fees rather than one single larger transaction
-	// which is more desirable.  Therefore, as long as the size of the
-	// transaction does not exceed 1000 less than the reserved space for
-	// high-priority transactions, don't require a fee for it.
-	// This applies to non-stake transactions only.
+	// This only applies to transactions of the following types:
+	// - Regular (non-stake) transactions
+	// - Ticket purchases
+	// - Treasury spends
+	// - Treasury adds
+	//
+	// Notice that it intentionally does not apply to the following types since
+	// they are an integral part of the block production process and are
+	// required to be feeless:
+	// - Coinbases (rejected from the mempool anyway)
+	// - Treasurybases (rejected from the mempool anyway)
+	// - Revocations (automatic revocations never in the mempool anyway)
+	// - Votes
+	isTreasuryAdd := isTreasuryEnabled && txType == stake.TxTypeTAdd
 	serializedSize := int64(msgTx.SerializeSize())
 	minFee := calcMinRequiredTxRelayFee(serializedSize,
 		mp.cfg.Policy.MinRelayTxFee)
-	if txType == stake.TxTypeRegular { // Non-stake only
-		if serializedSize >= (DefaultBlockPrioritySize-1000) &&
-			txFee < minFee {
+	if txFee < minFee && (txType == stake.TxTypeRegular || isTicket ||
+		isTreasuryAdd || isTSpend) {
 
-			str := fmt.Sprintf("transaction %v has %v fees which "+
-				"is under the required amount of %v", txHash,
-				txFee, minFee)
-			return nil, txRuleError(ErrInsufficientFee, str)
+		var txTypeStr string
+		switch {
+		case txType == stake.TxTypeRegular:
+			txTypeStr = "regular "
+		case isTicket:
+			txTypeStr = "ticket purchase "
+		case isTreasuryAdd:
+			txTypeStr = "treasury add "
+		case isTSpend:
+			txTypeStr = "treasury spend "
 		}
-	}
-
-	// Require that free transactions have sufficient priority to be mined
-	// in the next block.  Transactions which are being added back to the
-	// memory pool from blocks that have been disconnected during a reorg
-	// are exempted.
-	//
-	// This applies to non-stake transactions only.
-	if isNew && txFee < minFee && txType == stake.TxTypeRegular {
-		currentPriority := mining.CalcPriority(msgTx, utxoView,
-			nextBlockHeight)
-		if currentPriority <= mining.MinHighPriority {
-			str := fmt.Sprintf("transaction %v has insufficient "+
-				"priority (%g <= %g)", txHash,
-				currentPriority, mining.MinHighPriority)
-			return nil, txRuleError(ErrInsufficientPriority, str)
-		}
-	}
-
-	// Free-to-relay transactions are rate limited here to prevent
-	// penny-flooding with tiny transactions as a form of attack.
-	// This applies to non-stake transactions only.
-	if rateLimit && txFee < minFee && txType == stake.TxTypeRegular {
-		nowUnix := time.Now().Unix()
-		// Decay passed data with an exponentially decaying ~10 minute
-		// window.
-		mp.pennyTotal *= math.Pow(1.0-1.0/600.0,
-			float64(nowUnix-mp.lastPennyUnix))
-		mp.lastPennyUnix = nowUnix
-
-		// Are we still over the limit?
-		const freeTxRelayLimit = 15.0 // 15kB per minute
-		if mp.pennyTotal >= freeTxRelayLimit*10*1000 {
-			str := fmt.Sprintf("transaction %v has been rejected "+
-				"by the rate limiter due to low fees", txHash)
-			return nil, txRuleError(ErrInsufficientFee, str)
-		}
-		oldTotal := mp.pennyTotal
-
-		mp.pennyTotal += float64(serializedSize)
-		log.Tracef("rate limit: curTotal %v, nextTotal: %v, "+
-			"limit %v", oldTotal, mp.pennyTotal, freeTxRelayLimit*10*1000)
-	}
-
-	// Check that tickets also pay the minimum of the relay fee.  This fee is
-	// also performed on regular transactions above, but fees lower than the
-	// minimum may be allowed when there is sufficient priority, and these
-	// checks aren't desired for ticket purchases.
-	if isTicket {
-		minTicketFee := calcMinRequiredTxRelayFee(serializedSize,
-			mp.cfg.Policy.MinRelayTxFee)
-		if txFee < minTicketFee {
-			str := fmt.Sprintf("ticket purchase transaction %v has a %v "+
-				"fee which is under the required threshold amount of %d",
-				txHash, txFee, minTicketFee)
-			return nil, txRuleError(ErrInsufficientFee, str)
-		}
+		str := fmt.Sprintf("%stransaction %s pays a fee of %d atoms which is "+
+			"under the required fee of %d atoms for a %d-byte transaction",
+			txTypeStr, txHash, txFee, minFee, serializedSize)
+		return nil, txRuleError(ErrInsufficientFee, str)
 	}
 
 	// Check whether allowHighFees is set to false (default), if so, then make
