@@ -309,7 +309,7 @@ func TestBlockIndexDecodeErrors(t *testing.T) {
 		// Ensure the expected error type is returned.
 		gotBytesRead, err := decodeBlockIndexEntry(test.serialized,
 			&test.entry)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
@@ -525,7 +525,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 		gotBytesRead, err := decodeSpentTxOut(test.serialized,
 			&test.stxo, test.stxo.amount, test.stxo.blockHeight, test.stxo.blockIndex,
 			test.txOutIndex)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
@@ -777,7 +777,7 @@ func TestSpendJournalErrors(t *testing.T) {
 		// slice is nil.
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns, noTreasury)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
