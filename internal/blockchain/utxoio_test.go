@@ -303,7 +303,7 @@ func TestUtxoEntryDeserializeErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// entry is nil.
 		entry, err := deserializeUtxoEntry(test.serialized, test.txOutIndex)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
@@ -397,7 +397,7 @@ func TestUtxoSetStateDeserializeErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// utxo set state is nil.
 		entry, err := deserializeUtxoSetState(test.serialized)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
@@ -509,7 +509,7 @@ func TestDecodeOutpointKeyErrors(t *testing.T) {
 		// Ensure the expected error type is returned.
 		var gotOutpoint wire.OutPoint
 		err := decodeOutpointKey(test.serialized, &gotOutpoint)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue

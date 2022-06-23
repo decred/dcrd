@@ -142,7 +142,7 @@ func TestBlockIndexDecodeErrorsV2(t *testing.T) {
 		// Ensure the expected error type is returned.
 		gotBytesRead, err := decodeBlockIndexEntryV2(test.serialized,
 			&test.entry)
-		if !errors.As(err, &test.errType) {
+		if !errors.Is(err, test.errType) {
 			t.Errorf("decodeBlockIndexEntry (%s): expected error "+
 				"type does not match - got %T, want %T",
 				test.name, err, test.errType)
