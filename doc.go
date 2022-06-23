@@ -139,8 +139,9 @@ Application Options:
       --limitfreerelay=        Limit relay of transactions with no transaction
                                fee to the given amount in thousands of bytes per
                                minute (default: 15)
-      --norelaypriority        Do not require free or low-fee transactions to
-                               have high priority for relaying
+      --norelaypriority        DEPRECATED: This behavior is no longer available
+                               and this option will be removed in a future
+                               version of the software
       --maxorphantx=           Max number of orphan transactions to keep in
                                memory (default: 100)
       --blocksonly             Do not accept transactions from remote peers

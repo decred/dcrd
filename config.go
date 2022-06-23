@@ -199,7 +199,7 @@ type config struct {
 	// Relay and mempool policy.
 	MinRelayTxFee    float64 `long:"minrelaytxfee" description:"The minimum transaction fee in DCR/kB to be considered a non-zero fee"`
 	FreeTxRelayLimit float64 `long:"limitfreerelay" description:"Limit relay of transactions with no transaction fee to the given amount in thousands of bytes per minute"`
-	NoRelayPriority  bool    `long:"norelaypriority" description:"Do not require free or low-fee transactions to have high priority for relaying"`
+	NoRelayPriority  bool    `long:"norelaypriority" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	MaxOrphanTxs     int     `long:"maxorphantx" description:"Max number of orphan transactions to keep in memory"`
 	BlocksOnly       bool    `long:"blocksonly" description:"Do not accept transactions from remote peers"`
 	AcceptNonStd     bool    `long:"acceptnonstd" description:"Accept and relay non-standard transactions to the network regardless of the default settings for the active network"`
@@ -802,7 +802,8 @@ func loadConfig(appName string) (*config, []string, error) {
 
 	if cfg.DisableDNSSeed {
 		cfg.DisableSeeders = true
-		fmt.Fprintln(os.Stderr, "The --nodnsseed is deprecated: use --noseeders")
+		fmt.Fprintln(os.Stderr, "The --nodnsseed option is deprecated: use "+
+			"--noseeders")
 	}
 
 	// Multiple networks can't be selected simultaneously.  Count number of
@@ -827,6 +828,14 @@ func loadConfig(appName string) (*config, []string, error) {
 			"used together -- choose one of the three"
 		err := fmt.Errorf(str, funcName)
 		return nil, nil, err
+	}
+
+	// Warn on use of deprecated option to disable relaying of low-fee/free
+	// transactions.
+	if cfg.NoRelayPriority {
+		fmt.Fprintln(os.Stderr, "The --norelaypriority option is deprecated "+
+			"and will be removed in a future version of the software: please "+
+			"remove it from your config")
 	}
 
 	// Set the default policy for relaying non-standard transactions

@@ -169,10 +169,6 @@ type Config struct {
 // Policy houses the policy (configuration parameters) which is used to
 // control the mempool.
 type Policy struct {
-	// DisableRelayPriority defines whether to relay free or low-fee
-	// transactions that do not have enough priority to be relayed.
-	DisableRelayPriority bool
-
 	// AcceptNonStd defines whether to accept and relay non-standard
 	// transactions to the network. If true, non-standard transactions
 	// will be accepted into the mempool and relayed to the rest of the
@@ -1627,9 +1623,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	// are exempted.
 	//
 	// This applies to non-stake transactions only.
-	if isNew && !mp.cfg.Policy.DisableRelayPriority && txFee < minFee &&
-		txType == stake.TxTypeRegular {
-
+	if isNew && txFee < minFee && txType == stake.TxTypeRegular {
 		currentPriority := mining.CalcPriority(msgTx, utxoView,
 			nextBlockHeight)
 		if currentPriority <= mining.MinHighPriority {

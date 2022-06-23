@@ -248,9 +248,6 @@ const fileContents = `[Application Options]
 ; minute.
 ; limitfreerelay=15
 
-; Require high priority for relaying free or low-fee transactions.
-; norelaypriority=0
-
 ; Limit orphan transaction pool to 100 transactions.
 ; maxorphantx=100
 
