@@ -701,7 +701,7 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	// memory pool, orphan handling, etc.
 	allowOrphans := m.cfg.MaxOrphanTxs > 0
 	acceptedTxs, err := m.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
-		allowOrphans, true, true, mempool.Tag(peer.ID()))
+		allowOrphans, true, mempool.Tag(peer.ID()))
 
 	// Remove transaction from request maps. Either the mempool/chain
 	// already knows about it and as such we shouldn't have any more

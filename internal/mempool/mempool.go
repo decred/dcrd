@@ -2136,7 +2136,7 @@ func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 // passed one being accepted.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool, tag Tag) ([]*dcrutil.Tx, error) {
+func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, allowHighFees bool, tag Tag) ([]*dcrutil.Tx, error) {
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	checkTxFlags, err := mp.determineCheckTxFlags()

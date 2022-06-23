@@ -4087,7 +4087,7 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 	// Use 0 for the tag to represent local node.
 	tx := dcrutil.NewTx(msgtx)
 	acceptedTxs, err := s.cfg.SyncMgr.ProcessTransaction(tx, false,
-		false, allowHighFees, 0)
+		allowHighFees, 0)
 	if err != nil {
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going

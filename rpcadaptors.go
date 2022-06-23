@@ -350,10 +350,10 @@ func (b *rpcSyncMgr) SyncHeight() int64 {
 // ProcessTransaction relays the provided transaction validation and insertion
 // into the memory pool.
 func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
+	allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 
 	return b.server.txMemPool.ProcessTransaction(tx, allowOrphans,
-		rateLimit, allowHighFees, tag)
+		allowHighFees, tag)
 }
 
 // RecentlyConfirmedTxn returns with high degree of confidence whether a

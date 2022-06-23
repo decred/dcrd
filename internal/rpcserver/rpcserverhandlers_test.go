@@ -547,7 +547,7 @@ func (s *testSyncManager) SyncHeight() int64 {
 // ProcessTransaction provides a mock implementation for relaying the provided
 // transaction validation and insertion into the memory pool.
 func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
+	allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 	return s.processTransaction, s.processTransactionErr
 }
 

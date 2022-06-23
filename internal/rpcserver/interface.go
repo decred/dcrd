@@ -158,8 +158,8 @@ type SyncManager interface {
 
 	// ProcessTransaction relays the provided transaction validation and
 	// insertion into the memory pool.
-	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool,
-		allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error)
+	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, allowHighFees bool,
+		tag mempool.Tag) ([]*dcrutil.Tx, error)
 
 	// RecentlyConfirmedTxn returns with high degree of confidence whether a
 	// transaction has been recently confirmed in a block.
