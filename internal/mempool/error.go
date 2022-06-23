@@ -74,10 +74,6 @@ const (
 	// ErrSeqLockUnmet indicates a transaction sequence locks are not active.
 	ErrSeqLockUnmet = ErrorKind("ErrSeqLockUnmet")
 
-	// ErrInsufficientPriority indicates a non-stake transaction has a
-	// priority lower than the minimum allowed.
-	ErrInsufficientPriority = ErrorKind("ErrInsufficientPriority")
-
 	// ErrFeeTooHigh indicates a transaction pays fees above the maximum
 	// allowed by the active policy.
 	ErrFeeTooHigh = ErrorKind("ErrFeeTooHigh")

@@ -32,7 +32,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrOldVote, "ErrOldVote"},
 		{ErrAlreadyExists, "ErrAlreadyExists"},
 		{ErrSeqLockUnmet, "ErrSeqLockUnmet"},
-		{ErrInsufficientPriority, "ErrInsufficientPriority"},
 		{ErrFeeTooHigh, "ErrFeeTooHigh"},
 		{ErrOrphan, "ErrOrphan"},
 		{ErrTooManyTSpends, "ErrTooManyTSpends"},
