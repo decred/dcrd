@@ -38,6 +38,10 @@ const (
 	// ErrCoinbase indicates a transaction is a standalone coinbase transaction.
 	ErrCoinbase = ErrorKind("ErrCoinbase")
 
+	// ErrTreasurybase indicates a transaction is a standalone treasurybase
+	// transaction.
+	ErrTreasurybase = ErrorKind("ErrTreasurybase")
+
 	// ErrExpired indicates a transaction will be expired as of the next block.
 	ErrExpired = ErrorKind("ErrExpired")
 

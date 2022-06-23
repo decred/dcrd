@@ -1247,6 +1247,24 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 	isSubsidyEnabled := checkTxFlags.IsSubsidySplitEnabled()
 
+	// Determine the type of transaction (regular or stake) and be sure to set
+	// the transaction tree correctly as it's possible a user submitted it to
+	// the network with TxTreeUnknown.
+	txType := stake.DetermineTxType(msgTx)
+	tree := wire.TxTreeRegular
+	if txType != stake.TxTypeRegular {
+		tree = wire.TxTreeStake
+	}
+	tx.SetTree(tree)
+
+	// A standalone transaction must not be a treasurybase transaction.
+	isTreasurybase := isTreasuryEnabled && txType == stake.TxTypeTreasuryBase
+	if isTreasurybase {
+		str := fmt.Sprintf("transaction %v is an individual treasurybase",
+			txHash)
+		return nil, txRuleError(ErrTreasurybase, str)
+	}
+
 	// A standalone transaction must not be a coinbase transaction.
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		str := fmt.Sprintf("transaction %v is an individual coinbase",
@@ -1267,29 +1285,14 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		return nil, txRuleError(ErrExpired, str)
 	}
 
-	// Determine what type of transaction we're dealing with (regular or stake).
-	// Then, be sure to set the tx tree correctly as it's possible a user submitted
-	// it to the network with TxTreeUnknown.
-	txType := stake.DetermineTxType(msgTx)
-	tree := wire.TxTreeRegular
-	if txType != stake.TxTypeRegular {
-		tree = wire.TxTreeStake
-	}
-	tx.SetTree(tree)
+	// Reject votes and treasury spends before stake validation height.
 	isVote := txType == stake.TxTypeSSGen
-
-	var isTreasuryBase, isTSpend bool
-	if isTreasuryEnabled {
-		isTSpend = txType == stake.TxTypeTSpend
-		isTreasuryBase = txType == stake.TxTypeTreasuryBase
-	}
-
-	// Reject votes before stake validation height.
+	isTSpend := isTreasuryEnabled && txType == stake.TxTypeTSpend
 	stakeValidationHeight := mp.cfg.ChainParams.StakeValidationHeight
 	if (isVote || isTSpend) && nextBlockHeight < stakeValidationHeight {
 		strType := "votes"
 		if isTSpend {
-			strType = "tspends"
+			strType = "treasury spends"
 		}
 		str := fmt.Sprintf("%s are not valid until block height %d (next "+
 			"block height %d)", strType, stakeValidationHeight, nextBlockHeight)
@@ -1428,12 +1431,12 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		utxoView.RemoveEntry(outpoint)
 	}
 
-	// Transaction is an orphan if any of the referenced transaction outputs don't
-	// exist or are already spent.
+	// Transaction is an orphan if any of the referenced transaction outputs
+	// don't exist or are already spent.
 	var missingParents []*chainhash.Hash
 	var updateFraudProof bool
 	for i, txIn := range msgTx.TxIn {
-		if (i == 0 && (isVote || isTreasuryBase)) || isTSpend {
+		if (i == 0 && isVote) || isTSpend {
 			continue
 		}
 
@@ -1489,8 +1492,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
 		msgTx = tx.MsgTx()
 
 		for i, txIn := range msgTx.TxIn {
-			// Skip stakebase inputs, treasury base inputs, and tspends.
-			if (i == 0 && (isVote || isTreasuryBase)) || isTSpend {
+			// Skip stakebase inputs and treasury spends.
+			if (i == 0 && isVote) || isTSpend {
 				continue
 			}
 

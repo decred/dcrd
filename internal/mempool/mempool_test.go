@@ -2714,6 +2714,78 @@ func TestHandlesTAdds(t *testing.T) {
 	acceptTAdd(tadd)
 }
 
+// TestRejectTreasurybases ensures that treasurybases are rejected from the pool
+// as expected.
+func TestRejectTreasurybases(t *testing.T) {
+	t.Parallel()
+
+	harness, _, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+	subsidyCache := harness.txPool.cfg.SubsidyCache
+
+	// Setup the harness for the test and activate the treasury agenda.
+	harness.SetTreasuryAgendaActive(true)
+
+	// createTreasurybase returns a valid treasurybase transaction for the given
+	// block height.
+	createTreasurybase := func(blockHeight int64) (*dcrutil.Tx, error) {
+		// Create provably pruneable script for the output that encodes the
+		// block height used to ensure a unique overall transaction hash.  This
+		// is necessary because neither the input nor the output that adds to
+		// the treasury account balance are unique for a treasurybase.
+		extraNonce := uint64(0)
+		opRetData := make([]byte, 12)
+		binary.LittleEndian.PutUint32(opRetData[0:4], uint32(blockHeight))
+		binary.LittleEndian.PutUint64(opRetData[4:12], extraNonce)
+		opReturnTreasury, err := stdscript.ProvablyPruneableScriptV0(opRetData)
+		if err != nil {
+			return nil, err
+		}
+
+		// Calculate subsidy for the block height.
+		trsySubsidy := subsidyCache.CalcTreasurySubsidy(blockHeight, 5, true)
+
+		tx := wire.NewMsgTx()
+		tx.Version = wire.TxVersionTreasury
+		tx.AddTxIn(&wire.TxIn{
+			// Treasurybase transactions have no inputs, so previous outpoint is
+			// zero hash and max index.
+			PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+				wire.MaxPrevOutIndex, wire.TxTreeRegular),
+			Sequence:        wire.MaxTxInSequenceNum,
+			ValueIn:         trsySubsidy,
+			BlockHeight:     wire.NullBlockHeight,
+			BlockIndex:      wire.NullBlockIndex,
+			SignatureScript: nil, // Must be nil by consensus.
+		})
+		tx.AddTxOut(newTxOut(trsySubsidy, 0, []byte{txscript.OP_TADD}))
+		tx.AddTxOut(newTxOut(0, 0, opReturnTreasury))
+
+		return dcrutil.NewTx(tx), nil
+	}
+
+	// Set the block height to something after the first few blocks and create
+	// a valid treasurybase for it.
+	blockHeight := int64(10)
+	harness.chain.SetHeight(blockHeight)
+	trsybase, err := createTreasurybase(blockHeight)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempt to add the treasurybase and ensure it is rejected.  Also, ensure
+	// it is not in the orphan pool, not in the transaction pool, and not
+	// reported as available.
+	_, err = harness.txPool.ProcessTransaction(trsybase, false, false, true, 0)
+	if !errors.Is(err, ErrTreasurybase) {
+		t.Fatal("Process Transaction: did not get expected ErrTreasurybase")
+	}
+	testPoolMembership(tc, trsybase, false, false)
+}
+
 // TestStagedTransactionHeight verifies that the height of a transaction
 // that moves from the stage pool into the main pool is set to the height it
 // was initially added to the mempool, rather than the height it was unstaged.

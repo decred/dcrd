@@ -22,6 +22,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrAlreadyVoted, "ErrorAlreadyVoted"},
 		{ErrDuplicate, "ErrDuplicate"},
 		{ErrCoinbase, "ErrCoinbase"},
+		{ErrTreasurybase, "ErrTreasurybase"},
 		{ErrExpired, "ErrExpired"},
 		{ErrNonStandard, "ErrNonStandard"},
 		{ErrDustOutput, "ErrDustOutput"},
