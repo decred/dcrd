@@ -1202,8 +1202,8 @@ func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) 
 // so that we can easily pick different stake tx types from the mempool later.
 // This should probably be done at the bottom using "IsSStx" etc functions.
 // It should also set the dcrutil tree type for the tx as well.
-func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit,
-	allowHighFees, rejectDupOrphans bool,
+func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
+	rejectDupOrphans bool,
 	checkTxFlags blockchain.AgendaFlags) ([]*chainhash.Hash, error) {
 
 	msgTx := tx.MsgTx()
@@ -1832,8 +1832,8 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	hashes, err := mp.maybeAcceptTransaction(tx, isNew, rateLimit, true,
-		true, checkTxFlags)
+	hashes, err := mp.maybeAcceptTransaction(tx, isNew, true, true,
+		checkTxFlags)
 	mp.mtx.Unlock()
 
 	return hashes, err
@@ -1883,8 +1883,7 @@ func (mp *TxPool) MaybeAcceptTransactions(txns []*dcrutil.Tx, rateLimit bool) er
 	for i := len(txns) - 1; i >= 0; i-- {
 		tx := txns[i]
 		delete(transientPool, *tx.Hash())
-		_, err := mp.maybeAcceptTransaction(tx, false, rateLimit, true, true,
-			checkTxFlags)
+		_, err := mp.maybeAcceptTransaction(tx, false, true, true, checkTxFlags)
 		if err != nil && !isDoubleSpendOrDuplicateError(err) {
 			mp.removeTransaction(tx, true)
 			continue
@@ -1947,8 +1946,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 
 			// Potentially accept an orphan into the tx pool.
 			for _, tx := range orphans {
-				missing, err := mp.maybeAcceptTransaction(
-					tx, true, true, true, false,
+				missing, err := mp.maybeAcceptTransaction(tx, true, true, false,
 					checkTxFlags)
 				if err != nil {
 					// The orphan is now invalid, so there
@@ -2157,8 +2155,8 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}()
 
 	// Potentially accept the transaction to the memory pool.
-	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit,
-		allowHighFees, true, checkTxFlags)
+	missingParents, err := mp.maybeAcceptTransaction(tx, true, allowHighFees,
+		true, checkTxFlags)
 	if err != nil {
 		return nil, err
 	}
