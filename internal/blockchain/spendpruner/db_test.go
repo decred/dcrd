@@ -90,8 +90,8 @@ func TestDeserializeConsumerDependencies(t *testing.T) {
 
 // createdDB creates the test database. This is intended to be used for testing
 // purposes only.
-func createDB() (database.DB, func(), error) {
-	dbPath := filepath.Join(os.TempDir(), "spdb")
+func createDB(dir string) (database.DB, func(), error) {
+	dbPath := filepath.Join(dir, "spdb")
 
 	err := os.MkdirAll(dbPath, 0700)
 	if err != nil {
@@ -100,25 +100,21 @@ func createDB() (database.DB, func(), error) {
 
 	db, err := database.Create("ffldb", dbPath, wire.SimNet)
 	if err != nil {
-		os.RemoveAll(dbPath)
 		return nil, nil, err
 	}
 
 	err = initConsumerDependenciesBucket(db)
 	if err != nil {
-		os.RemoveAll(dbPath)
 		return nil, nil, err
 	}
 
 	err = initSpendJournalHeightsBucket(db)
 	if err != nil {
-		os.RemoveAll(dbPath)
 		return nil, nil, err
 	}
 
 	teardown := func() {
 		db.Close()
-		os.RemoveAll(dbPath)
 	}
 
 	return db, teardown, nil

@@ -167,10 +167,12 @@ func TestFullBlocks(t *testing.T) {
 	}
 
 	// Create a new database and chain instance to run tests against.
-	chain, err := chainSetup(t, chaincfg.RegNetParams())
+	chain, startupFunc, err := chainSetup(t, chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("Failed to setup chain instance: %v", err)
 	}
+
+	startupFunc()
 
 	// testAcceptedBlock attempts to process the block in the provided test
 	// instance and ensures that it was accepted according to the flags

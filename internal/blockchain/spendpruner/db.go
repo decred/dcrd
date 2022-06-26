@@ -96,16 +96,18 @@ func dbUpdateSpendConsumerDependencies(dbTx database.Tx, blockHash chainhash.Has
 func dbPersistSpendHeights(dbTx database.Tx, spendHeights map[chainhash.Hash]uint32) error {
 	heightsBucket := dbTx.Metadata().Bucket(spendJournalHeightsBucketName)
 
-	// return immediately if there are no spend heights to persist.
+	// Return immediately if there are no spend heights to persist.
 	if len(spendHeights) == 0 {
 		return nil
 	}
 
 	// Persist all spend height map entries.
 	for blockHash, height := range spendHeights {
-		var b [8]byte
+		hashCopy := blockHash
+
+		var b [4]byte
 		binary.LittleEndian.PutUint32(b[:], height)
-		err := heightsBucket.Put(blockHash[:], b[:])
+		err := heightsBucket.Put(hashCopy[:], b[:])
 		if err != nil {
 			return err
 		}
@@ -132,8 +134,8 @@ func dbPruneSpendDependencies(dbTx database.Tx, keys []chainhash.Hash) error {
 	}
 
 	// Prune all spend dependency map entries.
-	for _, blockHash := range keys {
-		err := depsBucket.Delete(blockHash[:])
+	for idx := range keys {
+		err := depsBucket.Delete(keys[idx][:])
 		if err != nil {
 			return err
 		}
@@ -153,8 +155,8 @@ func dbPruneSpendHeights(dbTx database.Tx, keys []chainhash.Hash) error {
 	}
 
 	// Persist all spend height map entries.
-	for _, blockHash := range keys {
-		err := heightsBucket.Delete(blockHash[:])
+	for idx := range keys {
+		err := heightsBucket.Delete(keys[idx][:])
 		if err != nil {
 			return err
 		}
@@ -189,13 +191,11 @@ func dbFetchSpendHeights(dbTx database.Tx) (map[chainhash.Hash]uint32, error) {
 	spendHeights := make(map[chainhash.Hash]uint32)
 	cursor := heightsBucket.Cursor()
 	for ok := cursor.First(); ok; ok = cursor.Next() {
-		hash, err := chainhash.NewHash(cursor.Key())
-		if err != nil {
-			return nil, err
-		}
+		var hash chainhash.Hash
+		copy(hash[:], cursor.Key())
 
 		height := binary.LittleEndian.Uint32(cursor.Value())
-		spendHeights[*hash] = height
+		spendHeights[hash] = height
 	}
 
 	return spendHeights, nil

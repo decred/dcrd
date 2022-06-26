@@ -2483,9 +2483,14 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 
 	best := b.BestSnapshot()
 	tipHeight := uint32(best.Height)
-	b.spendPruner, err = spendpruner.NewSpendJournalPruner(b.db,
-		b.BatchRemoveSpendEntry, tipHeight, spendpruner.BatchPruneInterval,
-		spendpruner.DependencyPruneInterval)
+	cfg := &spendpruner.SpendJournalPrunerConfig{
+		DB:                      b.db,
+		BatchRemoveSpendEntry:   b.BatchRemoveSpendEntry,
+		BatchPruneInterval:      spendpruner.BatchPruneInterval,
+		DependencyPruneInterval: spendpruner.DependencyPruneInterval,
+		BlockHeightByHash:       b.BlockHeightByHash,
+	}
+	b.spendPruner, err = spendpruner.NewSpendJournalPruner(cfg, tipHeight)
 	if err != nil {
 		return nil, err
 	}

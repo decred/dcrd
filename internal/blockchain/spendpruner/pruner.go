@@ -35,16 +35,32 @@ const (
 	maxDependencyDifference = 288
 )
 
+// SpendJournalPrunerConfig is the configuration struct for the spend journal
+// pruner.
+type SpendJournalPrunerConfig struct {
+	// DB represents the spendpruner database.
+	DB database.DB
+	// BatchRemoveSpendEntry purges the spend journal entries of the
+	// provided batched block hashes if they are not part of the main chain.
+	BatchRemoveSpendEntry func(hash []chainhash.Hash) error
+	// BatchPruneInterval is the maximum time between processing batched prunes.
+	BatchPruneInterval time.Duration
+	// BlockHeightByHash returns the height of the block with the given hash
+	// in the main chain.
+	BlockHeightByHash func(hash *chainhash.Hash) (int64, error)
+	// DependencyPruneInterval is the maximum time between processing
+	// dependency prunes.
+	DependencyPruneInterval time.Duration
+}
+
 // SpendJournalPruner represents a spend journal pruner that ensures spend
 // journal entries needed by consumers are retained until no longer needed.
 type SpendJournalPruner struct {
+	cfg *SpendJournalPrunerConfig
+
 	// This field tracks the chain tip height based on block connections and
 	// disconnections.
 	currentTip uint32 // Update atomically.
-
-	// This removes the spend journal entries of the provided block hashes if
-	// they are not part of the main chain.
-	batchRemoveSpendEntry func(hash []chainhash.Hash) error
 
 	// These fields track spend consumers, their spend journal dependencies
 	// and block heights of the spend entries.
@@ -63,43 +79,31 @@ type SpendJournalPruner struct {
 	pruneBatch    []chainhash.Hash
 	pruneBatchMtx sync.Mutex
 
-	// This is the maximum time between processing batched prunes.
-	batchPruneInterval time.Duration
-
-	// This is the maximum time between processing dependency prunes.
-	dependencyPruneInterval time.Duration
-
-	// This field provides access to the database.
-	db database.DB
-
 	// This field synchronizes channel sends and receives.
 	quit chan struct{}
 }
 
 // NewSpendJournalPruner initializes a spend journal pruner.
-func NewSpendJournalPruner(db database.DB, batchRemoveSpendEntry func(hash []chainhash.Hash) error, currentTip uint32, batchPruneInterval time.Duration, dependencyPruneInterval time.Duration) (*SpendJournalPruner, error) {
-	err := initConsumerDependenciesBucket(db)
+func NewSpendJournalPruner(cfg *SpendJournalPrunerConfig, currentTip uint32) (*SpendJournalPruner, error) {
+	err := initConsumerDependenciesBucket(cfg.DB)
 	if err != nil {
 		return nil, err
 	}
 
-	err = initSpendJournalHeightsBucket(db)
+	err = initSpendJournalHeightsBucket(cfg.DB)
 	if err != nil {
 		return nil, err
 	}
 
 	spendPruner := &SpendJournalPruner{
-		db:                      db,
-		currentTip:              currentTip,
-		batchRemoveSpendEntry:   batchRemoveSpendEntry,
-		batchPruneInterval:      batchPruneInterval,
-		dependencyPruneInterval: dependencyPruneInterval,
-		dependents:              make(map[chainhash.Hash][]string),
-		spendHeights:            make(map[chainhash.Hash]uint32),
-		consumers:               make(map[string]SpendConsumer),
-		pruneBatch:              make([]chainhash.Hash, 0, batchThreshold),
-		ch:                      make(chan struct{}, batchSignalBufferSize),
-		quit:                    make(chan struct{}),
+		cfg:          cfg,
+		currentTip:   currentTip,
+		dependents:   make(map[chainhash.Hash][]string),
+		spendHeights: make(map[chainhash.Hash]uint32),
+		consumers:    make(map[string]SpendConsumer),
+		pruneBatch:   make([]chainhash.Hash, 0, batchThreshold),
+		ch:           make(chan struct{}, batchSignalBufferSize),
+		quit:         make(chan struct{}),
 	}
 
 	err = spendPruner.loadSpendConsumerDependencies()
@@ -112,7 +116,31 @@ func NewSpendJournalPruner(db database.DB, batchRemoveSpendEntry func(hash []cha
 		return nil, err
 	}
 
+	spendPruner.generateDependencySpendHeights()
+
 	return spendPruner, nil
+}
+
+// generateDepedencySpendHeights creates the associated spend heights
+// for loaded spend dependencies without spend heights.
+func (s *SpendJournalPruner) generateDependencySpendHeights() {
+	s.dependentsMtx.Lock()
+	defer s.dependentsMtx.Unlock()
+	s.spendHeightsMtx.Lock()
+	defer s.spendHeightsMtx.Unlock()
+
+	for depHash := range s.dependents {
+		hash := depHash
+		if _, ok := s.spendHeights[hash]; !ok {
+			height, err := s.cfg.BlockHeightByHash(&hash)
+			if err != nil {
+				log.Error("no spend height found for hash %s: %v", hash, err)
+				height = 0
+			}
+
+			s.spendHeights[hash] = uint32(height)
+		}
+	}
 }
 
 // AddConsumer adds a spend journal consumer to the pruner.
@@ -174,7 +202,7 @@ func (s *SpendJournalPruner) pruneSpendDependencies(dependencies []chainhash.Has
 		s.spendHeightsMtx.Unlock()
 	}
 
-	err := s.db.Update(func(tx database.Tx) error {
+	err := s.cfg.DB.Update(func(tx database.Tx) error {
 		err := dbPruneSpendDependencies(tx, dependencies)
 		if err != nil {
 			return err
@@ -315,7 +343,7 @@ func (s *SpendJournalPruner) addSpendConsumerDependencies(blockHash *chainhash.H
 
 	// Update the persisted spend consumer deps entry for the provided block
 	// hash as well as the spend heights map if it was updated.
-	err := s.db.Update(func(tx database.Tx) error {
+	err := s.cfg.DB.Update(func(tx database.Tx) error {
 		err := dbUpdateSpendConsumerDependencies(tx, *blockHash, dependents)
 		if err != nil {
 			return err
@@ -406,7 +434,7 @@ func (s *SpendJournalPruner) removeSpendConsumerDependencies(blockHash *chainhas
 
 	// Remove the tracked spend journal entry for the provided
 	// block hash.
-	return s.db.Update(func(tx database.Tx) error {
+	return s.cfg.DB.Update(func(tx database.Tx) error {
 		err := dbUpdateSpendConsumerDependencies(tx, *blockHash, nil)
 		if err != nil {
 			msg := fmt.Sprintf("unable to remove persisted consumer "+
@@ -428,7 +456,7 @@ func (s *SpendJournalPruner) removeSpendConsumerDependencies(blockHash *chainhas
 // loadSpendConsumerDependencies loads persisted consumer spend dependencies
 // from the database.
 func (s *SpendJournalPruner) loadSpendConsumerDependencies() error {
-	return s.db.View(func(tx database.Tx) error {
+	return s.cfg.DB.View(func(tx database.Tx) error {
 		consumerDeps, err := dbFetchSpendConsumerDependencies(tx)
 		if err != nil {
 			msg := fmt.Sprintf("unable to load spend consumer "+
@@ -447,7 +475,7 @@ func (s *SpendJournalPruner) loadSpendConsumerDependencies() error {
 // loadSpendJournalHeights loads persisted spend journal heights
 // from the database.
 func (s *SpendJournalPruner) loadSpendJournalHeights() error {
-	return s.db.View(func(tx database.Tx) error {
+	return s.cfg.DB.View(func(tx database.Tx) error {
 		spendHeights, err := dbFetchSpendHeights(tx)
 		if err != nil {
 			msg := fmt.Sprintf("unable to load spend journal "+
@@ -500,7 +528,7 @@ func (s *SpendJournalPruner) handleBatchPrunes(ctx context.Context) {
 			s.pruneBatch = s.pruneBatch[:0]
 			s.pruneBatchMtx.Unlock()
 
-			err := s.batchRemoveSpendEntry(batch)
+			err := s.cfg.BatchRemoveSpendEntry(batch)
 			if err != nil {
 				log.Errorf("unable to batch remove spend entries: %v", err)
 			}
@@ -512,8 +540,8 @@ func (s *SpendJournalPruner) handleBatchPrunes(ctx context.Context) {
 //
 // This should be run as a goroutine.
 func (s *SpendJournalPruner) handleTicks(ctx context.Context) {
-	batchTicker := time.NewTicker(s.batchPruneInterval)
-	dependencyTicker := time.NewTicker(s.dependencyPruneInterval)
+	batchTicker := time.NewTicker(s.cfg.BatchPruneInterval)
+	dependencyTicker := time.NewTicker(s.cfg.DependencyPruneInterval)
 	for {
 		select {
 		case <-ctx.Done():

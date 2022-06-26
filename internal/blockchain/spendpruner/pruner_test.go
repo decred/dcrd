@@ -80,19 +80,31 @@ func TestSpendPruner(t *testing.T) {
 		needSpendDataErr: fmt.Errorf("unable to confirm spend data need"),
 	}
 
-	db, teardown, err := createDB()
+	db, teardown, err := createDB(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer teardown()
 
+	height := int64(0)
+	blockHeightByHash := func(hash *chainhash.Hash) (int64, error) {
+		height++
+		return height, nil
+	}
+
 	batchPruneInterval := time.Millisecond * 100
 	dependentPruneInterval := time.Millisecond * 100
 	tipHeight := uint32(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	pruner, err := NewSpendJournalPruner(db, chain.BatchRemoveSpendEntry,
-		tipHeight, batchPruneInterval, dependentPruneInterval)
+	cfg := &SpendJournalPrunerConfig{
+		DB:                      db,
+		BatchRemoveSpendEntry:   chain.BatchRemoveSpendEntry,
+		BatchPruneInterval:      batchPruneInterval,
+		DependencyPruneInterval: dependentPruneInterval,
+		BlockHeightByHash:       blockHeightByHash,
+	}
+	pruner, err := NewSpendJournalPruner(cfg, tipHeight)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +219,7 @@ func TestSpendPruner(t *testing.T) {
 	}
 
 	removeSpendConsumerDep := func(pruner *SpendJournalPruner, blockHash *chainhash.Hash, consumerID string) error {
-		return pruner.db.Update(func(tx database.Tx) error {
+		return pruner.cfg.DB.Update(func(tx database.Tx) error {
 			return pruner.RemoveSpendConsumerDependency(tx, blockHash, consumerID)
 		})
 	}
@@ -402,8 +414,7 @@ func TestSpendPruner(t *testing.T) {
 	cancel()
 
 	// Load the spend pruner from the database.
-	pruner, err = NewSpendJournalPruner(db, chain.BatchRemoveSpendEntry,
-		tipHeight, batchPruneInterval, dependentPruneInterval)
+	pruner, err = NewSpendJournalPruner(cfg, tipHeight)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,5 +436,80 @@ func TestSpendPruner(t *testing.T) {
 	if len(deps) != expected {
 		t.Fatalf("dependencies mismatch, expected count of %d, got %d",
 			expected, len(deps))
+	}
+}
+
+func TestGenerateDependencySpendHeights(t *testing.T) {
+	db, teardown, err := createDB(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer teardown()
+
+	height := int64(0)
+	blockHeightByHash := func(hash *chainhash.Hash) (int64, error) {
+		height++
+		return height, nil
+	}
+
+	batchPruneInterval := time.Millisecond * 100
+	dependentPruneInterval := time.Millisecond * 100
+	tipHeight := uint32(1)
+	cfg := &SpendJournalPrunerConfig{
+		DB: db,
+		BatchRemoveSpendEntry: func(hash []chainhash.Hash) error {
+			return nil
+		},
+		BatchPruneInterval:      batchPruneInterval,
+		DependencyPruneInterval: dependentPruneInterval,
+		BlockHeightByHash:       blockHeightByHash,
+	}
+	pruner := &SpendJournalPruner{
+		cfg:          cfg,
+		currentTip:   tipHeight,
+		dependents:   make(map[chainhash.Hash][]string),
+		spendHeights: make(map[chainhash.Hash]uint32),
+		consumers:    make(map[string]SpendConsumer),
+		pruneBatch:   make([]chainhash.Hash, 0, batchThreshold),
+		ch:           make(chan struct{}, batchSignalBufferSize),
+		quit:         make(chan struct{}),
+	}
+
+	hashA := chainhash.Hash{'a'}
+	hashB := chainhash.Hash{'b'}
+	hashC := chainhash.Hash{'c'}
+
+	pruner.dependentsMtx.Lock()
+	pruner.dependents[hashA] = []string{}
+	pruner.dependents[hashB] = []string{}
+	pruner.dependents[hashC] = []string{}
+	pruner.dependentsMtx.Unlock()
+
+	pruner.spendHeightsMtx.Lock()
+	pruner.spendHeights[hashA] = 10
+	pruner.spendHeights[hashC] = 20
+	pruner.spendHeightsMtx.Unlock()
+
+	pruner.generateDependencySpendHeights()
+
+	pruner.spendHeightsMtx.Lock()
+	spendHeightsLen := len(pruner.spendHeights)
+	spendHeight, ok := pruner.spendHeights[hashB]
+	pruner.spendHeightsMtx.Unlock()
+
+	// Ensure the spend heights set is now 3.
+	if spendHeightsLen != 3 {
+		t.Fatalf("expected 3 spend height entries. got %d", spendHeightsLen)
+	}
+
+	// Ensure the height associated with hashA is 1.
+	if !ok {
+		t.Fatalf("expected hashA to have a spend height entry")
+	}
+
+	if spendHeight != 1 {
+		t.Fatalf("expected associated spend height for hashA to "+
+			"be 1, got %d", height)
 	}
 }
