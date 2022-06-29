@@ -420,8 +420,6 @@ func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block
 		balance: balance,
 		values:  make([]treasuryValue, 0, len(msgBlock.Transactions)*2),
 	}
-	trsyLog.Tracef("dbPutTreasuryBalance: %v start balance %v",
-		node.hash.String(), balance)
 	for _, v := range msgBlock.STransactions {
 		if stake.IsTAdd(v) {
 			// This is a TAdd, pull amount out of TxOut[0].  Note
@@ -432,16 +430,12 @@ func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block
 				amount: v.TxOut[0].Value,
 			}
 			ts.values = append(ts.values, tv)
-			trsyLog.Tracef("  dbPutTreasuryBalance: balance TADD "+
-				"%v", tv.amount)
 		} else if stake.IsTreasuryBase(v) {
 			tv := treasuryValue{
 				typ:    treasuryValueTBase,
 				amount: v.TxOut[0].Value,
 			}
 			ts.values = append(ts.values, tv)
-			trsyLog.Tracef("  dbPutTreasuryBalance: balance "+
-				"treasury base %v", tv.amount)
 		} else if stake.IsTSpend(v) {
 			// This is a TSpend, pull values out of block. Skip
 			// first TxOut since it is an OP_RETURN.
@@ -451,8 +445,6 @@ func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block
 					typ:    treasuryValueTSpend,
 					amount: -vv.Value,
 				}
-				trsyLog.Tracef("  dbPutTreasuryBalance: "+
-					"balance TSPEND %v", tv.amount)
 				ts.values = append(ts.values, tv)
 				totalOut += vv.Value
 			}
@@ -465,8 +457,6 @@ func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block
 				typ:    treasuryValueFee,
 				amount: fee,
 			}
-			trsyLog.Tracef("  dbPutTreasuryBalance: "+
-				"balance fee %v", tv.amount)
 			ts.values = append(ts.values, tv)
 		}
 	}
@@ -488,7 +478,6 @@ func (b *BlockChain) dbPutTSpend(dbTx database.Tx, block *dcrutil.Block) error {
 
 		// Store TSpend and the block it was included in.
 		txHash := v.TxHash()
-		trsyLog.Tracef("  dbPutTSpend: tspend %v", txHash)
 		err := dbUpdateTSpend(dbTx, txHash, *hash)
 		if err != nil {
 			return err
@@ -864,8 +853,6 @@ func (b *BlockChain) checkTSpendsExpenditure(preTVINode *blockNode, totalTSpendA
 // checkTSpendExists verifies that the provided TSpend has not been mined in a
 // block on the chain of prevNode.
 func (b *BlockChain) checkTSpendExists(prevNode *blockNode, tspend chainhash.Hash) error {
-	trsyLog.Tracef(" checkTSpendExists: tspend %v", tspend)
-
 	var derr errDbTSpend
 	blocks, err := b.FetchTSpend(tspend)
 	if errors.As(err, &derr) {
@@ -881,19 +868,16 @@ func (b *BlockChain) checkTSpendExists(prevNode *blockNode, tspend chainhash.Has
 		node := b.index.LookupNode(&v)
 		if node == nil {
 			// This should not happen.
-			trsyLog.Errorf("  checkTSpendExists: block not found "+
-				"%v tspend %v", v, tspend)
+			trsyLog.Errorf("checkTSpendExists: block not found %v tspend %v", v,
+				tspend)
 			continue
 		}
 
 		if !node.IsAncestorOf(prevNode) {
-			trsyLog.Errorf("  checkTSpendExists: not ancestor "+
-				"block %v tspend %v", v, tspend)
 			continue
 		}
-		trsyLog.Errorf("  checkTSpendExists: is ancestor "+
-			"block %v tspend %v", v, tspend)
-		return fmt.Errorf("tspend has already been mined on this "+
+
+		return fmt.Errorf("treasury spend has already been mined on this "+
 			"chain %v", tspend)
 	}
 
@@ -979,14 +963,9 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 	// Walk prevNode back to the start of the window and count votes.
 	node := prevNode
 	for {
-		trsyLog.Tracef("  tSpendCountVotes height %v start %v",
-			node.height, t.start)
 		if node.height < int64(t.start) {
 			break
 		}
-
-		trsyLog.Tracef("  tSpendCountVotes count votes: %v",
-			node.hash)
 
 		// Find SSGen and peel out votes.
 		var xblock *dcrutil.Block
