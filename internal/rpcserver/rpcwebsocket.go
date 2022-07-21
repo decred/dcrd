@@ -2071,8 +2071,11 @@ func handleRebroadcastWinners(wsc *wsClient, icmd interface{}) (interface{}, err
 	for i := range blocks {
 		winningTickets, _, _, err := cfg.Chain.LotteryDataForBlock(&blocks[i])
 		if err != nil {
-			return nil, rpcInternalError("Lottery data for block "+
-				"failed: "+err.Error(), "")
+			// This can legitimately happen if we have the block
+			// header but not the block data, so just log a warning
+			// and keep sending notifications.
+			log.Warnf("Lottery data for block failed: %v", err)
+			continue
 		}
 		ntfnData := &WinningTicketsNtfnData{
 			BlockHash:   blocks[i],
