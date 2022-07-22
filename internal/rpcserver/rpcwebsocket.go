@@ -2053,13 +2053,13 @@ func handleLoadTxFilter(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 // handleNotifyBlocks implements the notifyblocks command extension for
 // websocket connections.
-func handleNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleNotifyBlocks(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterBlockUpdates(wsc)
 	return nil, nil
 }
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
-func handleRebroadcastWinners(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleRebroadcastWinners(wsc *wsClient, _ interface{}) (interface{}, error) {
 	cfg := wsc.rpcServer.cfg
 	bestHeight := cfg.Chain.BestSnapshot().Height
 	blocks, err := cfg.Chain.TipGeneration()
@@ -2091,14 +2091,14 @@ func handleRebroadcastWinners(wsc *wsClient, icmd interface{}) (interface{}, err
 
 // handleNotifyWork implements the notifywork command extension for
 // websocket connections.
-func handleNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleNotifyWork(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterWorkUpdates(wsc)
 	return nil, nil
 }
 
 // handleNotifyTSpend implements the notifytspend command extension for
 // websocket connections.
-func handleNotifyTSpend(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleNotifyTSpend(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterTSpendUpdates(wsc)
 	return nil, nil
 }
@@ -2111,35 +2111,35 @@ func handleSession(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 // handleWinningTickets implements the notifywinningtickets command
 // extension for websocket connections.
-func handleWinningTickets(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleWinningTickets(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterWinningTickets(wsc)
 	return nil, nil
 }
 
 // handleNewTickets implements the notifynewtickets command extension for
 // websocket connections.
-func handleNewTickets(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleNewTickets(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterNewTickets(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyBlocks implements the stopnotifyblocks command extension for
 // websocket connections.
-func handleStopNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleStopNotifyBlocks(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterBlockUpdates(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyWork implements the stopnotifywork command extension for
 // websocket connections.
-func handleStopNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleStopNotifyWork(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterWorkUpdates(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyTSpend implements the stopnotifytspend command extension for
 // websocket connections.
-func handleStopNotifyTSpend(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleStopNotifyTSpend(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterTSpendUpdates(wsc)
 	return nil, nil
 }
@@ -2159,7 +2159,7 @@ func handleNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface{}, 
 
 // handleStopNotifyNewTransations implements the stopnotifynewtransactions
 // command extension for websocket connections.
-func handleStopNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleStopNotifyNewTransactions(wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterNewMempoolTxsUpdates(wsc)
 	return nil, nil
 }

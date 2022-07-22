@@ -6566,7 +6566,7 @@ func TestHandleTicketFeeInfo(t *testing.T) {
 		mockChain: func() *testRPCChain {
 			var numCalls int
 			chain := defaultMockRPCChain()
-			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+			chain.heightRangeFn = func(_, _ int64) ([]chainhash.Hash, error) {
 				numCalls++
 				if numCalls > 1 {
 					return nil, fmt.Errorf("unable to fetch block by height")

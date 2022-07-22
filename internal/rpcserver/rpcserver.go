@@ -1832,7 +1832,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetBestBlock implements the getbestblock command.
-func handleGetBestBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBestBlock(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	// All other "get block" commands give either the height, the hash, or
 	// both but require the block SHA.  This gets both for the best block.
 	best := s.cfg.Chain.BestSnapshot()
@@ -1844,7 +1844,7 @@ func handleGetBestBlock(_ context.Context, s *Server, cmd interface{}) (interfac
 }
 
 // handleGetBestBlockHash implements the getbestblockhash command.
-func handleGetBestBlockHash(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBestBlockHash(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Hash.String(), nil
 }
@@ -2038,7 +2038,7 @@ func thresholdStateToAgendaStatus(state blockchain.ThresholdStateTuple) string {
 }
 
 // handleGetBlockchainInfo implements the getblockchaininfo command.
-func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	_, bestHeaderHeight := chain.BestHeader()
@@ -2129,7 +2129,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleGetBlockCount implements the getblockcount command.
-func handleGetBlockCount(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlockCount(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Height, nil
 }
@@ -2289,7 +2289,7 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleGetChainTips implements the getchaintips command.
-func handleGetChainTips(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetChainTips(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	chainTips := s.cfg.Chain.ChainTips()
 	result := make([]types.GetChainTipsResult, 0, len(chainTips))
 	for _, tip := range chainTips {
@@ -2319,7 +2319,7 @@ func handleGetCurrentNet(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleGetDifficulty implements the getdifficulty command.
-func handleGetDifficulty(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetDifficulty(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return getDifficultyRatio(best.Bits, s.cfg.ChainParams), nil
 }
@@ -2419,7 +2419,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 
 // handleGetInfo implements the getinfo command. We only return the fields
 // that are not related to wallet functionality.
-func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	ret := &types.InfoChainResult{
 		Version: int32(1000000*version.Major + 10000*version.Minor +
@@ -2439,7 +2439,7 @@ func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 }
 
 // handleGetMempoolInfo implements the getmempoolinfo command.
-func handleGetMempoolInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetMempoolInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	mempoolTxns := s.cfg.TxMempooler.TxDescs()
 
 	var numBytes int64
@@ -2490,7 +2490,7 @@ func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interfa
 }
 
 // handleGetNetTotals implements the getnettotals command.
-func handleGetNetTotals(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetNetTotals(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	totalBytesRecv, totalBytesSent := s.cfg.ConnMgr.NetTotals()
 	reply := &types.GetNetTotalsResult{
 		TotalBytesRecv: totalBytesRecv,
@@ -2598,7 +2598,7 @@ func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetNetworkInfo implements the getnetworkinfo command.
-func handleGetNetworkInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetNetworkInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	lAddrs := s.cfg.AddrManager.LocalAddresses()
 	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
 	for idx, entry := range lAddrs {
@@ -2626,7 +2626,7 @@ func handleGetNetworkInfo(_ context.Context, s *Server, cmd interface{}) (interf
 }
 
 // handleGetPeerInfo implements the getpeerinfo command.
-func handleGetPeerInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetPeerInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	peers := s.cfg.ConnMgr.ConnectedPeers()
 	syncPeerID := s.cfg.SyncMgr.SyncPeerID()
 	infos := make([]*types.GetPeerInfoResult, 0, len(peers))
@@ -2917,7 +2917,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleGetStakeDifficulty implements the getstakedifficulty command.
-func handleGetStakeDifficulty(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetStakeDifficulty(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	blockHeader, err := chain.HeaderByHeight(best.Height)
@@ -3075,7 +3075,7 @@ func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetTicketPoolValue implements the getticketpoolvalue command.
-func handleGetTicketPoolValue(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetTicketPoolValue(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	amt, err := s.cfg.Chain.TicketPoolValue()
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
@@ -3609,7 +3609,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 }
 
 // handleGetTxOutSetInfo returns statistics on the current unspent transaction output set.
-func handleGetTxOutSetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetTxOutSetInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	stats, err := s.cfg.Chain.FetchUtxoStats()
 	if err != nil {
@@ -3973,7 +3973,7 @@ func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleLiveTickets implements the livetickets command.
-func handleLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleLiveTickets(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	lt, err := s.cfg.Chain.LiveTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get live tickets "+
@@ -3989,7 +3989,7 @@ func handleLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface
 }
 
 // handlePing implements the ping command.
-func handlePing(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handlePing(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	// Ask server to ping \o_
 	nonce, err := wire.RandomUint64()
 	if err != nil {
@@ -4054,7 +4054,7 @@ func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleRegenTemplate implements the regentemplate command.
-func handleRegenTemplate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	bt := s.cfg.BlockTemplater
 	if bt == nil {
 		return nil, rpcInternalError("Node is not configured for mining", "")
@@ -4179,7 +4179,7 @@ func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface
 }
 
 // handleStop implements the stop command.
-func handleStop(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	select {
 	case s.requestProcessShutdown <- struct{}{}:
 	default:
@@ -4818,7 +4818,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleVersion implements the version command.
-func handleVersion(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleVersion(_ context.Context, _ *Server, _ interface{}) (interface{}, error) {
 	runtimeVer := strings.ReplaceAll(runtime.Version(), ".", "-")
 	buildMeta := version.NormalizeString(runtimeVer)
 	build := version.NormalizeString(version.BuildMetadata)
