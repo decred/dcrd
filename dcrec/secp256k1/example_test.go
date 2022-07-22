@@ -63,6 +63,11 @@ func Example_encryptDecryptMessage() {
 	// Doing so destroys the security of the scheme.  Random nonces may be
 	// used if XChaCha20-Poly1305 is used instead, but the message must then
 	// also encode the nonce (which we don't do here).
+	//
+	// Since a new ephemeral key is generated for every message ensuring there
+	// is no key reuse and AES-GCM permits the nonce to be used as a counter,
+	// the nonce is intentionally initialized to all zeros so it acts like the
+	// first (and only) use of a counter.
 	plaintext := []byte("test message")
 	aead, err := newAEAD(cipherKey[:])
 	if err != nil {
