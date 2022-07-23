@@ -80,11 +80,14 @@ func TestModNScalarZero(t *testing.T) {
 	}
 }
 
-// TestModNScalarIsZero ensures that checking if a scalar is zero works as
-// expected.
+// TestModNScalarIsZero ensures that checking if a scalar is zero via IsZero and
+// IsZeroBit works as expected.
 func TestModNScalarIsZero(t *testing.T) {
 	var s ModNScalar
 	if !s.IsZero() {
+		t.Errorf("new scalar is not zero - got %v (rawints %x)", s, s.n)
+	}
+	if s.IsZeroBit() != 1 {
 		t.Errorf("new scalar is not zero - got %v (rawints %x)", s, s.n)
 	}
 
@@ -92,16 +95,25 @@ func TestModNScalarIsZero(t *testing.T) {
 	if s.IsZero() {
 		t.Errorf("claims zero for nonzero scalar - got %v (rawints %x)", s, s.n)
 	}
+	if s.IsZeroBit() == 1 {
+		t.Errorf("claims zero for nonzero scalar - got %v (rawints %x)", s, s.n)
+	}
 
 	s.SetInt(0)
 	if !s.IsZero() {
+		t.Errorf("claims nonzero for zero scalar - got %v (rawints %x)", s, s.n)
+	}
+	if s.IsZeroBit() != 1 {
 		t.Errorf("claims nonzero for zero scalar - got %v (rawints %x)", s, s.n)
 	}
 
 	s.SetInt(1)
 	s.Zero()
 	if !s.IsZero() {
-		t.Errorf("claims zero for nonzero scalar - got %v (rawints %x)", s, s.n)
+		t.Errorf("claims nonzero for zero scalar - got %v (rawints %x)", s, s.n)
+	}
+	if s.IsZeroBit() != 1 {
+		t.Errorf("claims nonzero for zero scalar - got %v (rawints %x)", s, s.n)
 	}
 }
 
