@@ -29,10 +29,10 @@ var (
 	// orderAsFieldVal is the order of the secp256k1 curve group stored as a
 	// field value.  It is provided here to avoid the need to create it multiple
 	// times.
-	orderAsFieldVal = func() *secp256k1.FieldVal {
+	orderAsFieldVal = func() secp256k1.FieldVal {
 		var f secp256k1.FieldVal
 		f.SetByteSlice(secp256k1.Params().N.Bytes())
-		return &f
+		return f
 	}()
 )
 
@@ -282,7 +282,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *secp256k1.PublicKey) bool {
 	// Step 10.
 	//
 	// Verified if (R + N) * z == X.x (mod P)
-	sigRModP.Add(orderAsFieldVal)
+	sigRModP.Add(&orderAsFieldVal)
 	result.Mul2(&sigRModP, z).Normalize()
 	return result.Equals(&X.X)
 }
@@ -919,7 +919,7 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 		// Step 3.2.
 		//
 		// r = r + N (mod P)
-		fieldR.Add(orderAsFieldVal)
+		fieldR.Add(&orderAsFieldVal)
 	}
 
 	// Step 4.
