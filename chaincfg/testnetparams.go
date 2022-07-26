@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -425,7 +425,6 @@ func TestNet3Params() *Params {
 		seeders: []string{
 			"testnet-seed-1.decred.org",
 			"testnet-seed-2.decred.org",
-			"testnet-seed.planetdecred.org",
 			"testnet-seed.dcrdata.org",
 			"testnet-seed.jholdstock.uk",
 		},
