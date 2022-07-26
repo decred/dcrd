@@ -19,10 +19,11 @@ const (
 // utxoState defines the in-memory state of a utxo entry.
 //
 // The bit representation is:
-//   bit  0    - transaction output has been spent
-//   bit  1    - transaction output has been modified since it was loaded
-//   bit  2    - transaction output is fresh
-//   bits 3-7  - unused
+//
+//	bit  0    - transaction output has been spent
+//	bit  1    - transaction output has been modified since it was loaded
+//	bit  2    - transaction output is fresh
+//	bits 3-7  - unused
 type utxoState uint8
 
 const (
@@ -42,9 +43,10 @@ const (
 // utxo entry.
 //
 // The bit representation is:
-//   bit  0    - containing transaction is a coinbase
-//   bit  1    - containing transaction has an expiry
-//   bits 2-5  - transaction type
+//
+//	bit  0    - containing transaction is a coinbase
+//	bit  1    - containing transaction has an expiry
+//	bits 2-5  - transaction type
 type utxoFlags uint8
 
 const (

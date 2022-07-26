@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -59,10 +59,11 @@ func New(progressAction string, logger slog.Logger) *Logger {
 // the time the last one was shown.
 //
 // The progress message is templated as follows:
-//  {progressAction} {numProcessed} {blocks|block} in the last {timePeriod}
-//  ({numTxs} {transactions|transaction}, {numTickets} {tickets|ticket},
-//  {numVotes} {votes|vote}, {numRevocations} {revocations|revocation},
-//  height {lastBlockHeight}, progress {progress}%)
+//
+//	{progressAction} {numProcessed} {blocks|block} in the last {timePeriod}
+//	({numTxs} {transactions|transaction}, {numTickets} {tickets|ticket},
+//	{numVotes} {votes|vote}, {numRevocations} {revocations|revocation},
+//	height {lastBlockHeight}, progress {progress}%)
 //
 // This function is safe for concurrent access.
 func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool, progressFn func() float64) {
@@ -108,8 +109,9 @@ func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool, progressFn fun
 // the time the last one was shown.
 //
 // The progress message is templated as follows:
-//  {progressAction} {numProcessed} {headers|header} in the last {timePeriod}
-//  (progress {progress}%)
+//
+//	{progressAction} {numProcessed} {headers|header} in the last {timePeriod}
+//	(progress {progress}%)
 //
 // This function is safe for concurrent access.
 func (l *Logger) LogHeaderProgress(processedHeaders uint64, forceLog bool, progressFn func() float64) {

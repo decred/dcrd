@@ -1,12 +1,12 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 /*
 Package addrmgr implements concurrency safe Decred address manager.
 
-Address Manager Overview
+# Address Manager Overview
 
 In order maintain the peer-to-peer Decred network, there needs to be a source
 of addresses to connect to as nodes come and go.  The Decred protocol provides

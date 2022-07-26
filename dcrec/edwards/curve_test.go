@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -35,9 +35,10 @@ func testPointXRecoveryVectors() []XRecoveryVector {
 }
 
 // Tested functions:
-//   BigIntPointToEncodedBytes
-//   extendedToBigAffine
-//   EncodedBytesToBigIntPoint
+//
+//   - BigIntPointToEncodedBytes
+//   - extendedToBigAffine
+//   - EncodedBytesToBigIntPoint
 func TestXRecovery(t *testing.T) {
 	curve := Edwards()
 
@@ -91,9 +92,10 @@ func TestXRecovery(t *testing.T) {
 }
 
 // Tested functions:
-//   bigIntPointToEncodedBytes
-//   extendedToBigAffine
-//   encodedBytesToBigIntPoint
+//
+//	bigIntPointToEncodedBytes
+//	extendedToBigAffine
+//	encodedBytesToBigIntPoint
 func TestAdd(t *testing.T) {
 	pointHexStrIdx := 0
 	pointHexStrSet := []string{
@@ -207,9 +209,10 @@ func testVectorsScalarMult() []ScalarMultVector {
 }
 
 // Tested functions:
-//   Add
-//   Double
-//   ScalarMult
+//
+//   - Add
+//   - Double
+//   - ScalarMult
 func TestScalarMult(t *testing.T) {
 	curve := Edwards()
 

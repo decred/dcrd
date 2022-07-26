@@ -664,8 +664,8 @@ func standaloneToChainRuleError(err error) error {
 // target difficulty as claimed.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFNoPoWCheck: The check to ensure the block hash is less than the target
-//    difficulty is not performed.
+//   - BFNoPoWCheck: The check to ensure the block hash is less than the target
+//     difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
 	// Only ensure the target difficulty bits are in the valid range when the
 	// the flag to avoid proof of work checks is set.
@@ -991,8 +991,8 @@ func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, block
 // on having the full block data of all ancestors available.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: All checks except those involving comparing the header against
-//    the checkpoints and expected height are not performed.
+//   - BFFastAdd: All checks except those involving comparing the header against
+//     the checkpoints and expected height are not performed.
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1073,7 +1073,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 // available.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: The transactions are not checked to see if they are expired.
+//   - BFFastAdd: The transactions are not checked to see if they are expired.
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1155,7 +1155,7 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 // vote will necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: No check are performed.
+//   - BFFastAdd: No check are performed.
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1582,13 +1582,14 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 // necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd:
-//      - The max block size is not checked
-//      - The calculated merkle root(s) of the transaction trees are not checked
-//        against the associated entries in the header
-//      - Transactions are not checked to see if they are finalized
-//      - The included votes, revocations, and treasury spend transactions are
-//        not verified to be allowed
+//
+// BFFastAdd:
+//   - The max block size is not checked
+//   - The calculated merkle root(s) of the transaction trees are not checked
+//     against the associated entries in the header
+//   - Transactions are not checked to see if they are finalized
+//   - The included votes, revocations, and treasury spend transactions are
+//     not verified to be allowed
 //
 // The flags are also passed to checkBlockHeaderContext.  See its documentation
 // for how the flags modify its behavior.

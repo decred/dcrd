@@ -122,25 +122,25 @@ func drainOutgoingPipeMessages() {
 // second byte, when applicable, describes which event or service is about to
 // start or stop.
 //
-//   0 <event id>:  The startup event is about to run
-//   1 <ignored>:   All startup tasks have completed
-//   2 <event id>:  The shutdown event is about to run
+//	0 <event id>:  The startup event is about to run
+//	1 <ignored>:   All startup tasks have completed
+//	2 <event id>:  The shutdown event is about to run
 //
 // Event IDs can take on the following values:
 //
-//   0: Database opening/closing
-//   1: Peer-to-peer server starting/stopping
+//	0: Database opening/closing
+//	1: Peer-to-peer server starting/stopping
 //
 // Note that not all subsystems are started/stopped or events run during the
 // program's lifetime depending on what features are enabled through the config.
 //
 // As an example, the following messages may be sent during a typical execution:
 //
-//   0 0: The database is being opened
-//   0 1: The P2P server is starting
-//   1 0: All startup tasks have completed
-//   2 1: The P2P server is stopping
-//   2 0: The database is being closed
+//	0 0: The database is being opened
+//	0 1: The P2P server is starting
+//	1 0: All startup tasks have completed
+//	2 1: The P2P server is stopping
+//	2 0: The database is being closed
 type lifetimeEvent struct {
 	event  lifetimeEventID
 	action lifetimeAction

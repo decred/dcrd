@@ -662,10 +662,11 @@ func decodeCompressedTxOut(serialized []byte, hasAmount bool) (int64, uint16, []
 // This is used when serializing both unspent and spent transaction outputs.
 //
 // The bit representation is:
-//   bit  0     - containing transaction is a coinbase
-//   bit  1     - containing transaction has an expiry
-//   bits 2-5   - transaction type
-//   bits 6-7   - unused
+//
+//	bit  0     - containing transaction is a coinbase
+//	bit  1     - containing transaction has an expiry
+//	bits 2-5   - transaction type
+//	bits 6-7   - unused
 type txOutFlags uint8
 
 const (

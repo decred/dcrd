@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,41 +13,41 @@ this process.  An overview specific to this package is provided here, however it
 is also instructive to read the documentation for the dcrjson package
 (https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v4).
 
-Marshalling and Unmarshalling
+# Marshalling and Unmarshalling
 
 The types in this package map to the required parts of the protocol as discussed
-in the dcrjson documentation
+in the dcrjson documentation:
 
   - Request Objects (type Request)
-    - Commands (type <Foo>Cmd)
-    - Notifications (type <Foo>Ntfn)
+  - Request Commands (type <Foo>Cmd)
+  - Request Notifications (type <Foo>Ntfn)
   - Response Objects (type Response)
-    - Result (type <Foo>Result)
+  - Response Result (type <Foo>Result)
 
 To simplify the marshalling of the requests and responses, the
 dcrjson.MarshalCmd and dcrjson.MarshalResponse functions may be used.  They
 return the raw bytes ready to be sent across the wire.
 
 Unmarshalling a received Request object is a two step process:
-  1) Unmarshal the raw bytes into a dcrjson.Request struct instance via
-     json.Unmarshal
-  2) Use dcrjson.ParseParams on the Method and Params fields of the unmarshalled
-     Request to create a concrete command or notification instance with all
-     struct fields set accordingly.
+ 1. Unmarshal the raw bytes into a dcrjson.Request struct instance via
+    json.Unmarshal
+ 2. Use dcrjson.ParseParams on the Method and Params fields of the unmarshalled
+    Request to create a concrete command or notification instance with all
+    struct fields set accordingly.
 
 This approach is used since it provides the caller with access to the additional
 fields in the request that are not part of the command such as the ID.
 
 Unmarshalling a received Response object is also a two step process:
-  1) Unmarshal the raw bytes into a dcrjson.Response struct instance via
-     json.Unmarshal
-  2) Depending on the ID, unmarshal the Result field of the unmarshalled
-     Response to create a concrete type instance
+ 1. Unmarshal the raw bytes into a dcrjson.Response struct instance via
+    json.Unmarshal
+ 2. Depending on the ID, unmarshal the Result field of the unmarshalled
+    Response to create a concrete type instance
 
 As above, this approach is used since it provides the caller with access to the
 fields in the response such as the ID and Error.
 
-Command Creation
+# Command Creation
 
 This package provides two approaches for creating a new command.  This first,
 and preferred, method is to use one of the New<Foo>Cmd functions.  This allows
@@ -62,7 +62,7 @@ these checks are, obviously, run-time which means any mistakes won't be found
 until the code is actually executed.  However, it is quite useful for
 user-supplied commands that are intentionally dynamic.
 
-Help Generation
+# Help Generation
 
 To facilitate providing consistent help to users of the RPC server, the dcrjson
 package exposes the GenerateHelp and function which uses reflection on commands

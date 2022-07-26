@@ -423,10 +423,10 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 
 // addCoinbaseTxOutputs adds the following outputs to the provided transaction
 // which is assumed to be a coinbase transaction:
-// - First output pays the development subsidy portion to the dev org
-// - Second output is a standard provably prunable data-only coinbase output
-// - Third and subsequent outputs pay the pow subsidy portion to the generic
-//   OP_TRUE p2sh script hash
+//   - First output pays the development subsidy portion to the dev org
+//   - Second output is a standard provably prunable data-only coinbase output
+//   - Third and subsequent outputs pay the pow subsidy portion to the generic
+//     OP_TRUE p2sh script hash
 func (g *Generator) addCoinbaseTxOutputs(tx *wire.MsgTx, blockHeight uint32, devSubsidy, powSubsidy dcrutil.Amount) {
 	// First output is the developer subsidy.
 	tx.AddTxOut(&wire.TxOut{
@@ -750,10 +750,10 @@ func voteBitsScript(bits uint16, voteVersion uint32) []byte {
 // original commitments.
 //
 // The transaction consists of the following outputs:
-// - First output is an OP_RETURN followed by the block hash and height
-// - Second output is an OP_RETURN followed by the vote bits
-// - Third and subsequent outputs are the payouts according to the ticket
-//   commitments and the appropriate proportion of the vote subsidy.
+//   - First output is an OP_RETURN followed by the block hash and height
+//   - Second output is an OP_RETURN followed by the vote bits
+//   - Third and subsequent outputs are the payouts according to the ticket
+//     commitments and the appropriate proportion of the vote subsidy.
 func (g *Generator) CreateVoteTx(voteBlock *wire.MsgBlock, ticketTx *wire.MsgTx, ticketBlockHeight, ticketBlockIndex uint32) *wire.MsgTx {
 	// Calculate the proof-of-stake subsidy proportion based on the block
 	// height.
@@ -890,16 +890,16 @@ func (g *Generator) limitRetarget(oldDiff, newDiff int64) int64 {
 // the block after the current tip block the generator is associated with.
 //
 // An overview of the algorithm is as follows:
-// 1) Use the proof-of-work limit for all blocks before the first retarget
-//    window
-// 2) Use the previous block's difficulty if the next block is not at a retarget
-//    interval
-// 3) Calculate the ideal retarget difficulty for each window based on the
-//    actual timespan of the window versus the target timespan and exponentially
-//    weight each difficulty such that the most recent window has the highest
-//    weight
-// 4) Calculate the final retarget difficulty based on the exponential weighted
-//    average and ensure it is limited to the max retarget adjustment factor
+//  1. Use the proof-of-work limit for all blocks before the first retarget
+//     window
+//  2. Use the previous block's difficulty if the next block is not at a
+//     retarget interval
+//  3. Calculate the ideal retarget difficulty for each window based on the
+//     actual timespan of the window versus the target timespan and
+//     exponentially weight each difficulty such that the most recent window has
+//     the highest weight
+//  4. Calculate the final retarget difficulty based on the exponential weighted
+//     average and ensure it is limited to the max retarget adjustment factor
 func (g *Generator) CalcNextRequiredDifficulty() uint32 {
 	// Target difficulty before the first retarget interval is the pow
 	// limit.
@@ -1303,7 +1303,8 @@ func winningTickets(voteBlock *wire.MsgBlock, liveTickets []*stakeTicket, numVot
 // calcFinalLotteryState calculates the final lottery state for a set of winning
 // tickets and the associated deterministic prng state hash after selecting the
 // winners.  It is the first 6 bytes of:
-//   blake256(firstTicketHash || ... || lastTicketHash || prngStateHash)
+//
+//	blake256(firstTicketHash || ... || lastTicketHash || prngStateHash)
 func calcFinalLotteryState(winners []*stakeTicket, prngStateHash chainhash.Hash) [6]byte {
 	data := make([]byte, (len(winners)+1)*chainhash.HashSize)
 	for i := 0; i < len(winners); i++ {
@@ -1363,7 +1364,7 @@ func hashMerkleBranches(left *chainhash.Hash, right *chainhash.Hash) *chainhash.
 //
 // The above stored as a linear array is as follows:
 //
-// 	[h1 h2 h3 h4 h12 h34 root]
+//	[h1 h2 h3 h4 h12 h34 root]
 //
 // As the above shows, the merkle root is always the last element in the array.
 //
@@ -1454,18 +1455,21 @@ func hashToBig(hash *chainhash.Hash) *big.Int {
 // Like IEEE754 floating point, there are three basic components: the sign,
 // the exponent, and the mantissa.  They are broken out as follows:
 //
-//	* the most significant 8 bits represent the unsigned base 256 exponent
-// 	* bit 23 (the 24th bit) represents the sign bit
-//	* the least significant 23 bits represent the mantissa
+//  1. the most significant 8 bits represent the unsigned base 256 exponent
+//  2. zero-based bit 23 (the 24th bit) represents the sign bit
+//  3. the least significant 23 bits represent the mantissa
+//
+// Diagram:
 //
 //	-------------------------------------------------
 //	|   Exponent     |    Sign    |    Mantissa     |
-//	-------------------------------------------------
+//	|-----------------------------------------------|
 //	| 8 bits [31-24] | 1 bit [23] | 23 bits [22-00] |
 //	-------------------------------------------------
 //
 // The formula to calculate N is:
-// 	N = (-1^sign) * mantissa * 256^(exponent-3)
+//
+//	N = (-1^sign) * mantissa * 256^(exponent-3)
 //
 // This compact form is only used in Decred to encode unsigned 256-bit numbers
 // which represent difficulty targets, thus there really is not a need for a
@@ -2197,31 +2201,39 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 // generator and updates the generator's tip to the newly generated block.
 //
 // The block will include the following:
-// - A coinbase with the following outputs:
+//
+// 1. A coinbase with the following outputs:
+//
 //   - One that pays the required 10% subsidy to the dev org
 //   - One that contains a standard coinbase OP_RETURN script
 //   - Six that pay the required 60% subsidy to an OP_TRUE p2sh script
-// - When a spendable output is provided:
+//
+// 2. When a spendable output is provided:
+//
 //   - A transaction that spends from the provided output the following outputs:
-//     - One that pays the inputs amount minus 1 atom to an OP_TRUE p2sh script
-// - Once the coinbase maturity has been reached:
+//   - One that pays the inputs amount minus 1 atom to an OP_TRUE p2sh script
+//
+// 3. Once the coinbase maturity has been reached:
+//
 //   - A ticket purchase transaction (sstx) for each provided ticket spendable
 //     output with the following outputs:
-//     - One OP_SSTX output that grants voting rights to an OP_TRUE p2sh script
-//     - One OP_RETURN output that contains the required commitment and pays
-//       the subsidy to an OP_TRUE p2sh script
-//     - One OP_SSTXCHANGE output that sends change to an OP_TRUE p2sh script
-// - Once the stake validation height has been reached:
+//   - One OP_SSTX output that grants voting rights to an OP_TRUE p2sh script
+//   - One OP_RETURN output that contains the required commitment and pays
+//     the subsidy to an OP_TRUE p2sh script
+//   - One OP_SSTXCHANGE output that sends change to an OP_TRUE p2sh script
+//
+// 4. Once the stake validation height has been reached:
+//
 //   - 5 vote transactions (ssgen) as required according to the live ticket
 //     pool and vote selection rules with the following outputs:
-//     - One OP_RETURN followed by the block hash and height being voted on
-//     - One OP_RETURN followed by the vote bits
-//     - One or more OP_SSGEN outputs with the payouts according to the original
-//       ticket commitments
+//   - One OP_RETURN followed by the block hash and height being voted on
+//   - One OP_RETURN followed by the vote bits
+//   - One or more OP_SSGEN outputs with the payouts according to the original
+//     ticket commitments
 //   - Revocation transactions (ssrtx) as required according to any missed votes
 //     with the following outputs:
-//     - One or more OP_SSRTX outputs with the payouts according to the original
-//       ticket commitments
+//   - One or more OP_SSRTX outputs with the payouts according to the original
+//     ticket commitments
 //
 // Additionally, if one or more munge functions are specified, they will be
 // invoked with the block prior to solving it.  This provides callers with the
@@ -2229,12 +2241,12 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 //
 // In order to simply the logic in the munge functions, the following rules are
 // applied after all munge functions have been invoked:
-// - All votes will have their commitments updated if the previous hash or
-//   height was manually changed after stake validation height has been reached
-// - The merkle root will be recalculated unless it was manually changed
-// - The stake root will be recalculated unless it was manually changed
-// - The size of the block will be recalculated unless it was manually changed
-// - The block will be solved unless the nonce was changed
+//   - All votes will have their commitments updated if the previous hash or
+//     height was manually changed after stake validation height has been reached
+//   - The merkle root will be recalculated unless it was manually changed
+//   - The stake root will be recalculated unless it was manually changed
+//   - The size of the block will be recalculated unless it was manually changed
+//   - The block will be solved unless the nonce was changed
 func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpends []SpendableOut, mungers ...func(*wire.MsgBlock)) *wire.MsgBlock {
 	// Prevent block name collisions.
 	if g.blocksByName[blockName] != nil {

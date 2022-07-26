@@ -36,11 +36,11 @@ const (
 // the UTXO backend start with a serialized prefix consisting of the key set
 // and version of that key set as follows:
 //
-//   <key set><version>
+//	<key set><version>
 //
-//   Key        Value    Size      Description
-//   key set    uint8    1 byte    The key set identifier, as defined below
-//   version    uint8    1 byte    The version of the key set
+//	Key        Value    Size      Description
+//	key set    uint8    1 byte    The key set identifier, as defined below
+//	version    uint8    1 byte    The version of the key set
 //
 // -----------------------------------------------------------------------------
 type utxoKeySet uint8

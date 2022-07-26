@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -46,11 +46,11 @@ func fastLog2Ceil(n uint32) uint8 {
 //
 // For example, consider the following merkle tree:
 //
-//	         root = h1234 = h(h12 + h34)
-//	        /                           \
-//	  h12 = h(h1 + h2)            h34 = h(h3 + h4)
-//	   /            \              /            \
-//	  h1            h2            h3            h4
+//	       root = h1234 = h(h12 + h34)
+//	      /                           \
+//	h12 = h(h1 + h2)            h34 = h(h3 + h4)
+//	 /            \              /            \
+//	h1            h2            h3            h4
 //
 // Further, consider the goal is to prove inclusion of h3 at the 0-based leaf
 // index of 2.  The proof will consist of the sibling hashes h4 and h12.  On the
@@ -151,11 +151,11 @@ func GenerateInclusionProof(leaves []chainhash.Hash, leafIndex uint32) []chainha
 //
 // These values would form the following merkle tree:
 //
-//	         root = h1234 = h(h12 + h34o)
-//	        /                           \
-//	  h12 = h(h1o + h2)                h34o
-//	   /            \
-//	  h1o           h2
+//	       root = h1234 = h(h12 + h34o)
+//	      /                           \
+//	h12 = h(h1o + h2)                h34o
+//	 /            \
+//	h1o           h2
 //
 // The verification will succeed if the root of the new partial merkle tree,
 // "h1234", matches the provided root hash "h1234o".

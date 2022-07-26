@@ -2846,12 +2846,12 @@ func TestStagedTransactionHeight(t *testing.T) {
 // TestExplicitVersionSemantics ensures the mempool has the following semantics
 // in regards to transaction and script versions:
 //
-// - Rejects new regular and stake txns with an unsupported tx version
-// - Rejects new regular and stake txns with an output that has an unsupported
-//   script version
-// - Accepts new txns that spend an existing regular tx output that has a newer
-//   script version that is no longer allowed for new outputs (until/unless
-//   explicitly enabled via a future consensus vote)
+//   - Rejects new regular and stake txns with an unsupported tx version
+//   - Rejects new regular and stake txns with an output that has an unsupported
+//     script version
+//   - Accepts new txns that spend an existing regular tx output that has a newer
+//     script version that is no longer allowed for new outputs (until/unless
+//     explicitly enabled via a future consensus vote)
 func TestExplicitVersionSemantics(t *testing.T) {
 	t.Parallel()
 

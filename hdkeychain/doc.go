@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,19 +15,19 @@ deterministic extended keys by providing an ExtendedKey type and supporting
 functions.  Each extended key can either be a private or public extended key
 which itself is capable of deriving a child extended key.
 
-Determining the Extended Key Type
+# Determining the Extended Key Type
 
 Whether an extended key is a private or public extended key can be determined
 with the IsPrivate function.
 
-Transaction Signing Keys and Payment Addresses
+# Transaction Signing Keys and Payment Addresses
 
 In order to create and sign transactions, or provide others with addresses to
 send funds to, the underlying key and address material must be accessible.  This
 package provides the SerializedPubKey and SerializedPrivKey functions for this
 purpose.  The caller may then create the desired address types.
 
-The Master Node
+# The Master Node
 
 As previously mentioned, the extended keys are hierarchical meaning they are
 used to form a tree.  The root of that tree is called the master node and this
@@ -35,7 +35,7 @@ package provides the NewMaster function to create it from a cryptographically
 random seed.  The GenerateSeed function is provided as a convenient way to
 create a random seed for use with the NewMaster function.
 
-Deriving Children
+# Deriving Children
 
 Once you have created a tree root (or have deserialized an extended key as
 discussed later), the child extended keys can be derived by using either the
@@ -46,7 +46,7 @@ the HardenedKeyStart constant + the hardened key number as the index to the
 Child function.  This provides the ability to cascade the keys into a tree and
 hence generate the hierarchical deterministic key chains.
 
-BIP0032 Conformity
+# BIP0032 Conformity
 
 The Child function derives extended keys with a modified scheme based on
 BIP0032, whereas ChildBIP32Std produces keys that strictly conform to the
@@ -56,7 +56,7 @@ BIP0032.  The ChildBIP32Std method retains leading zeros, ensuring the child
 keys expected by BIP0032 are derived.  The Child function must be used for
 Decred wallet key derivation for legacy reasons.
 
-Normal vs Hardened Child Extended Keys
+# Normal vs Hardened Child Extended Keys
 
 A private extended key can be used to derive both hardened and non-hardened
 (normal) child private and public extended keys.  A public extended key can only
@@ -69,22 +69,23 @@ the reason for the existence of hardened keys, and why they are used for the
 account level in the tree. This way, a leak of an account-specific (or below)
 private key never risks compromising the master or other accounts."
 
-Neutering a Private Extended Key
+# Neutering a Private Extended Key
 
 A private extended key can be converted to a new instance of the corresponding
 public extended key with the Neuter function.  The original extended key is not
 modified.  A public extended key is still capable of deriving non-hardened child
 public extended keys.
 
-Serializing and Deserializing Extended Keys
+# Serializing and Deserializing Extended Keys
 
 Extended keys are serialized and deserialized with the String and
 NewKeyFromString functions.  The serialized key is a Base58-encoded string which
 looks like the following:
+
 	public key:   dpubZCGVaKZBiMo7pMgLaZm1qmchjWenTeVcUdFQkTNsFGFEA6xs4EW8PKiqYqP7HBAitt9Hw16VQkQ1tjsZQSHNWFc6bEK6bLqrbco24FzBTY4
 	private key:  dprv3kUQDBztdyjKuwnaL3hfKYpT7W6X2huYH5d61YSWFBebSYwEBHAXJkCpQ7rvMAxPzKqxVCGLvBqWvGxXjAyMJsV1XwKkfnQCM9KctC8k8bk
 
-Network
+# Network
 
 Extended keys are much like normal Decred addresses in that they have version
 bytes which tie them to a specific network.  The network that an extended key is

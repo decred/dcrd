@@ -216,29 +216,34 @@ type PrevScripter interface {
 // The following section describes the items that will be added to the filter,
 // however, there are a few special cases that apply:
 //
-// - Scripts that are not version 0, empty, or otherwise provably unspendable
-//   are NOT included
-// - Output scripts for transactions in the stake tree do NOT include the
-//   initial stake opcode tag (OP_SS*)
-//   - This allows users of the filter to only match against a normal P2PKH or
-//     P2SH script, instead of many extra matches for each tag
+//   - Scripts that are not version 0, empty, or otherwise provably unspendable
+//     are NOT included
+//   - Output scripts for transactions in the stake tree do NOT include the
+//     initial stake opcode tag (OP_SS*)
+//
+// NOTE: Not including the initial stake opcode tag allows users of the filter
+// to only match against a normal P2PKH or P2SH script instead of many extra
+// matches for each tag.
 //
 // Considering the aforementioned exceptions, the filter will contain the
 // following items for transactions in the regular tree:
-// - Previous output scripts referenced by the transaction inputs with the
-//   exception of the coinbase
-// - Output scripts in the transaction outputs
+//   - Previous output scripts referenced by the transaction inputs with the
+//     exception of the coinbase
+//   - Output scripts in the transaction outputs
 //
 // In addition, also considering the aforementioned exceptions, the filter will
 // contain the following items for transactions in the stake tree:
-// - For ticket purchases:
+//
+// For ticket purchases:
 //   - Previous output scripts referenced by the transaction inputs
 //   - Commitment output scripts (converted from the commitment hash and type)
 //   - Change output scripts except those that are provably unspendable
-// - For votes:
+//
+// For votes:
 //   - Subsidy generation output scripts
 //   - Output scripts that pay the original ticket commitments
-// - For revocations:
+//
+// For revocations:
 //   - Output scripts that pay the original ticket commitments
 func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, error) {
 	// There will typically be data entries for at least one output and one

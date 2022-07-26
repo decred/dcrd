@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -450,9 +450,9 @@ func (n *Uint256) GtEqUint64(n2 uint64) bool {
 //
 // That is, it returns:
 //
-//   -1 when n <  n2
-//    0 when n == n2
-//   +1 when n >  n2
+//	-1 when n <  n2
+//	 0 when n == n2
+//	+1 when n >  n2
 func (n *Uint256) Cmp(n2 *Uint256) int {
 	var borrow uint64
 	r0, borrow := bits.Sub64(n.n[0], n2.n[0], borrow)
@@ -474,9 +474,9 @@ func (n *Uint256) Cmp(n2 *Uint256) int {
 //
 // That is, it returns:
 //
-//   -1 when n <  n2
-//    0 when n == n2
-//   +1 when n >  n2
+//	-1 when n <  n2
+//	 0 when n == n2
+//	+1 when n >  n2
 func (n *Uint256) CmpUint64(n2 uint64) int {
 	if n.LtUint64(n2) {
 		return -1
@@ -1625,31 +1625,31 @@ func (n Uint256) String() string {
 
 // Format implements fmt.Formatter.  It accepts the following format verbs:
 //
-//  'v' default format which is decimal
-//  's' default string format which is decimal
-//  'b' binary
-//  'o' octal with 0 prefix when accompanied by #
-//  'O' octal with 0o prefix
-//  'd' decimal
-//  'x' lowercase hexadecimal
-//  'X' uppercase hexadecimal
+//	'v' default format which is decimal
+//	's' default string format which is decimal
+//	'b' binary
+//	'o' octal with 0 prefix when accompanied by #
+//	'O' octal with 0o prefix
+//	'd' decimal
+//	'x' lowercase hexadecimal
+//	'X' uppercase hexadecimal
 //
 // It also supports the full suite of the fmt package format flags for integral
 // types:
 //
-//  '#' output base prefix:
-//      binary: 0b (%#b)
-//      octal: 0 (%#o)
-//      hex: 0x (%#x) or 0X (%#X)
-//  '-' pad with spaces on the right (left-justify field)
-//  '0' pad with leading zeros rather than spaces
+//	'#' output base prefix:
+//	    binary: 0b (%#b)
+//	    octal: 0 (%#o)
+//	    hex: 0x (%#x) or 0X (%#X)
+//	'-' pad with spaces on the right (left-justify field)
+//	'0' pad with leading zeros rather than spaces
 //
 // Finally, it supports specification of the minimum number of digits
 // (precision) and output field width.  Examples:
 //
-//  %#.64x  default width, precision 64, lowercase hex with 0x prefix
-//  %256b   width 256, default precision, binary with leading zeros
-//  %12.3O  width 12, precision 3, octal with 0o prefix
+//	%#.64x  default width, precision 64, lowercase hex with 0x prefix
+//	%256b   width 256, default precision, binary with leading zeros
+//	%12.3O  width 12, precision 3, octal with 0o prefix
 func (n Uint256) Format(s fmt.State, ch rune) {
 	// Determine output digits for the output base.
 	var digits []byte

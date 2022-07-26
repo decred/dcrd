@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -29,9 +29,10 @@ func NewSignature(r, s *big.Int) *Signature {
 // Serialize returns the ECDSA signature in the more strict format.
 //
 // The signatures are encoded as
-//   sig[0:32]  R, a point encoded as little endian
-//   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
-//     encoded also as little endian
+//
+//	sig[0:32]  R, a point encoded as little endian
+//	sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
+//	  encoded also as little endian
 func (sig Signature) Serialize() []byte {
 	rBytes := bigIntToEncodedBytes(sig.R)
 	sBytes := bigIntToEncodedBytes(sig.S)

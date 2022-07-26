@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -96,11 +96,12 @@ func appDataDir(goos, appName string, roaming bool) string {
 // (%LOCALAPPDATA%) that is used by default.
 //
 // Example results:
-//  dir := AppDataDir("myapp", false)
-//   POSIX (Linux/BSD): ~/.myapp
-//   Mac OS: $HOME/Library/Application Support/Myapp
-//   Windows: %LOCALAPPDATA%\Myapp
-//   Plan 9: $home/myapp
+//
+//	dir := AppDataDir("myapp", false)
+//	 POSIX (Linux/BSD): ~/.myapp
+//	 Mac OS: $HOME/Library/Application Support/Myapp
+//	 Windows: %LOCALAPPDATA%\Myapp
+//	 Plan 9: $home/myapp
 func AppDataDir(appName string, roaming bool) string {
 	return appDataDir(runtime.GOOS, appName, roaming)
 }

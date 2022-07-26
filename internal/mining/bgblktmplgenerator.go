@@ -118,13 +118,13 @@ type templateUpdate struct {
 // regenEvent defines an event which will potentially result in regenerating a
 // block template and consists of a regen event type as well as associated data
 // that depends on the type as follows:
-//  - rtReorgStarted:      nil
-//  - rtReorgDone:         nil
-//  - rtBlockAccepted:     *dcrutil.Block
-//  - rtBlockConnected:    *dcrutil.Block
-//  - rtBlockDisconnected: *dcrutil.Block
-//  - rtVote:              *dcrutil.Tx
-//  - rtTemplateUpdated:   templateUpdate
+//   - rtReorgStarted:      nil
+//   - rtReorgDone:         nil
+//   - rtBlockAccepted:     *dcrutil.Block
+//   - rtBlockConnected:    *dcrutil.Block
+//   - rtBlockDisconnected: *dcrutil.Block
+//   - rtVote:              *dcrutil.Tx
+//   - rtTemplateUpdated:   templateUpdate
 type regenEvent struct {
 	reason regenEventType
 	value  interface{}
@@ -194,34 +194,34 @@ func (wg *waitGroup) Wait() {
 // in their own goroutines with a cancellable context.
 //
 // A high level overview of the semantics are as follows:
-// - Ignore all vote handling when prior to stake validation height
-// - Generate templates building on the current tip at startup with a fall back
-//   to generate a template on its parent if the current tip does not receive
-//   enough votes within a timeout
+//   - Ignore all vote handling when prior to stake validation height
+//   - Generate templates building on the current tip at startup with a fall
+//     back to generate a template on its parent if the current tip does not
+//     receive enough votes within a timeout
 //   - Continue monitoring for votes on any blocks that extend said parent to
 //     potentially switch to them and generate a template building on them when
 //     possible
-// - Generate new templates building on new best chain tip blocks once they have
-//   received the minimum votes after a timeout to provide the additional votes
-//   an opportunity to propagate, except when it is an intermediate block in a
-//   chain reorganization
+//   - Generate new templates building on new best chain tip blocks once they
+//     have received the minimum votes after a timeout to provide the additional
+//     votes an opportunity to propagate, except when it is an intermediate
+//     block in a chain reorganization
 //   - In the event the current tip fails to receive the minimum number of
 //     required votes, monitor side chain blocks which are siblings of it for
 //     votes in order to potentially switch to them and generate a template
 //     building on them when possible
-// - Generate new templates on blocks disconnected from the best chain tip,
-//   except when it is an intermediate block in a chain reorganization
-// - Generate new templates periodically when there are new regular transactions
-//   to include
-// - Bias templates towards building on the first seen block when possible in
-//   order to prevent PoW miners from being able to gain an advantage through
-//   vote withholding
-// - Schedule retries in the rare event template generation fails
-// - Allow clients to subscribe for updates every time a new template is
-//   successfully generated along with a reason why it was generated
-// - Provide direct access to the most-recently generated template
-//   - Block while generating new templates that will make the current template
-//     stale (e.g. new parent or new votes)
+//   - Generate new templates on blocks disconnected from the best chain tip,
+//     except when it is an intermediate block in a chain reorganization
+//   - Generate new templates periodically when there are new regular
+//     transactions to include
+//   - Bias templates towards building on the first seen block when possible in
+//     order to prevent PoW miners from being able to gain an advantage through
+//     vote withholding
+//   - Schedule retries in the rare event template generation fails
+//   - Allow clients to subscribe for updates every time a new template is
+//     successfully generated along with a reason why it was generated
+//   - Provide direct access to the most-recently generated template
+//   - Block direct access while generating new templates that will make the
+//     current template stale (e.g. new parent or new votes)
 type BgBlkTmplGenerator struct {
 	wg   sync.WaitGroup
 	quit chan struct{}

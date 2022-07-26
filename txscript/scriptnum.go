@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -106,18 +106,19 @@ func checkMinimalDataEncoding(v []byte) error {
 // Bytes returns the number serialized as a little endian with a sign bit.
 //
 // Example encodings:
-//       127 -> [0x7f]
-//      -127 -> [0xff]
-//       128 -> [0x80 0x00]
-//      -128 -> [0x80 0x80]
-//       129 -> [0x81 0x00]
-//      -129 -> [0x81 0x80]
-//       256 -> [0x00 0x01]
-//      -256 -> [0x00 0x81]
-//     32767 -> [0xff 0x7f]
-//    -32767 -> [0xff 0xff]
-//     32768 -> [0x00 0x80 0x00]
-//    -32768 -> [0x00 0x80 0x80]
+//
+//	   127 -> [0x7f]
+//	  -127 -> [0xff]
+//	   128 -> [0x80 0x00]
+//	  -128 -> [0x80 0x80]
+//	   129 -> [0x81 0x00]
+//	  -129 -> [0x81 0x80]
+//	   256 -> [0x00 0x01]
+//	  -256 -> [0x00 0x81]
+//	 32767 -> [0xff 0x7f]
+//	-32767 -> [0xff 0xff]
+//	 32768 -> [0x00 0x80 0x00]
+//	-32768 -> [0x00 0x80 0x80]
 func (n ScriptNum) Bytes() []byte {
 	// Zero encodes as an empty byte slice.
 	if n == 0 {

@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -29,8 +29,9 @@ type BlockProgressLogger struct {
 
 // NewBlockProgressLogger returns a new block progress logger.
 // The progress message is templated as follows:
-//  {progressAction} {numProcessed} {blocks|block} in the last {timePeriod}
-//  ({numTxs}, height {lastBlockHeight}, {lastBlockTimeStamp})
+//
+//	{progressAction} {numProcessed} {blocks|block} in the last {timePeriod}
+//	({numTxs}, height {lastBlockHeight}, {lastBlockTimeStamp})
 func NewBlockProgressLogger(progressMessage string, logger slog.Logger) *BlockProgressLogger {
 	return &BlockProgressLogger{
 		lastBlockLogTime: time.Now(),

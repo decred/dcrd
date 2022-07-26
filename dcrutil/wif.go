@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -88,11 +88,11 @@ func NewWIF(privKey []byte, net [2]byte, scheme dcrec.SignatureType) (*WIF, erro
 // The WIF string must be a base58-encoded string of the following byte
 // sequence:
 //
-//  * 2 bytes to identify the network
-//  * 1 byte for ECDSA type
-//  * 32 bytes of a binary-encoded, big-endian, zero-padded private key
-//  * 4 bytes of checksum, must equal the first four bytes of the double SHA256
-//    of every byte before the checksum in this sequence
+//   - 2 bytes to identify the network
+//   - 1 byte for ECDSA type
+//   - 32 bytes of a binary-encoded, big-endian, zero-padded private key
+//   - 4 bytes of checksum, must equal the first four bytes of the double SHA256
+//     of every byte before the checksum in this sequence
 //
 // If the base58-decoded byte sequence does not match this, DecodeWIF will
 // return a non-nil error.  ErrMalformedPrivateKey is returned when the WIF

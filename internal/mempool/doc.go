@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -33,41 +33,47 @@ proceed.  Typically, this will involve things such as relaying the transactions
 to other peers on the network and notifying the mining process that new
 transactions are available.
 
-## Feature Overview
+# Feature Overview
 
 The following is a quick overview of the major features.  It is not intended to
 be an exhaustive list.
 
-- Maintain a pool of fully validated transactions
-  - Reject non-fully-spent duplicate transactions
-  - Reject coinbase transactions
-  - Reject double spends (both from the chain and other transactions in pool)
-  - Reject invalid transactions according to the network consensus rules
+  - Maintains a pool of fully validated transactions
+  - Rejects non-fully-spent duplicate transactions
+  - Rejects coinbase transactions
+  - Rejects double spends (both from the chain and other transactions in pool)
+  - Rejects invalid transactions according to the network consensus rules
   - Full script execution and validation with signature cache support
   - Individual transaction query support
-- Stake transaction support (ticket purchases, votes and revocations)
+  - Stake transaction support (ticket purchases, votes and revocations)
   - Option to accept or reject old votes
-- Orphan transaction support (transactions that spend from unknown outputs)
+  - Orphan transaction support (transactions that spend from unknown outputs)
   - Configurable limits (see transaction acceptance policy)
   - Automatic addition of orphan transactions that are no longer orphans as new
     transactions are added to the pool
   - Individual orphan transaction query support
-- Configurable transaction acceptance policy
+  - Configurable transaction acceptance policy
+  - Additional metadata tracking for each transaction
+  - Manual control of transaction removal
+  - Recursive removal of all dependent transactions
+
+# Configurable Transaction Acceptance Policy
+
   - Option to accept or reject standard transactions
   - Option to accept or reject transactions based on priority calculations
   - Minimum fee threshold
   - Max signature operations per transaction
   - Max orphan transaction size
   - Max number of orphan transactions allowed
-- Additional metadata tracking for each transaction
+
+# Additional Per-Transaction Metadata Tracking
+
   - Timestamp when the transaction was added to the pool
   - Most recent block height when the transaction was added to the pool
   - The fee the transaction pays
   - The starting priority for the transaction
-- Manual control of transaction removal
-  - Recursive removal of all dependent transactions
 
-Errors
+# Errors
 
 Errors returned by this package are either the raw errors provided by underlying
 calls or of type mempool.RuleError.  Since there are two classes of rules

@@ -706,7 +706,9 @@ func CalculateRevocationRewards(contribAmounts []int64, ticketPurchaseAmount int
 // OP_SSTXCHANGE tagged output for input 2 [index 4]
 // ...
 // OP_RETURN push of input MaxInputsPerSStx's address for reward receiving
-//     [index (MaxInputsPerSStx*2)-2]
+//
+//	[index (MaxInputsPerSStx*2)-2]
+//
 // OP_SSTXCHANGE tagged output [index (MaxInputsPerSStx*2)-1]
 //
 // The output OP_RETURN pushes should be of size 20 bytes (standard address).
@@ -962,28 +964,30 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 // SSGen transactions are specified as below.
 //
 // Inputs:
-//   [index 0] Stakebase null input
-//   [index 1] SStx-tagged output
+//
+//	[index 0] Stakebase null input
+//	[index 1] SStx-tagged output
 //
 // Outputs:
-//   [index 0] OP_RETURN push of 40 bytes containing:
-//     i. 32-byte block header of block being voted on.
-//     ii. 8-byte int of this block's height.
-//   [index 1] OP_RETURN push of 2 bytes containing votebits
-//   [index 2] SSGen-tagged output to the first payment commitment address from
-//     SStx-tagged output's tx (output index 1)
-//   [index 3] SSGen-tagged output to the second payment commitment address from
-//     SStx-tagged output's tx (output index 3)
-//   ...
-//   [index maxOuts - 2] SSGen-tagged output to the last payment
-//     commitment address from SStx-tagged output's tx index output (output
-//     index MaxInputsPerSStx - 1)
-//   [index maxOuts - 1] OP_RETURN push of 2 bytes containing opcode
-//     designating what the remaining data that is pushed is.  In the case of
-//     'TV' (Treasury Vote) it checks for a <hash><vote> tuple. For example:
-//     OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
-//     NOTE: This output is only appended when a treasury spend is being voted
-//     on.
+//
+//	[index 0] OP_RETURN push of 40 bytes containing:
+//	  i. 32-byte block header of block being voted on.
+//	  ii. 8-byte int of this block's height.
+//	[index 1] OP_RETURN push of 2 bytes containing votebits
+//	[index 2] SSGen-tagged output to the first payment commitment address from
+//	  SStx-tagged output's tx (output index 1)
+//	[index 3] SSGen-tagged output to the second payment commitment address from
+//	  SStx-tagged output's tx (output index 3)
+//	...
+//	[index maxOuts - 2] SSGen-tagged output to the last payment
+//	  commitment address from SStx-tagged output's tx index output (output
+//	  index MaxInputsPerSStx - 1)
+//	[index maxOuts - 1] OP_RETURN push of 2 bytes containing opcode
+//	  designating what the remaining data that is pushed is.  In the case of
+//	  'TV' (Treasury Vote) it checks for a <hash><vote> tuple. For example:
+//	  OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
+//	  NOTE: This output is only appended when a treasury spend is being voted
+//	  on.
 func CheckSSGenVotes(tx *wire.MsgTx) ([]TreasuryVoteTuple, error) {
 	// Check to make sure there aren't too many inputs.
 	if len(tx.TxIn) != NumInputsPerSSGen {
@@ -1172,17 +1176,19 @@ func IsSSGen(tx *wire.MsgTx) bool {
 // SSRtx transactions are specified as below.
 //
 // Inputs:
-//   [index 0] SStx-tagged output
+//
+//	[index 0] SStx-tagged output
 //
 // Outputs:
-//   [index 0] SSRtx-tagged output to the first payment commitment address from
-//     SStx-tagged output's tx (output index 1)
-//   [index 1] SSRtx-tagged output to the second payment commitment address from
-//     SStx-tagged output's tx (output index 3)
-//   ...
-//   [index MaxOutputsPerSSRtx - 1] SSRtx-tagged output to the last payment
-//     commitment address from SStx-tagged output's tx index output (output
-//     index MaxInputsPerSStx - 1)
+//
+//	[index 0] SSRtx-tagged output to the first payment commitment address from
+//	  SStx-tagged output's tx (output index 1)
+//	[index 1] SSRtx-tagged output to the second payment commitment address from
+//	  SStx-tagged output's tx (output index 3)
+//	...
+//	[index MaxOutputsPerSSRtx - 1] SSRtx-tagged output to the last payment
+//	  commitment address from SStx-tagged output's tx index output (output
+//	  index MaxInputsPerSStx - 1)
 func CheckSSRtx(tx *wire.MsgTx) error {
 	// Check to make sure there is the correct number of inputs.
 	if len(tx.TxIn) != NumInputsPerSSRtx {

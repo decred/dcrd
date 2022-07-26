@@ -114,13 +114,13 @@ type SubsidyParams interface {
 //
 // This value comes from the fact that the subsidy split is as follows:
 //
-// Prior to DCP0010: PoW: 6, PoS: 3, Treasury: 1 => 6+3+1 = 10
-//    After DCP0010: PoW: 1, PoS: 8, Treasury: 1 => 1+8+1 = 10
+//	Prior to DCP0010: PoW: 6, PoS: 3, Treasury: 1 => 6+3+1 = 10
+//	   After DCP0010: PoW: 1, PoS: 8, Treasury: 1 => 1+8+1 = 10
 //
 // Therefore, the subsidy split percentages are:
 //
-// Prior to DCP0010: PoW: 6/10 = 60%, PoS: 3/10 = 30%, Treasury: 1/10 = 10%
-//    After DCP0010: PoW: 1/10 = 10%, PoS: 8/10 = 80%, Treasury: 1/10 = 10%
+//	Prior to DCP0010: PoW: 6/10 = 60%, PoS: 3/10 = 30%, Treasury: 1/10 = 10%
+//	   After DCP0010: PoW: 1/10 = 10%, PoS: 8/10 = 80%, Treasury: 1/10 = 10%
 const totalProportions = 10
 
 // SubsidyCache provides efficient access to consensus-critical subsidy
@@ -181,11 +181,11 @@ func (s *uint64s) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
 //
 // Subsidy calculation for exponential reductions:
 //
-//  subsidy := BaseSubsidyValue()
-//  for i := 0; i < (height / SubsidyReductionIntervalBlocks()); i++ {
-//    subsidy *= SubsidyReductionMultiplier()
-//    subsidy /= SubsidyReductionDivisor()
-//  }
+//	subsidy := BaseSubsidyValue()
+//	for i := 0; i < (height / SubsidyReductionIntervalBlocks()); i++ {
+//	  subsidy *= SubsidyReductionMultiplier()
+//	  subsidy /= SubsidyReductionDivisor()
+//	}
 //
 // This function is safe for concurrent access.
 func (c *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
