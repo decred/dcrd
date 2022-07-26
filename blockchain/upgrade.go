@@ -49,10 +49,10 @@ func interruptRequested(ctx context.Context) bool {
 //
 // The legacy format is as follows:
 //
-//   Field      Type     Size      Description
-//   version    uint32   4 bytes   The version of the database
-//   compVer    uint32   4 bytes   The script compression version of the database
-//   created    uint32   4 bytes   The date of the creation of the database
+//	Field      Type     Size      Description
+//	version    uint32   4 bytes   The version of the database
+//	compVer    uint32   4 bytes   The script compression version of the database
+//	created    uint32   4 bytes   The date of the creation of the database
 //
 // The high bit (0x80000000) is used on version to indicate that an upgrade
 // is in progress and used to confirm the database fidelity on start up.

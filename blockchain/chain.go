@@ -65,8 +65,9 @@ func panicf(format string, args ...interface{}) {
 // from the block being located.
 //
 // For example, assume a block chain with a side chain as depicted below:
-// 	genesis -> 1 -> 2 -> ... -> 15 -> 16  -> 17  -> 18
-// 	                              \-> 16a -> 17a
+//
+//	genesis -> 1 -> 2 -> ... -> 15 -> 16  -> 17  -> 18
+//	                              \-> 16a -> 17a
 //
 // The block locator for block 17a would be the hashes of blocks:
 // [17a 16a 15 14 13 12 11 10 9 8 7 6 4 genesis]
@@ -1072,11 +1073,11 @@ func (b *BlockChain) loadOrCreateFilter(block *dcrutil.Block, view *UtxoViewpoin
 // The actions needed to reorganize the chain to the given target fall into
 // three main cases:
 //
-// 1. The target is a descendant of the current best chain tip (most common)
-// 2. The target is an ancestor of the current best chain tip (least common)
-// 3. The target is neither of the above which means it is on another branch
-//    and that branch forks from the main chain at some ancestor of the current
-//    best chain tip
+//  1. The target is a descendant of the current best chain tip (most common)
+//  2. The target is an ancestor of the current best chain tip (least common)
+//  3. The target is neither of the above which means it is on another branch
+//     and that branch forks from the main chain at some ancestor of the current
+//     best chain tip
 //
 // For the first case, the blocks between the current best chain tip and the
 // given target need to be connected (think pushed onto the end of the chain).
@@ -1657,11 +1658,11 @@ func (b *BlockChain) isCurrent(curBest *blockNode) bool {
 // case no new blocks have been seen for an extended period of time.
 //
 // The initial factors that are used to latch the state to current are:
-//  - Total amount of cumulative work is more than the minimum known work
-//    specified by the parameters for the network
-//  - The best chain is synced to the header with the most cumulative work that
-//    is not known to be invalid
-//  - Latest block has a timestamp newer than 24 hours ago
+//   - Total amount of cumulative work is more than the minimum known work
+//     specified by the parameters for the network
+//   - The best chain is synced to the header with the most cumulative work that
+//     is not known to be invalid
+//   - Latest block has a timestamp newer than 24 hours ago
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsCurrent() bool {
@@ -1898,11 +1899,11 @@ func (b *BlockChain) HeightRange(startHeight, endHeight int64) ([]chainhash.Hash
 //
 // In addition, there are two special cases:
 //
-// - When no locators are provided, the stop hash is treated as a request for
-//   that block, so it will either return the node associated with the stop hash
-//   if it is known, or nil if it is unknown
-// - When locators are provided, but none of them are known, nodes starting
-//   after the genesis block will be returned
+//   - When no locators are provided, the stop hash is treated as a request for
+//     that block, so it will either return the node associated with the stop
+//     hash if it is known, or nil if it is unknown
+//   - When locators are provided, but none of them are known, nodes starting
+//     after the genesis block will be returned
 //
 // This is primarily a helper function for the locateBlocks and locateHeaders
 // functions.
@@ -1986,11 +1987,11 @@ func (b *BlockChain) locateBlocks(locator BlockLocator, hashStop *chainhash.Hash
 //
 // In addition, there are two special cases:
 //
-// - When no locators are provided, the stop hash is treated as a request for
-//   that block, so it will either return the stop hash itself if it is known,
-//   or nil if it is unknown
-// - When locators are provided, but none of them are known, hashes starting
-//   after the genesis block will be returned
+//   - When no locators are provided, the stop hash is treated as a request for
+//     that block, so it will either return the stop hash itself if it is known,
+//     or nil if it is unknown
+//   - When locators are provided, but none of them are known, hashes starting
+//     after the genesis block will be returned
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) LocateBlocks(locator BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
@@ -2031,11 +2032,11 @@ func (b *BlockChain) locateHeaders(locator BlockLocator, hashStop *chainhash.Has
 //
 // In addition, there are two special cases:
 //
-// - When no locators are provided, the stop hash is treated as a request for
-//   that header, so it will either return the header for the stop hash itself
-//   if it is known, or nil if it is unknown
-// - When locators are provided, but none of them are known, headers starting
-//   after the genesis block will be returned
+//   - When no locators are provided, the stop hash is treated as a request for
+//     that header, so it will either return the header for the stop hash itself
+//     if it is known, or nil if it is unknown
+//   - When locators are provided, but none of them are known, headers starting
+//     after the genesis block will be returned
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) LocateHeaders(locator BlockLocator, hashStop *chainhash.Hash) []wire.BlockHeader {

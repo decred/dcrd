@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,7 @@ supported Decred messages to and from the wire.  This package does not deal
 with the specifics of message handling such as what to do when a message is
 received.  This provides the caller with a high level of flexibility.
 
-Decred Message Overview
+# Decred Message Overview
 
 The Decred protocol consists of exchanging messages between peers.  Each
 message is preceded by a header which identifies information about it such as
@@ -31,7 +31,7 @@ messages, all of the details of marshalling and unmarshalling to and from the
 wire using Decred encoding are handled so the caller doesn't have to concern
 themselves with the specifics.
 
-Message Interaction
+# Message Interaction
 
 The following provides a quick summary of how the Decred messages are intended
 to interact with one another.  As stated above, these interactions are not
@@ -63,13 +63,13 @@ interactions in no particular order.
 	  in BIP0031.  The BIP0031Version constant can be used to detect a recent
 	  enough protocol version for this purpose (version > BIP0031Version).
 
-Common Parameters
+# Common Parameters
 
 There are several common parameters that arise when using this package to read
 and write Decred messages.  The following sections provide a quick overview of
 these parameters so the next sections can build on them.
 
-Protocol Version
+# Protocol Version
 
 The protocol version should be negotiated with the remote peer at a higher
 level than this package via the version (MsgVersion) message exchange, however,
@@ -78,7 +78,7 @@ latest protocol version this package supports and is typically the value to use
 for all outbound connections before a potentially lower protocol version is
 negotiated.
 
-Decred Network
+# Decred Network
 
 The Decred network is a magic number which is used to identify the start of a
 message and which Decred network the message applies to.  This package provides
@@ -89,7 +89,7 @@ the following constants:
 	wire.SimNet   (Simulation test network)
 	wire.RegNet   (Regression test network)
 
-Determining Message Type
+# Determining Message Type
 
 As discussed in the Decred message overview section, this package reads
 and writes Decred messages using a generic interface named Message.  In
@@ -107,7 +107,7 @@ switch or type assertion.  An example of a type switch follows:
 		fmt.Printf("Number of tx in block: %v", msg.Header.TxnCount)
 	}
 
-Reading Messages
+# Reading Messages
 
 In order to unmarshall Decred messages from the wire, use the ReadMessage
 function.  It accepts any io.Reader, but typically this will be a net.Conn to
@@ -122,7 +122,7 @@ a remote node running a Decred peer.  Example syntax is:
 		// Log and handle the error
 	}
 
-Writing Messages
+# Writing Messages
 
 In order to marshall Decred messages to the wire, use the WriteMessage
 function.  It accepts any io.Writer, but typically this will be a net.Conn to
@@ -140,7 +140,7 @@ from a remote peer is:
 		// Log and handle the error
 	}
 
-Errors
+# Errors
 
 Errors returned by this package are either the raw errors provided by underlying
 calls to read/write from streams such as io.EOF, io.ErrUnexpectedEOF, and
@@ -148,7 +148,7 @@ io.ErrShortWrite, or of type wire.MessageError.  This allows the caller to
 differentiate between general IO errors and malformed messages through type
 assertions.
 
-Bitcoin Improvement Proposals
+# Bitcoin Improvement Proposals
 
 This package includes spec changes outlined by the following BIPs:
 

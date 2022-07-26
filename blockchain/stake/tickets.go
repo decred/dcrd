@@ -419,9 +419,7 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 	node.nextWinners = make([]chainhash.Hash, 0)
 	if node.height >= uint32(params.StakeValidationBeginHeight()-1) {
 		node.nextWinners = make([]chainhash.Hash, len(state.NextWinners))
-		for i := range state.NextWinners {
-			node.nextWinners[i] = state.NextWinners[i]
-		}
+		copy(node.nextWinners, state.NextWinners)
 
 		// Calculate the final state from the block header.
 		stateBuffer := make([]byte, 0,
@@ -463,9 +461,10 @@ func hashInSlice(h chainhash.Hash, list []chainhash.Hash) bool {
 // safeGet fetches a pointer to the data for the key in the treap, then
 // copies the value so that the original pointer to the key is never written
 // to accidentally later.
-// TODO This function could also check to make sure the states of the ticket
-//       treap value are valid.
 func safeGet(t *tickettreap.Immutable, k tickettreap.Key) (*tickettreap.Value, error) {
+	// TODO: This function could also check to make sure the states of the
+	//       ticket treap value are valid.
+
 	v := t.Get(k)
 	if v == nil {
 		str := fmt.Sprintf("ticket %v was supposed to be in the passed "+
@@ -485,9 +484,10 @@ func safeGet(t *tickettreap.Immutable, k tickettreap.Key) (*tickettreap.Value, e
 // safePut is used to put a value into an immutable ticket treap, returning
 // the mutated, immutable treap given as a result.  It first checks to see if
 // there is already this key in the treap. If there is, it returns an error.
-// TODO This function could also check to make sure the states of the ticket
-//       treap value are valid.
 func safePut(t *tickettreap.Immutable, k tickettreap.Key, v *tickettreap.Value) (*tickettreap.Immutable, error) {
+	// TODO This function could also check to make sure the states of the ticket
+	//      treap value are valid.
+
 	if t.Has(k) {
 		str := fmt.Sprintf("attempted to insert duplicate key %v into treap",
 			chainhash.Hash(k))

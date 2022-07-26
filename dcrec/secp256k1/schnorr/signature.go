@@ -51,9 +51,10 @@ func NewSignature(r *secp256k1.FieldVal, s *secp256k1.ModNScalar) *Signature {
 
 // Serialize returns the Schnorr signature in the more strict format.
 //
-// The signatures are encoded as
-//   sig[0:32]  x coordinate of the point R, encoded as a big-endian uint256
-//   sig[32:64] s, encoded also as big-endian uint256
+// The signatures are encoded as:
+//
+//	sig[0:32]  x coordinate of the point R, encoded as a big-endian uint256
+//	sig[32:64] s, encoded also as big-endian uint256
 func (sig Signature) Serialize() []byte {
 	// Total length of returned signature is the length of r and s.
 	var b [SignatureSize]byte

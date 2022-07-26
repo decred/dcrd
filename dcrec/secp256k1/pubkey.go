@@ -92,11 +92,16 @@ func NewPublicKey(x, y *FieldVal) *PublicKey {
 // hybrid formats as follows:
 //
 // Compressed:
-//   <format byte = 0x02/0x03><32-byte X coordinate>
+//
+//	<format byte = 0x02/0x03><32-byte X coordinate>
+//
 // Uncompressed:
-//   <format byte = 0x04><32-byte X coordinate><32-byte Y coordinate>
+//
+//	<format byte = 0x04><32-byte X coordinate><32-byte Y coordinate>
+//
 // Hybrid:
-//   <format byte = 0x05/0x06><32-byte X coordinate><32-byte Y coordinate>
+//
+//	<format byte = 0x05/0x06><32-byte X coordinate><32-byte Y coordinate>
 //
 // NOTE: The hybrid format makes little sense in practice an therefore this
 // package will not produce public keys serialized in this format.  However,

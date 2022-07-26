@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -37,12 +37,13 @@ func testConversionVectors() []ConversionVector {
 }
 
 // Tested functions:
-//   EncodedBytesToBigInt
-//   BigIntToFieldElement
-//   FieldElementToEncodedBytes
-//   BigIntToEncodedBytes
-//   FieldElementToBigInt
-//   EncodedBytesToFieldElement
+//
+//   - EncodedBytesToBigInt
+//   - BigIntToFieldElement
+//   - FieldElementToEncodedBytes
+//   - BigIntToEncodedBytes
+//   - FieldElementToBigInt
+//   - EncodedBytesToFieldElement
 func TestConversion(t *testing.T) {
 	encodedNumToStrIdx := 0
 	encodedNumToStrSet := []string{
@@ -223,9 +224,10 @@ func testPointConversionVectors() []ConversionVector {
 }
 
 // Tested functions:
-//   BigIntPointToEncodedBytes
-//   extendedToBigAffine
-//   EncodedBytesToBigIntPoint
+//
+//   - BigIntPointToEncodedBytes
+//   - extendedToBigAffine
+//   - EncodedBytesToBigIntPoint
 func TestPointConversion(t *testing.T) {
 	decodedPointsIdx := 0
 	decodedPointsSet := []string{

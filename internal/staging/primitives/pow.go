@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,17 +18,20 @@ import (
 // Like IEEE754 floating point, there are three basic components: the sign,
 // the exponent, and the mantissa.  They are broken out as follows:
 //
-//	* the most significant 8 bits represent the unsigned base 256 exponent
-//	* bit 23 (the 24th bit) represents the sign bit
-//	* the least significant 23 bits represent the mantissa
+//  1. the most significant 8 bits represent the unsigned base 256 exponent
+//  2. zero-based bit 23 (the 24th bit) represents the sign bit
+//  3. the least significant 23 bits represent the mantissa
+//
+// Diagram:
 //
 //	-------------------------------------------------
 //	|   Exponent     |    Sign    |    Mantissa     |
-//	-------------------------------------------------
+//	|-----------------------------------------------|
 //	| 8 bits [31-24] | 1 bit [23] | 23 bits [22-00] |
 //	-------------------------------------------------
 //
 // The formula to calculate N is:
+//
 //	N = (-1^sign) * mantissa * 256^(exponent-3)
 //
 // Note that this encoding is capable of representing negative numbers as well

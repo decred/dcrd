@@ -164,49 +164,43 @@ func TestProcessOrder(t *testing.T) {
 // process logic tests or returns an already generated set if called more than
 // once.
 //
-//
 // The generated blocks form a fairly complex overall block tree as follows:
-//   - * denotes invalid header
-//   - ! denotes invalid block prior to connection (e.g. vote from bad ticket)
-//   - @ denotes invalid block when connected (e.g. double spend)
-//   - bfb is the required first block
-//   - bm# are blocks which allow coins to mature
-//   - bse# are blocks which reach stake enabled height
-//   - bsv# are blocks which reach stake validation height
-//   - bfbbad is a variant of the first block that pays too much
-//   - bfbbadchild and bfbbadchilda are valid blocks that descend from bfbbad
-//   - b1badhdr has a header with too few votes (hdr sanity failure)
-//   - b1badhdra has a header with a mismatched height (hdr positional failure)
-//   - b1bad has a ticket purchase that pays too little (block sanity failure)
-//   - b1bada is a block with an expired tx (block positional failure)
-//   - b5b is a block with a vote from bad ticket (context failure)
-//   - b6g is a block with a vote from bad ticket (context failure)
-//   - b5h is a block with a double spend (connect failure)
-//   - b6i is a block with a double spend (connect failure)
-//   - b7j is a block with a double spend (connect failure)
 //
-//   genesis -> bfb -> bm0 -> ... -> bm# -> bse0 -> ... -> bse# -> bsv0 -> ...
-//          \-> bfbbad! -> bfbbadchild
-//                     \-> bfbbadchilda
+//	'-' denotes invalid header
+//	'!' denotes invalid block prior to connection (e.g. vote from bad ticket)
+//	'@' denotes invalid block when connected (e.g. double spend)
+//	'bfb' is the required first block
+//	'bm#' are blocks which allow coins to mature
+//	'bse#' are blocks which reach stake enabled height
+//	'bsv#' are blocks which reach stake validation height
+//	'bfbbad' is a variant of the first block that pays too much
+//	'bfbbadchild' and bfbbadchilda are valid blocks that descend from bfbbad
+//	'b1badhdr' has a header with too few votes (hdr sanity failure)
+//	'b1badhdra' has a header with a mismatched height (hdr positional failure)
+//	'b1bad' has a ticket purchase that pays too little (block sanity failure)
+//	'b1bada' is a block with an expired tx (block positional failure)
+//	'b5b' is a block with a vote from bad ticket (context failure)
+//	'b6g' is a block with a vote from bad ticket (context failure)
+//	'b5h' is a block with a double spend (connect failure)
+//	'b6i' is a block with a double spend (connect failure)
+//	'b7j' is a block with a double spend (connect failure)
 //
-//   ... -> bsv# -> bbm0 -> bbm1 -> ... -> bbm# -> b1 -> b2 -> ...
-//                                                   \-> b1badhdr*
-//                                                   \-> b1badhdra*
-//                                                   \-> b1bad!
-//                                                   \-> b1bada!
+//	  genesis -> bfb -> bm0 -> ... -> bm# -> bse0 -> ... -> bse# -> bsv0 -> ...
+//	         \-> bfbbad! -> bfbbadchild
+//	                    \-> bfbbadchilda
 //
-//   ... -> b3 -> b4  -> b5   -> b6   -> b7   -> b8  -> b9  -> b10  -> b11
-//            |                                            \-> b10a
-//            \-> b4b -> b5b! -> b6b  -> b7b  -> b8b
-//            \-> b4c                |       \-> b8c -> b9c
-//            |                      \-> b7d  -> b8d -> b9d
-//            |                      \-> b7e  -> b8e
-//            |
-//            \-> b4f -> b5f  -> b6f  -> b7f  -> b8f -> b9f -> b10f
-//            \-> b4g -> b5g  -> b6g! -> b7g  -> b8g
-//            \-> b4h -> b5h@ -> b6h  -> b7h
-//            \-> b4i -> b5i  -> b6i@ -> b7i  -> b8i
-//            \-> b4j -> b5j  -> b6j  -> b7j@
+//	  ... -> b3 -> b4  -> b5   -> b6   -> b7   -> b8  -> b9  -> b10  -> b11
+//	           |                                            \-> b10a
+//	           \-> b4b -> b5b! -> b6b  -> b7b  -> b8b
+//	           \-> b4c                |       \-> b8c -> b9c
+//	           |                      \-> b7d  -> b8d -> b9d
+//	           |                      \-> b7e  -> b8e
+//	           |
+//	           \-> b4f -> b5f  -> b6f  -> b7f  -> b8f -> b9f -> b10f
+//	           \-> b4g -> b5g  -> b6g! -> b7g  -> b8g
+//	           \-> b4h -> b5h@ -> b6h  -> b7h
+//	           \-> b4i -> b5i  -> b6i@ -> b7i  -> b8i
+//	           \-> b4j -> b5j  -> b6j  -> b7j@
 func genSharedProcessTestBlocks(t *testing.T) (*chaingen.Generator, error) {
 	processTestGeneratorLock.Lock()
 	defer processTestGeneratorLock.Unlock()

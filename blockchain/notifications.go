@@ -180,15 +180,15 @@ type TicketNotificationsData struct {
 // Notification defines notification that is sent to the caller via the callback
 // function provided during the call to New and consists of a notification type
 // as well as associated data that depends on the type as follows:
-// 	- NTNewTipBlockChecked:    *dcrutil.Block
-// 	- NTBlockAccepted:         *BlockAcceptedNtfnsData
-// 	- NTBlockConnected:        *BlockConnectedNtfnsData
-// 	- NTBlockDisconnected:     *BlockDisconnectedNtfnsData
-// 	- NTChainReorgStarted:     nil
-// 	- NTChainReorgDone:        nil
-//  - NTReorganization:        *ReorganizationNtfnsData
-//  - NTSpentAndMissedTickets: *TicketNotificationsData
-//  - NTNewTickets:            *TicketNotificationsData
+//   - NTNewTipBlockChecked:    *dcrutil.Block
+//   - NTBlockAccepted:         *BlockAcceptedNtfnsData
+//   - NTBlockConnected:        *BlockConnectedNtfnsData
+//   - NTBlockDisconnected:     *BlockDisconnectedNtfnsData
+//   - NTChainReorgStarted:     nil
+//   - NTChainReorgDone:        nil
+//   - NTReorganization:        *ReorganizationNtfnsData
+//   - NTSpentAndMissedTickets: *TicketNotificationsData
+//   - NTNewTickets:            *TicketNotificationsData
 type Notification struct {
 	Type NotificationType
 	Data interface{}

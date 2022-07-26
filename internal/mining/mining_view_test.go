@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,13 +16,11 @@ import (
 // Tests the behavior of the mining view when returned from a tx source
 // containing a transaction chain depicted as:
 //
-//                       /--> d --> f
-//                       |
-//                 |--> b --|
-// <coinbase>  --> a        |-->e
-//                 |--> c --|
-//
-//
+//	                      /--> d --> f
+//	                      |
+//	                |--> b --|
+//	<coinbase>  --> a        |-->e
+//	                |--> c --|
 func TestMiningView(t *testing.T) {
 	harness, spendableOuts, err := newMiningHarness(chaincfg.MainNetParams())
 	if err != nil {

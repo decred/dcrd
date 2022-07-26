@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021 The Decred developers
+// Copyright (c) 2018-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -25,7 +25,7 @@ are parameterized by the following:
 * A key for the SipHash-2-4 function
 * The items to include in the set
 
-Errors
+# Errors
 
 Errors returned by this package are of type gcs.Error.  This allows the caller
 to programmatically determine the specific error by examining the ErrorKind
@@ -33,7 +33,7 @@ field of the type asserted gcs.Error while still providing rich error messages
 with contextual information.  See ErrorKind in the package documentation
 for a full list.
 
-GCS use in Decred
+# GCS use in Decred
 
 GCS is used as a mechanism for storing, transmitting, and committing to
 per-block filters.  Consensus-validating full nodes commit to a single filter

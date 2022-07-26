@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -628,8 +628,8 @@ func (s *blockStore) syncBlocks() error {
 // were partially written.
 //
 // There are effectively two scenarios to consider here:
-//   1) Transient write failures from which recovery is possible
-//   2) More permanent failures such as hard disk death and/or removal
+//  1. Transient write failures from which recovery is possible
+//  2. More permanent failures such as hard disk death and/or removal
 //
 // In either case, the write cursor will be repositioned to the old block file
 // offset regardless of any other errors that occur while attempting to undo

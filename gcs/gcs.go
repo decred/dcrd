@@ -1,6 +1,6 @@
 // Copyright (c) 2016-2017 The btcsuite developers
 // Copyright (c) 2016-2017 The Lightning Network Developers
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -452,12 +452,12 @@ func FromBytesV1(P uint8, d []byte) (*FilterV1, error) {
 //
 // Version 2 filters differ from version 1 filters in four ways:
 //
-// 1) Support for independently specifying the false positive rate and Golomb
-//    coding bin size which allows minimizing the filter size
-// 2) A faster (incompatible with version 1) reduction function
-// 3) A more compact serialization for the number of members in the set
-// 4) Deduplication of all hash collisions prior to reducing and serializing the
-//    deltas
+//  1. Support for independently specifying the false positive rate and Golomb
+//     coding bin size which allows minimizing the filter size
+//  2. A faster (incompatible with version 1) reduction function
+//  3. A more compact serialization for the number of members in the set
+//  4. Deduplication of all hash collisions prior to reducing and serializing the
+//     deltas
 type FilterV2 struct {
 	filter
 }

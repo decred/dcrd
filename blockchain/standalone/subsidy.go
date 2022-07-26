@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,11 +149,11 @@ func (s *uint64s) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
 //
 // Subsidy calculation for exponential reductions:
 //
-//  subsidy := BaseSubsidyValue()
-//  for i := 0; i < (height / SubsidyReductionIntervalBlocks()); i++ {
-//    subsidy *= SubsidyReductionMultiplier()
-//    subsidy /= SubsidyReductionDivisor()
-//  }
+//	subsidy := BaseSubsidyValue()
+//	for i := 0; i < (height / SubsidyReductionIntervalBlocks()); i++ {
+//	  subsidy *= SubsidyReductionMultiplier()
+//	  subsidy /= SubsidyReductionDivisor()
+//	}
 //
 // This function is safe for concurrent access.
 func (c *SubsidyCache) CalcBlockSubsidy(height int64) int64 {

@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -37,35 +37,35 @@ type Checkpoint struct {
 // and only one abstain (bits = 0) and reject vote (IsNo = true).
 //
 // For example, change block height from int64 to uint64.
-// Vote {
-//	Id:          "blockheight",
-//	Description: "Change block height from int64 to uint64"
-//	Mask:        0x0006,
-//	Choices:     []Choice{
-//		{
-//			Id:          "abstain",
-//			Description: "abstain voting for change",
-//			Bits:        0x0000,
-//			IsAbstain:   true,
-//			IsNo:        false,
-//		},
-//		{
-//			Id:          "no",
-//			Description: "reject changing block height to uint64",
-//			Bits:        0x0002,
-//			IsAbstain:   false,
-//			IsNo:        false,
-//		},
-//		{
-//			Id:          "yes",
-//			Description: "accept changing block height to uint64",
-//			Bits:        0x0004,
-//			IsAbstain:   false,
-//			IsNo:        true,
-//		},
-//	},
-// }
 //
+//	Vote {
+//		Id:          "blockheight",
+//		Description: "Change block height from int64 to uint64"
+//		Mask:        0x0006,
+//		Choices:     []Choice{
+//			{
+//				Id:          "abstain",
+//				Description: "abstain voting for change",
+//				Bits:        0x0000,
+//				IsAbstain:   true,
+//				IsNo:        false,
+//			},
+//			{
+//				Id:          "no",
+//				Description: "reject changing block height to uint64",
+//				Bits:        0x0002,
+//				IsAbstain:   false,
+//				IsNo:        false,
+//			},
+//			{
+//				Id:          "yes",
+//				Description: "accept changing block height to uint64",
+//				Bits:        0x0004,
+//				IsAbstain:   false,
+//				IsNo:        true,
+//			},
+//		},
+//	}
 type Vote struct {
 	// Single unique word identifying the vote.
 	Id string

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,9 +21,9 @@ import (
 //
 // For example:
 //
-//   allocLen := len(leaves) + len(leaves)&1
-//   leaves := make([]chainhash.Hash, len(leaves), allocLen)
-//   // populate the leaves
+//	allocLen := len(leaves) + len(leaves)&1
+//	leaves := make([]chainhash.Hash, len(leaves), allocLen)
+//	// populate the leaves
 //
 // See CalcMerkleRoot for more details on how the merkle root is calculated.
 func CalcMerkleRootInPlace(leaves []chainhash.Hash) chainhash.Hash {
@@ -137,15 +137,15 @@ func CalcTxTreeMerkleRoot(transactions []*wire.MsgTx) chainhash.Hash {
 //
 // A diagram depicting this follows:
 //
-//	  root = blake256(regularTreeRoot || stakeTreeRoot)
-//	            /                           \
-//	     regularTreeRoot               stakeTreeRoot
+//	root = blake256(regularTreeRoot || stakeTreeRoot)
+//	          /                           \
+//	   regularTreeRoot               stakeTreeRoot
 //
 // It is also worth noting that it also happens to be exactly equivalent to the
 // blake256 hash of the concatenation of the two individual merkle roots due to
 // the way two leaf merkle trees are calculated:
 //
-//   blake256(regularTreeRoot || stakeTreeRoot)
+//	blake256(regularTreeRoot || stakeTreeRoot)
 func CalcCombinedTxTreeMerkleRoot(regularTxns, stakeTxns []*wire.MsgTx) chainhash.Hash {
 	regularRoot := CalcTxTreeMerkleRoot(regularTxns)
 	stakeRoot := CalcTxTreeMerkleRoot(stakeTxns)

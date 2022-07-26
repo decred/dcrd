@@ -354,17 +354,17 @@ func DbPutBestState(dbTx database.Tx, bcs BestChainState) error {
 // The last 3 are encoded as a single byte of flags.
 // The flags describe a particular state for the ticket:
 //  1. Missed is set, but revoked and spent are not (0000 0001). The ticket
-//      was selected in the lottery at this block height but missed, or the
-//      ticket became too old and was missed. The ticket is being moved to the
-//      missed ticket bucket from the live ticket bucket.
+//     was selected in the lottery at this block height but missed, or the
+//     ticket became too old and was missed. The ticket is being moved to the
+//     missed ticket bucket from the live ticket bucket.
 //  2. Missed and revoked are set (0000 0011). The ticket was missed
-//      previously at a block before this one and was revoked, and
-//      as such is being moved to the revoked ticket bucket from the
-//      missed ticket bucket.
+//     previously at a block before this one and was revoked, and
+//     as such is being moved to the revoked ticket bucket from the
+//     missed ticket bucket.
 //  3. Spent is set (0000 0100). The ticket has been spent and is removed
-//      from the live ticket bucket.
+//     from the live ticket bucket.
 //  4. No flags are set. The ticket was newly added to the live ticket
-//      bucket this block as a maturing ticket.
+//     bucket this block as a maturing ticket.
 type UndoTicketData struct {
 	TicketHash   chainhash.Hash
 	TicketHeight uint32

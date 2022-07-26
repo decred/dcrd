@@ -1677,7 +1677,8 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 // necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//   - BFFastAdd:
+//
+// BFFastAdd:
 //   - The max block size is not checked
 //   - The calculated merkle root(s) of the transaction trees are not checked
 //     against the associated entries in the header

@@ -21,17 +21,17 @@ import (
 // policy expenditure rule that were originally activated with the treasury
 // agenda.  The following is the rough test plan:
 //
-// - Start chain and approve treasury vote
-// - Mine and mature the following treasury txs:
-//   - 4 tspends that spend the maximum allowed by the bootstrap policy
-//   - 1 tadd
-// - Advance until the previous tspends and tadd are out of the "current"
-// expenditure window and in a past "policy check"
-// - Attempt to drain as much as possible from the treasury given the update
-// of the expenditure policy
-// - Advance the chain until all previous tspends are outside the policy check
-// range
-// - Attempt to drain the bootstrap policy again.
+//   - Start chain and approve treasury vote
+//   - Mine and mature 4 treasury spends that spend the maximum allowed by the
+//     bootstrap policy
+//   - Mine and mature 1 treasury add
+//   - Advance until the previous tspends and tadd are out of the "current"
+//     expenditure window and in a past "policy check"
+//   - Attempt to drain as much as possible from the treasury given the update
+//     of the expenditure policy
+//   - Advance the chain until all previous tspends are outside the policy check
+//     range
+//   - Attempt to drain the bootstrap policy again.
 func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
@@ -555,20 +555,20 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 // TestTSpendExpendituresPolicyDCP0007 performs tests against the treasury
 // policy window rules. The following is the rough test plan:
 //
-// - Start chain and approve treasury and new expenditure policy vote.
-// - Approve 4 tspends that together spend the maximum allowed by policy and
-//   a one atom tspend.
-// - Mine a tadd.
-// - Mine the 4 tspends that spend the maximum allowed by the policy
-// - Advance the chain until all the tspends are outside the policy check
-//   range.
-// - Attempt to spend the max allowed by policy again with one tspend.
-// - Advance the chain until all the tspends are outside the policy check
-//   range again.
-// - Mine a one atom tspend.
-// - Advance one tvi.
-// - Mine a tspend that spends the max allowed by policy again (tests the fix
-//   done by DCP0007).
+//   - Start chain and approve treasury and new expenditure policy vote
+//   - Approve 4 tspends that together spend the maximum allowed by policy and
+//     a one atom tspend
+//   - Mine a tadd
+//   - Mine the 4 tspends that spend the maximum allowed by the policy
+//   - Advance the chain until all the tspends are outside the policy check
+//     range
+//   - Attempt to spend the max allowed by policy again with one tspend
+//   - Advance the chain until all the tspends are outside the policy check
+//     range again
+//   - Mine a one atom tspend
+//   - Advance one tvi
+//   - Mine a tspend that spends the max allowed by policy again (tests the fix
+//     done by DCP0007)
 func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.

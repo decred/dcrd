@@ -531,7 +531,7 @@ func (f *Filter) Reset() {
 // The total space (in bytes) used by a filter that can hold 'n' items for the
 // given 'k' and 'l' is approximately:
 //
-//   ceil(ceil(1.44k * ceil(n / l+1)) * (k+l) / 8)
+//	ceil(ceil(1.44k * ceil(n / l+1)) * (k+l) / 8)
 func NewFilterKL(minCapacity uint32, k, l uint8) *Filter {
 	// Calculate the number of items per generation such that the maximum
 	// capacity (aka sliding window size) is at least the specified number of
@@ -636,7 +636,7 @@ func nearOptimalL(k uint8, fpRate float64) uint8 {
 // The total space (in bytes) used by a filter that can hold 'n' items with a
 // false positive rate of 'fpRate' is approximately:
 //
-//   1.3n * -log(fpRate), where log is base 10
+//	1.3n * -log(fpRate), where log is base 10
 func NewFilter(minCapacity uint32, fpRate float64) *Filter {
 	k := nearOptimalK(fpRate)
 	l := nearOptimalL(k, fpRate)

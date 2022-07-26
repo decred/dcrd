@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,7 +23,7 @@ dcrd or dcrwallet by default.  However, configuration options are provided to
 fall back to HTTP POST and disable TLS to support talking with inferior bitcoin
 core style RPC servers.
 
-Websockets vs HTTP POST
+# Websockets vs HTTP POST
 
 In HTTP POST-based JSON-RPC, every request creates a new HTTP connection,
 issues the call, waits for the response, and closes the connection.  This adds
@@ -39,7 +39,7 @@ can be invoked without having to go through a connect/disconnect cycle for every
 call.  In addition, the websocket interface provides other nice features such as
 the ability to register for asynchronous notifications of various events.
 
-Synchronous vs Asynchronous API
+# Synchronous vs Asynchronous API
 
 The client provides both a synchronous (blocking) and asynchronous API.
 
@@ -56,7 +56,7 @@ the Receive method on the returned instance will either return the result
 immediately if it has already arrived, or block until it has.  This is useful
 since it provides the caller with greater control over concurrency.
 
-Notifications
+# Notifications
 
 The first important part of notifications is to realize that they will only
 work when connected via websockets.  This should intuitively make sense
@@ -66,7 +66,7 @@ All notifications provided by dcrd require registration to opt-in.  For example,
 if you want to be notified when funds are received by a set of addresses, you
 register the addresses via the NotifyReceived (or NotifyReceivedAsync) function.
 
-Notification Handlers
+# Notification Handlers
 
 Notifications are exposed by the client through the use of callback handlers
 which are setup via a NotificationHandlers instance that is specified by the
@@ -82,7 +82,7 @@ will cause a deadlock as more server responses won't be read until the callback
 returns, but the callback would be waiting for a response.   Thus, any
 additional RPCs must be issued an a completely decoupled manner.
 
-Automatic Reconnection
+# Automatic Reconnection
 
 By default, when running in websockets mode, this client will automatically
 keep trying to reconnect to the RPC server should the connection be lost.  There
@@ -99,7 +99,7 @@ commands.
 The automatic reconnection can be disabled by setting the DisableAutoReconnect
 flag to true in the connection config when creating the client.
 
-Interacting with Dcrwallet
+# Interacting with Dcrwallet
 
 This package only provides methods for dcrd RPCs.  Using the websocket
 connection and request-response mapping provided by rpcclient with arbitrary
@@ -113,25 +113,25 @@ module.  Projects depending on these calls are advised to use the
 decred.org/dcrwallet/rpc/client/dcrwallet package which is able to wrap
 rpcclient.Client using the aforementioned RawRequest method:
 
-  var _ *rpcclient.Client = client // Should be connected to dcrwallet
-  var _ *chaincfg.Params = params
-  var walletClient = dcrwallet.NewClient(dcrwallet.RawRequestCaller(client), params)
+	var _ *rpcclient.Client = client // Should be connected to dcrwallet
+	var _ *chaincfg.Params = params
+	var walletClient = dcrwallet.NewClient(dcrwallet.RawRequestCaller(client), params)
 
 Using struct embedding, it is possible to create a single variable with the
 combined method sets of both rpcclient.Client and dcrwallet.Client:
 
-  type WalletClient = dcrwallet.Client // Avoids naming clash for selectors
-  type MyClient struct {
-      *rpcclient.Client
-      *WalletClient
-  }
-  var myClient = MyClient{Client: client, WalletClient: walletClient}
+	type WalletClient = dcrwallet.Client // Avoids naming clash for selectors
+	type MyClient struct {
+		*rpcclient.Client
+		*WalletClient
+	}
+	var myClient = MyClient{Client: client, WalletClient: walletClient}
 
 This technique is valuable as dcrwallet (syncing in RPC mode) will passthrough
 any unknown RPCs to the backing dcrd server, proxying requests and responses for
 the client.
 
-Errors
+# Errors
 
 There are 3 categories of errors that will be returned throughout this package:
 
@@ -159,28 +159,28 @@ The third category of errors, that is errors returned by the server, can be
 detected by type asserting the error in a *dcrjson.RPCError.  For example, to
 detect if a command is unimplemented by the remote RPC server:
 
-  block, err := client.GetBlock(ctx, blockHash)
-  if err != nil {
-  	if jerr, ok := err.(*dcrjson.RPCError); ok {
-  		switch jerr.Code {
-  		case dcrjson.ErrRPCUnimplemented:
-  			// Handle not implemented error
+	block, err := client.GetBlock(ctx, blockHash)
+	if err != nil {
+		if jerr, ok := err.(*dcrjson.RPCError); ok {
+			switch jerr.Code {
+			case dcrjson.ErrRPCUnimplemented:
+				// Handle not implemented error
 
-  		// Handle other specific errors you care about
+			// Handle other specific errors you care about
+			}
 		}
-  	}
 
-  	// Log or otherwise handle the error knowing it was not one returned
-  	// from the remote RPC server.
-  }
+		// Log or otherwise handle the error knowing it was not one returned
+		// from the remote RPC server.
+	}
 
-Example Usage
+# Example Usage
 
 The following full-blown client examples are in the examples directory:
 
- - dcrdwebsockets
-   Connects to a dcrd RPC server using TLS-secured websockets, registers for
-   block connected and block disconnected notifications, and gets the current
-   block count
+  - dcrdwebsockets
+    Connects to a dcrd RPC server using TLS-secured websockets, registers for
+    block connected and block disconnected notifications, and gets the current
+    block count
 */
 package rpcclient

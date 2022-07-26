@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,7 +16,7 @@ according to the specification described herein.
 
 A comprehensive suite of tests is provided to ensure proper functionality.
 
-Overview
+# Overview
 
 A Schnorr signature is a digital signature scheme that is known for its
 simplicity, provable security and efficient generation of short signatures.
@@ -27,23 +27,23 @@ time of this writing.
 
 Some of the advantages over ECDSA include:
 
- * They are linear which makes them easier to aggregate and use in protocols that
-   build on them such as multi-party signatures, threshold signatures, adaptor
-   signatures, and blind signatures
- * They are provably secure with weaker assumptions than the best known security
-   proofs for ECDSA
-   *  Specifically Schnorr signatures are provably secure under SUF-CMA (Strong
-      Existential Unforgeability under Chosen Message Attack) in the ROM (Random
-      Oracle Model) which guarantees that as long as the hash function behaves
-      ideally, the only way to break Schnorr signatures is by solving the ECDLP
-      (Elliptic Curve Discrete Logarithm Problem).
- * Their relatively straightforward and efficient aggregation properties make
-   them excellent for scalability and allow them to provide some nice privacy
-   characteristics
- * They support faster batch verification unlike the standardized version of
-   ECDSA signatures
+  - They are linear which makes them easier to aggregate and use in protocols that
+    build on them such as multi-party signatures, threshold signatures, adaptor
+    signatures, and blind signatures
+  - They are provably secure with weaker assumptions than the best known security
+    proofs for ECDSA
+  - Specifically Schnorr signatures are provably secure under SUF-CMA (Strong
+    Existential Unforgeability under Chosen Message Attack) in the ROM (Random
+    Oracle Model) which guarantees that as long as the hash function behaves
+    ideally, the only way to break Schnorr signatures is by solving the ECDLP
+    (Elliptic Curve Discrete Logarithm Problem).
+  - Their relatively straightforward and efficient aggregation properties make
+    them excellent for scalability and allow them to provide some nice privacy
+    characteristics
+  - They support faster batch verification unlike the standardized version of
+    ECDSA signatures
 
-Custom Schnorr-based Signature Scheme
+# Custom Schnorr-based Signature Scheme
 
 As mentioned in the overview, the primary downside of Schnorr signatures for
 elliptic curves is that they are not standardized as well as ECDSA signatures
@@ -61,21 +61,21 @@ named EC-Schnorr-DCRv0 suitable for use in Decred.
 The following provides a high-level overview of the key design features of the
 scheme:
 
- * Uses signatures of the form (R, s)
- * Produces 64-byte signatures by only encoding the x coordinate of R
- * Enforces even y coordinates for R to support efficient verification by
-   disambiguating the two possible y coordinates
- * Canonically encodes by both components of the signature with 32-bytes each
- * Uses BLAKE-256 with 14 rounds for the hash function to calculate challenge e
- * Uses RFC6979 to obviate the need for an entropy source at signing time
- * Produces deterministic signatures for a given message and private key pair
+  - Uses signatures of the form (R, s)
+  - Produces 64-byte signatures by only encoding the x coordinate of R
+  - Enforces even y coordinates for R to support efficient verification by
+    disambiguating the two possible y coordinates
+  - Canonically encodes by both components of the signature with 32-bytes each
+  - Uses BLAKE-256 with 14 rounds for the hash function to calculate challenge e
+  - Uses RFC6979 to obviate the need for an entropy source at signing time
+  - Produces deterministic signatures for a given message and private key pair
 
-EC-Schnorr-DCRv0 Specification
+# EC-Schnorr-DCRv0 Specification
 
 See the README.md file for the specific details of the signing and verification
 algorithm as well as the signature serialization format.
 
-Future Design Considerations
+# Future Design Considerations
 
 It is worth noting that there are some additional optimizations and
 modifications that have been identified since the introduction of
@@ -88,7 +88,7 @@ to the signature scheme would invalidate existing uses.  Therefore changes in
 this regard will need to come in the form of a v1 signature scheme and be
 accompanied by the necessary consensus updates.
 
-Schnorr use in Decred
+# Schnorr use in Decred
 
 At the time of this writing, Schnorr signatures are not yet in widespread use on
 the Decred network, largely due to the current lack of support in wallets and
