@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -30,13 +31,6 @@ const (
 	// hpsUpdateSecs is the number of seconds to wait in between each
 	// update to the hashes per second monitor.
 	hpsUpdateSecs = 10
-
-	// hashUpdateSec is the number of seconds each worker waits in between
-	// notifying the speed monitor with how many hashes have been completed
-	// while they are actively searching for a solution.  This is done to
-	// reduce the amount of syncs between the workers that must be done to
-	// keep track of the hashes per second.
-	hashUpdateSecs = 15
 
 	// maxSimnetToMine is the maximum number of blocks mined on HEAD~1 for
 	// simnet that fail to submit to avoid pointlessly mining blocks in
@@ -61,19 +55,8 @@ var (
 // speedStats houses tracking information used to monitor the hashing speed of
 // the CPU miner.
 type speedStats struct {
-	sync.Mutex
-	totalHashes uint64
-}
-
-// AddTotalHashes increments the total number of hashes by the provided number
-// of hashes.  It is primarily intended for use by the individual worker
-// goroutines to contribute to the overall total number of hashes done.
-//
-// This function is safe for concurrent access.
-func (s *speedStats) AddTotalHashes(numHashes uint64) {
-	s.Lock()
-	s.totalHashes += numHashes
-	s.Unlock()
+	totalHashes   uint64 // atomic
+	elapsedMicros uint64 // atomic
 }
 
 // Config is a descriptor containing the CPU miner configuration.
@@ -141,7 +124,7 @@ type CPUMiner struct {
 	workerWg          sync.WaitGroup
 	updateNumWorkers  chan struct{}
 	queryHashesPerSec chan float64
-	speedStats        speedStats
+	speedStats        map[uint64]*speedStats
 	quit              chan struct{}
 
 	// These fields are used to provide a better user experience for the
@@ -177,17 +160,21 @@ out:
 		select {
 		// Time to update the hashes per second.
 		case <-ticker.C:
-			stats := &m.speedStats
-			stats.Lock()
-			totalHashes := stats.totalHashes
-			stats.totalHashes = 0
-			stats.Unlock()
-			curHashesPerSec := float64(totalHashes) / hpsUpdateSecs
-			if hashesPerSec == 0 {
-				hashesPerSec = curHashesPerSec
+			// Update the total overall hashes per second to the sum of the
+			// hashes per second of each individual worker.
+			hashesPerSec = 0
+			m.Lock()
+			for _, stats := range m.speedStats {
+				totalHashes := atomic.SwapUint64(&stats.totalHashes, 0)
+				elapsedMicros := atomic.SwapUint64(&stats.elapsedMicros, 0)
+				elapsedSecs := (elapsedMicros / 1000000)
+				if totalHashes == 0 || elapsedSecs == 0 {
+					continue
+				}
+				hashesPerSec += float64(totalHashes) / float64(elapsedSecs)
 			}
-			hashesPerSec = (hashesPerSec + curHashesPerSec) / 2
-			if hashesPerSec != 0 {
+			m.Unlock()
+			if hashesPerSec != 0 && !math.IsNaN(hashesPerSec) {
 				log.Debugf("Hash speed: %6.0f kilohashes/s", hashesPerSec/1000)
 			}
 
@@ -267,7 +254,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 //
 // This function will return early with false when the provided context is
 // cancelled or an unexpected error happens.
-func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, stats *speedStats, ticker *time.Ticker) bool {
+func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, stats *speedStats) bool {
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -282,6 +269,18 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 
 	// Initial state.
 	hashesCompleted := uint64(0)
+	start := time.Now()
+
+	// updateSpeedStats is a convenience func to atomically track and update the
+	// speed stats from various branches in the code below.
+	updateSpeedStats := func() {
+		atomic.AddUint64(&stats.totalHashes, hashesCompleted)
+		elapsedMicros := time.Since(start).Microseconds()
+		atomic.AddUint64(&stats.elapsedMicros, uint64(elapsedMicros))
+
+		hashesCompleted = 0
+		start = time.Now()
+	}
 
 	// Note that the entire extra nonce range is iterated and the offset is
 	// added relying on the fact that overflow will wrap around 0 as
@@ -305,23 +304,17 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 		// infinite loop that would otherwise occur if we let the for
 		// statement overflow the nonce value back to 0.
 		for nonce := uint32(0); ; nonce++ {
-			select {
-			case <-ctx.Done():
-				return false
+			// Periodically update the speed stats and check for cancellation.
+			if nonce > 0 && nonce%65535 == 0 {
+				updateSpeedStats()
 
-			case <-ticker.C:
-				stats.AddTotalHashes(hashesCompleted)
-				hashesCompleted = 0
-
-				err = m.g.UpdateBlockTime(header)
-				if err != nil {
-					log.Warnf("CPU miner unable to update block template "+
-						"time: %v", err)
+				select {
+				case <-ctx.Done():
 					return false
-				}
 
-			default:
-				// Non-blocking select to fall through
+				default:
+					// Non-blocking select to fall through
+				}
 			}
 
 			// Update the nonce and hash the block header.
@@ -332,11 +325,12 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 			// The block is solved when the new block hash is less
 			// than the target difficulty.  Yay!
 			if standalone.HashToBig(&hash).Cmp(targetDifficulty) <= 0 {
-				stats.AddTotalHashes(hashesCompleted)
+				updateSpeedStats()
 				return true
 			}
 
 			if nonce == maxNonce {
+				updateSpeedStats()
 				break
 			}
 		}
@@ -352,7 +346,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 // are mined when on the simulation network.
 //
 // It must be run as a goroutine.
-func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, ticker *time.Ticker) {
+func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, speedStats *speedStats) {
 	defer m.workerWg.Done()
 
 	for {
@@ -402,7 +396,14 @@ func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, t
 		// The block in the template is shallow copied to avoid mutating the
 		// data of the shared template.
 		shallowBlockCopy := *template.Block
-		if m.solveBlock(ctx, &shallowBlockCopy.Header, &m.speedStats, ticker) {
+		if m.solveBlock(ctx, &shallowBlockCopy.Header, speedStats) {
+			// Avoid submitting any solutions that might have been found in
+			// between the time a worker was signalled to stop and it actually
+			// stopping.
+			if ctx.Err() != nil {
+				return
+			}
+
 			block := dcrutil.NewBlock(&shallowBlockCopy)
 			if !m.submitBlock(block) {
 				m.Lock()
@@ -427,7 +428,7 @@ func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, t
 // can be serviced immediately without slowing down the main mining loop.
 //
 // It must be run as a goroutine.
-func (m *CPUMiner) generateBlocks(ctx context.Context) {
+func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 	log.Trace("Starting generate blocks worker")
 	defer func() {
 		m.workerWg.Done()
@@ -439,9 +440,12 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 	templateSub := m.g.Subscribe()
 	defer templateSub.Stop()
 
-	// Start a ticker which is used to signal updates to the speed monitor.
-	ticker := time.NewTicker(time.Second * hashUpdateSecs)
-	defer ticker.Stop()
+	// Create a new state for tracking speed stats and add it to the global
+	// map that the speed monitor periodically polls.
+	var speedStats speedStats
+	m.Lock()
+	m.speedStats[workerID] = &speedStats
+	m.Unlock()
 
 	var solverCtx context.Context
 	var solverCancel context.CancelFunc
@@ -470,7 +474,7 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 			}
 			solverCtx, solverCancel = context.WithCancel(ctx)
 			m.workerWg.Add(1)
-			go m.solver(solverCtx, templateNtfn.Template, ticker)
+			go m.solver(solverCtx, templateNtfn.Template, &speedStats)
 
 		case <-ctx.Done():
 			// Ensure resources associated with the solver goroutine context are
@@ -478,6 +482,9 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 			if solverCancel != nil {
 				solverCancel()
 			}
+			m.Lock()
+			delete(m.speedStats, workerID)
+			m.Unlock()
 
 			return
 		}
@@ -495,6 +502,7 @@ func (m *CPUMiner) miningWorkerController(ctx context.Context) {
 	type workerState struct {
 		cancel context.CancelFunc
 	}
+	var curWorkerID uint64
 	var runningWorkers []workerState
 	launchWorker := func() {
 		wCtx, wCancel := context.WithCancel(ctx)
@@ -503,7 +511,8 @@ func (m *CPUMiner) miningWorkerController(ctx context.Context) {
 		})
 
 		m.workerWg.Add(1)
-		go m.generateBlocks(wCtx)
+		go m.generateBlocks(wCtx, curWorkerID)
+		curWorkerID++
 	}
 
 out:
@@ -702,10 +711,6 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 
 	log.Tracef("Generating %d blocks", n)
 
-	// Start a ticker which is used to signal checks for stale work.
-	ticker := time.NewTicker(time.Second * hashUpdateSecs)
-	defer ticker.Stop()
-
 	templateSub := m.g.Subscribe()
 	defer templateSub.Stop()
 
@@ -756,7 +761,7 @@ out:
 		// The block in the template is shallow copied to avoid mutating the
 		// data of the shared template.
 		shallowBlockCopy := *templateNtfn.Template.Block
-		if m.solveBlock(ctx, &shallowBlockCopy.Header, &stats, ticker) {
+		if m.solveBlock(ctx, &shallowBlockCopy.Header, &stats) {
 			block := dcrutil.NewBlock(&shallowBlockCopy)
 			if m.submitBlock(block) {
 				m.Lock()
@@ -796,6 +801,7 @@ func New(cfg *Config) *CPUMiner {
 		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),
 		queryHashesPerSec: make(chan float64),
+		speedStats:        make(map[uint64]*speedStats),
 		minedOnParents:    make(map[chainhash.Hash]uint8),
 		quit:              make(chan struct{}),
 	}
