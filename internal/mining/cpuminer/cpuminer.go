@@ -15,12 +15,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/staging/primitives"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -265,14 +265,25 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 	}
 
 	// Create some convenience variables.
-	targetDifficulty := standalone.CompactToBig(header.Bits)
+	targetDiff, isNeg, overflows := primitives.DiffBitsToUint256(header.Bits)
+	if isNeg || overflows {
+		log.Errorf("Unable to convert diff bits %08x to uint256 (negative: %v"+
+			", overflows: %v)", header.Bits, isNeg, overflows)
+		return false
+	}
 
-	// Initial state.
-	hashesCompleted := uint64(0)
-	start := time.Now()
+	// Serialize the header once so only the specific bytes that need to be
+	// updated can be done in the main loops below.
+	hdrBytes, err := header.Bytes()
+	if err != nil {
+		log.Errorf("Unexpected error while serializing header: %v", err)
+		return false
+	}
 
 	// updateSpeedStats is a convenience func to atomically track and update the
 	// speed stats from various branches in the code below.
+	hashesCompleted := uint64(0)
+	start := time.Now()
 	updateSpeedStats := func() {
 		atomic.AddUint64(&stats.totalHashes, hashesCompleted)
 		elapsedMicros := time.Since(start).Microseconds()
@@ -288,9 +299,9 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 	// intentionally omitted such that the loop will continue forever until
 	// a solution is found.
 	for extraNonce := uint64(0); ; extraNonce++ {
-		// Update the extra nonce in the block template header with the
-		// new value.
-		littleEndian.PutUint64(header.ExtraData[:], extraNonce+enOffset)
+		// Update the extra nonce in the serialized header bytes directly.
+		const enSerOffset = 144
+		littleEndian.PutUint64(hdrBytes[enSerOffset:], extraNonce+enOffset)
 
 		// Search through the entire nonce range for a solution while
 		// periodically checking for early quit and stale block
@@ -315,16 +326,36 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 				default:
 					// Non-blocking select to fall through
 				}
+
+				err := m.g.UpdateBlockTime(header)
+				if err != nil {
+					log.Warnf("CPU miner unable to update block template "+
+						"time: %v", err)
+				}
+
+				// Update the bits and time in the serialized header bytes
+				// directly too since they might have changed.
+				const bitsOffset = 116
+				const timestampOffset = 136
+				littleEndian.PutUint32(hdrBytes[bitsOffset:], header.Bits)
+				timestamp := uint32(header.Timestamp.Unix())
+				littleEndian.PutUint32(hdrBytes[timestampOffset:], timestamp)
 			}
 
-			// Update the nonce and hash the block header.
-			header.Nonce = nonce
-			hash := header.BlockHash()
+			// Update the nonce in the serialized header bytes directly and
+			// compute the block header hash.
+			const nonceSerOffset = 140
+			littleEndian.PutUint32(hdrBytes[nonceSerOffset:], nonce)
+			hash := chainhash.HashH(hdrBytes)
 			hashesCompleted++
 
-			// The block is solved when the new block hash is less
-			// than the target difficulty.  Yay!
-			if standalone.HashToBig(&hash).Cmp(targetDifficulty) <= 0 {
+			// The block is solved when the new block hash is less than the
+			// target difficulty.  Yay!
+			if n := primitives.HashToUint256(&hash); n.LtEq(&targetDiff) {
+				// Update the nonce and extra nonce fields in the block template
+				// header to the solution.
+				littleEndian.PutUint64(header.ExtraData[:], extraNonce+enOffset)
+				header.Nonce = nonce
 				updateSpeedStats()
 				return true
 			}
