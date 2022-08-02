@@ -98,6 +98,10 @@ const (
 	// another. However, because there is a 2^128 chance of a collision, the
 	// paranoid user may wish to turn this feature on.
 	checkForDuplicateHashes = false
+
+	// testNet3MaxDiffActivationHeight is the height that enforcement of the
+	// maximum difficulty rules starts.
+	testNet3MaxDiffActivationHeight = 962928
 )
 
 // mustParseHash converts the passed big-endian hex string into a
@@ -133,6 +137,10 @@ var (
 	block424011Hash = mustParseHash("0000000000000000317fc6c7a8a6578be7dfa9c96eb81d620050a3732b02d572")
 	block428809Hash = mustParseHash("00000000000000003147798ccffcecaa420fb1c7934d8f4e33809a871ee34aaa")
 	block430191Hash = mustParseHash("00000000000000002127ad6d4cb30cc16f6344589b417e42650388bb0690a88e")
+
+	// block962928Hash is the hash of the checkpoint used to activate maximum
+	// difficulty semantics on the version 3 test network.
+	block962928Hash = mustParseHash("0000004fd1b267fd39111d456ff557137824538e6f6776168600e56002e23b93")
 )
 
 // voteBitsApproveParent returns whether or not the passed vote bits indicate
@@ -1022,6 +1030,27 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			str = fmt.Sprintf(str, header.Timestamp, medianTime)
 			return ruleError(ErrTimeTooOld, str)
 		}
+
+		// A block on the test network must have a timestamp that is at least
+		// one minute after the previous one once the maximum allowed difficulty
+		// has been reached.  This helps throttle ASICs and GPUs since it's not
+		// reasonable to require high-powered hardware to keep the test network
+		// running smoothly.
+		//
+		// This rule is only active on the version 3 test network once the max
+		// diff activation height has been reached.
+		blockHeight := prevNode.height + 1
+		if b.minTestNetTarget != nil &&
+			expDiff <= standalone.BigToCompact(b.minTestNetTarget) &&
+			(!b.isTestNet3() || blockHeight >= testNet3MaxDiffActivationHeight) {
+
+			minTime := time.Unix(prevNode.timestamp, 0).Add(time.Minute)
+			if header.Timestamp.Before(minTime) {
+				str := "testnet block timestamp of %v is before required %v"
+				str = fmt.Sprintf(str, header.Timestamp, minTime)
+				return ruleError(ErrTimeTooOld, str)
+			}
+		}
 	}
 
 	// The height of this block is one more than the referenced previous
@@ -1051,6 +1080,16 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			"the fork rejection checkpoint at height %d", blockHeight,
 			checkpoint.height)
 		return ruleError(ErrForkTooOld, str)
+	}
+
+	// Reject version 3 test network chains that are not specifically the chain
+	// used to activate maximum difficulty semantics.
+	if b.isTestNet3() && blockHeight == testNet3MaxDiffActivationHeight &&
+		blockHash != *block962928Hash {
+
+		str := fmt.Sprintf("block at height %d does not match checkpoint hash",
+			blockHeight)
+		return ruleError(ErrBadMaxDiffCheckpoint, str)
 	}
 
 	if !fastAdd {

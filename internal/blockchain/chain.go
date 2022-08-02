@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -143,6 +144,7 @@ type BlockChain struct {
 	expectedBlocksInTwoWeeks int64
 	deploymentVers           map[string]uint32
 	minKnownWork             *uint256.Uint256
+	minTestNetTarget         *big.Int
 	db                       database.DB
 	dbInfo                   *databaseInfo
 	chainParams              *chaincfg.Params
@@ -2203,6 +2205,12 @@ func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
 	return err
 }
 
+// isTestNet3 returns whether or not the chain instance is for version 3 of the
+// test network.
+func (b *BlockChain) isTestNet3() bool {
+	return b.chainParams.Net == wire.TestNet3
+}
+
 // ChainParams returns the network parameters of the chain.
 //
 // This is part of the indexers.ChainQueryer interface.
@@ -2333,6 +2341,16 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		minKnownWork = new(uint256.Uint256).SetBig(params.MinKnownChainWork)
 	}
 
+	// Impose a maximum difficulty target on the test network to prevent runaway
+	// difficulty on testnet by ASICs and GPUs since it's not reasonable to
+	// require high-powered hardware to keep the test network running smoothly.
+	var minTestNetTarget *big.Int
+	if params.Net == wire.TestNet3 {
+		// This equates to a maximum difficulty of 2^6 = 64.
+		const maxTestDiffShift = 6
+		minTestNetTarget = new(big.Int).Rsh(params.PowLimit, maxTestDiffShift)
+	}
+
 	// Either use the subsidy cache provided by the caller or create a new
 	// one when one was not provided.
 	subsidyCache := config.SubsidyCache
@@ -2359,6 +2377,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
 		deploymentVers:                deploymentVers,
 		minKnownWork:                  minKnownWork,
+		minTestNetTarget:              minTestNetTarget,
 		db:                            config.DB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,
@@ -2410,6 +2429,38 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 	log.Infof("UTXO database version info: version: %d, compression: %d, utxo "+
 		"set: %d", utxoDbInfo.version, utxoDbInfo.compVer, utxoDbInfo.utxoVer)
+
+	// Manually invalidate any chains on version 3 of the test network that were
+	// created prior to enforcement of the maximum difficulty rules.
+	if b.isTestNet3() {
+		// Discover any existing nodes at the max diff activation height that do
+		// not have the expected hash and have not already been invalidated.
+		invalidateNodes := make([]*blockNode, 0, 1)
+		b.index.Lock()
+		b.index.forEachChainTip(func(tip *blockNode) error {
+			node := tip.Ancestor(testNet3MaxDiffActivationHeight)
+			if node != nil && node.hash != *block962928Hash &&
+				!node.status.KnownInvalid() {
+
+				invalidateNodes = append(invalidateNodes, node)
+			}
+			return nil
+		})
+		b.index.Unlock()
+
+		// Invalidate the blocks without notification callbacks as the calling
+		// code will not be fully initialized yet at this point and this is
+		// being done as a part of chain initialization.
+		curNtfnCallback := b.notifications
+		b.notifications = nil
+		for _, node := range invalidateNodes {
+			if err := b.InvalidateBlock(&node.hash); err != nil {
+				b.notifications = curNtfnCallback
+				return nil, err
+			}
+		}
+		b.notifications = curNtfnCallback
+	}
 
 	bestHdr := b.index.BestHeader()
 	log.Infof("Best known header: height %d, hash %v", bestHdr.height,

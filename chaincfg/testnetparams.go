@@ -78,7 +78,10 @@ func TestNet3Params() *Params {
 			{"testnet-seed.decred.org", true},
 		},
 
-		// Chain parameters
+		// Chain parameters.
+		//
+		// Note that the minimum difficulty reduction parameter only applies up
+		// to and including block height 962927.
 		GenesisBlock:             &genesisBlock,
 		GenesisHash:              genesisBlock.BlockHash(),
 		PowLimit:                 testNetPowLimit,

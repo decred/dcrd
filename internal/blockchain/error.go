@@ -76,9 +76,9 @@ const (
 	// timestamps to have a maximum precision of one second.
 	ErrInvalidTime = ErrorKind("ErrInvalidTime")
 
-	// ErrTimeTooOld indicates the time is either before the median time of
-	// the last several blocks per the chain consensus rules or prior to the
-	// most recent checkpoint.
+	// ErrTimeTooOld indicates the time is either before the median time of the
+	// last several blocks per the chain consensus rules or prior to the time
+	// that is required by max difficulty limitations on the test network.
 	ErrTimeTooOld = ErrorKind("ErrTimeTooOld")
 
 	// ErrTimeTooNew indicates the time is too far in the future as compared
@@ -106,6 +106,11 @@ const (
 	// ErrForkTooOld indicates a block is attempting to fork the block chain
 	// before the fork rejection checkpoint.
 	ErrForkTooOld = ErrorKind("ErrForkTooOld")
+
+	// ErrBadMaxDiffCheckpoint indicates a block on the version 3 test network
+	// at the height used to activate maximum difficulty semantics does not
+	// match the expected one.
+	ErrBadMaxDiffCheckpoint = ErrorKind("ErrBadMaxDiffCheckpoint")
 
 	// ErrNoTransactions indicates the block does not have at least one
 	// transaction.  A valid block must have at least the coinbase transaction.
