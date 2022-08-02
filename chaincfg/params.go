@@ -245,12 +245,16 @@ type Params struct {
 	// minimum required difficulty after a long enough period of time has
 	// passed without finding a block.  This is really only useful for test
 	// networks and should not be set on a main network.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	ReduceMinDifficulty bool
 
 	// MinDiffReductionTime is the amount of time after which the minimum
 	// required difficulty should be reduced when a block hasn't been found.
 	//
 	// NOTE: This only applies if ReduceMinDifficulty is true.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	MinDiffReductionTime time.Duration
 
 	// GenerateSupported specifies whether or not CPU mining is allowed.
