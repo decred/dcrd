@@ -35,6 +35,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBadCheckpoint, "ErrBadCheckpoint"},
 		{ErrForkTooOld, "ErrForkTooOld"},
 		{ErrCheckpointTimeTooOld, "ErrCheckpointTimeTooOld"},
+		{ErrBadMaxDiffCheckpoint, "ErrBadMaxDiffCheckpoint"},
 		{ErrNoTransactions, "ErrNoTransactions"},
 		{ErrTooManyTransactions, "ErrTooManyTransactions"},
 		{ErrNoTxInputs, "ErrNoTxInputs"},
