@@ -15,6 +15,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/rpcclient/v8"
 	"github.com/decred/dcrd/wire"
 )
@@ -110,10 +111,14 @@ func waitPredicate(pred func() bool, timeout time.Duration) error {
 // This is only applicable for tests that run on simnet or other networks that
 // have a target block per count of 1 second.
 func AdjustedSimnetMiner(ctx context.Context, client *rpcclient.Client, nb uint32) ([]*chainhash.Hash, error) {
-
-	hashes := make([]*chainhash.Hash, nb)
-
-	prevWork, err := client.GetWork(ctx)
+	// Fetch the current template. This might fail if there aren't enough
+	// tickets in the mempool yet, so perform a few tries.
+	var prevWork *dcrdtypes.GetWorkResult
+	err := waitPredicate(func() bool {
+		var err error
+		prevWork, err = client.GetWork(ctx)
+		return err == nil
+	}, time.Second*10)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +140,7 @@ func AdjustedSimnetMiner(ctx context.Context, client *rpcclient.Client, nb uint3
 		return work.Data != prevWork.Data
 	}, time.Second)
 
+	hashes := make([]*chainhash.Hash, nb)
 	for i := uint32(0); i < nb; i++ {
 		work, err := client.GetWork(ctx)
 		if err != nil {
