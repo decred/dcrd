@@ -855,6 +855,15 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 			block.AddSTransaction(treasuryBase.MsgTx())
 		}
 
+		// Copy all of the regular transactions over.
+		for i, tx := range topBlock.Transactions() {
+			if i == 0 {
+				// Skip copying coinbase.
+				continue
+			}
+			block.AddTransaction(tx.MsgTx())
+		}
+
 		// Copy all of the stake transactions over.
 		for i, stx := range topBlock.STransactions() {
 			if i == 0 && isTreasuryEnabled {
@@ -2371,8 +2380,7 @@ nextPriorityQueueItem:
 	err = g.cfg.CheckConnectBlockTemplate(block)
 	if err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
-			"block when making new block template: %v",
-			err.Error())
+			"block when making new block template: %v", err)
 		return nil, makeError(ErrCheckConnectBlock, str)
 	}
 
