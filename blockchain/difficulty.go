@@ -57,11 +57,17 @@ func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTim
 
 	// We're not at a retarget point, return the oldDiff.
 	params := b.chainParams
-	if (prevNode.height+1)%params.WorkDiffWindowSize != 0 {
-		// For networks that support it, allow special reduction of the
-		// required difficulty once too much time has elapsed without
-		// mining a block.
-		if params.ReduceMinDifficulty {
+	nextHeight := prevNode.height + 1
+	if nextHeight%params.WorkDiffWindowSize != 0 {
+		// For networks that support it, allow special reduction of the required
+		// difficulty once too much time has elapsed without mining a block.
+		//
+		// Note that this behavior is deprecated and thus is only supported on
+		// testnet v3 prior to the max diff activation height.  It will be
+		// removed in future version of testnet.
+		if params.ReduceMinDifficulty && (!b.isTestNet3() || nextHeight <
+			testNet3MaxDiffActivationHeight) {
+
 			// Return minimum difficulty when more than the desired
 			// amount of time has elapsed without mining a block.
 			reductionTime := int64(params.MinDiffReductionTime / time.Second)
@@ -176,9 +182,29 @@ func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTim
 		nextDiffBig.Set(nextDiffBigMin)
 	}
 
-	// Limit new value to the proof of work limit.
+	// Prevent the difficulty from going lower than the minimum allowed
+	// difficulty.
+	//
+	// Larger numbers result in a lower difficulty, so imposing a minimum
+	// difficulty equates to limiting the maximum target value.
 	if nextDiffBig.Cmp(params.PowLimit) > 0 {
 		nextDiffBig.Set(params.PowLimit)
+	}
+
+	// Prevent the difficulty from going higher than a maximum allowed
+	// difficulty on the test network.  This is to prevent runaway difficulty on
+	// testnet by ASICs and GPUs since it's not reasonable to require
+	// high-powered hardware to keep the test network running smoothly.
+	//
+	// Smaller numbers result in a higher difficulty, so imposing a maximum
+	// difficulty equates to limiting the minimum target value.
+	//
+	// This rule is only active on the version 3 test network once the max diff
+	// activation height has been reached.
+	if b.minTestNetTarget != nil && nextDiffBig.Cmp(b.minTestNetTarget) < 0 &&
+		(!b.isTestNet3() || nextHeight >= testNet3MaxDiffActivationHeight) {
+
+		nextDiffBig = b.minTestNetTarget
 	}
 
 	// Convert the difficulty to the compact representation and return it.
