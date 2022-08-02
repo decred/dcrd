@@ -28,7 +28,7 @@ A comprehensive suite of tests is provided to ensure proper functionality.
 
 ## Installation and Updating
 
-This package is part of the `github.com/decred/dcrd/dcrutil/v3` module.  Use the
+This package is part of the `github.com/decred/dcrd/dcrutil/v4` module.  Use the
 standard go tooling for working with modules to incorporate it.
 
 ## License
