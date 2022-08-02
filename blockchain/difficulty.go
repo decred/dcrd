@@ -49,88 +49,84 @@ func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 
 // calcNextRequiredDifficulty calculates the required difficulty for the block
 // after the passed previous block node based on the difficulty retarget rules.
-func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime time.Time) uint32 {
+func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTime time.Time) uint32 {
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
-	oldDiff := curNode.bits
-	oldDiffBig := standalone.CompactToBig(curNode.bits)
+	oldDiff := prevNode.bits
+	oldDiffBig := standalone.CompactToBig(prevNode.bits)
 
 	// We're not at a retarget point, return the oldDiff.
-	if (curNode.height+1)%b.chainParams.WorkDiffWindowSize != 0 {
+	params := b.chainParams
+	if (prevNode.height+1)%params.WorkDiffWindowSize != 0 {
 		// For networks that support it, allow special reduction of the
 		// required difficulty once too much time has elapsed without
 		// mining a block.
-		if b.chainParams.ReduceMinDifficulty {
+		if params.ReduceMinDifficulty {
 			// Return minimum difficulty when more than the desired
 			// amount of time has elapsed without mining a block.
-			reductionTime := int64(b.chainParams.MinDiffReductionTime /
-				time.Second)
-			allowMinTime := curNode.timestamp + reductionTime
+			reductionTime := int64(params.MinDiffReductionTime / time.Second)
+			allowMinTime := prevNode.timestamp + reductionTime
 			if newBlockTime.Unix() > allowMinTime {
-				return b.chainParams.PowLimitBits
+				return params.PowLimitBits
 			}
 
 			// The block was mined within the desired timeframe, so
 			// return the difficulty for the last block which did
 			// not have the special minimum difficulty rule applied.
-			return b.findPrevTestNetDifficulty(curNode)
+			return b.findPrevTestNetDifficulty(prevNode)
 		}
 
 		return oldDiff
 	}
 
 	// Declare some useful variables.
-	RAFBig := big.NewInt(b.chainParams.RetargetAdjustmentFactor)
-	nextDiffBigMin := standalone.CompactToBig(curNode.bits)
+	RAFBig := big.NewInt(params.RetargetAdjustmentFactor)
+	nextDiffBigMin := standalone.CompactToBig(prevNode.bits)
 	nextDiffBigMin.Div(nextDiffBigMin, RAFBig)
-	nextDiffBigMax := standalone.CompactToBig(curNode.bits)
+	nextDiffBigMax := standalone.CompactToBig(prevNode.bits)
 	nextDiffBigMax.Mul(nextDiffBigMax, RAFBig)
 
-	alpha := b.chainParams.WorkDiffAlpha
+	alpha := params.WorkDiffAlpha
 
 	// Number of nodes to traverse while calculating difficulty.
-	nodesToTraverse := (b.chainParams.WorkDiffWindowSize *
-		b.chainParams.WorkDiffWindows)
+	nodesToTraverse := (params.WorkDiffWindowSize * params.WorkDiffWindows)
 
 	// Initialize bigInt slice for the percentage changes for each window period
 	// above or below the target.
-	windowChanges := make([]*big.Int, b.chainParams.WorkDiffWindows)
+	windowChanges := make([]*big.Int, params.WorkDiffWindows)
 
 	// Regress through all of the previous blocks and store the percent changes
 	// per window period; use bigInts to emulate 64.32 bit fixed point.
 	var olderTime, windowPeriod int64
 	var weights uint64
-	oldNode := curNode
-	recentTime := curNode.timestamp
+	oldNode := prevNode
+	recentTime := prevNode.timestamp
 
 	for i := int64(0); ; i++ {
 		// Store and reset after reaching the end of every window period.
-		if i%b.chainParams.WorkDiffWindowSize == 0 && i != 0 {
+		if i%params.WorkDiffWindowSize == 0 && i != 0 {
 			olderTime = oldNode.timestamp
 			timeDifference := recentTime - olderTime
 
 			// Just assume we're at the target (no change) if we've
 			// gone all the way back to the genesis block.
 			if oldNode.height == 0 {
-				timeDifference = int64(b.chainParams.TargetTimespan /
-					time.Second)
+				timeDifference = int64(params.TargetTimespan / time.Second)
 			}
 
 			timeDifBig := big.NewInt(timeDifference)
 			timeDifBig.Lsh(timeDifBig, 32) // Add padding
-			targetTemp := big.NewInt(int64(b.chainParams.TargetTimespan /
-				time.Second))
+			targetTemp := big.NewInt(int64(params.TargetTimespan / time.Second))
 
 			windowAdjusted := targetTemp.Div(timeDifBig, targetTemp)
 
 			// Weight it exponentially. Be aware that this could at some point
 			// overflow if alpha or the number of blocks used is really large.
 			windowAdjusted = windowAdjusted.Lsh(windowAdjusted,
-				uint((b.chainParams.WorkDiffWindows-windowPeriod)*alpha))
+				uint((params.WorkDiffWindows-windowPeriod)*alpha))
 
 			// Sum up all the different weights incrementally.
-			weights += 1 << uint64((b.chainParams.WorkDiffWindows-windowPeriod)*
-				alpha)
+			weights += 1 << uint64((params.WorkDiffWindows-windowPeriod)*alpha)
 
 			// Store it in the slice.
 			windowChanges[windowPeriod] = windowAdjusted
@@ -153,7 +149,7 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 
 	// Sum up the weighted window periods.
 	weightedSum := big.NewInt(0)
-	for i := int64(0); i < b.chainParams.WorkDiffWindows; i++ {
+	for i := int64(0); i < params.WorkDiffWindows; i++ {
 		weightedSum.Add(weightedSum, windowChanges[i])
 	}
 
@@ -173,7 +169,7 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 	if oldDiffBig.Cmp(bigZero) == 0 { // This should never really happen,
 		nextDiffBig.Set(nextDiffBig) // but in case it does...
 	} else if nextDiffBig.Cmp(bigZero) == 0 {
-		nextDiffBig.Set(b.chainParams.PowLimit)
+		nextDiffBig.Set(params.PowLimit)
 	} else if nextDiffBig.Cmp(nextDiffBigMax) == 1 {
 		nextDiffBig.Set(nextDiffBigMax)
 	} else if nextDiffBig.Cmp(nextDiffBigMin) == -1 {
@@ -181,8 +177,8 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 	}
 
 	// Limit new value to the proof of work limit.
-	if nextDiffBig.Cmp(b.chainParams.PowLimit) > 0 {
-		nextDiffBig.Set(b.chainParams.PowLimit)
+	if nextDiffBig.Cmp(params.PowLimit) > 0 {
+		nextDiffBig.Set(params.PowLimit)
 	}
 
 	// Convert the difficulty to the compact representation and return it.
