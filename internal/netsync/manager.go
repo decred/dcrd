@@ -754,6 +754,19 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Update the sync height when the block is higher than the currently best
+	// known value and it extends the main chain.
+	onMainChain := forkLen == 0
+	if onMainChain {
+		m.syncHeightMtx.Lock()
+		blockHeight := int64(block.MsgBlock().Header.Height)
+		if blockHeight > m.syncHeight {
+			m.syncHeight = blockHeight
+		}
+		m.syncHeightMtx.Unlock()
+	}
+
 	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
 	m.isCurrentMtx.Unlock()
@@ -1043,6 +1056,18 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	for _, header := range headers {
 		err := chain.ProcessBlockHeader(header)
 		if err != nil {
+			// Update the sync height when the sync peer fails to process any
+			// headers since that chain is invalid from the local point of view
+			// and thus whatever the best known good header is becomes the new
+			// sync height unless a better one is discovered from the new sync
+			// peer.
+			if peer == m.syncPeer && !headersSynced {
+				_, newBestHeaderHeight := chain.BestHeader()
+				m.syncHeightMtx.Lock()
+				m.syncHeight = newBestHeaderHeight
+				m.syncHeightMtx.Unlock()
+			}
+
 			// Note that there is no need to check for an orphan header here
 			// because they were already verified to connect above.
 
