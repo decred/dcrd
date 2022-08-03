@@ -202,6 +202,12 @@ func assertTBaseAmount(t *testing.T, node *rpcclient.Client, amount int64) {
 // TestTreasury performs a test of treasury functionality across the entire
 // dcrd stack.
 func TestTreasury(t *testing.T) {
+	// Temporarily disabled.
+	const temporarilyDisabled = true
+	if temporarilyDisabled {
+		return
+	}
+
 	var handlers *rpcclient.NotificationHandlers
 	net := chaincfg.SimNetParams()
 

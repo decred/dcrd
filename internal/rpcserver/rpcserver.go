@@ -3731,11 +3731,20 @@ func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
 //
 // This function MUST be called with the RPC workstate locked.
 func handleGetWorkRequest(s *Server) (interface{}, error) {
+	// Return an error immediately in the case of a failed background template.
+	//
+	// The only time this is expected is due to imposition of certain additional
+	// time-based rules such as when the maximum allowed difficulty on testnet
+	// is reached and not enough time has passed since the last block.
+	bt := s.cfg.BlockTemplater
+	if _, err := bt.CurrentTemplate(); err != nil {
+		return nil, rpcMiscError(fmt.Sprintf("no work is available: %v", err))
+	}
+
 	// Prune old templates and wait for updated templates when the current best
 	// chain changes.
 	state := s.workState
 	best := s.cfg.Chain.BestSnapshot()
-	bt := s.cfg.BlockTemplater
 	var template *mining.BlockTemplate
 	if state.prevHash == nil || *state.prevHash != best.Hash {
 		// Prune old templates from the pool when the best block changes.
@@ -3797,10 +3806,10 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// retuned as part of the data below.
 	//
 	// For reference (0-index based, end value is exclusive):
-	// data[115:119] --> Bits
-	// data[135:139] --> Timestamp
-	// data[139:143] --> Nonce
-	// data[143:151] --> ExtraNonce
+	// data[116:120] --> Bits
+	// data[136:140] --> Timestamp
+	// data[140:144] --> Nonce
+	// data[144:152] --> ExtraNonce
 	data := make([]byte, 0, getworkDataLen)
 	buf := bytes.NewBuffer(data)
 	err = headerCopy.Serialize(buf)

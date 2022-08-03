@@ -6564,7 +6564,7 @@ func TestHandleGetWork(t *testing.T) {
 			return templater
 		}(),
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
+		errCode: dcrjson.ErrRPCMisc,
 	}, {
 		name:    "handleGetWork: no work during chain reorg",
 		handler: handleGetWork,
