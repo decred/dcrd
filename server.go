@@ -2535,9 +2535,10 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	// possibly notify RPC clients with the winning tickets.
 	case blockchain.NTBlockAccepted:
 		// Don't relay or notify RPC clients with winning tickets if we are not
-		// current. Other peers that are current should already know about it
-		// and clients, such as wallets, shouldn't be voting on old blocks.
-		if !s.syncManager.IsCurrent() {
+		// current and unsynced mining is not allowed.  Other peers that are
+		// current should already know about it and clients, such as wallets,
+		// shouldn't be voting on old blocks.
+		if !cfg.AllowUnsyncedMining && !s.syncManager.IsCurrent() {
 			return
 		}
 
