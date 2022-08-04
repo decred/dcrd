@@ -27,23 +27,23 @@ time of this writing.
 
 Some of the advantages over ECDSA include:
 
- * They are linear which makes them easier to aggregate and use in protocols that
-   build on them such as multi-party signatures, threshold signatures, adaptor
-   signatures, and blind signatures
- * They are provably secure with weaker assumptions than the best known security
-   proofs for ECDSA
-   *  Specifically Schnorr signatures are provably secure under SUF-CMA (Strong
-      Existential Unforgeability under Chosen Message Attack) in the ROM (Random
-      Oracle Model) which guarantees that as long as the hash function behaves
-      ideally, the only way to break Schnorr signatures is by solving the ECDLP
-      (Elliptic Curve Discrete Logarithm Problem).
- * Their relatively straightforward and efficient aggregation properties make
-   them excellent for scalability and allow them to provide some nice privacy
-   characteristics
- * They support faster batch verification unlike the standardized version of
-   ECDSA signatures
+  - They are linear which makes them easier to aggregate and use in protocols that
+    build on them such as multi-party signatures, threshold signatures, adaptor
+    signatures, and blind signatures
+  - They are provably secure with weaker assumptions than the best known security
+    proofs for ECDSA
+  - Specifically Schnorr signatures are provably secure under SUF-CMA (Strong
+    Existential Unforgeability under Chosen Message Attack) in the ROM (Random
+    Oracle Model) which guarantees that as long as the hash function behaves
+    ideally, the only way to break Schnorr signatures is by solving the ECDLP
+    (Elliptic Curve Discrete Logarithm Problem).
+  - Their relatively straightforward and efficient aggregation properties make
+    them excellent for scalability and allow them to provide some nice privacy
+    characteristics
+  - They support faster batch verification unlike the standardized version of
+    ECDSA signatures
 
-Custom Schnorr-based Signature Scheme
+# Custom Schnorr-based Signature Scheme
 
 As mentioned in the overview, the primary downside of Schnorr signatures for
 elliptic curves is that they are not standardized as well as ECDSA signatures
