@@ -27,6 +27,8 @@ var (
 // duplicate block handling, and out-of-order reorgs to invalid blocks works as
 // expected.
 func TestProcessOrder(t *testing.T) {
+	t.Parallel()
+
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
 	g := newChaingenHarness(t, params)
@@ -1171,6 +1173,8 @@ func TestProcessLogic(t *testing.T) {
 // TestInvalidateReconsider ensures that manually invalidating blocks and
 // reconsidering them works as expected under a wide variety of scenarios.
 func TestInvalidateReconsider(t *testing.T) {
+	t.Parallel()
+
 	// Generate or reuse a shared chain generator with a set of blocks that form
 	// a fairly complex overall block tree including multiple forks such that
 	// some branches are valid and others contain invalid headers and/or blocks
@@ -1872,6 +1876,8 @@ func TestInvalidateReconsider(t *testing.T) {
 // TestAssumeValid validates that it is correctly determined whether or not a
 // node is an ancestor of an assumed valid node under a variety of conditions.
 func TestAssumeValid(t *testing.T) {
+	t.Parallel()
+
 	// Clone the parameters so that they can be mutated.
 	params := cloneParams(quickVoteActivationParams())
 	stakeValidationHeight := params.StakeValidationHeight

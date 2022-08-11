@@ -223,6 +223,8 @@ func TestNextDeploymentVersion(t *testing.T) {
 // TestThresholdState ensures that the threshold state function progresses
 // through the states correctly.
 func TestThresholdState(t *testing.T) {
+	t.Parallel()
+
 	// Create chain params based on regnet params, but add a specific test
 	// dummy deployment and set the proof-of-work difficulty readjustment
 	// size to a really large number so that the test chain can be generated

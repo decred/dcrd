@@ -712,6 +712,8 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 }
 
 func TestLarge(t *testing.T) {
+	t.Parallel()
+
 	params := chaincfg.MainNetParams()
 
 	numRuns := 5

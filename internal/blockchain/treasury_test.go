@@ -487,6 +487,8 @@ func replaceCoinbase(b *wire.MsgBlock) {
 }
 
 func TestTSpendVoteCount(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -896,6 +898,8 @@ func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*treasuryState, 
 // more funds than available in the treasury even when otherwise allowed by
 // policy.
 func TestTSpendEmptyTreasury(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1038,6 +1042,8 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 // - Mine until TSpend/TAdd would have been mature
 // - Extend TSpend/TAdd chain and reorg back to it
 func TestExpendituresReorg(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1288,6 +1294,8 @@ func TestExpendituresReorg(t *testing.T) {
 // - Mine until TSpend/TAdd are mature
 // - Create a tx that spends from the TSpend and TAdd change.
 func TestSpendableTreasuryTxs(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1585,6 +1593,8 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 }
 
 func TestTSpendDupVote(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1731,6 +1741,8 @@ func TestTSpendDupVote(t *testing.T) {
 }
 
 func TestTSpendTooManyTSpend(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1844,6 +1856,8 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 }
 
 func TestTSpendWindow(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1966,6 +1980,8 @@ func TestTSpendWindow(t *testing.T) {
 // TestTSpendSignature verifies that both PI keys work and in addition that an
 // invalid key is indeed rejected.
 func TestTSpendSignature(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -2183,6 +2199,8 @@ func TestTSpendSignature(t *testing.T) {
 // TestTSpendSignatureInvalid verifies that a tspend is disallowed with an
 // invalid key.
 func TestTSpendSignatureInvalid(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -2329,6 +2347,8 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 }
 
 func TestTSpendExists(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -2598,6 +2618,8 @@ func TestTSpendExists(t *testing.T) {
 }
 
 func TestTreasuryBalance(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -2891,6 +2913,8 @@ func createTAdd(spend chaingen.SpendableOut, changeDivisor dcrutil.Amount, param
 }
 
 func TestTAddCorners(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -3089,6 +3113,8 @@ func TestTAddCorners(t *testing.T) {
 }
 
 func TestTreasuryBaseCorners(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -3283,6 +3309,8 @@ func TestTreasuryBaseCorners(t *testing.T) {
 }
 
 func TestTSpendCorners(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -3399,6 +3427,8 @@ func TestTSpendCorners(t *testing.T) {
 }
 
 func TestTSpendFirstTVICorner(t *testing.T) {
+	t.Parallel()
+
 	// Clone the parameters so they can be mutated and remove the deployment
 	// for the treasury agenda to activate it.
 	const tVoteID = chaincfg.VoteIDTreasury
@@ -3607,6 +3637,8 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 }
 
 func TestTreasuryInRegularTree(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -4178,6 +4210,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 // allowed by consensus rules is rejected while a block containing exactly the
 // maximum amount is accepted.
 func TestTSpendTooManyTAdds(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()

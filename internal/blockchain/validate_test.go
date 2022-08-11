@@ -34,6 +34,8 @@ import (
 // TestBlockchainSpendJournal tests for whether or not the spend journal is being
 // written to disk correctly on a live blockchain.
 func TestBlockchainSpendJournal(t *testing.T) {
+	t.Parallel()
+
 	// Update parameters to reflect what is expected by the legacy data.
 	params := chaincfg.RegNetParams()
 	params.GenesisBlock.Header.MerkleRoot = *mustParseHash("a216ea043f0d481a072424af646787794c32bcefd3ed181a090319bbf8a37105")
@@ -355,6 +357,8 @@ var badBlock = wire.MsgBlock{
 // TestCheckConnectBlockTemplate ensures that the code which deals with
 // checking block templates works as expected.
 func TestCheckConnectBlockTemplate(t *testing.T) {
+	t.Parallel()
+
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
 	g := newChaingenHarness(t, params)
@@ -968,6 +972,8 @@ func TestCheckTicketExhaustion(t *testing.T) {
 // TestExplicitVerUpgradesSemantics ensures that the various semantics enforced
 // by the explicit version upgrades agenda behave as intended.
 func TestExplicitVerUpgradesSemantics(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1323,7 +1329,6 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
-
 }
 
 // TestCalcTicketReturnAmounts ensures that ticket return amounts are calculated
@@ -1735,6 +1740,8 @@ func TestCheckTicketRedeemers(t *testing.T) {
 // TestAutoRevocations ensures that all of the validation rules associated with
 // the automatic ticket revocations agenda work as expected.
 func TestAutoRevocations(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1931,6 +1938,8 @@ func TestAutoRevocations(t *testing.T) {
 // TestModifiedSubsidySplitSemantics ensures that the various semantics enforced
 // by the modified subsidy split agenda behave as intended.
 func TestModifiedSubsidySplitSemantics(t *testing.T) {
+	t.Parallel()
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()

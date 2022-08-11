@@ -15,6 +15,8 @@ import (
 // TestStakeVersion ensures that the stake version field in the block header is
 // enforced properly.
 func TestStakeVersion(t *testing.T) {
+	t.Parallel()
+
 	// Create a test harness initialized with the genesis block as the tip.
 	params := chaincfg.RegNetParams()
 	g := newChaingenHarness(t, params)
