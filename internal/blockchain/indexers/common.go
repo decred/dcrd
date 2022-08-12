@@ -35,15 +35,6 @@ var (
 	interruptMsg = "interrupt requested"
 )
 
-// PrevScripter defines an interface that provides access to scripts and their
-// associated version keyed by an outpoint.  It is used within this package as a
-// generic means to provide the scripts referenced by the inputs to transactions
-// within a block that are needed to index it.  The boolean return indicates
-// whether or not the script and version for the provided outpoint was found.
-type PrevScripter interface {
-	PrevScript(*wire.OutPoint) (uint16, []byte, bool)
-}
-
 // ChainQueryer provides a generic interface that is used to provide access to
 // the chain details required by indexes.
 //
