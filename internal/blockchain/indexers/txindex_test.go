@@ -253,12 +253,6 @@ func (tc *testChain) BlockHeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, 
 	return blk.MsgBlock().Header, nil
 }
 
-// PrevScripts returns a source of previous transaction scripts and their
-// associated versions spent by the provided block.
-func (tc *testChain) PrevScripts(database.Tx, *dcrutil.Block) (PrevScripter, error) {
-	return nil, nil
-}
-
 // notifyAndWait sends the provided notification and waits for done signal
 // with a one second timeout.
 func notifyAndWait(t *testing.T, subber *IndexSubscriber, ntfn *IndexNtfn) {

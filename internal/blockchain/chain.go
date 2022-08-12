@@ -2090,31 +2090,6 @@ func (q *ChainQueryerAdapter) IsTreasuryEnabled(hash *chainhash.Hash) (bool, err
 	return q.IsTreasuryAgendaActive(hash)
 }
 
-// PrevScripts returns a source of previous transaction scripts and their
-// associated versions spent by the given block by using the spend journal.
-//
-// It is defined via a separate internal struct to avoid polluting the public
-// API of the BlockChain type itself.
-//
-// This is part of the indexers.ChainQueryer interface.
-func (q *ChainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
-	prevHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := q.IsTreasuryAgendaActive(prevHash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Load all of the spent transaction output data from the database.
-	stxos, err := dbFetchSpendJournalEntry(dbTx, block, isTreasuryEnabled)
-	if err != nil {
-		return nil, err
-	}
-
-	prevScripts := stxosToScriptSource(block, stxos, isTreasuryEnabled,
-		q.chainParams)
-	return prevScripts, nil
-}
-
 // RemoveSpendEntry purges the associated spend journal entry of the
 // provided block hash if it is not part of the main chain.
 //

@@ -73,10 +73,6 @@ type ChainQueryer interface {
 	// BlockByHash returns the block of the provided hash.
 	BlockByHash(*chainhash.Hash) (*dcrutil.Block, error)
 
-	// PrevScripts returns a source of previous transaction scripts and their
-	// associated versions spent by the given block.
-	PrevScripts(database.Tx, *dcrutil.Block) (PrevScripter, error)
-
 	// IsTreasuryAgendaActive returns true if the treasury agenda is active at
 	// the provided block.
 	IsTreasuryAgendaActive(*chainhash.Hash) (bool, error)
