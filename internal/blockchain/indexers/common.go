@@ -35,12 +35,6 @@ var (
 	interruptMsg = "interrupt requested"
 )
 
-// NeedsInputser provides a generic interface for an indexer to specify the it
-// requires the ability to look up inputs for a transaction.
-type NeedsInputser interface {
-	NeedsInputs() bool
-}
-
 // PrevScripter defines an interface that provides access to scripts and their
 // associated version keyed by an outpoint.  It is used within this package as a
 // generic means to provide the scripts referenced by the inputs to transactions
