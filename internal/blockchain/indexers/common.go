@@ -491,28 +491,6 @@ func recoverIndex(ctx context.Context, idx Indexer) error {
 		}
 		cachedBlock = parent
 
-		var prevScripts PrevScripter
-		err = idx.DB().Update(func(dbTx database.Tx) error {
-			if interruptRequested(ctx) {
-				return indexerError(ErrInterruptRequested, interruptMsg)
-			}
-
-			// Fetch the associated script information for previous outputs
-			// of the block if the index requires them.
-			if indexNeedsInputs(idx) {
-				var err error
-				prevScripts, err = queryer.PrevScripts(dbTx, block)
-				if err != nil {
-					return err
-				}
-			}
-
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
 		isTreasuryEnabled, err := queryer.IsTreasuryAgendaActive(parentHash)
 		if err != nil {
 			return err
@@ -523,7 +501,6 @@ func recoverIndex(ctx context.Context, idx Indexer) error {
 			Block:             block,
 			Parent:            parent,
 			IsTreasuryEnabled: isTreasuryEnabled,
-			PrevScripts:       prevScripts,
 			Done:              make(chan bool),
 		}
 

@@ -70,19 +70,17 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	// blocks are connected.
 	bk4 := addBlock(t, chain, &g, "bk4")
 	ntfn := &IndexNtfn{
-		NtfnType:    ConnectNtfn,
-		Block:       bk4,
-		Parent:      bk3,
-		PrevScripts: nil,
+		NtfnType: ConnectNtfn,
+		Block:    bk4,
+		Parent:   bk3,
 	}
 	notifyAndWait(t, subber, ntfn)
 
 	bk5 := addBlock(t, chain, &g, "bk5")
 	ntfn = &IndexNtfn{
-		NtfnType:    ConnectNtfn,
-		Block:       bk5,
-		Parent:      bk4,
-		PrevScripts: nil,
+		NtfnType: ConnectNtfn,
+		Block:    bk5,
+		Parent:   bk4,
 	}
 	notifyAndWait(t, subber, ntfn)
 
@@ -181,10 +179,9 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	g.SetTip("bk4")
 
 	ntfn = &IndexNtfn{
-		NtfnType:    DisconnectNtfn,
-		Block:       bk5a,
-		Parent:      bk4,
-		PrevScripts: nil,
+		NtfnType: DisconnectNtfn,
+		Block:    bk5a,
+		Parent:   bk4,
 	}
 	notifyAndWait(t, subber, ntfn)
 
@@ -196,10 +193,9 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	g.SetTip("bk3")
 
 	ntfn = &IndexNtfn{
-		NtfnType:    DisconnectNtfn,
-		Block:       bk4,
-		Parent:      bk3,
-		PrevScripts: nil,
+		NtfnType: DisconnectNtfn,
+		Block:    bk4,
+		Parent:   bk3,
 	}
 	notifyAndWait(t, subber, ntfn)
 
@@ -264,11 +260,10 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 		// Stall the index notification for bk4a.
 		time.Sleep(time.Millisecond * 150)
 		notif := &IndexNtfn{
-			NtfnType:    ConnectNtfn,
-			Block:       bk4a,
-			Parent:      bk3,
-			PrevScripts: nil,
-			Done:        make(chan bool),
+			NtfnType: ConnectNtfn,
+			Block:    bk4a,
+			Parent:   bk3,
+			Done:     make(chan bool),
 		}
 		subber.Notify(notif)
 		select {
@@ -294,10 +289,9 @@ func TestExistsAddrIndexAsync(t *testing.T) {
 	// Ensure sending an unexpected index notification (bk7) does not
 	// update the index.
 	ntfn = &IndexNtfn{
-		NtfnType:    ConnectNtfn,
-		Block:       bk7,
-		Parent:      bk6,
-		PrevScripts: nil,
+		NtfnType: ConnectNtfn,
+		Block:    bk7,
+		Parent:   bk6,
 	}
 	notifyAndWait(t, subber, ntfn)
 

@@ -110,7 +110,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 		NtfnType:          ConnectNtfn,
 		Block:             bk4,
 		Parent:            bk3,
-		PrevScripts:       nil,
 		IsTreasuryEnabled: false,
 	}
 	notifyAndWait(t, subber, ntfn)
@@ -158,7 +157,6 @@ func TestIndexSubscriberAsync(t *testing.T) {
 		NtfnType:          ConnectNtfn,
 		Block:             bk5,
 		Parent:            bk4,
-		PrevScripts:       nil,
 		IsTreasuryEnabled: false,
 	}
 	notifyAndWait(t, subber, ntfn)

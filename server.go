@@ -2731,7 +2731,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				Block:             block,
 				Parent:            parentBlock,
 				IsTreasuryEnabled: isTreasuryEnabled,
-				PrevScripts:       ntfn.PrevScripts,
 			})
 		}
 
@@ -2832,7 +2831,6 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 				Block:             block,
 				Parent:            parentBlock,
 				IsTreasuryEnabled: isTreasuryEnabled,
-				PrevScripts:       ntfn.PrevScripts,
 			})
 		}
 

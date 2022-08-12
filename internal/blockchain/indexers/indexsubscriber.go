@@ -47,7 +47,6 @@ type IndexNtfn struct {
 	NtfnType          IndexNtfnType
 	Block             *dcrutil.Block
 	Parent            *dcrutil.Block
-	PrevScripts       PrevScripter
 	IsTreasuryEnabled bool
 	Done              chan bool
 }
@@ -305,23 +304,6 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 		}
 
 		// Construct and send the index notification.
-		var prevScripts PrevScripter
-		err = db.View(func(dbTx database.Tx) error {
-			if interruptRequested(ctx) {
-				return indexerError(ErrInterruptRequested, interruptMsg)
-			}
-
-			prevScripts, err = queryer.PrevScripts(dbTx, child)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
 		isTreasuryEnabled, err := queryer.IsTreasuryAgendaActive(parent.Hash())
 		if err != nil {
 			return err
@@ -331,7 +313,6 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer C
 			NtfnType:          ConnectNtfn,
 			Block:             child,
 			Parent:            parent,
-			PrevScripts:       prevScripts,
 			IsTreasuryEnabled: isTreasuryEnabled,
 		}
 
