@@ -760,11 +760,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
-	// This creates a prevScript snapshot of the utxo viewpoint for index updates.
-	// This is intentionally being done before the view is committed to the utxo
-	// cache since the caching process mutates the view by removing entries.
-	prevScripter := newPrevScriptSnapshot(view)
-
 	// Commit all entries in the view to the utxo cache.  All entries in the view
 	// that are marked as modified and spent are removed from the view.
 	// Additionally, all entries that are added to the cache are removed from the
@@ -820,7 +815,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		Block:        block,
 		ParentBlock:  parent,
 		CheckTxFlags: checkTxFlags,
-		PrevScripts:  prevScripter,
 	})
 	b.chainLock.Lock()
 
@@ -944,11 +938,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		return err
 	}
 
-	// This creates a prevScript snapshot of the utxo viewpoint for index updates.
-	// This is intentionally being done before the view is committed to the utxo
-	// cache since the caching process mutates the view by removing entries.
-	prevScripter := newPrevScriptSnapshot(view)
-
 	// Commit all entries in the view to the utxo cache.  All entries in the view
 	// that are marked as modified and spent are removed from the view.
 	// Additionally, all entries that are added to the cache are removed from the
@@ -987,7 +976,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		Block:        block,
 		ParentBlock:  parent,
 		CheckTxFlags: checkTxFlags,
-		PrevScripts:  prevScripter,
 	})
 	b.chainLock.Lock()
 
