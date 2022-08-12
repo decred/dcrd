@@ -173,16 +173,6 @@ func makeDbErr(kind database.ErrorKind, desc string) database.Error {
 	return database.Error{Err: kind, Description: desc}
 }
 
-// indexNeedsInputs returns whether or not the index needs access to
-// the txouts referenced by the transaction inputs being indexed.
-func indexNeedsInputs(index Indexer) bool {
-	if idx, ok := index.(NeedsInputser); ok {
-		return idx.NeedsInputs()
-	}
-
-	return false
-}
-
 // dbPutIndexerTip uses an existing database transaction to update or add the
 // current tip for the given index to the provided values.
 func dbPutIndexerTip(dbTx database.Tx, idxKey []byte, hash *chainhash.Hash, height int32) error {
