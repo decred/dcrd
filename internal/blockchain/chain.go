@@ -332,64 +332,6 @@ type VoteInfo struct {
 	AgendaStatus []ThresholdStateTuple
 }
 
-// prevScript represents script and script version information for a previous
-// outpoint.
-type prevScript struct {
-	scriptVersion uint16
-	pkScript      []byte
-}
-
-// prevScriptsSnapshot represents a snapshot of script and script version
-// information related to previous outpoints from a utxo viewpoint.
-//
-// This implements the indexers.PrevScripter interface.
-type prevScriptsSnapshot struct {
-	entries map[wire.OutPoint]prevScript
-}
-
-// Ensure prevScriptSnapshot implements the indexers.PrevScripter interface.
-var _ indexers.PrevScripter = (*prevScriptsSnapshot)(nil)
-
-// newPrevScriptSnapshot creates a script and script version snapshot from
-// the provided utxo viewpoint.
-func newPrevScriptSnapshot(view *UtxoViewpoint) *prevScriptsSnapshot {
-	snapshot := &prevScriptsSnapshot{
-		entries: make(map[wire.OutPoint]prevScript, len(view.entries)),
-	}
-	for k, v := range view.entries {
-		if v == nil {
-			snapshot.entries[k] = prevScript{}
-			continue
-		}
-
-		var pkScript []byte
-		scriptLen := len(v.pkScript)
-		if scriptLen != 0 {
-			pkScript = make([]byte, scriptLen)
-			copy(pkScript, v.pkScript)
-		}
-
-		snapshot.entries[k] = prevScript{
-			scriptVersion: v.scriptVersion,
-			pkScript:      pkScript,
-		}
-	}
-
-	return snapshot
-}
-
-// PrevScript returns the script and script version associated with the provided
-// previous outpoint along with a bool that indicates whether or not the
-// requested entry exists.  This ensures the caller is able to distinguish
-// between missing entries and empty v0 scripts.
-func (p *prevScriptsSnapshot) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) {
-	entry := p.entries[*prevOut]
-	if entry.pkScript == nil {
-		return 0, nil, false
-	}
-	return entry.scriptVersion, entry.pkScript, true
-}
-
 // EnableBulkImportMode provides a mechanism to indicate that several validation
 // checks can be avoided when bulk importing blocks already known to be valid.
 // This must NOT be enabled in any other circumstance where blocks need to be
