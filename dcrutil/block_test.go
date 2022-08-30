@@ -297,7 +297,7 @@ func TestBlockErrors(t *testing.T) {
 		t.Errorf("TxHash: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
-	_, err = b.TxHash(len(Block100000.Transactions) + 1)
+	_, err = b.TxHash(len(Block100000.Transactions))
 	if !errors.As(err, &oErr) {
 		t.Errorf("TxHash: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
@@ -309,7 +309,7 @@ func TestBlockErrors(t *testing.T) {
 		t.Errorf("Tx: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
-	_, err = b.Tx(len(Block100000.Transactions) + 1)
+	_, err = b.Tx(len(Block100000.Transactions))
 	if !errors.As(err, &oErr) {
 		t.Errorf("Tx: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
