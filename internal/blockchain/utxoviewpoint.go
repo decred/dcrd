@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
@@ -85,16 +86,19 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	entry.state &^= utxoStateSpent
 	entry.state |= utxoStateModified
 
-	// Deep copy the script.  This is required since the tx out script is a
-	// subslice of the overall contiguous buffer that the msg tx houses for all
-	// scripts within the tx.  It is deep copied here since this entry may be
-	// added to the utxo cache, and we don't want the utxo cache holding the
-	// entry to prevent all of the other tx scripts from getting garbage
-	// collected.
-	scriptLen := len(txOut.PkScript)
-	if scriptLen != 0 {
-		entry.pkScript = make([]byte, scriptLen)
-		copy(entry.pkScript, txOut.PkScript)
+	// Deep copy the script when the script in the entry differs from the one in
+	// the txout.  This is required since the txout script is a subslice of the
+	// overall contiguous buffer that the msg tx houses for all scripts within
+	// the tx.  It is deep copied here since this entry may be added to the utxo
+	// cache, and we don't want the utxo cache holding the entry to prevent all
+	// of the other tx scripts from getting garbage collected.
+	if !bytes.Equal(entry.pkScript, txOut.PkScript) {
+		entry.pkScript = nil
+		scriptLen := len(txOut.PkScript)
+		if scriptLen != 0 {
+			entry.pkScript = make([]byte, scriptLen)
+			copy(entry.pkScript, txOut.PkScript)
+		}
 	}
 }
 
@@ -353,16 +357,20 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 						txType),
 				}
 
-				// Deep copy the script.  This is required since the tx out
+				// Deep copy the script when the script in the entry differs
+				// from the one in the txout.  This is required since the txout
 				// script is a subslice of the overall contiguous buffer that
 				// the msg tx houses for all scripts within the tx.  It is deep
 				// copied here since this entry may be added to the utxo cache,
 				// and we don't want the utxo cache holding the entry to prevent
 				// all of the other tx scripts from getting garbage collected.
-				scriptLen := len(txOut.PkScript)
-				if scriptLen != 0 {
-					entry.pkScript = make([]byte, scriptLen)
-					copy(entry.pkScript, txOut.PkScript)
+				if !bytes.Equal(entry.pkScript, txOut.PkScript) {
+					entry.pkScript = nil
+					scriptLen := len(txOut.PkScript)
+					if scriptLen != 0 {
+						entry.pkScript = make([]byte, scriptLen)
+						copy(entry.pkScript, txOut.PkScript)
+					}
 				}
 
 				if isTicketSubmissionOutput(txType, uint32(txOutIdx)) {
