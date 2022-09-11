@@ -2236,6 +2236,11 @@ nextPriorityQueueItem:
 			break
 		}
 
+		// Skip coinbase.
+		if i == 0 {
+			continue
+		}
+
 		view, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch utxo view for tx %v: %s",
