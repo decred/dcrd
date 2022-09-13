@@ -3517,7 +3517,11 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		//
 		// Also, update the passed spent txos slice to contain an entry for each
 		// output the transaction spends.
-		err = view.connectTransaction(tx, node.height, uint32(idx), stxos,
+		connectTransaction := view.connectRegularTransaction
+		if stakeTree {
+			connectTransaction = view.connectStakeTransaction
+		}
+		err = connectTransaction(tx, node.height, uint32(idx), stxos,
 			isTreasuryEnabled)
 		if err != nil {
 			return err
