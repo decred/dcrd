@@ -846,7 +846,8 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNod
 		// succession when initializing.
 		const forceFlush = false
 		const logFlush = true
-		err = c.maybeFlushFn(&n.hash, uint32(n.height), forceFlush, logFlush)
+		err = c.maybeFlushFn(&n.parent.hash, uint32(n.parent.height),
+			forceFlush, logFlush)
 		if err != nil {
 			return err
 		}
