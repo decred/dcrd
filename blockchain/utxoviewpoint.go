@@ -760,9 +760,20 @@ func (view *UtxoViewpoint) fetchInputUtxos(block *dcrutil.Block,
 	// stake tree are not allowed to access outputs of transactions earlier in
 	// the block.  This applies to both transactions earlier in the stake tree
 	// as well as those in the regular tree.
-	for _, stx := range block.STransactions() {
-		isVote := stake.IsSSGen(stx.MsgTx(), isTreasuryEnabled)
-		for txInIdx, txIn := range stx.MsgTx().TxIn {
+	for txIdx, stx := range block.STransactions() {
+		// Ignore treasurybases and treasury spends since they have no inputs.
+		msgTx := stx.MsgTx()
+		shouldBeTreasuryBase := isTreasuryEnabled && txIdx == 0
+		if shouldBeTreasuryBase && stake.IsTreasuryBase(msgTx) {
+			continue
+		}
+		isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
+		if isTreasurySpend {
+			continue
+		}
+
+		isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
 				continue
@@ -885,8 +896,13 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		outpoint.Index = uint32(txOutIdx)
 		filteredSet.add(view, &outpoint)
 	}
-	if !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
-		isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	// Ignore coinbases, treasurybases, and treasury spends since none of them
+	// have any inputs.
+	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+	isTreasuryBase := txType == stake.TxTypeTreasuryBase
+	isTreasurySpend := txType == stake.TxTypeTSpend
+	if !isCoinBase && !isTreasuryBase && !isTreasurySpend {
+		isVote := txType == stake.TxTypeSSGen
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
