@@ -246,7 +246,11 @@ func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *Ut
 		// Add the entry to the cache.  The entry is cloned before being added
 		// so that any modifications that the cache makes to the entry are not
 		// reflected in the provided test entry.
-		utxoCache.addEntry(outpoint, entry.Clone())
+		if entry != nil {
+			utxoCache.addEntry(outpoint, entry.Clone())
+		} else {
+			utxoCache.entries[outpoint] = nil
+		}
 
 		// Set the state of the cached entries based on the provided entries.
 		// This is allowed for tests to easily simulate entries in the cache
@@ -428,83 +432,64 @@ func TestSpendEntry(t *testing.T) {
 	// Create test entries to be used throughout the tests.
 	outpoint, entry := outpoint299(), makeEntryStates(entry299())
 
+	type entriesMap map[wire.OutPoint]*UtxoEntry
 	tests := []struct {
-		name            string
-		existingEntries map[wire.OutPoint]*UtxoEntry
-		outpoint        wire.OutPoint
-		entry           *UtxoEntry
+		name           string        // test description
+		cachedEntries  entriesMap    // existing cache entries
+		backendEntries entriesMap    // existing backend entries
+		outpoint       wire.OutPoint // outpoint for the entry to spend
+		wantEntry      *UtxoEntry    // expected entry in cache after spend
+		wantCacheSize  uint64        // expected size of the cache after spend
 	}{{
-		name:     "spend an entry that does not exist in the cache",
-		outpoint: outpoint,
-		entry:    entry.unmodified,
+		name:          "spending nil (aka pruned) cache entry is a noop",
+		cachedEntries: entriesMap{outpoint: nil},
+		outpoint:      outpoint,
+		wantEntry:     nil,
+		wantCacheSize: 0,
 	}, {
-		name: "spend an entry that exists in the cache but is already spent",
-		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry.unmodifiedSpent,
-		},
-		outpoint: outpoint,
-		entry:    entry.unmodifiedSpent,
+		name:          "spending entry not in cache is a noop",
+		outpoint:      outpoint,
+		wantEntry:     nil,
+		wantCacheSize: 0,
 	}, {
-		name: "spend an entry that exists in the cache and is fresh",
-		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry.modifiedFresh,
-		},
-		outpoint: outpoint,
-		entry:    entry.modifiedFresh,
+		name:          "spending cache entry already marked spent is a noop",
+		cachedEntries: entriesMap{outpoint: entry.modifiedSpent},
+		outpoint:      outpoint,
+		wantEntry:     entry.modifiedSpent,
+		wantCacheSize: entry.modifiedSpent.size(),
 	}, {
-		name: "spend an entry that exists in the cache and is not fresh",
-		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry.unmodified,
-		},
-		outpoint: outpoint,
-		entry:    entry.unmodified,
+		name:          "spending cache entry marked fresh makes it nil",
+		cachedEntries: entriesMap{outpoint: entry.modifiedFresh},
+		outpoint:      outpoint,
+		wantEntry:     nil,
+		wantCacheSize: 0,
+	}, {
+		name:          "spending cache entry not marked fresh makes it spent",
+		cachedEntries: entriesMap{outpoint: entry.modified},
+		outpoint:      outpoint,
+		wantEntry:     entry.modifiedSpent,
+		wantCacheSize: entry.modifiedSpent.size(),
 	}}
 
 	for _, test := range tests {
 		// Create a utxo cache with the existing entries specified by the test.
-		utxoCache := createTestUtxoCache(t, test.existingEntries)
-		wantTotalEntrySize := utxoCache.totalEntrySize
-
-		// Attempt to get an existing entry from the cache.
-		entry := utxoCache.entries[test.outpoint]
-		var entryAlreadySpent bool
-		if entry != nil {
-			entryAlreadySpent = entry.IsSpent()
-		}
+		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 
 		// Spend the entry specified by the test.
 		utxoCache.spendEntry(test.outpoint)
 
-		// If the existing entry was nil or spent, continue as there is nothing
-		// else to validate.
-		if entry == nil || entryAlreadySpent {
-			continue
-		}
-
-		// If the entry is fresh, validate that it was removed from the cache
-		// when spent.
-		if entry.isFresh() {
-			wantTotalEntrySize -= test.entry.size()
-			if utxoCache.entries[test.outpoint] != nil {
-				t.Fatalf("%q: entry for outpoint %v was not removed from the "+
-					"cache", test.name, test.outpoint)
-			}
+		// Get the entry associated with the output from the cache and ensure it
+		// matches the expected one.
+		gotEntry := utxoCache.entries[test.outpoint]
+		if !reflect.DeepEqual(gotEntry, test.wantEntry) {
+			t.Fatalf("%q: unexpected entry after spend -- got: %+v, want %+v",
+				test.name, gotEntry, test.wantEntry)
 		}
 
 		// Validate that the total entry size was updated as expected.
-		if utxoCache.totalEntrySize != wantTotalEntrySize {
+		if utxoCache.totalEntrySize != test.wantCacheSize {
 			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
-				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
-		}
-
-		// If entry is not fresh, validate that it still exists in the cache and
-		// is now marked as spent.
-		if !entry.isFresh() {
-			cachedEntry := utxoCache.entries[test.outpoint]
-			if cachedEntry == nil || !cachedEntry.IsSpent() {
-				t.Fatalf("%q: expected entry for outpoint %v to exist in the "+
-					"cache and be marked spent", test.name, test.outpoint)
-			}
+				test.name, utxoCache.totalEntrySize, test.wantCacheSize)
 		}
 	}
 }
