@@ -95,8 +95,8 @@ const (
 	// checkForDuplicateHashes checks for duplicate hashes when validating
 	// blocks.  Because of the rule inserting the height into the second (nonce)
 	// txOut, there should never be a duplicate transaction hash that overwrites
-	// another. However, because there is a 2^128 chance of a collision, the
-	// paranoid user may wish to turn this feature on.
+	// another. However, because there is a 1 in 2^128 chance of a collision,
+	// the paranoid user may wish to turn this feature on.
 	checkForDuplicateHashes = false
 
 	// testNet3MaxDiffActivationHeight is the height that enforcement of the
@@ -738,8 +738,8 @@ func standaloneToChainRuleError(err error) error {
 // target difficulty as claimed.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFNoPoWCheck: The check to ensure the block hash is less than the target
-//    difficulty is not performed.
+//   - BFNoPoWCheck: The check to ensure the block hash is less than the target
+//     difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
 	// Only ensure the target difficulty bits are in the valid range when the
 	// the flag to avoid proof of work checks is set.
@@ -928,10 +928,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// Do some preliminary checks on each regular transaction to ensure they
 	// are sane.
-	transactions := block.Transactions()
-	for _, tx := range transactions {
-		msgTx := tx.MsgTx()
-		err := checkTransactionSanity(msgTx, chainParams)
+	for _, tx := range msgBlock.Transactions {
+		err := checkTransactionSanity(tx, chainParams)
 		if err != nil {
 			return err
 		}
@@ -963,8 +961,9 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// Check for duplicate transactions.
 	existingTxHashes := make(map[chainhash.Hash]struct{})
+	regularTransactions := block.Transactions()
 	stakeTransactions := block.STransactions()
-	allTransactions := append(transactions, stakeTransactions...)
+	allTransactions := append(regularTransactions, stakeTransactions...)
 	for _, tx := range allTransactions {
 		hash := tx.Hash()
 		if _, exists := existingTxHashes[*hash]; exists {
@@ -1028,8 +1027,8 @@ func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, bloc
 // on having the full block data of all ancestors available.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: All checks except those involving comparing the header against
-//    the checkpoints and expected height are not performed.
+//   - BFFastAdd: All checks except those involving comparing the header against
+//     the checkpoints and expected height are not performed.
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1169,7 +1168,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 // available.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: The transactions are not checked to see if they are expired.
+//   - BFFastAdd: The transactions are not checked to see if they are expired.
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1251,7 +1250,7 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 // vote will necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: No check are performed.
+//   - BFFastAdd: No check are performed.
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1678,13 +1677,13 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 // necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd:
-//      - The max block size is not checked
-//      - The calculated merkle root(s) of the transaction trees are not checked
-//        against the associated entries in the header
-//      - Transactions are not checked to see if they are finalized
-//      - The included votes, revocations, and treasury spend transactions are
-//        not verified to be allowed
+//   - BFFastAdd:
+//   - The max block size is not checked
+//   - The calculated merkle root(s) of the transaction trees are not checked
+//     against the associated entries in the header
+//   - Transactions are not checked to see if they are finalized
+//   - The included votes, revocations, and treasury spend transactions are
+//     not verified to be allowed
 //
 // The flags are also passed to checkBlockHeaderContext.  See its documentation
 // for how the flags modify its behavior.
@@ -3313,20 +3312,19 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 // checkNumSigOps Checks the number of P2SH signature operations to make
 // sure they don't overflow the limits.  It takes a cumulative number of sig
 // ops as an argument and increments will each call.
-// TxTree true == Regular, false == Stake
-func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
+func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, stakeTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
 	msgTx := tx.MsgTx()
 	isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
-	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen,
-		isTreasuryEnabled)
+	isCoinbaseTx := (index == 0) && !stakeTree
+	numsigOps := CountSigOps(tx, isCoinbaseTx, isSSGen, isTreasuryEnabled)
 
 	// Since the first (and only the first) transaction has already been
 	// verified to be a coinbase transaction, use (i == 0) && TxTree as an
 	// optimization for the flag to countP2SHSigOps for whether or not the
 	// transaction is a coinbase transaction rather than having to do a
 	// full coinbase check again.
-	numP2SHSigOps, err := CountP2SHSigOps(tx, (index == 0) && txTree,
-		isSSGen, view, isTreasuryEnabled)
+	numP2SHSigOps, err := CountP2SHSigOps(tx, isCoinbaseTx, isSSGen, view,
+		isTreasuryEnabled)
 	if err != nil {
 		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err
@@ -3430,7 +3428,7 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabl
 }
 
 // getStakeTreeFees determines the amount of fees for in the stake tx tree of
-// some node given a transaction store.
+// some node given a utxo view.
 func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 	txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled,
 	isSubsidySplitEnabled bool) (dcrutil.Amount, error) {
@@ -3440,11 +3438,8 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
 		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
-		var isTSpend, isTreasuryBase bool
-		if isTreasuryEnabled {
-			isTSpend = stake.IsTSpend(msgTx)
-			isTreasuryBase = stake.IsTreasuryBase(msgTx)
-		}
+		isTreasuryBase := isTreasuryEnabled && stake.IsTreasuryBase(msgTx)
+		isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
@@ -3452,13 +3447,9 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 				continue
 			}
 
-			// Ignore TSpend.
-			if isTSpend && i == 0 {
-				continue
-			}
-
-			// Ignore treasury base.
-			if isTreasuryBase && i == 0 {
+			// Ignore treasury spends and treasurybases since they have no
+			// inputs.
+			if isTreasuryBase || isTreasurySpend {
 				continue
 			}
 
@@ -3489,7 +3480,7 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 				isSubsidySplitEnabled)
 		}
 
-		if isTSpend {
+		if isTreasurySpend {
 			totalOutputs -= msgTx.TxIn[0].ValueIn
 		}
 
@@ -3508,10 +3499,10 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
 }
 
 // checkTransactionsAndConnect is the local function used to check the
-// transaction inputs for a transaction list given a predetermined TxStore.
+// transaction inputs for a transaction list given a predetermined utxo view.
 // After ensuring the transaction is valid, the transaction is connected to the
-// UTXO viewpoint.  TxTree true == Regular, false == Stake
-func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
+// utxo view.
+func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, stakeTree bool) error {
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
@@ -3545,21 +3536,27 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// Ensure that the number of signature operations is not beyond
 		// the consensus limit.
 		var err error
-		cumulativeSigOps, err = checkNumSigOps(tx, view, idx, txTree,
+		cumulativeSigOps, err = checkNumSigOps(tx, view, idx, stakeTree,
 			cumulativeSigOps, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 
-		// This step modifies the txStore and marks the tx outs used
-		// spent, so be aware of this.
-		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
-			node.height, view, true, /* check fraud proofs */
-			b.chainParams, &prevHeader, isTreasuryEnabled,
-			isAutoRevocationsEnabled, isSubsidySplitEnabled)
+		// Perform a series of checks on the inputs to the transaction to ensure
+		// they are valid and calculate the total fees for it.
+		//
+		// An example of some of the checks include verifying all inputs exist,
+		// ensuring the coinbase seasoning requirements are met, detecting
+		// double spends, validating all values and fees are in the legal range,
+		// the total output amount doesn't exceed the input amount, and
+		// verifying the signatures to prove the spender was the owner of the
+		// coins and therefore allowed to spend them.
+		const checkFraudProof = true
+		txFee, err := CheckTransactionInputs(b.subsidyCache, tx, node.height,
+			view, checkFraudProof, b.chainParams, &prevHeader,
+			isTreasuryEnabled, isAutoRevocationsEnabled, isSubsidySplitEnabled)
 		if err != nil {
-			log.Tracef("CheckTransactionInputs failed; error "+
-				"returned: %v", err)
+			log.Tracef("CheckTransactionInputs failed; error returned: %v", err)
 			return err
 		}
 
@@ -3572,10 +3569,14 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 				"overflows accumulator")
 		}
 
-		// Connect the transaction to the UTXO viewpoint, so that in
-		// flight transactions may correctly validate.
-		err = view.connectTransaction(tx, node.height, uint32(idx),
-			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
+		// Update the view to mark all utxos spent by the transaction as spent
+		// and add all of the outputs for this transaction which are not
+		// provably unspendable as available utxos.
+		//
+		// Also, update the passed spent txos slice to contain an entry for each
+		// output the transaction spends.
+		err = view.connectTransaction(tx, node.height, uint32(idx), stxos,
+			isTreasuryEnabled, isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -3585,8 +3586,8 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 	// the expected subsidy value plus total transaction fees gained from
 	// mining the block.  It is safe to ignore overflow and out of range
 	// errors here because those error conditions would have already been
-	// caught by checkTransactionSanity.
-	if txTree { //TxTreeRegular
+	// caught by the transaction sanity checks.
+	if !stakeTree { //TxTreeRegular
 		// Apply penalty to fees if we're at stake validation height.
 		if node.height >= b.chainParams.StakeValidationHeight {
 			totalFees *= int64(node.voters)
@@ -3920,8 +3921,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		err = view.disconnectDisapprovedBlock(b.db, parent,
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		err = view.disconnectDisapprovedBlock(b.db, parent, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -3931,7 +3932,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// that 'overwrite' older transactions which are not fully spent.
 	err = b.checkDupTxs(block.STransactions(), view, wire.TxTreeStake)
 	if err != nil {
-		log.Tracef("checkDupTxs failed for cur TxTreeStake: %v", err)
+		log.Tracef("checkDupTxs failed for stake tree: %v", err)
 		return err
 	}
 
@@ -3946,11 +3947,11 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 
+	const stakeTreeTrue = true
 	err = b.checkTransactionsAndConnect(0, node, block.STransactions(),
-		view, stxos, false)
+		view, stxos, stakeTreeTrue)
 	if err != nil {
-		log.Tracef("checkTransactionsAndConnect failed for "+
-			"TxTreeStake: %v", err)
+		log.Tracef("checkTransactionsAndConnect failed for stake tree: %v", err)
 		return err
 	}
 
@@ -3961,7 +3962,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
 		block.STransactions(), view, isTreasuryEnabled, isSubsidySplitEnabled)
 	if err != nil {
-		log.Tracef("getStakeTreeFees failed for TxTreeStake: %v", err)
+		log.Tracef("getStakeTreeFees failed for stake tree: %v", err)
 		return err
 	}
 
@@ -4009,15 +4010,16 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// that 'overwrite' older transactions which are not fully spent.
 	err = b.checkDupTxs(block.Transactions(), view, wire.TxTreeRegular)
 	if err != nil {
-		log.Tracef("checkDupTxs failed for cur TxTreeRegular: %v", err)
+		log.Tracef("checkDupTxs failed for cur regular tree: %v", err)
 		return err
 	}
 
+	const stakeTreeFalse = false
 	err = b.checkTransactionsAndConnect(stakeTreeFees, node,
-		block.Transactions(), view, stxos, true)
+		block.Transactions(), view, stxos, stakeTreeFalse)
 	if err != nil {
-		log.Tracef("checkTransactionsAndConnect failed for cur "+
-			"TxTreeRegular: %v", err)
+		log.Tracef("checkTransactionsAndConnect failed for regular tree: %v",
+			err)
 		return err
 	}
 
