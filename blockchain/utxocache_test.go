@@ -172,9 +172,12 @@ func (c *testUtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 // newTestUtxoCache returns a testUtxoCache instance using the provided
 // configuration details.
 func newTestUtxoCache(config *UtxoCacheConfig) *testUtxoCache {
-	return &testUtxoCache{
-		UtxoCache: NewUtxoCache(config),
+	utxoCache := NewUtxoCache(config)
+	c := &testUtxoCache{
+		UtxoCache: utxoCache,
 	}
+	utxoCache.maybeFlushFn = c.MaybeFlush
+	return c
 }
 
 // Ensure testUtxoCache implements the UtxoCacher interface.
