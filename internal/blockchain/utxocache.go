@@ -291,21 +291,6 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) error {
 	return nil
 }
 
-// AddEntry adds the specified output to the cache.  The entry being added MUST
-// NOT be mutated by the caller after being passed to this function.
-//
-// Note that this function does not check if the entry is unspendable and
-// therefore the caller should ensure that the entry is spendable before adding
-// it to the cache.
-//
-// This function is safe for concurrent access.
-func (c *UtxoCache) AddEntry(outpoint wire.OutPoint, entry *UtxoEntry) error {
-	c.cacheLock.Lock()
-	err := c.addEntry(outpoint, entry)
-	c.cacheLock.Unlock()
-	return err
-}
-
 // spendEntry marks the specified output as spent.
 //
 // This function MUST be called with the cache lock held.

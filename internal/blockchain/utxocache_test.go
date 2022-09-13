@@ -193,7 +193,7 @@ func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *Ut
 		// Add the entry to the cache.  The entry is cloned before being added
 		// so that any modifications that the cache makes to the entry are not
 		// reflected in the provided test entry.
-		err := utxoCache.AddEntry(outpoint, entry.Clone())
+		err := utxoCache.addEntry(outpoint, entry.Clone())
 		if err != nil {
 			t.Fatalf("unexpected error when adding entry: %v", err)
 		}
@@ -343,7 +343,7 @@ func TestAddEntry(t *testing.T) {
 		}
 
 		// Add the entry specified by the test.
-		err := utxoCache.AddEntry(test.outpoint, test.entry)
+		err := utxoCache.addEntry(test.outpoint, test.entry)
 		if err != nil {
 			t.Fatalf("%q: unexpected error when adding entry: %v", test.name,
 				err)
