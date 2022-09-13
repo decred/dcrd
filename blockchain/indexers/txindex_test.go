@@ -109,8 +109,7 @@ func (tc *testChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 	return ok
 }
 
-// Best returns the height and block hash of the the current
-// chain tip.
+// Best returns the height and block hash of the current chain tip.
 func (tc *testChain) Best() (int64, *chainhash.Hash) {
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()

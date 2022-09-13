@@ -50,6 +50,13 @@ func (view *UtxoViewpoint) LookupEntry(outpoint wire.OutPoint) *UtxoEntry {
 	return view.entries[outpoint]
 }
 
+// RemoveEntry removes the given transaction output from the current state of
+// the view.  It will have no effect if the passed output does not exist in the
+// view.
+func (view *UtxoViewpoint) RemoveEntry(outpoint wire.OutPoint) {
+	delete(view.entries, outpoint)
+}
+
 // addTxOut adds the specified output to the view if it is not provably
 // unspendable.  When the view already has an entry for the output, it will be
 // marked unspent.  All fields will be updated for existing entries since it's
@@ -147,9 +154,8 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 	blockIndex uint32, isTreasuryEnabled, isAutoRevocationsEnabled bool) {
 
-	msgTx := tx.MsgTx()
-
 	// Set encoded flags for the transaction.
+	msgTx := tx.MsgTx()
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled,
@@ -235,18 +241,15 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
-	var isTSpend bool
-	if isTreasuryEnabled {
-		isTSpend = stake.IsTSpend(msgTx)
-	}
+	isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
 		if isVote && txInIdx == 0 {
 			continue
 		}
 
-		// Ignore TSpend since it has no input.
-		if isTSpend {
+		// Ignore treasury spends since they have no inputs.
+		if isTreasurySpend {
 			continue
 		}
 
@@ -319,12 +322,11 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 		}
 		isVote := txType == stake.TxTypeSSGen
 
-		var isTreasuryBase, isTSpend bool
-
+		var isTreasuryBase, isTreasurySpend bool
 		if isTreasuryEnabled {
-			isTSpend = txType == stake.TxTypeTSpend && stakeTree
-			isTreasuryBase = txType == stake.TxTypeTreasuryBase &&
-				stakeTree && txIdx == 0
+			isTreasurySpend = txType == stake.TxTypeTSpend && stakeTree
+			isTreasuryBase = txType == stake.TxTypeTreasuryBase && stakeTree &&
+				txIdx == 0
 		}
 
 		tree := wire.TxTreeRegular
@@ -387,10 +389,10 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 		}
 
 		// Loop backwards through all of the transaction inputs (except for the
-		// coinbase and treasurybase which have no inputs) and unspend the
-		// referenced txos.  This is necessary to match the order of the spent
-		// txout entries.
-		if isCoinBase || isTreasuryBase || isTSpend {
+		// coinbase, treasurybase, and treasury spends which have no inputs) and
+		// unspend the referenced txos.  This is necessary to match the order of
+		// the spent txout entries.
+		if isCoinBase || isTreasuryBase || isTreasurySpend {
 			continue
 		}
 		for txInIdx := len(msgTx.TxIn) - 1; txInIdx > -1; txInIdx-- {
@@ -433,13 +435,6 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 	}
 
 	return nil
-}
-
-// RemoveEntry removes the given transaction output from the current state of
-// the view.  It will have no effect if the passed output does not exist in the
-// view.
-func (view *UtxoViewpoint) RemoveEntry(outpoint wire.OutPoint) {
-	delete(view.entries, outpoint)
 }
 
 // disconnectRegularTransactions updates the view by removing all utxos created
@@ -524,8 +519,8 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
-		err := view.disconnectDisapprovedBlock(db, parent,
-			isTreasuryEnabled, isAutoRevocationsEnabled)
+		err := view.disconnectDisapprovedBlock(db, parent, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
 		if err != nil {
 			return err
 		}
@@ -646,8 +641,8 @@ func (view *UtxoViewpoint) Entries() map[wire.OutPoint]*UtxoEntry {
 	return view.entries
 }
 
-// ViewFilteredSet represents a set of utxos to fetch from the database that are
-// not already in a view.
+// ViewFilteredSet represents a set of utxos to fetch from the cache/backend
+// that are not already in a view.
 type ViewFilteredSet map[wire.OutPoint]struct{}
 
 // add conditionally adds the provided outpoint to the set if it does not
@@ -712,8 +707,8 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block,
 				i >= inFlightIndex {
 
 				originTx := regularTxns[inFlightIndex]
-				view.AddTxOuts(originTx, block.Height(),
-					uint32(inFlightIndex), isTreasuryEnabled, isAutoRevocationsEnabled)
+				view.AddTxOuts(originTx, block.Height(), uint32(inFlightIndex),
+					isTreasuryEnabled, isAutoRevocationsEnabled)
 				continue
 			}
 
