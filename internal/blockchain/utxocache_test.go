@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -658,40 +659,196 @@ func TestCommit(t *testing.T) {
 	t.Parallel()
 
 	// Create test entries to be used throughout the tests.
-	outpoint299 := outpoint299()
+	outpoint299, entry299 := outpoint299(), makeEntryStates(entry299())
 	outpoint1100, entry1100 := outpoint1100(), makeEntryStates(entry1100())
 	outpoint1200, entry1200 := outpoint1200(), makeEntryStates(entry1200())
 	outpoint85314, entry85314 := outpoint85314(), makeEntryStates(entry85314())
 
 	tests := []struct {
-		name              string
-		viewEntries       map[wire.OutPoint]*UtxoEntry
-		cachedEntries     map[wire.OutPoint]*UtxoEntry
-		wantViewEntries   map[wire.OutPoint]*UtxoEntry
-		wantCachedEntries map[wire.OutPoint]*UtxoEntry
+		name              string                       // test description
+		viewEntries       map[wire.OutPoint]*UtxoEntry // view to commit
+		cachedEntries     map[wire.OutPoint]*UtxoEntry // existing cache entries
+		wantViewEntries   map[wire.OutPoint]*UtxoEntry // expected committed view
+		wantCachedEntries map[wire.OutPoint]*UtxoEntry // expected committed cache
+		err               error                        // expected error
 	}{{
-		name: "view contains nil, unmodified, spent, and modified entries",
+		name: "modified spent view entry w/ existing spent cache entry is noop",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299:   nil,
+			outpoint1200: entry1200.modifiedSpent,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedSpent,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedSpent,
+		},
+	}, {
+		name: "nil view entries are removed from view and do not affect cache",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299: nil,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299: entry299.unmodified,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299: entry299.unmodified,
+		},
+	}, {
+		// This covers the following scenarios:
+		//
+		// - unmodified spent view entries with no corresponding cache entry
+		//   are retained in the view and have no effect on the cache
+		// - unmodified spent view entries with a corresponding nil cache entry
+		//   are retained in the view and have no effect on the cache
+		// - unmodified spent view entries with a corresponding non-fresh
+		//   unmodified cache entry are removed from view and have no effect on
+		//   the cache
+		// - unmodified spent fresh view entries with a corresponding modified
+		//   unspent fresh cache entry are retained in the view and have no
+		//   effect on the cache
+		//
+		// NOTE: The case where there are unmodified spent view entries with
+		// corresponding unspent entries in the cache should really never happen
+		// in practice because any spending done in the view necessarily marks
+		// the entry spent, so the only realistic way for an unmodified spent
+		// view entry to exist would be for it to have come from the cache which
+		// means it would be spent in the cache too, but the cache will not have
+		// unmodified spent entries since those are pruned.
+		//
+		// Similarly, unmodified unspent fresh view entries never happen with
+		// the current implementation because the only way for a fresh view
+		// entry to exist is for it to have come from the cache, all fresh cache
+		// entries must necessarily also be marked modified, and cache entries
+		// are currently cloned directly into the view as is.
+		//
+		// However, they are tested here for completeness in order to ensure
+		// unmodified entries never affect the cache.
+		name: "several unmodified spent view entry combinations",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:   entry299.unmodifiedSpent,
+			outpoint1100:  entry1100.unmodifiedSpent,
+			outpoint1200:  entry1200.unmodifiedSpent,
+			outpoint85314: entry85314.unmodifiedSpentFresh,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100:  nil,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.modifiedFresh,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:   entry299.unmodifiedSpent,
+			outpoint1100:  entry1100.unmodifiedSpent,
+			outpoint1200:  entry1200.unmodifiedSpent,
+			outpoint85314: entry85314.unmodifiedSpentFresh,
+		},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100:  nil,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.modifiedFresh,
+		},
+	}, {
+		// This covers the following scenarios:
+		//
+		// - unmodified unspent view entries with no corresponding cache entry
+		//   are retained in the view and have no effect on the cache
+		// - unmodified unspent view entries with a corresponding nil cache
+		//   entry are retained in the view and have no effect on the cache
+		// - unmodified unspent view entries with a corresponding unmodified
+		//   cache entry are retained in the view and have no effect on the
+		//   cache
+		// - unmodified unspent fresh view entries with a corresponding modified
+		//   unspent fresh cache entry are retained in the view and have no
+		//   effect on the cache
+		//
+		// NOTE: Unmodified unspent fresh view entries never happen with the
+		// current implementation because the only way for a fresh view entry to
+		// exist is for it to have come from the cache, all fresh cache entries
+		// must necessarily also be marked modified, and cache entries are
+		// currently cloned directly into the view as is.  However, it is tested
+		// here for completeness.
+		name: "several unmodified unspent view entry combinations",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:   entry299.unmodified,
 			outpoint1100:  entry1100.unmodified,
-			outpoint1200:  entry1200.modifiedSpent,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.unmodifiedFresh,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100:  nil,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.modifiedFresh,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:   entry299.unmodified,
+			outpoint1100:  entry1100.unmodified,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.unmodifiedFresh,
+		},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100:  nil,
+			outpoint1200:  entry1200.unmodified,
+			outpoint85314: entry85314.modifiedFresh,
+		},
+	}, {
+		// This covers the following scenarios:
+		//
+		// - modified spent view entries with a corresponding nil cache entry
+		//   are removed from view and a noop to the cache
+		// - modified spent fresh view entries with a corresponding unspent
+		//   fresh cache entry makes the cache entry nil
+		// - modified spent view entries with a corresponding non-fresh
+		//   unmodified cache entry are removed from view and mark the cache
+		//   entry modified and spent
+		name: "several modified spent view entry combinations",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:  entry299.modifiedSpent,
+			outpoint1100: entry1100.modifiedSpentFresh,
+			outpoint1200: entry1200.modifiedSpent,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:  nil,
+			outpoint1100: entry1100.modifiedFresh,
+			outpoint1200: entry1200.unmodified,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:  nil,
+			outpoint1100: nil,
+			outpoint1200: entry1200.modifiedSpent,
+		},
+	}, {
+		// This covers the following scenarios:
+		//
+		// - modified unspent view entries with no corresponding cache entry are
+		//   removed from view and added to the cache as fresh entries
+		// - modified unspent view entries with a corresponding unmodified cache
+		//   entry are removed from view and replace the cache entry making it
+		//   modified
+		// - modified unspent fresh view entries with a corresponding modified
+		//   fresh cache entry are removed from view and replace the cache entry
+		//   retaining its modified fresh status
+		// - modified unspent non-fresh view entries with a corresponding
+		//   modified non-fresh cache entry are removed from view and replace
+		//   the cache entry retaining its modified non-fresh status
+		name: "several modified unspent view entry combinations",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:   entry299.modified,
+			outpoint1100:  entry1100.modified,
+			outpoint1200:  entry1200.modifiedFresh,
 			outpoint85314: entry85314.modified,
 		},
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200: entry1200.unmodified,
+			outpoint1100:  entry1100.unmodified,
+			outpoint1200:  entry1200.modifiedFresh,
+			outpoint85314: entry85314.modified,
 		},
-		// outpoint299 is removed from the view since the entry is nil.
-		// entry1100Unmodified remains in the view since it is unmodified.
-		// entry1200Spent is removed from the view since the entry is spent.
-		// entry85314Modified is removed from the view since it is modified and
-		// added to the cache.
-		wantViewEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100.unmodified,
-		},
-		// entry1200Spent remains in the cache but is now spent.
-		// entry85314Modified is added to the cache.
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200:  entry1200.modifiedSpent,
+			outpoint299:   entry299.modifiedFresh,
+			outpoint1100:  entry1100.modified,
+			outpoint1200:  entry1200.modifiedFresh,
 			outpoint85314: entry85314.modified,
 		},
 	}}
@@ -700,17 +857,26 @@ func TestCommit(t *testing.T) {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 
-		// Create a utxo cache with the view entries specified by the test.
+		// Create a utxo view with the entries specified by the test.  The view
+		// entries are cloned first in order to ensure the shared instances are
+		// not modified if the cache takes ownership of them.
+		viewEntries := make(map[wire.OutPoint]*UtxoEntry)
+		for k, v := range test.viewEntries {
+			viewEntries[k] = v.Clone()
+		}
 		view := &UtxoViewpoint{
 			cache:   utxoCache,
-			entries: test.viewEntries,
+			entries: viewEntries,
 		}
 
 		// Commit the view to the cache.
 		err := utxoCache.Commit(view)
-		if err != nil {
-			t.Fatalf("%q: unexpected error committing view to the cache: %v",
-				test.name, err)
+		if !errors.Is(err, test.err) {
+			t.Fatalf("%q: unexpected error committing view to the cache -- "+
+				"got %v (%[2]T), want %v (%[3]T)", test.name, err, test.err)
+		}
+		if test.err != nil {
+			continue
 		}
 
 		// Validate the cached entries after committing.
