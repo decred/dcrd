@@ -274,26 +274,41 @@ func (c *UtxoCache) hitRatio() float64 {
 //
 // This function MUST be called with the cache lock held.
 func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
+	// The entry will either be added to the cache when there is not already
+	// an existing entry for the specified outpoint or will overwrite the
+	// existing one when there is, but in either case the resulting cache
+	// entry is modified and thus needs to be marked as such.
+	entry.state |= utxoStateModified
+
 	// Attempt to get an existing entry from the cache.
 	cachedEntry := c.entries[outpoint]
 
-	// If an existing entry does not exist, the added entry should be marked as
-	// modified and fresh.
+	// Mark the entry as fresh, add it to the cache, and update the total
+	// cache size when there is not already an existing cache entry.
 	if cachedEntry == nil {
-		entry.state |= utxoStateModified | utxoStateFresh
+		entry.state |= utxoStateFresh
+		c.entries[outpoint] = entry
+		c.totalEntrySize += entry.size()
+		return
 	}
 
-	// Add the entry to the cache.  In the case that an entry already exists,
-	// the existing entry is overwritten.  All fields are overwritten because
-	// it's possible (although extremely unlikely) that the existing entry is
-	// being replaced by a different transaction with the same hash.  This is
-	// allowed so long as the previous transaction is fully spent.
+	// There is an existing entry in the cache at this point.
+	//
+	// Ensure the state of whether or not the existing entry is fresh is
+	// maintained, overwrite the existing entry, and update the total cache size
+	// accordingly.
+	//
+	// All fields are overwritten because it's possible (although extremely
+	// unlikely) that the existing entry is being replaced by a different
+	// transaction with the same hash.  This is allowed so long as the previous
+	// transaction is fully spent.
+	if cachedEntry.isFresh() {
+		entry.state |= utxoStateFresh
+	} else {
+		entry.state &^= utxoStateFresh
+	}
 	c.entries[outpoint] = entry
-
-	// Update the total entry size of the cache.
-	if cachedEntry != nil {
-		c.totalEntrySize -= cachedEntry.size()
-	}
+	c.totalEntrySize -= cachedEntry.size()
 	c.totalEntrySize += entry.size()
 }
 
@@ -353,20 +368,30 @@ func (c *UtxoCache) SpendEntry(outpoint wire.OutPoint) {
 // the output exists in the cache, it is returned immediately.  Otherwise, it
 // fetches the output from the backend, caches it, and returns it to the
 // caller.  A cloned copy of the entry is returned so it can safely be mutated
-// by the caller without invalidating the cache.
+// by the caller without invalidating the cache.  The returned entry will not
+// have the modified or fresh flags set to ensure the cache state is separate
+// from the caller state.
 //
 // When there is no entry for the provided output, nil will be returned for both
 // the entry and the error.
 //
 // This function MUST be called with the cache lock held.
 func (c *UtxoCache) fetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
-	// If the cache already has the entry, return it immediately.  A cloned copy
-	// of the entry is returned so it can safely be mutated by the caller
-	// without invalidating the cache.
+	// Return a cloned copy of the cache entry when one exists for the provided
+	// output.  A cloned copy of the entry is returned so it can safely be
+	// mutated by the caller without invalidating the cache.
+	//
+	// Also clear the modified and fresh flags for the returned entry to ensure
+	// the cache state is separate from the view state.
 	var entry *UtxoEntry
 	if entry, found := c.entries[outpoint]; found {
 		c.hits++
-		return entry.Clone(), nil
+
+		clonedEntry := entry.Clone()
+		if clonedEntry != nil {
+			clonedEntry.state &^= utxoStateModified | utxoStateFresh
+		}
+		return clonedEntry, nil
 	}
 
 	// Increment cache misses.
@@ -391,6 +416,9 @@ func (c *UtxoCache) fetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	// Add the entry to the cache and return it.  A cloned copy of the entry is
 	// returned so it can safely be mutated by the caller without invalidating
 	// the cache.
+	//
+	// Also note that all entries loaded from the backend will not have any
+	// state flags set since they are memory only flags.
 	c.entries[outpoint] = entry
 	return entry.Clone(), nil
 }

@@ -375,12 +375,33 @@ func TestAddEntry(t *testing.T) {
 		wantEntry:     origEntry.modifiedFresh,
 		wantCacheSize: origEntry.modifiedFresh.size(),
 	}, {
-		name:          "existing cache entry is overwritten",
+		name:          "existing !fresh cache entry w/ !fresh entry stays !fresh",
 		cachedEntries: entriesMap{outpoint: origEntry.unmodified},
 		outpoint:      outpoint,
 		entry:         mutatedEntry.modified,
 		wantEntry:     mutatedEntry.modified,
 		wantCacheSize: mutatedEntry.modified.size(),
+	}, {
+		name:          "existing !fresh cache entry with fresh entry stays !fresh",
+		cachedEntries: entriesMap{outpoint: origEntry.unmodified},
+		outpoint:      outpoint,
+		entry:         mutatedEntry.modifiedFresh,
+		wantEntry:     mutatedEntry.modified,
+		wantCacheSize: mutatedEntry.modified.size(),
+	}, {
+		name:          "existing fresh cache entry with !fresh entry stays fresh",
+		cachedEntries: entriesMap{outpoint: origEntry.modifiedFresh},
+		outpoint:      outpoint,
+		entry:         mutatedEntry.modified,
+		wantEntry:     mutatedEntry.modifiedFresh,
+		wantCacheSize: mutatedEntry.modifiedFresh.size(),
+	}, {
+		name:          "existing fresh cache entry with fresh entry stays fresh",
+		cachedEntries: entriesMap{outpoint: origEntry.modifiedFresh},
+		outpoint:      outpoint,
+		entry:         mutatedEntry.modifiedFresh,
+		wantEntry:     mutatedEntry.modifiedFresh,
+		wantCacheSize: mutatedEntry.modifiedFresh.size(),
 	}}
 
 	for _, test := range tests {
@@ -699,10 +720,8 @@ func TestCommit(t *testing.T) {
 		// unmodified spent entries since those are pruned.
 		//
 		// Similarly, unmodified unspent fresh view entries never happen with
-		// the current implementation because the only way for a fresh view
-		// entry to exist is for it to have come from the cache, all fresh cache
-		// entries must necessarily also be marked modified, and cache entries
-		// are currently cloned directly into the view as is.
+		// the current implementation because views never set the fresh flag and
+		// the flag is cleared on cloned entries that come from the cache.
 		//
 		// However, they are tested here for completeness in order to ensure
 		// unmodified entries never affect the cache.
@@ -744,11 +763,9 @@ func TestCommit(t *testing.T) {
 		//   effect on the cache
 		//
 		// NOTE: Unmodified unspent fresh view entries never happen with the
-		// current implementation because the only way for a fresh view entry to
-		// exist is for it to have come from the cache, all fresh cache entries
-		// must necessarily also be marked modified, and cache entries are
-		// currently cloned directly into the view as is.  However, it is tested
-		// here for completeness.
+		// current implementation because views never set the fresh flag and the
+		// flag is cleared on cloned entries that come from the cache.  However,
+		// it is tested here for completeness.
 		name: "several unmodified unspent view entry combinations",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:   entry299.unmodified,
@@ -782,6 +799,11 @@ func TestCommit(t *testing.T) {
 		// - modified spent view entries with a corresponding non-fresh
 		//   unmodified cache entry are removed from view and mark the cache
 		//   entry modified and spent
+		//
+		// NOTE: Modified spent fresh view entries never happen with the current
+		// implementation because views never set the fresh flag and the flag is
+		// cleared on cloned entries that come from the cache.  However, it is
+		// tested here for completeness.
 		name: "several modified spent view entry combinations",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:  entry299.modifiedSpent,
@@ -813,6 +835,11 @@ func TestCommit(t *testing.T) {
 		// - modified unspent non-fresh view entries with a corresponding
 		//   modified non-fresh cache entry are removed from view and replace
 		//   the cache entry retaining its modified non-fresh status
+		//
+		// NOTE: Modified unspent fresh view entries never happen with the
+		// current implementation because views never set the fresh flag and the
+		// flag is cleared on cloned entries that come from the cache.  However,
+		// it is tested here for completeness.
 		name: "several modified unspent view entry combinations",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:   entry299.modified,
