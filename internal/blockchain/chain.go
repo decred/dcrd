@@ -940,7 +940,8 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 			continue
 		}
 
-		// Exclude TreasuryBase and TSpend.
+		// Exclude treasurybase and treasury spends since neither have any
+		// inputs.
 		if stake.IsTreasuryBase(stx) || stake.IsTSpend(stx) {
 			continue
 		}

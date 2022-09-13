@@ -243,8 +243,8 @@ func (s *IndexSubscriber) findLowestIndexTipHeight(queryer ChainQueryer) (int64,
 	return lowestHeight, bestHeight, nil
 }
 
-// CatchUp syncs all subscribed indexes to the the main chain by connecting
-// blocks from after the lowest index tip to the current main chain tip.
+// CatchUp syncs all subscribed indexes to the main chain by connecting blocks
+// from after the lowest index tip to the current main chain tip.
 //
 // This should be called after all indexes have subscribed for updates.
 func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer ChainQueryer) error {

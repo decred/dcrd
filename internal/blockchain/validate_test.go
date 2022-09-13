@@ -1972,7 +1972,7 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 		trsySubsidy := cache.CalcTreasurySubsidy(height, numVotes, noTreasury)
 		powSubsidy := cache.CalcWorkSubsidyV2(height, numVotes, withDCP0010)
 
-		// Update the input value to the the new expected subsidy sum.
+		// Update the input value to the new expected subsidy sum.
 		coinbaseTx := b.Transactions[0]
 		coinbaseTx.TxIn[0].ValueIn = trsySubsidy + powSubsidy
 
