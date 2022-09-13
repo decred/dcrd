@@ -475,15 +475,15 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 			continue
 		}
 
-		// If the entry is not modified and not fresh, continue as there is
-		// nothing to do.
-		if !entry.isModified() && !entry.isFresh() {
+		// There is nothing to update in the cache nor the view when the view
+		// entry was not modified.
+		if !entry.isModified() {
 			continue
 		}
 
 		// If the entry is modified and spent, mark it as spent in the cache and
 		// then delete it from the view.
-		if entry.isModified() && entry.IsSpent() {
+		if entry.IsSpent() {
 			// Mark the entry as spent in the cache.
 			c.spendEntry(outpoint)
 
