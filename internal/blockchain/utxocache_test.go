@@ -437,7 +437,7 @@ func TestSpendEntry(t *testing.T) {
 		}
 
 		// Spend the entry specified by the test.
-		utxoCache.SpendEntry(test.outpoint)
+		utxoCache.spendEntry(test.outpoint)
 
 		// If the existing entry was nil or spent, continue as there is nothing
 		// else to validate.

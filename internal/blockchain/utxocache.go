@@ -334,15 +334,6 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) {
 	cachedEntry.Spend()
 }
 
-// SpendEntry marks the specified output as spent.
-//
-// This function is safe for concurrent access.
-func (c *UtxoCache) SpendEntry(outpoint wire.OutPoint) {
-	c.cacheLock.Lock()
-	c.spendEntry(outpoint)
-	c.cacheLock.Unlock()
-}
-
 // fetchEntry returns the specified transaction output from the utxo set.  If
 // the output exists in the cache, it is returned immediately.  Otherwise, it
 // fetches the output from the backend, caches it, and returns it to the
