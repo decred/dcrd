@@ -152,14 +152,15 @@ func entry85314() *UtxoEntry {
 // testEntryStates houses a test utxo entry along with various spent, modified,
 // and fresh states for conenient use throughout the tests.
 type testEntryStates struct {
-	unmodified           *UtxoEntry
-	unmodifiedSpent      *UtxoEntry
-	unmodifiedFresh      *UtxoEntry
-	unmodifiedSpentFresh *UtxoEntry
-	modified             *UtxoEntry
-	modifiedSpent        *UtxoEntry
-	modifiedFresh        *UtxoEntry
-	modifiedSpentFresh   *UtxoEntry
+	unmodified              *UtxoEntry
+	unmodifiedSpent         *UtxoEntry
+	unmodifiedFresh         *UtxoEntry
+	unmodifiedSpentFresh    *UtxoEntry
+	modified                *UtxoEntry
+	modifiedSpent           *UtxoEntry
+	modifiedFresh           *UtxoEntry
+	modifiedSpentFresh      *UtxoEntry
+	modifiedSpentByZeroConf *UtxoEntry
 }
 
 // makeEntryStates creates combinations of the passed test utxo entry in various
@@ -181,16 +182,19 @@ func makeEntryStates(entry *UtxoEntry) testEntryStates {
 	modifiedFresh.state |= utxoStateFresh
 	modifiedSpentFresh := modifiedSpent.Clone()
 	modifiedSpentFresh.state |= utxoStateFresh
+	modifiedSpentByZeroConf := modifiedSpent.Clone()
+	modifiedSpentByZeroConf.state |= utxoStateSpentByZeroConf
 
 	return testEntryStates{
-		unmodified:           unmodified,
-		unmodifiedSpent:      unmodifiedSpent,
-		unmodifiedFresh:      unmodifiedFresh,
-		unmodifiedSpentFresh: unmodifiedSpentFresh,
-		modified:             modified,
-		modifiedSpent:        modifiedSpent,
-		modifiedFresh:        modifiedFresh,
-		modifiedSpentFresh:   modifiedSpentFresh,
+		unmodified:              unmodified,
+		unmodifiedSpent:         unmodifiedSpent,
+		unmodifiedFresh:         unmodifiedFresh,
+		unmodifiedSpentFresh:    unmodifiedSpentFresh,
+		modified:                modified,
+		modifiedSpent:           modifiedSpent,
+		modifiedFresh:           modifiedFresh,
+		modifiedSpentFresh:      modifiedSpentFresh,
+		modifiedSpentByZeroConf: modifiedSpentByZeroConf,
 	}
 }
 
@@ -703,6 +707,16 @@ func TestCommit(t *testing.T) {
 		wantCachedEntries map[wire.OutPoint]*UtxoEntry // expected committed cache
 		err               error                        // expected error
 	}{{
+		name: "modified spent by zero conf view entry w/o spent asserts",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: func() *UtxoEntry {
+				invalidEntry := entry1200.modifiedSpentByZeroConf.Clone()
+				invalidEntry.state &^= utxoStateSpent
+				return invalidEntry
+			}(),
+		},
+		err: AssertError(""),
+	}, {
 		name: "modified spent view entry w/ existing spent cache entry asserts",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
@@ -906,6 +920,18 @@ func TestCommit(t *testing.T) {
 			outpoint1100:  entry1100.modified,
 			outpoint1200:  entry1200.modifiedFresh,
 			outpoint85314: entry85314.modified,
+		},
+	}, {
+		name: "view entry spent by zero conf removed and has no effect on cache",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299: entry299.modifiedSpentByZeroConf,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100: entry1100.unmodified,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100: entry1100.unmodified,
 		},
 	}}
 

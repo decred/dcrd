@@ -605,6 +605,28 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		// connected block, so this optimizes for the much more common case.
 		// ---------------------------------------------------------------------
 
+		// There is nothing to update in the cache when the output is spent by a
+		// transaction later in the regular transaction tree of the same block
+		// since such outputs never exist beyond the scope of the view and
+		// therefore do not have any cache entries.
+		//
+		// Further, it is no longer needed in the view either since it's already
+		// spent and thus nothing else in future blocks could possibly spend it.
+		//
+		// Thus, remove the entry from the view and continue to the next one.
+		if entry.isSpentByZeroConf() {
+			// Sanity check zero confirmation spends are also marked as spent.
+			if !entry.IsSpent() {
+				return AssertError(fmt.Sprintf("output %v from view@%s is "+
+					"simultaneously marked as spent by a transaction later in "+
+					"the same block and not spent", outpoint,
+					view.BestHash()))
+			}
+
+			delete(view.entries, outpoint)
+			continue
+		}
+
 		// Mark the spent view entry as modified and spent in the cache and
 		// remove it from the view.
 		//
