@@ -90,7 +90,7 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 
 	// The referenced transaction output should always be marked as unspent and
 	// modified when being added to the view.
-	entry.state &^= utxoStateSpent
+	entry.state &^= utxoStateSpent | utxoStateSpentByZeroConf
 	entry.state |= utxoStateModified
 
 	// Deep copy the script when the script in the entry differs from the one in
@@ -318,19 +318,26 @@ func (view *UtxoViewpoint) connectStakeTransactions(block *dcrutil.Block,
 
 // connectRegularTransaction updates the view by adding all new utxos created by
 // the passed transaction from the regular transaction tree and marking all
-// utxos that the transaction spends as spent.  In addition, when the 'stxos'
-// argument is not nil, it will be updated to append an entry for each spent
-// txout.  An error will be returned if the view does not contain the required
-// utxos.
+// utxos that the transaction spends as spent.  The transaction is added to the
+// provided in-flight tx map which is used to detect and mark utxos earlier in
+// the same regular transaction tree as zero conf spends.
+//
+// When the 'stxos' argument is not nil, it will be updated to append an entry
+// for each spent txout.  An error will be returned if the view does not contain
+// the required utxos.
 func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
-	blockHeight int64, blockIndex uint32, stxos *[]spentTxOut,
-	isTreasuryEnabled bool) error {
+	blockHeight int64, blockIndex uint32, inFlightTx map[chainhash.Hash]uint32,
+	stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 
 	// Coinbase transactions don't have any inputs to spend.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		// Add the transaction's outputs as available utxos.
 		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
+
+		// Keep track of in-flight transactions in order detect spends of
+		// earlier outputs by transactions later in the same block.
+		inFlightTx[*tx.Hash()] = blockIndex
 		return nil
 	}
 
@@ -355,27 +362,42 @@ func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
 		// details have been accessed since spending it might clear the fields
 		// from memory in the future.
 		entry.Spend()
+
+		// Mark txouts that are spent by transaction inputs later in the regular
+		// transaction tree of the same block as zero conf spends.
+		if inFlightIdx, ok := inFlightTx[prevOut.Hash]; ok && blockIndex >
+			inFlightIdx {
+
+			entry.state |= utxoStateSpentByZeroConf
+		}
 	}
 
 	// Add the transaction's outputs as available utxos.
 	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
 
+	// Keep track of in-flight transactions in order detect spends of earlier
+	// outputs by transactions later in the same block.
+	inFlightTx[*tx.Hash()] = blockIndex
 	return nil
 }
 
 // connectRegularTransactions updates the view by adding all new utxos created
 // by the transactions in the regular transaction tree of the block and marking
-// all utxos those same transactions spend as spent.  In addition, when the
-// 'stxos' argument is not nil, it will be updated to append an entry for each
-// spent txout.  An error will be returned if the view does not contain the
-// required utxos.
+// all utxos those same transactions spend as spent.  It also marks all earlier
+// utxos spent by transactions later in the tree as zero confirmation spends.
+//
+// When the 'stxos' argument is not nil, it will be updated to append an entry
+// for each spent txout.  An error will be returned if the view does not contain
+// the required utxos.
 func (view *UtxoViewpoint) connectRegularTransactions(block *dcrutil.Block,
 	stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 
 	// Connect all of the transactions in the regular transaction tree.
-	for i, tx := range block.Transactions() {
+	regularTxns := block.Transactions()
+	inFlightTx := make(map[chainhash.Hash]uint32, len(regularTxns))
+	for i, tx := range regularTxns {
 		err := view.connectRegularTransaction(tx, block.Height(), uint32(i),
-			stxos, isTreasuryEnabled)
+			inFlightTx, stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -398,9 +420,18 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 	// disconnecting stake transactions.
 	stxoIdx := len(stxos) - 1
 	transactions := block.Transactions()
+	numSpentRegularOutputs := countSpentRegularOutputs(block)
 	if stakeTree {
-		stxoIdx = len(stxos) - countSpentRegularOutputs(block) - 1
+		stxoIdx = len(stxos) - numSpentRegularOutputs - 1
 		transactions = block.STransactions()
+	}
+
+	// Create a map to keep track of all in-flight spends by the regular
+	// transaction tree in order detect spends of earlier outputs by
+	// transactions later in the same block.
+	var spendsInFlight map[wire.OutPoint]int
+	if !stakeTree {
+		spendsInFlight = make(map[wire.OutPoint]int, numSpentRegularOutputs)
 	}
 
 	for txIdx := len(transactions) - 1; txIdx > -1; txIdx-- {
@@ -481,6 +512,14 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 			}
 
 			entry.Spend()
+
+			// Mark txouts that are spent by transaction inputs later in the
+			// same block as zero conf spends.
+			if inFlightIdx, ok := spendsInFlight[outpoint]; ok &&
+				txIdx < inFlightIdx {
+
+				entry.state |= utxoStateSpentByZeroConf
+			}
 		}
 
 		// Loop backwards through all of the transaction inputs (except for the
@@ -524,8 +563,15 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 
 			// Mark the existing referenced transaction output as unspent and
 			// modified.
-			entry.state &^= utxoStateSpent
+			entry.state &^= utxoStateSpent | utxoStateSpentByZeroConf
 			entry.state |= utxoStateModified
+
+			// Keep track of all in-flight spends by the regular transaction
+			// tree in order detect spends of earlier outputs by transactions
+			// later in the same block.
+			if !stakeTree {
+				spendsInFlight[txIn.PreviousOutPoint] = txIdx
+			}
 		}
 	}
 
