@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1138,10 +1139,12 @@ func TestInitialize(t *testing.T) {
 
 	outs := g.OldestCoinbaseOuts()
 	g.NextBlock("b0", &outs[0], outs[1:])
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	b1 := g.NextBlock("b1", &outs[0], outs[1:])
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	// Force a cache flush and validate that the cache is caught up to block b1.
@@ -1211,6 +1214,71 @@ func TestInitialize(t *testing.T) {
 
 	// Validate that the cache recovered and is now caught up to b1a.
 	g.ExpectUtxoSetState("b1a")
+
+	// -------------------------------------------------------------------------
+	// Simulate an unclean shutdown such that the utxocache was last flushed at
+	// the tip block which is later invalidated and ensure the cache and backend
+	// recover back to the parent block as expected.
+	//
+	// This is accomplished by creating a new block that becomes the new best
+	// chain tip, disabling flushing, and invalidating that new block to ensure
+	// that the flushed utxo cache state is the invalidated block.  Then the
+	// cache is reset while forcing flushing during initialization.
+	//
+	//   ... -> b0 -> b1
+	//            |      \-> b2bad
+	//            \-> b1a    -----
+	//                       ^ (marked invalid with no flush to cache backend)
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.SetTip("b1")
+	b2bad := g.NextBlock("b2bad", &outs[0], outs[1:])
+	g.AcceptTipBlock()
+	forceFlush(testUtxoCache)
+	g.ExpectUtxoSetState("b2bad")
+
+	// Disable flushing to ensure the block that is about to be invalidated is
+	// not flushed to the backend.
+	//
+	// Ordinarily, the spend journal entry for disconnected blocks is not
+	// removed when there is an error in flushing, however, since this bypasses
+	// the error, the entry needs to be saved and restored after the block is
+	// invalidated.
+	testUtxoCache.disableFlush = true
+	var b2badStxos []spentTxOut
+	err = g.chain.db.View(func(dbTx database.Tx) error {
+		prevHash := b2bad.Header.PrevBlock
+		isTrsyEnabled, err := g.chain.IsTreasuryAgendaActive(&prevHash)
+		if err != nil {
+			return err
+		}
+		block := dcrutil.NewBlock(b2bad)
+		b2badStxos, err = dbFetchSpendJournalEntry(dbTx, block, isTrsyEnabled)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("unexpected error getting spend journal entry: %v", err)
+	}
+
+	// Invalidate the previously connected block so that it is disconnected and
+	// ensure the flushed utxo cache state is still at the invalidated block.
+	g.InvalidateBlockAndExpectTip("b2bad", nil, "b1")
+	g.ExpectUtxoSetState("b2bad")
+
+	// Restore the spend journal entry for the invalidated block per the above.
+	err = g.chain.db.Update(func(dbTx database.Tx) error {
+		b2badHash := b2bad.BlockHash()
+		return dbPutSpendJournalEntry(dbTx, &b2badHash, b2badStxos)
+	})
+	if err != nil {
+		t.Fatalf("unexpected error restoring spend journal entry: %v", err)
+	}
+
+	// Reset the cache while forcing flushing during the initialization and
+	// ensure the cache and backend recover back to b1 as expected.
+	resetTestUtxoCache(true)
+	g.ExpectUtxoSetState("b1")
 }
 
 // TestShutdownUtxoCache validates that a cache flush is forced when shutting
