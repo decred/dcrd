@@ -265,7 +265,7 @@ func (c *UtxoCache) hitRatio() float64 {
 // it to the cache.
 //
 // This function MUST be called with the cache lock held.
-func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) error {
+func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 	// Attempt to get an existing entry from the cache.
 	cachedEntry := c.entries[outpoint]
 
@@ -287,8 +287,6 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) error {
 		c.totalEntrySize -= cachedEntry.size()
 	}
 	c.totalEntrySize += entry.size()
-
-	return nil
 }
 
 // spendEntry marks the specified output as spent.
@@ -464,11 +462,7 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 
 		// If we passed all of the conditions above, the entry is modified or
 		// fresh, but not spent, and should be added to the cache.
-		err := c.addEntry(outpoint, entry)
-		if err != nil {
-			c.cacheLock.Unlock()
-			return err
-		}
+		c.addEntry(outpoint, entry)
 
 		// All entries that are added to the cache should be removed from the
 		// provided view.  This is an optimization to allow the cache to take
