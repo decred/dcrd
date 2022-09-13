@@ -186,6 +186,12 @@ type UtxoCache struct {
 	// defaults to time.Now but an alternative function can be provided for
 	// testing purposes.
 	timeNow func() time.Time
+
+	// maybeFlushFn defines the function to use for potentially flushing the
+	// cache to the backend.  It defaults to the exported MaybeFlush method of
+	// this cache instance, but an alternative can be provided for testing
+	// purposes.
+	maybeFlushFn func(*chainhash.Hash, uint32, bool, bool) error
 }
 
 // Ensure UtxoCache implements the UtxoCacher interface.
@@ -222,7 +228,7 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 		p2pkhScriptLen
 	maxEntries := math.Ceil(float64(config.MaxSize) / float64(avgEntrySize))
 
-	return &UtxoCache{
+	c := &UtxoCache{
 		backend:       config.Backend,
 		flushBlockDB:  config.FlushBlockDB,
 		maxSize:       config.MaxSize,
@@ -230,6 +236,8 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 		lastFlushTime: time.Now(),
 		timeNow:       time.Now,
 	}
+	c.maybeFlushFn = c.MaybeFlush
+	return c
 }
 
 // totalSize returns the total size of the cache on a 64-bit platform, in bytes.
@@ -418,7 +426,7 @@ func (c *UtxoCache) FetchBackendState() (*UtxoSetState, error) {
 func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*UtxoStats, error) {
 	// Force a UTXO cache flush.  This is required in order for the backend to
 	// fetch statistics on the full UTXO set.
-	err := c.MaybeFlush(bestHash, bestHeight, true, false)
+	err := c.maybeFlushFn(bestHash, bestHeight, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +814,9 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// Conditionally flush the utxo cache to the backend.  Don't force flush
 		// since many blocks may be disconnected and connected in quick
 		// succession when initializing.
-		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
+		const forceFlush = false
+		const logFlush = true
+		err = c.maybeFlushFn(&n.hash, uint32(n.height), forceFlush, logFlush)
 		if err != nil {
 			return err
 		}
@@ -881,7 +891,9 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// Conditionally flush the utxo cache to the backend.  Don't force flush
 		// since many blocks may be connected in quick succession when
 		// initializing.
-		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
+		const forceFlush = false
+		const logFlush = true
+		err = c.maybeFlushFn(&n.hash, uint32(n.height), forceFlush, logFlush)
 		if err != nil {
 			return err
 		}
