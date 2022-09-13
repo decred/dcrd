@@ -19,19 +19,25 @@ const (
 // utxoState defines the in-memory state of a utxo entry.
 //
 // The bit representation is:
-//   bit  0    - transaction output has been spent
-//   bit  1    - transaction output has been modified since it was loaded
-//   bit  2    - transaction output is fresh
-//   bits 3-7  - unused
+//
+//	bit  0    - transaction output has been modified since it was loaded
+//	bit  1    - transaction output has been spent
+//	bit  2    - transaction output has been spent by tx later in the same block
+//	bit  3    - transaction output is fresh
+//	bits 4-7  - unused
 type utxoState uint8
 
 const (
-	// utxoStateSpent indicates that a txout is spent.
-	utxoStateSpent utxoState = 1 << iota
-
 	// utxoStateModified indicates that a txout has been modified since it was
 	// loaded.
-	utxoStateModified
+	utxoStateModified utxoState = 1 << iota
+
+	// utxoStateSpent indicates that a txout is spent.
+	utxoStateSpent
+
+	// utxoStateSpentByZeroConf indicates that a txout was spent by another
+	// transaction later in the same block.
+	utxoStateSpentByZeroConf
 
 	// utxoStateFresh indicates that a txout is fresh, which means that it
 	// exists in the utxo cache but does not exist in the underlying database.
@@ -42,9 +48,10 @@ const (
 // utxo entry.
 //
 // The bit representation is:
-//   bit  0    - containing transaction is a coinbase
-//   bit  1    - containing transaction has an expiry
-//   bits 2-5  - transaction type
+//
+//	bit  0    - containing transaction is a coinbase
+//	bit  1    - containing transaction has an expiry
+//	bits 2-5  - transaction type
 type utxoFlags uint8
 
 const (
@@ -145,6 +152,13 @@ func (entry *UtxoEntry) isModified() bool {
 // isFresh returns whether or not the output is fresh.
 func (entry *UtxoEntry) isFresh() bool {
 	return entry.state&utxoStateFresh == utxoStateFresh
+}
+
+// isSpentByZeroConf returns whether or not the output is marked as spent by a
+// zero confirmation transaction.  In other words, it is an output that was
+// created in a block and later spent by another transaction in the same block.
+func (entry *UtxoEntry) isSpentByZeroConf() bool {
+	return entry.state&utxoStateSpentByZeroConf == utxoStateSpentByZeroConf
 }
 
 // IsCoinBase returns whether or not the output was contained in a coinbase
