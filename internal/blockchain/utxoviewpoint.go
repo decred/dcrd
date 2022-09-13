@@ -224,16 +224,20 @@ func (view *UtxoViewpoint) PriorityInput(prevOut *wire.OutPoint) (int64, int64, 
 func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	blockIndex uint32, stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 
-	// Coinbase transactions don't have any inputs to spend.
+	// Treasurybase transactions don't have any inputs to spend.
+	//
+	// NOTE: This check MUST come before the coinbase check because a
+	// treasurybase is identified as a coinbase as of the time this comment is
+	// being written.
 	msgTx := tx.MsgTx()
-	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
-		// Add the transaction's outputs as available utxos.
-		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
+	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
 		return nil
 	}
 
-	// Treasurybase transactions don't have any inputs to spend.
-	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
+	// Coinbase transactions don't have any inputs to spend.
+	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+		// Add the transaction's outputs as available utxos.
+		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
 		return nil
 	}
 
