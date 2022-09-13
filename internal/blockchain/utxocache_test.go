@@ -1075,8 +1075,7 @@ func TestInitialize(t *testing.T) {
 			MaxSize:      100 * 1024 * 1024, // 100 MiB
 		})
 		g.chain.utxoCache = testUtxoCache
-		err := testUtxoCache.Initialize(context.Background(), g.chain,
-			g.chain.bestChain.Tip())
+		err := testUtxoCache.Initialize(context.Background(), g.chain)
 		if err != nil {
 			t.Fatalf("error initializing test cache: %v", err)
 		}
@@ -1225,8 +1224,7 @@ func TestShutdownUtxoCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error initializing backend info: %v", err)
 	}
-	err = testUtxoCache.Initialize(context.Background(), g.chain,
-		g.chain.bestChain.Tip())
+	err = testUtxoCache.Initialize(context.Background(), g.chain)
 	if err != nil {
 		t.Fatalf("error initializing test cache: %v", err)
 	}

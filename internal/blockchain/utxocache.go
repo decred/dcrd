@@ -102,7 +102,7 @@ type UtxoCacher interface {
 	// Initialize initializes the utxo cache and underlying utxo backend.  This
 	// entails running any database migrations as well as ensuring that the utxo
 	// set is caught up to the tip of the best chain.
-	Initialize(ctx context.Context, b *BlockChain, tip *blockNode) error
+	Initialize(ctx context.Context, b *BlockChain) error
 
 	// MaybeFlush conditionally flushes the cache to the backend.  A flush can
 	// be forced by setting the force flush parameter.
@@ -668,7 +668,7 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 // last flushed to the tip block through the cache.
 //
 // This function should only be called during initialization.
-func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNode) error {
+func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 	log.Infof("UTXO cache initializing (max size: %d MiB)...",
 		c.maxSize/1024/1024)
 
@@ -687,6 +687,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNod
 	// If the state is nil, update the state to the tip.  This should only be
 	// the case when starting from a fresh backend or a backend that has not
 	// been run with the utxo cache yet.
+	tip := b.bestChain.Tip()
 	if state == nil {
 		state = &UtxoSetState{
 			lastFlushHeight: uint32(tip.height),

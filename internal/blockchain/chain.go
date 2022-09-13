@@ -2212,7 +2212,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 
 	// Initialize the UTXO state.  This entails running any database migrations
 	// as necessary as well as initializing the UTXO cache.
-	if err := b.utxoCache.Initialize(ctx, &b, b.bestChain.tip()); err != nil {
+	if err := b.utxoCache.Initialize(ctx, &b); err != nil {
 		return nil, err
 	}
 
