@@ -670,8 +670,8 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block,
 	// Build a map of in-flight transactions because some of the inputs in the
 	// regular transaction tree of this block could be referencing other
 	// transactions earlier in the block which are not yet in the chain.
-	txInFlight := map[chainhash.Hash]int{}
 	regularTxns := block.Transactions()
+	txInFlight := make(map[chainhash.Hash]int, len(regularTxns))
 	for i, tx := range regularTxns {
 		txInFlight[*tx.Hash()] = i
 	}
