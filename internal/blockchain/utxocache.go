@@ -314,17 +314,91 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 
 // spendEntry marks the specified output as spent.
 //
+// When the provided output does not already have an associated entry in the
+// cache, the cache will be populated with the entry from the backend (if one
+// exists) and marked spent to ensure the utxo is later removed from the backend
+// on the next cache flush.
+//
+// An error will be returned in the case the output exists in the cache and is
+// already spent.
+//
 // This function MUST be called with the cache lock held.
-func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) {
-	// Attempt to get an existing entry from the cache.
-	cachedEntry := c.entries[outpoint]
-
-	// If the entry is nil or already spent, return immediately.
-	if cachedEntry == nil || cachedEntry.IsSpent() {
-		return
+func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
+	// Attempt to get the entry associated with the output from the cache.
+	//
+	// In the case there is a nil entry in the cache for the output, it does not
+	// exist in the backend.  This is because either an attempt to load the utxo
+	// from the backend was made and the nil entry was added to the cache to
+	// avoid further lookups against the backend when the output is known to not
+	// exist or the output was added to the cache and spent in between flushes
+	// to the backend and thus has been pruned.
+	//
+	// In either case, the cache does not need to be updated, so there is
+	// nothing more to do.
+	cachedEntry, found := c.entries[outpoint]
+	if found && cachedEntry == nil {
+		return nil
 	}
 
-	// If the entry is fresh, and is now being spent, it can safely be removed.
+	// Sanity check double spends of existing entries.  This should be
+	// impossible to hit since a view should never be committed until after
+	// double spend checks have already been done.  However, it is good practice
+	// to be paranoid and double check assumptions when it comes to potential
+	// double spends.
+	if cachedEntry != nil && cachedEntry.IsSpent() {
+		return AssertError(fmt.Sprintf("attempt to double spend output %v in "+
+			"view commit", outpoint))
+	}
+
+	// Attempt to repopulate the cache from the backend when there is no entry
+	// for the output in the cache.  This is necessary because the associated
+	// utxo might exist in the backend but not have been loaded into the cache
+	// yet or have otherwise been evicted.
+	//
+	// Thus, in order to ensure the utxo is removed from the backend on the next
+	// cache flush in the case it exists, the associated cache entry from the
+	// backend is loaded and marked spent.
+	if !found {
+		// Account for the cache miss and attempt to load the entry for the utxo
+		// from the backend.
+		//
+		// Notice that this intentionally attempts to load the entry from the
+		// backend directly as opposed to using the normal cache entry fetching
+		// method since that involves querying the cache again which would be
+		// wasteful since it is already known to not exist and also employs
+		// slightly different logic regarding populating the cache.
+		//
+		// NOTE: Missing backend entries are not an error.
+		c.misses++
+		backendEntry, err := c.backend.FetchEntry(outpoint)
+		if err != nil {
+			return err
+		}
+
+		// The cache does not need to be updated when the associated utxo does
+		// not exist in the backend, so there is nothing more to do in that
+		// case.
+		//
+		// Note that a nil entry is not added to cache for the output here since
+		// there should realistically never be any future lookups for the spent
+		// output given that would be a double spend.
+		if backendEntry == nil {
+			return nil
+		}
+
+		// Add the entry to the cache and update its total entry size.
+		c.entries[outpoint] = backendEntry
+		c.totalEntrySize += backendEntry.size()
+
+		// Mark the output as spent and modified.
+		backendEntry.Spend()
+		return nil
+	}
+
+	// Remove the entry associated with the output from the cache when the
+	// backend does not need to be updated because the backend does not have an
+	// associated utxo (aka the cache entry is fresh).
+	//
 	// This is an optimization to skip writing to the backend for outputs that
 	// are added and spent in between flushes to the backend.
 	if cachedEntry.isFresh() {
@@ -333,11 +407,12 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) {
 		// and avoid querying the backend.
 		c.entries[outpoint] = nil
 		c.totalEntrySize -= cachedEntry.size()
-		return
+		return nil
 	}
 
 	// Mark the output as spent and modified.
 	cachedEntry.Spend()
+	return nil
 }
 
 // fetchEntry returns the specified transaction output from the utxo set.  If
@@ -471,9 +546,12 @@ func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*Ut
 //
 // This function is safe for concurrent access.
 func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
+	defer c.cacheLock.Unlock()
 	c.cacheLock.Lock()
+
 	for outpoint, entry := range view.entries {
-		// If the entry is nil, delete it from the view and continue.
+		// There is nothing to update in the cache when the view entry is nil,
+		// so remove it from the view and continue to the next entry.
 		if entry == nil {
 			delete(view.entries, outpoint)
 			continue
@@ -485,34 +563,42 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 			continue
 		}
 
-		// If the entry is modified and spent, mark it as spent in the cache and
-		// then delete it from the view.
-		if entry.IsSpent() {
-			// Mark the entry as spent in the cache.
-			c.spendEntry(outpoint)
-
-			// Delete the entry from the view.
-			delete(view.entries, outpoint)
-			continue
-		}
-
-		// If we passed all of the conditions above, the entry is modified or
-		// fresh, but not spent, and should be added to the cache.
-		c.addEntry(outpoint, entry)
-
-		// All entries that are added to the cache should be removed from the
-		// provided view.  This is an optimization to allow the cache to take
-		// ownership of the entry from the view and avoid an additional
-		// allocation.  It is removed from the view to ensure that it is not
-		// mutated by the caller after being added to the cache.
+		// ---------------------------------------------------------------------
+		// NOTE: As an optimization in order to avoid an additional allocation,
+		// the cache takes ownership of all modified entries from the view.
+		//
+		// Thus, unless there is an error preventing the cache from taking
+		// ownership and ultimately causing the commit to fail, the entry will
+		// be removed from the view in all remaining paths to ensure that it is
+		// not mutated by the caller after being added to the cache.
 		//
 		// This does cause the view to refetch the entry if it is requested
 		// again after being removed.  However, this only really occurs during
 		// reorgs, whereas committing the view to the cache happens with every
 		// connected block, so this optimizes for the much more common case.
+		// ---------------------------------------------------------------------
+
+		// Mark the spent view entry as modified and spent in the cache and
+		// remove it from the view.
+		//
+		// This might entail populating the cache with the unspent output from
+		// the backend when there is not already a corresponding entry in the
+		// cache to ensure the utxo is later removed from the backend on the
+		// next cache flush.
+		if entry.IsSpent() {
+			if err := c.spendEntry(outpoint); err != nil {
+				return err
+			}
+
+			delete(view.entries, outpoint)
+			continue
+		}
+
+		// Update the existing entry in the cache or add a new one whenever the
+		// view entry is both modified and unspent and remove it from the view.
+		c.addEntry(outpoint, entry)
 		delete(view.entries, outpoint)
 	}
-	c.cacheLock.Unlock()
 
 	return nil
 }

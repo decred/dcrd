@@ -432,6 +432,9 @@ func TestAddEntry(t *testing.T) {
 func TestSpendEntry(t *testing.T) {
 	t.Parallel()
 
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
+
 	// Create test entries to be used throughout the tests.
 	outpoint, entry := outpoint299(), makeEntryStates(entry299())
 
@@ -443,23 +446,29 @@ func TestSpendEntry(t *testing.T) {
 		outpoint       wire.OutPoint // outpoint for the entry to spend
 		wantEntry      *UtxoEntry    // expected entry in cache after spend
 		wantCacheSize  uint64        // expected size of the cache after spend
+		err            error         // expected error
 	}{{
+		name:          "spending cache entry already marked spent asserts",
+		cachedEntries: entriesMap{outpoint: entry.modifiedSpent},
+		outpoint:      outpoint,
+		err:           AssertError(""),
+	}, {
 		name:          "spending nil (aka pruned) cache entry is a noop",
 		cachedEntries: entriesMap{outpoint: nil},
 		outpoint:      outpoint,
 		wantEntry:     nil,
 		wantCacheSize: 0,
 	}, {
-		name:          "spending entry not in cache is a noop",
+		name:          "spending entry not in cache queries backend (no utxo)",
 		outpoint:      outpoint,
 		wantEntry:     nil,
 		wantCacheSize: 0,
 	}, {
-		name:          "spending cache entry already marked spent is a noop",
-		cachedEntries: entriesMap{outpoint: entry.modifiedSpent},
-		outpoint:      outpoint,
-		wantEntry:     entry.modifiedSpent,
-		wantCacheSize: entry.modifiedSpent.size(),
+		name:           "spending entry not in cache queries backend (with utxo)",
+		outpoint:       outpoint,
+		backendEntries: entriesMap{outpoint: entry.modified},
+		wantEntry:      entry.modifiedSpent,
+		wantCacheSize:  entry.modifiedSpent.size(),
 	}, {
 		name:          "spending cache entry marked fresh makes it nil",
 		cachedEntries: entriesMap{outpoint: entry.modifiedFresh},
@@ -477,9 +486,25 @@ func TestSpendEntry(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the existing entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
+		utxoCache.backend = backend
 
-		// Spend the entry specified by the test.
-		utxoCache.spendEntry(test.outpoint)
+		// Add entries specified by the test to the test backend.
+		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{})
+		if err != nil {
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
+		}
+
+		// Spend the entry specified by the test and ensure the error matches
+		// the expected one.
+		err = utxoCache.spendEntry(test.outpoint)
+		if !errors.Is(err, test.err) {
+			t.Fatalf("%q: unexpected error spending outpoint %v -- got %v, "+
+				"want %v (%[4]T)", test.name, test.outpoint, err, test.err)
+		}
+		if test.err != nil {
+			continue
+		}
 
 		// Get the entry associated with the output from the cache and ensure it
 		// matches the expected one.
@@ -660,6 +685,9 @@ func TestFetchEntries(t *testing.T) {
 func TestCommit(t *testing.T) {
 	t.Parallel()
 
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
+
 	// Create test entries to be used throughout the tests.
 	outpoint299, entry299 := outpoint299(), makeEntryStates(entry299())
 	outpoint1100, entry1100 := outpoint1100(), makeEntryStates(entry1100())
@@ -670,21 +698,19 @@ func TestCommit(t *testing.T) {
 		name              string                       // test description
 		viewEntries       map[wire.OutPoint]*UtxoEntry // view to commit
 		cachedEntries     map[wire.OutPoint]*UtxoEntry // existing cache entries
+		backendEntries    map[wire.OutPoint]*UtxoEntry // existing backend entries
 		wantViewEntries   map[wire.OutPoint]*UtxoEntry // expected committed view
 		wantCachedEntries map[wire.OutPoint]*UtxoEntry // expected committed cache
 		err               error                        // expected error
 	}{{
-		name: "modified spent view entry w/ existing spent cache entry is noop",
+		name: "modified spent view entry w/ existing spent cache entry asserts",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
 		},
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
 		},
-		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
-		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200: entry1200.modifiedSpent,
-		},
+		err: AssertError(""),
 	}, {
 		name: "nil view entries are removed from view and do not affect cache",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
@@ -824,6 +850,28 @@ func TestCommit(t *testing.T) {
 	}, {
 		// This covers the following scenarios:
 		//
+		// - modified spent view entries without a corresponding cache entry nor
+		//   corresponding backend entry are removed from the view and a noop to
+		//   the cache
+		// - modified spent view entries without a corresponding cache entry
+		//   but with a corresponding backend entry loads the entry from the
+		//   backend, spends it, and adds the spent entry to the cache
+		name: "modified spent view entries not in backend",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:  entry299.modifiedSpent,
+			outpoint1100: entry1100.modifiedSpent,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{},
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100: entry1100.modified,
+		},
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100: entry1100.modifiedSpent,
+		},
+	}, {
+		// This covers the following scenarios:
+		//
 		// - modified unspent view entries with no corresponding cache entry are
 		//   removed from view and added to the cache as fresh entries
 		// - modified unspent view entries with a corresponding unmodified cache
@@ -864,6 +912,14 @@ func TestCommit(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
+		utxoCache.backend = backend
+
+		// Add entries specified by the test to the test backend.
+		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{})
+		if err != nil {
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
+		}
 
 		// Create a utxo view with the entries specified by the test.  The view
 		// entries are cloned first in order to ensure the shared instances are
@@ -878,7 +934,7 @@ func TestCommit(t *testing.T) {
 		}
 
 		// Commit the view to the cache.
-		err := utxoCache.Commit(view)
+		err = utxoCache.Commit(view)
 		if !errors.Is(err, test.err) {
 			t.Fatalf("%q: unexpected error committing view to the cache -- "+
 				"got %v (%[2]T), want %v (%[3]T)", test.name, err, test.err)
