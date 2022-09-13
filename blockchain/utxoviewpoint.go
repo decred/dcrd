@@ -215,27 +215,45 @@ func (view *UtxoViewpoint) PriorityInput(prevOut *wire.OutPoint) (int64, int64, 
 	return 0, 0, false
 }
 
-// connectTransaction updates the view by adding all new utxos created by the
-// passed transaction and marking all utxos that the transaction spends as
-// spent.  In addition, when the 'stxos' argument is not nil, it will be updated
-// to append an entry for each spent txout.  An error will be returned if the
-// view does not contain the required utxos.
-func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
-	blockIndex uint32, stxos *[]spentTxOut, isTreasuryEnabled,
-	isAutoRevocationsEnabled bool) error {
+// utxoEntryToSpentTxOut converts the provided utxo entry to a spent txout for
+// use in tracking all spent txouts for the spend journal.
+func utxoEntryToSpentTxOut(entry *UtxoEntry) spentTxOut {
+	// Populate the stxo details using the utxo entry.
+	return spentTxOut{
+		amount:        entry.Amount(),
+		pkScript:      entry.PkScript(),
+		ticketMinOuts: entry.ticketMinOuts,
+		blockHeight:   uint32(entry.BlockHeight()),
+		blockIndex:    entry.BlockIndex(),
+		scriptVersion: entry.ScriptVersion(),
+		packedFlags: encodeFlags(entry.IsCoinBase(), entry.HasExpiry(),
+			entry.TransactionType()),
+	}
+}
 
-	// Treasurybase transactions don't have any inputs to spend.
+// connectStakeTransaction updates the view by adding all new utxos created by
+// the passed transaction from the stake transaction tree and marking all utxos
+// that the transaction spends as spent.  In addition, when the 'stxos' argument
+// is not nil, it will be updated to append an entry for each spent txout.  An
+// error will be returned if the view does not contain the required utxos.
+func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
+	blockHeight int64, blockIndex uint32, stxos *[]spentTxOut,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
+	// Treasurybase transactions don't have any inputs to spend or outputs to
+	// add.
 	//
-	// NOTE: This check MUST come before the coinbase check because a
-	// treasurybase is identified as a coinbase as of the time this comment is
-	// being written.
+	// NOTE: This check relies on the code already having validated that the
+	// first transaction, and only the first transaction, in the stake tree is
+	// the required treasurybase when the treasury agenda is active.
 	msgTx := tx.MsgTx()
-	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
+	if isTreasuryEnabled && blockIndex == 0 {
 		return nil
 	}
 
-	// Coinbase transactions don't have any inputs to spend.
-	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+	// Treasury spends don't have any inputs to spend.
+	isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
+	if isTreasurySpend {
 		// Add the transaction's outputs as available utxos.
 		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled,
 			isAutoRevocationsEnabled)
@@ -245,41 +263,24 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
-	isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
 		if isVote && txInIdx == 0 {
 			continue
 		}
 
-		// Ignore treasury spends since they have no inputs.
-		if isTreasurySpend {
-			continue
-		}
-
 		// Ensure the referenced utxo exists in the view.  This should never
-		// happen unless there is a bug is introduced in the code.
-		entry := view.entries[txIn.PreviousOutPoint]
+		// happen unless a bug is introduced in the code.
+		prevOut := &txIn.PreviousOutPoint
+		entry := view.entries[*prevOut]
 		if entry == nil {
-			return AssertError(fmt.Sprintf("view missing input %v",
-				txIn.PreviousOutPoint))
+			return AssertError(fmt.Sprintf("view missing input %v", *prevOut))
 		}
 
 		// Only create the stxo details if requested.
 		if stxos != nil {
 			// Populate the stxo details using the utxo entry.
-			var stxo = spentTxOut{
-				amount:        entry.Amount(),
-				pkScript:      entry.PkScript(),
-				ticketMinOuts: entry.ticketMinOuts,
-				blockHeight:   uint32(entry.BlockHeight()),
-				blockIndex:    entry.BlockIndex(),
-				scriptVersion: entry.ScriptVersion(),
-				packedFlags: encodeFlags(entry.IsCoinBase(), entry.HasExpiry(),
-					entry.TransactionType()),
-			}
-
-			*stxos = append(*stxos, stxo)
+			*stxos = append(*stxos, utxoEntryToSpentTxOut(entry))
 		}
 
 		// Mark the entry as spent.  This is not done until after the relevant
@@ -291,6 +292,97 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// Add the transaction's outputs as available utxos.
 	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled,
 		isAutoRevocationsEnabled)
+
+	return nil
+}
+
+// connectStakeTransactions updates the view by adding all new utxos created by
+// the transactions in the stake transaction tree of the block and marking all
+// utxos those same transactions spend as spent.  In addition, when the 'stxos'
+// argument is not nil, it will be updated to append an entry for each spent
+// txout.  An error will be returned if the view does not contain the required
+// utxos.
+func (view *UtxoViewpoint) connectStakeTransactions(block *dcrutil.Block,
+	stxos *[]spentTxOut, isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
+	// Connect all of the transactions in the stake transaction tree.
+	for i, tx := range block.STransactions() {
+		err := view.connectStakeTransaction(tx, block.Height(), uint32(i),
+			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// connectRegularTransaction updates the view by adding all new utxos created by
+// the passed transaction from the regular transaction tree and marking all
+// utxos that the transaction spends as spent.  In addition, when the 'stxos'
+// argument is not nil, it will be updated to append an entry for each spent
+// txout.  An error will be returned if the view does not contain the required
+// utxos.
+func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
+	blockHeight int64, blockIndex uint32, stxos *[]spentTxOut,
+	isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
+	// Coinbase transactions don't have any inputs to spend.
+	msgTx := tx.MsgTx()
+	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+		// Add the transaction's outputs as available utxos.
+		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
+		return nil
+	}
+
+	// Spend the referenced utxos by marking them spent in the view and, if a
+	// slice was provided for the spent txout details, append an entry to it.
+	for _, txIn := range msgTx.TxIn {
+		// Ensure the referenced utxo exists in the view.  This should never
+		// happen unless a bug is introduced in the code.
+		prevOut := &txIn.PreviousOutPoint
+		entry := view.entries[*prevOut]
+		if entry == nil {
+			return AssertError(fmt.Sprintf("view missing input %v", *prevOut))
+		}
+
+		// Only create the stxo details if requested.
+		if stxos != nil {
+			// Populate the stxo details using the utxo entry.
+			*stxos = append(*stxos, utxoEntryToSpentTxOut(entry))
+		}
+
+		// Mark the entry as spent.  This is not done until after the relevant
+		// details have been accessed since spending it might clear the fields
+		// from memory in the future.
+		entry.Spend()
+	}
+
+	// Add the transaction's outputs as available utxos.
+	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
+
+	return nil
+}
+
+// connectRegularTransactions updates the view by adding all new utxos created
+// by the transactions in the regular transaction tree of the block and marking
+// all utxos those same transactions spend as spent.  In addition, when the
+// 'stxos' argument is not nil, it will be updated to append an entry for each
+// spent txout.  An error will be returned if the view does not contain the
+// required utxos.
+func (view *UtxoViewpoint) connectRegularTransactions(block *dcrutil.Block,
+	stxos *[]spentTxOut, isTreasuryEnabled, isAutoRevocationsEnabled bool) error {
+
+	// Connect all of the transactions in the regular transaction tree.
+	for i, tx := range block.Transactions() {
+		err := view.connectRegularTransaction(tx, block.Height(), uint32(i),
+			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -544,19 +636,15 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 	// of transactions created in the regular tree of the same block, which is
 	// important since the regular tree may be disapproved by the subsequent
 	// block while the stake tree must remain valid.
-	for i, stx := range block.STransactions() {
-		err := view.connectTransaction(stx, block.Height(), uint32(i),
-			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
-		if err != nil {
-			return err
-		}
+	err = view.connectStakeTransactions(block, stxos, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
+	if err != nil {
+		return err
 	}
-	for i, tx := range block.Transactions() {
-		err := view.connectTransaction(tx, block.Height(), uint32(i),
-			stxos, isTreasuryEnabled, isAutoRevocationsEnabled)
-		if err != nil {
-			return err
-		}
+	err = view.connectRegularTransactions(block, stxos, isTreasuryEnabled,
+		isAutoRevocationsEnabled)
+	if err != nil {
+		return err
 	}
 
 	// Update the best hash for view to include this block since all of its
@@ -625,12 +713,10 @@ func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block,
 			return err
 		}
 
-		for i, tx := range parent.Transactions() {
-			err := view.connectTransaction(tx, parent.Height(),
-				uint32(i), nil, isTreasuryEnabled, isAutoRevocationsEnabled)
-			if err != nil {
-				return err
-			}
+		err = view.connectRegularTransactions(parent, nil, isTreasuryEnabled,
+			isAutoRevocationsEnabled)
+		if err != nil {
+			return err
 		}
 	}
 
