@@ -148,6 +148,51 @@ func entry85314() *UtxoEntry {
 	}
 }
 
+// testEntryStates houses a test utxo entry along with various spent, modified,
+// and fresh states for conenient use throughout the tests.
+type testEntryStates struct {
+	unmodified           *UtxoEntry
+	unmodifiedSpent      *UtxoEntry
+	unmodifiedFresh      *UtxoEntry
+	unmodifiedSpentFresh *UtxoEntry
+	modified             *UtxoEntry
+	modifiedSpent        *UtxoEntry
+	modifiedFresh        *UtxoEntry
+	modifiedSpentFresh   *UtxoEntry
+}
+
+// makeEntryStates creates combinations of the passed test utxo entry in various
+// states for convenient use in the tests below.
+func makeEntryStates(entry *UtxoEntry) testEntryStates {
+	unmodified := entry.Clone()
+	unmodifiedSpent := unmodified.Clone()
+	unmodifiedSpent.state |= utxoStateSpent
+	unmodifiedFresh := unmodified.Clone()
+	unmodifiedFresh.state |= utxoStateFresh
+	unmodifiedSpentFresh := unmodifiedSpent.Clone()
+	unmodifiedSpentFresh.state |= utxoStateFresh
+
+	modified := entry.Clone()
+	modified.state |= utxoStateModified
+	modifiedSpent := modified.Clone()
+	modifiedSpent.state |= utxoStateSpent
+	modifiedFresh := modified.Clone()
+	modifiedFresh.state |= utxoStateFresh
+	modifiedSpentFresh := modifiedSpent.Clone()
+	modifiedSpentFresh.state |= utxoStateFresh
+
+	return testEntryStates{
+		unmodified:           unmodified,
+		unmodifiedSpent:      unmodifiedSpent,
+		unmodifiedFresh:      unmodifiedFresh,
+		unmodifiedSpentFresh: unmodifiedSpentFresh,
+		modified:             modified,
+		modifiedSpent:        modifiedSpent,
+		modifiedFresh:        modifiedFresh,
+		modifiedSpentFresh:   modifiedSpentFresh,
+	}
+}
+
 // testUtxoCache provides a mock utxo cache by implementing the UtxoCacher
 // interface.  It allows for toggling flushing on and off to more easily
 // simulate various scenarios.
@@ -305,13 +350,8 @@ func TestAddEntry(t *testing.T) {
 	t.Parallel()
 
 	// Create test entries to be used throughout the tests.
-	outpoint := outpoint299()
-	entry := entry299()
-	entryModified := entry.Clone()
-	entryModified.amount++
-	entryModified.state |= utxoStateModified
-	entryFresh := entry.Clone()
-	entryFresh.state |= utxoStateModified | utxoStateFresh
+	outpoint, entry := outpoint299(), makeEntryStates(entry299())
+	entry.modified.amount++
 
 	tests := []struct {
 		name            string
@@ -322,16 +362,16 @@ func TestAddEntry(t *testing.T) {
 	}{{
 		name:      "add an entry that does not already exist in the cache",
 		outpoint:  outpoint,
-		entry:     entry,
-		wantEntry: entryFresh,
+		entry:     entry.unmodified,
+		wantEntry: entry.modifiedFresh,
 	}, {
 		name: "add an entry that overwrites an existing entry",
 		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry,
+			outpoint: entry.unmodified,
 		},
 		outpoint:  outpoint,
-		entry:     entryModified,
-		wantEntry: entryModified,
+		entry:     entry.modified,
+		wantEntry: entry.modified,
 	}}
 
 	for _, test := range tests {
@@ -386,12 +426,7 @@ func TestSpendEntry(t *testing.T) {
 	t.Parallel()
 
 	// Create test entries to be used throughout the tests.
-	outpoint := outpoint299()
-	entry := entry299()
-	entryFresh := entry.Clone()
-	entryFresh.state |= utxoStateModified | utxoStateFresh
-	entrySpent := entry.Clone()
-	entrySpent.Spend()
+	outpoint, entry := outpoint299(), makeEntryStates(entry299())
 
 	tests := []struct {
 		name            string
@@ -401,28 +436,28 @@ func TestSpendEntry(t *testing.T) {
 	}{{
 		name:     "spend an entry that does not exist in the cache",
 		outpoint: outpoint,
-		entry:    entry,
+		entry:    entry.unmodified,
 	}, {
 		name: "spend an entry that exists in the cache but is already spent",
 		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entrySpent,
+			outpoint: entry.unmodifiedSpent,
 		},
 		outpoint: outpoint,
-		entry:    entrySpent,
+		entry:    entry.unmodifiedSpent,
 	}, {
 		name: "spend an entry that exists in the cache and is fresh",
 		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entryFresh,
+			outpoint: entry.modifiedFresh,
 		},
 		outpoint: outpoint,
-		entry:    entryFresh,
+		entry:    entry.modifiedFresh,
 	}, {
 		name: "spend an entry that exists in the cache and is not fresh",
 		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry,
+			outpoint: entry.unmodified,
 		},
 		outpoint: outpoint,
-		entry:    entry,
+		entry:    entry.unmodified,
 	}}
 
 	for _, test := range tests {
@@ -483,10 +518,7 @@ func TestFetchEntry(t *testing.T) {
 	backend := createTestUtxoBackend(t)
 
 	// Create test entries to be used throughout the tests.
-	outpoint := outpoint299()
-	entry := entry299()
-	entryModified := entry.Clone()
-	entryModified.state |= utxoStateModified
+	outpoint, entry := outpoint299(), makeEntryStates(entry299())
 
 	tests := []struct {
 		name           string
@@ -501,18 +533,18 @@ func TestFetchEntry(t *testing.T) {
 	}, {
 		name: "entry is in the cache",
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry,
+			outpoint: entry.unmodified,
 		},
 		outpoint:  outpoint,
 		cacheHit:  true,
-		wantEntry: entry,
+		wantEntry: entry.unmodified,
 	}, {
 		name: "entry is not in the cache but is in the backend",
 		backendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entryModified,
+			outpoint: entry.modified,
 		},
 		outpoint:  outpoint,
-		wantEntry: entry,
+		wantEntry: entry.unmodified,
 	}}
 
 	for _, test := range tests {
@@ -529,15 +561,15 @@ func TestFetchEntry(t *testing.T) {
 		}
 
 		// Attempt to fetch the entry for the outpoint specified by the test.
-		entry, err = utxoCache.FetchEntry(test.outpoint)
+		gotEntry, err := utxoCache.FetchEntry(test.outpoint)
 		if err != nil {
 			t.Fatalf("%q: unexpected error fetching entry: %v", test.name, err)
 		}
 
 		// Ensure that the fetched entry matches the expected entry.
-		if !reflect.DeepEqual(entry, test.wantEntry) {
+		if !reflect.DeepEqual(gotEntry, test.wantEntry) {
 			t.Fatalf("%q: mismatched entry:\nwant: %+v\n got: %+v\n", test.name,
-				test.wantEntry, entry)
+				test.wantEntry, gotEntry)
 		}
 
 		// Ensure that the entry is now cached.
@@ -578,12 +610,8 @@ func TestFetchEntries(t *testing.T) {
 
 	// Create test entries to be used throughout the tests.
 	outpoint299 := outpoint299()
-	outpoint1100 := outpoint1100()
-	entry1100 := entry1100()
-	outpoint1200 := outpoint1200()
-	entry1200 := entry1200()
-	entry1200Modified := entry1200.Clone()
-	entry1200Modified.state |= utxoStateModified
+	outpoint1100, entry1100 := outpoint1100(), makeEntryStates(entry1100())
+	outpoint1200, entry1200 := outpoint1200(), makeEntryStates(entry1200())
 
 	tests := []struct {
 		name           string
@@ -594,10 +622,10 @@ func TestFetchEntries(t *testing.T) {
 	}{{
 		name: "entries are fetched from the cache and the backend",
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100,
+			outpoint1100: entry1100.unmodified,
 		},
 		backendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200: entry1200Modified,
+			outpoint1200: entry1200.modified,
 		},
 		filteredSet: ViewFilteredSet{
 			outpoint299:  struct{}{},
@@ -606,8 +634,8 @@ func TestFetchEntries(t *testing.T) {
 		},
 		wantEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:  nil,
-			outpoint1100: entry1100,
-			outpoint1200: entry1200,
+			outpoint1100: entry1100.unmodified,
+			outpoint1200: entry1200.unmodified,
 		},
 	}}
 
@@ -646,15 +674,9 @@ func TestCommit(t *testing.T) {
 
 	// Create test entries to be used throughout the tests.
 	outpoint299 := outpoint299()
-	outpoint1100 := outpoint1100()
-	entry1100Unmodified := entry1100()
-	outpoint1200 := outpoint1200()
-	entry1200 := entry1200()
-	entry1200Spent := entry1200.Clone()
-	entry1200Spent.Spend()
-	outpoint85314 := outpoint85314()
-	entry85314Modified := entry85314()
-	entry85314Modified.state |= utxoStateModified
+	outpoint1100, entry1100 := outpoint1100(), makeEntryStates(entry1100())
+	outpoint1200, entry1200 := outpoint1200(), makeEntryStates(entry1200())
+	outpoint85314, entry85314 := outpoint85314(), makeEntryStates(entry85314())
 
 	tests := []struct {
 		name              string
@@ -666,12 +688,12 @@ func TestCommit(t *testing.T) {
 		name: "view contains nil, unmodified, spent, and modified entries",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:   nil,
-			outpoint1100:  entry1100Unmodified,
-			outpoint1200:  entry1200Spent,
-			outpoint85314: entry85314Modified,
+			outpoint1100:  entry1100.unmodified,
+			outpoint1200:  entry1200.modifiedSpent,
+			outpoint85314: entry85314.modified,
 		},
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200: entry1200,
+			outpoint1200: entry1200.unmodified,
 		},
 		// outpoint299 is removed from the view since the entry is nil.
 		// entry1100Unmodified remains in the view since it is unmodified.
@@ -679,13 +701,13 @@ func TestCommit(t *testing.T) {
 		// entry85314Modified is removed from the view since it is modified and
 		// added to the cache.
 		wantViewEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100Unmodified,
+			outpoint1100: entry1100.unmodified,
 		},
 		// entry1200Spent remains in the cache but is now spent.
 		// entry85314Modified is added to the cache.
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200:  entry1200Spent,
-			outpoint85314: entry85314Modified,
+			outpoint1200:  entry1200.modifiedSpent,
+			outpoint85314: entry85314.modified,
 		},
 	}}
 
@@ -855,34 +877,10 @@ func TestMaybeFlush(t *testing.T) {
 	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcf" +
 		"d008de596471f11a5aff475")
 
-	// entry299Fresh is from block height 299 and is modified and fresh.
-	outpoint299 := outpoint299()
-	entry299Fresh := entry299()
-	entry299Fresh.state |= utxoStateModified | utxoStateFresh
-
-	// entry299Unmodified is from block height 299 and is unmodified.
-	entry299Unmodified := entry299()
-
-	// entry1100Spent is from block height 1100 and is modified and spent.
-	outpoint1100 := outpoint1100()
-	entry1100Spent := entry1100()
-	entry1100Spent.Spend()
-
-	// entry1100Modified is from block height 1100 and is modified and unspent.
-	entry1100Modified := entry1100()
-	entry1100Modified.state |= utxoStateModified
-
-	// entry1100Unmodified is from block height 1100 and is unspent and
-	// unmodified.
-	entry1100Unmodified := entry1100()
-
-	// entry1200Fresh is from block height 1200 and is modified and fresh.
-	outpoint1200 := outpoint1200()
-	entry1200Fresh := entry1200()
-	entry1200Fresh.state |= utxoStateModified | utxoStateFresh
-
-	// entry1200Unmodified is from block height 1200 and is unmodified.
-	entry1200Unmodified := entry1200()
+	// Create test entries to be used throughout the tests.
+	outpoint299, entry299 := outpoint299(), makeEntryStates(entry299())
+	outpoint1100, entry1100 := outpoint1100(), makeEntryStates(entry1100())
+	outpoint1200, entry1200 := outpoint1200(), makeEntryStates(entry1200())
 
 	tests := []struct {
 		name                     string
@@ -907,22 +905,22 @@ func TestMaybeFlush(t *testing.T) {
 		bestHash:           block2000Hash,
 		bestHeight:         2000,
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299:  entry299Fresh,
-			outpoint1100: entry1100Spent,
-			outpoint1200: entry1200Fresh,
+			outpoint299:  entry299.modifiedFresh,
+			outpoint1100: entry1100.modifiedSpent,
+			outpoint1200: entry1200.modifiedFresh,
 		},
 		backendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100Modified,
+			outpoint1100: entry1100.modified,
 		},
 		// The cache should remain unchanged since a flush is not required.
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299:  entry299Fresh,
-			outpoint1100: entry1100Spent,
-			outpoint1200: entry1200Fresh,
+			outpoint299:  entry299.modifiedFresh,
+			outpoint1100: entry1100.modifiedSpent,
+			outpoint1200: entry1200.modifiedFresh,
 		},
 		// The backend should remain unchanged since a flush is not required.
 		wantBackendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100Unmodified,
+			outpoint1100: entry1100.unmodified,
 		},
 		wantLastEvictionHeight:   0,
 		wantLastFlushHash:        block1000Hash,
@@ -935,27 +933,27 @@ func TestMaybeFlush(t *testing.T) {
 		bestHash:           block2000Hash,
 		bestHeight:         2000,
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299:  entry299Fresh,
-			outpoint1100: entry1100Spent,
-			outpoint1200: entry1200Fresh,
+			outpoint299:  entry299.modifiedFresh,
+			outpoint1100: entry1100.modifiedSpent,
+			outpoint1200: entry1200.modifiedFresh,
 		},
 		backendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100Modified,
+			outpoint1100: entry1100.modified,
 		},
 		// entry299Fresh should be evicted from the cache due to its height.
 		// entry1100Spent should be evicted since it is spent.
 		// entry1200Fresh should remain in the cache but should now be
 		// unmodified.
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1200: entry1200Unmodified,
+			outpoint1200: entry1200.unmodified,
 		},
 		// entry299Unmodified should be added to the backend during the flush.
 		// entry1100Unmodified should be removed from the backend since it now
 		// spent.
 		// entry1200Unmodified should be added to the backend during the flush.
 		wantBackendEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299:  entry299Unmodified,
-			outpoint1200: entry1200Unmodified,
+			outpoint299:  entry299.unmodified,
+			outpoint1200: entry1200.unmodified,
 		},
 		wantLastEvictionHeight:   300,
 		wantLastFlushHash:        block2000Hash,
