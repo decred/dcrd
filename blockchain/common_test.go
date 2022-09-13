@@ -926,8 +926,10 @@ func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 		lastFlushHash:   block.BlockHash(),
 	}
 	if !reflect.DeepEqual(gotState, wantState) {
-		g.t.Fatalf("mismatched utxo set state:\nwant: %+v\n got: %+v\n", wantState,
-			gotState)
+		g.t.Fatalf("mismatched utxo set state:\nwant: hash %s, height %d\n "+
+			"got: hash %s, height %d\n", wantState.lastFlushHash,
+			wantState.lastFlushHeight, gotState.lastFlushHash,
+			gotState.lastFlushHeight)
 	}
 }
 

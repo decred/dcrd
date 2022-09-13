@@ -152,7 +152,8 @@ func entry85314() *UtxoEntry {
 // simulate various scenarios.
 type testUtxoCache struct {
 	*UtxoCache
-	disableFlush bool
+	disableFlush bool // disable flushing unconditionally (even if forced)
+	forceFlush   bool // force flushing even when not requested by caller
 }
 
 // MaybeFlush conditionally flushes the cache to the backend.  If the disable
@@ -166,6 +167,9 @@ func (c *testUtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 		return nil
 	}
 
+	// Force a flush if either the flag provided by the caller is true or the
+	// test cache overrides it.
+	forceFlush = forceFlush || c.forceFlush
 	return c.UtxoCache.MaybeFlush(bestHash, bestHeight, forceFlush, logFlush)
 }
 
@@ -1072,12 +1076,13 @@ func TestInitialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error initializing backend info: %v", err)
 	}
-	resetTestUtxoCache := func() *testUtxoCache {
+	resetTestUtxoCache := func(forceFlush bool) *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
 			Backend:      backend,
 			FlushBlockDB: g.chain.db.Flush,
 			MaxSize:      100 * 1024 * 1024, // 100 MiB
 		})
+		testUtxoCache.forceFlush = forceFlush
 		g.chain.utxoCache = testUtxoCache
 		err := testUtxoCache.Initialize(context.Background(), g.chain,
 			g.chain.bestChain.Tip())
@@ -1103,7 +1108,7 @@ func TestInitialize(t *testing.T) {
 
 	// Replace the utxo cache in the test chain with a test utxo cache so that
 	// flushing can be toggled on and off for testing.
-	testUtxoCache := resetTestUtxoCache()
+	testUtxoCache := resetTestUtxoCache(false)
 
 	// Validate that the tip and utxo set state are currently at the genesis
 	// block.
@@ -1120,8 +1125,7 @@ func TestInitialize(t *testing.T) {
 	g.ExpectUtxoSetState("genesis")
 
 	// Reset the cache and force a flush.
-	testUtxoCache = resetTestUtxoCache()
-	forceFlush(testUtxoCache)
+	testUtxoCache = resetTestUtxoCache(true)
 
 	// Validate that the utxo cache is now caught up to the tip.
 	g.ExpectUtxoSetState(g.TipName())
@@ -1203,8 +1207,7 @@ func TestInitialize(t *testing.T) {
 	g.ExpectUtxoSetState("b1")
 
 	// Reset the cache and force a flush.
-	testUtxoCache = resetTestUtxoCache()
-	forceFlush(testUtxoCache)
+	testUtxoCache = resetTestUtxoCache(true)
 
 	// Validate that the cache recovered and is now caught up to b1a.
 	g.ExpectUtxoSetState("b1a")
