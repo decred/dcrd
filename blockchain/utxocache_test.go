@@ -355,72 +355,53 @@ func TestAddEntry(t *testing.T) {
 	t.Parallel()
 
 	// Create test entries to be used throughout the tests.
-	outpoint, entry := outpoint299(), makeEntryStates(entry299())
-	entry.modified.amount++
+	outpoint, origEntry := outpoint299(), makeEntryStates(entry299())
+	mutatedEntry := makeEntryStates(entry299())
+	mutatedEntry.modified.amount++
+	mutatedEntry.modifiedFresh.amount++
 
+	type entriesMap map[wire.OutPoint]*UtxoEntry
 	tests := []struct {
-		name            string
-		existingEntries map[wire.OutPoint]*UtxoEntry
-		outpoint        wire.OutPoint
-		entry           *UtxoEntry
-		wantEntry       *UtxoEntry
+		name          string        // test description
+		cachedEntries entriesMap    // existing cache entires
+		outpoint      wire.OutPoint // outpoint for entry to add/update
+		entry         *UtxoEntry    // entry to add/update
+		wantEntry     *UtxoEntry    // expected entry in updated cache
+		wantCacheSize uint64        // expected size of updated cache
 	}{{
-		name:      "add an entry that does not already exist in the cache",
-		outpoint:  outpoint,
-		entry:     entry.unmodified,
-		wantEntry: entry.modifiedFresh,
+		name:          "entry not in cache adds modified fresh entry",
+		outpoint:      outpoint,
+		entry:         origEntry.unmodified,
+		wantEntry:     origEntry.modifiedFresh,
+		wantCacheSize: origEntry.modifiedFresh.size(),
 	}, {
-		name: "add an entry that overwrites an existing entry",
-		existingEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint: entry.unmodified,
-		},
-		outpoint:  outpoint,
-		entry:     entry.modified,
-		wantEntry: entry.modified,
+		name:          "existing cache entry is overwritten",
+		cachedEntries: entriesMap{outpoint: origEntry.unmodified},
+		outpoint:      outpoint,
+		entry:         mutatedEntry.modified,
+		wantEntry:     mutatedEntry.modified,
+		wantCacheSize: mutatedEntry.modified.size(),
 	}}
 
 	for _, test := range tests {
 		// Create a utxo cache with the existing entries specified by the test.
-		utxoCache := createTestUtxoCache(t, test.existingEntries)
-		wantTotalEntrySize := utxoCache.totalEntrySize
+		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 
-		// Attempt to get an existing entry from the cache.  If it exists,
-		// subtract its size from the expected total entry size since it will be
-		// overwritten.
-		existingEntry := utxoCache.entries[test.outpoint]
-		if existingEntry != nil {
-			wantTotalEntrySize -= test.entry.size()
-		}
+		// Add/update the entry specified by the test.
+		utxoCache.addEntry(test.outpoint, test.entry.Clone())
 
-		// Add the entry specified by the test.
-		utxoCache.addEntry(test.outpoint, test.entry)
-		wantTotalEntrySize += test.entry.size()
-
-		// Attempt to get the added entry from the cache.
-		cachedEntry := utxoCache.entries[test.outpoint]
-
-		// Validate that the added entry exists in the cache.
-		if cachedEntry == nil {
-			t.Fatalf("%q: expected entry for outpoint %v to exist in the cache",
-				test.name, test.outpoint)
-		}
-
-		// Validate that the entry is marked as modified.
-		if !cachedEntry.isModified() {
-			t.Fatalf("%q: unexpected modified flag -- got false, want true",
-				test.name)
-		}
-
-		// Validate that the cached entry matches the expected entry.
-		if !reflect.DeepEqual(cachedEntry, test.wantEntry) {
-			t.Fatalf("%q: mismatched cached entry:\nwant: %+v\n got: %+v\n",
-				test.name, test.wantEntry, cachedEntry)
+		// Get the entry associated with the output from the cache and ensure it
+		// matches the expected one.
+		gotEntry := utxoCache.entries[test.outpoint]
+		if !reflect.DeepEqual(gotEntry, test.wantEntry) {
+			t.Fatalf("%q: unexpected entry after spend -- got: %+v, want %+v",
+				test.name, gotEntry, test.wantEntry)
 		}
 
 		// Validate that the total entry size was updated as expected.
-		if utxoCache.totalEntrySize != wantTotalEntrySize {
+		if utxoCache.totalEntrySize != test.wantCacheSize {
 			t.Fatalf("%q: unexpected total entry size -- got %v, want %v",
-				test.name, utxoCache.totalEntrySize, wantTotalEntrySize)
+				test.name, utxoCache.totalEntrySize, test.wantCacheSize)
 		}
 	}
 }
