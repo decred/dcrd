@@ -880,6 +880,18 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		return err
 	}
 
+	// Update the transaction spend journal by removing the record that contains
+	// all txos spent by the block.  This is intentionally done AFTER the utxo
+	// cache has been force flushed since the spend journal information will no
+	// longer be available for the cache to use for recovery purposes after
+	// being removed.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		return dbRemoveSpendJournalEntry(dbTx, &node.hash)
+	})
+	if err != nil {
+		return err
+	}
+
 	// This node's parent is now the end of the best chain.
 	b.bestChain.SetTip(node.parent)
 
@@ -1993,26 +2005,6 @@ func (q *ChainQueryerAdapter) BestHeight() int64 {
 // provided block.
 func (q *ChainQueryerAdapter) IsTreasuryEnabled(hash *chainhash.Hash) (bool, error) {
 	return q.IsTreasuryAgendaActive(hash)
-}
-
-// RemoveSpendEntry purges the associated spend journal entry of the
-// provided block hash if it is not part of the main chain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) RemoveSpendEntry(hash *chainhash.Hash) error {
-	b.processLock.Lock()
-	defer b.processLock.Unlock()
-
-	// Only purge the spend journal entry if it is not part of main chain.
-	if b.MainChainHasBlock(hash) {
-		return nil
-	}
-
-	err := b.db.Update(func(dbTx database.Tx) error {
-		return dbRemoveSpendJournalEntry(dbTx, hash)
-	})
-
-	return err
 }
 
 // isTestNet3 returns whether or not the chain instance is for version 3 of the
