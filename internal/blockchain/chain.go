@@ -24,7 +24,6 @@ import (
 	"github.com/decred/dcrd/gcs/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
 	"github.com/decred/dcrd/internal/blockchain/indexers"
-	"github.com/decred/dcrd/internal/blockchain/spendpruner"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/txscript/v4"
@@ -2238,11 +2237,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Initialize the UTXO state.  This entails running any database migrations
 	// as necessary as well as initializing the UTXO cache.
 	if err := b.utxoCache.Initialize(ctx, &b, b.bestChain.tip()); err != nil {
-		return nil, err
-	}
-
-	// Drop the spendpruner consumer dependencies bucket if it exists.
-	if err := spendpruner.DropConsumerDepsBucket(b.db); err != nil {
 		return nil, err
 	}
 

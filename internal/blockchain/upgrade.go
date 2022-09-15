@@ -5868,7 +5868,18 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
-	return nil
+	// Remove legacy spend consumer dependencies bucket if needed.  This should
+	// probably be made a part of a future database upgrade that is needed for
+	// other purposes to avoid running every time, however, it does not justify
+	// a version bump on its own.
+	return db.Update(func(dbTx database.Tx) error {
+		spendConsumerDepsBucketName := []byte("spendconsumerdeps")
+		meta := dbTx.Metadata()
+		if meta.Bucket(spendConsumerDepsBucketName) == nil {
+			return nil
+		}
+		return meta.DeleteBucket(spendConsumerDepsBucketName)
+	})
 }
 
 // upgradeSpendJournal upgrades old spend journal versions to the newest version
