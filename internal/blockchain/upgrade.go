@@ -1461,7 +1461,7 @@ func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
 	v1BucketName := []byte("utxoset")
 	v2BucketName := []byte("utxosetv2")
 
-	log.Info("Migrating database utxoset.  This may take a while...")
+	log.Info("Migrating database utxo set.  This may take a while...")
 	start := time.Now()
 
 	// Create the new utxoset bucket as needed.
@@ -2104,7 +2104,7 @@ func migrateUtxoSetVersion2To3(ctx context.Context, db database.DB) error {
 	v2BucketName := []byte("utxosetv2")
 	v3BucketName := []byte("utxosetv3")
 
-	log.Info("Migrating database utxoset.  This may take a while...")
+	log.Info("Migrating database utxo set.  This may take a while...")
 	start := time.Now()
 
 	// Create the new utxoset bucket as needed.
@@ -3294,7 +3294,7 @@ func upgradeSpendJournalToVersion3(ctx context.Context, b *BlockChain) error {
 
 // upgradeUtxoSetToVersion3 upgrades a version 2 utxo set to version 3.
 func upgradeUtxoSetToVersion3(ctx context.Context, db database.DB,
-	utxoBackend UtxoBackend) error {
+	utxoBackend UtxoBackend, utxoDbInfo *UtxoBackendInfo) error {
 
 	if interruptRequested(ctx) {
 		return errInterruptRequested
@@ -3305,12 +3305,6 @@ func upgradeUtxoSetToVersion3(ctx context.Context, db database.DB,
 
 	// Migrate the utxoset to version 3.
 	err := migrateUtxoSetVersion2To3(ctx, db)
-	if err != nil {
-		return err
-	}
-
-	// Fetch the backend versioning info.
-	utxoDbInfo, err := utxoBackend.FetchInfo()
 	if err != nil {
 		return err
 	}
@@ -5557,7 +5551,7 @@ func dbPutUtxoBackendInfoV1(tx UtxoBackendTx, info *UtxoBackendInfo) error {
 }
 
 // upgradeUtxoDbToVersion2 upgrades a UTXO database from version 1 to version 2.
-func upgradeUtxoDbToVersion2(ctx context.Context, utxoBackend UtxoBackend) error {
+func upgradeUtxoDbToVersion2(ctx context.Context, utxoBackend UtxoBackend, utxoDbInfo *UtxoBackendInfo) error {
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -5567,12 +5561,6 @@ func upgradeUtxoDbToVersion2(ctx context.Context, utxoBackend UtxoBackend) error
 
 	// Migrate the UTXO data to use simple key prefixes rather than buckets.
 	err := migrateUtxoDbBuckets(ctx, utxoBackend)
-	if err != nil {
-		return err
-	}
-
-	// Fetch the backend versioning info.
-	utxoDbInfo, err := utxoBackend.FetchInfo()
 	if err != nil {
 		return err
 	}
@@ -5910,9 +5898,7 @@ func upgradeSpendJournal(ctx context.Context, b *BlockChain) error {
 // NOTE: The database info housed in the passed block database instance and
 // backend info housed in the passed utxo backend instance will be updated with
 // the latest versions.
-func upgradeUtxoDb(ctx context.Context, db database.DB,
-	utxoBackend UtxoBackend) error {
-
+func upgradeUtxoDb(ctx context.Context, db database.DB, utxoBackend UtxoBackend) error {
 	// Fetch the backend versioning info.
 	utxoDbInfo, err := utxoBackend.FetchInfo()
 	if err != nil {
@@ -5921,14 +5907,16 @@ func upgradeUtxoDb(ctx context.Context, db database.DB,
 
 	// Update to a version 2 UTXO database as needed.
 	if utxoDbInfo.version == 1 {
-		if err := upgradeUtxoDbToVersion2(ctx, utxoBackend); err != nil {
+		err := upgradeUtxoDbToVersion2(ctx, utxoBackend, utxoDbInfo)
+		if err != nil {
 			return err
 		}
 	}
 
 	// Update to a version 3 utxo set as needed.
-	if utxoDbInfo.utxoVer == 2 {
-		if err := upgradeUtxoSetToVersion3(ctx, db, utxoBackend); err != nil {
+	if utxoDbInfo.version == 2 && utxoDbInfo.utxoVer == 2 {
+		err := upgradeUtxoSetToVersion3(ctx, db, utxoBackend, utxoDbInfo)
+		if err != nil {
 			return err
 		}
 	}
