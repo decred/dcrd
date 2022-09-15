@@ -167,10 +167,6 @@ type BlockChain struct {
 	// fields in this struct below this point.
 	chainLock sync.RWMutex
 
-	// This field is a configuration parameter that can be toggled at runtime.
-	// It is protected by the chain lock.
-	noVerify bool
-
 	// These fields are related to the memory block index.  They both have
 	// their own locks, however they are often also protected by the chain
 	// lock to help prevent logic races when blocks are being processed.
@@ -367,19 +363,6 @@ func (b *BlockChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*VoteInf
 	}
 
 	return &vi, nil
-}
-
-// DisableVerify provides a mechanism to disable transaction script validation
-// which you DO NOT want to do in production as it could allow double spends
-// and other undesirable things.  It is provided only for debug purposes since
-// script validation is extremely intensive and when debugging it is sometimes
-// nice to quickly get the chain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) DisableVerify(disable bool) {
-	b.chainLock.Lock()
-	b.noVerify = disable
-	b.chainLock.Unlock()
 }
 
 // HaveHeader returns whether or not the chain instance has the block header

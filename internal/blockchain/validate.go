@@ -3839,10 +3839,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// root hash and any changes will therefore be detected by the assumed valid
 	// node).  This is a huge optimization because running the scripts is the
 	// most time consuming portion of block handling.
-	runScripts := !b.noVerify
-	if b.bulkImportMode || b.isAssumeValidAncestor(node) {
-		runScripts = false
-	}
+	runScripts := !b.bulkImportMode && !b.isAssumeValidAncestor(node)
 	var scriptFlags txscript.ScriptFlags
 	if runScripts {
 		var err error
