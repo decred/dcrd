@@ -25,7 +25,7 @@ import (
 
 const (
 	// currentUtxoDatabaseVersion indicates the current UTXO database version.
-	currentUtxoDatabaseVersion = 2
+	currentUtxoDatabaseVersion = 3
 
 	// utxoDbName is the name of the UTXO database.
 	utxoDbName = "utxodb"

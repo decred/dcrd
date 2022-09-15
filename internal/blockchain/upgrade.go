@@ -5715,6 +5715,161 @@ func moveUtxoDatabase(ctx context.Context, oldPath string, newPath string) error
 	return nil
 }
 
+// removeTreasuryBaseUtxos removes all utxos in the utxo set of a version 2 utxo
+// database that are outputs of a treasurybase transaction since they are never
+// directly spendable and thus should not be part of the utxo set.
+func removeTreasuryBaseUtxos(ctx context.Context, utxoBackend UtxoBackend) error {
+	// Hardcoded prefix so updates do not affect old upgrades.
+	utxoPrefixUtxoSetV3 := []byte("\x03\x03")
+
+	log.Info("Updating database utxo set.  This may take a while...")
+	start := time.Now()
+
+	// doBatch contains the primary logic for removing unspendable treasurybase
+	// outputs from the version 3 utxoset in batches.  This is done because
+	// attempting to do everything in a single database transaction could result
+	// in massive memory usage and could potentially crash on many systems due
+	// to ulimits.
+	const maxEntries = 50000
+	var totalRemoved uint64
+	var resumeKey []byte
+	doBatch := func(tx UtxoBackendTx) (bool, error) {
+		var logProgress bool
+		var numRemoved uint32
+		err := func() error {
+			// Remove treasurybase outputs so long as the max number of entries
+			// for this batch has not been exceeded.
+			iter := tx.NewIterator(utxoPrefixUtxoSetV3)
+			defer iter.Release()
+
+			// Iterate all entries in the utxo set while skipping entries
+			// already examined in previous batches.
+			for ok := iter.Seek(resumeKey); ok; ok = iter.Next() {
+				if interruptRequested(ctx) {
+					logProgress = true
+					return errInterruptRequested
+				}
+
+				if numRemoved >= maxEntries {
+					// Set the resume key so the next batch skips entries that
+					// have already been examined.  It is necessary to make a
+					// copy of the iterator key since it is no longer valid once
+					// the db transaction is closed.
+					iterKey := iter.Key()
+					resumeKey = make([]byte, len(iterKey))
+					copy(resumeKey, iterKey)
+
+					logProgress = true
+					return errBatchFinished
+				}
+
+				// The version 3 utxo set consists of an entry for each unspent
+				// output.
+				//
+				// The serialized value format is roughly:
+				//
+				//   <block height><block index><flags><rest of data>
+				//
+				//   Field              Type    Size
+				//   block height       VLQ     variable
+				//   block index        VLQ     variable
+				//   flags              VLQ     variable
+				//   rest of data...
+				//
+				// The serialized flags format is:
+				//   bit  0     - containing transaction is a coinbase
+				//   bit  1     - containing transaction has an expiry
+				//   bits 2-5   - transaction type
+				//   bits 6-7   - unused
+				//
+				// Given the flags field is the only thing that needs to be
+				// examined, the following specifically finds the relevant byte.
+				// Deserialize the block height and block index to locate the
+				// offset of the flags that need to examined.
+				serialized := iter.Value()
+				_, bytesRead := deserializeVLQ(serialized)
+				offset := bytesRead
+				if offset >= len(serialized) {
+					return errDeserialize("unexpected end of data after height")
+				}
+				_, bytesRead = deserializeVLQ(serialized[offset:])
+				offset += bytesRead
+				if offset >= len(serialized) {
+					return errDeserialize("unexpected end of data after index")
+				}
+
+				// Determine the transaction type from the flags.
+				const (
+					txOutFlagTxTypeBitmask  = 0x3c
+					txOutFlagTxTypeShift    = 2
+					stakeTxTypeTreasuryBase = 6
+				)
+				flags, bytesRead := deserializeVLQ(serialized[offset:])
+				offset += bytesRead
+				if offset >= len(serialized) {
+					return errDeserialize("unexpected end of data after flags")
+				}
+				txType := (flags & txOutFlagTxTypeBitmask) >> txOutFlagTxTypeShift
+
+				// Remove treasurybase outputs.
+				if txType == stakeTxTypeTreasuryBase {
+					if err := tx.Delete(iter.Key()); err != nil {
+						return err
+					}
+					numRemoved++
+				}
+			}
+
+			return nil
+		}()
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numRemoved > 0 {
+			totalRemoved += uint64(numRemoved)
+			log.Infof("Removed %d unspendable outputs (%d total)", numRemoved,
+				totalRemoved)
+		}
+		return isFullyDone, err
+	}
+
+	// Remove the entries in batches for the reasons mentioned above.
+	if err := utxoBackendBatchedUpdate(ctx, utxoBackend, doBatch); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done updating UTXO database.  Total unspendable outputs "+
+		"removed: %d in %v", totalRemoved, elapsed)
+
+	return nil
+}
+
+// upgradeUtxoDbToVersion3 upgrades a UTXO database from version 2 to version 3.
+// This entails removing all treasurybase outputs since they are never directly
+// spendable and thus should not be part of the utxo set.
+func upgradeUtxoDbToVersion3(ctx context.Context, utxoBackend UtxoBackend, utxoDbInfo *UtxoBackendInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading UTXO database to version 3...")
+	start := time.Now()
+
+	// Remove treasurybase outputs from the utxo set.
+	if err := removeTreasuryBaseUtxos(ctx, utxoBackend); err != nil {
+		return err
+	}
+
+	// Update and persist the UTXO database version.
+	utxoDbInfo.version = 3
+	if err := utxoBackend.PutInfo(utxoDbInfo); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
 // database version can no longer be upgraded due to being too old.
 func checkDBTooOldToUpgrade(dbVersion uint32) error {
@@ -5934,6 +6089,16 @@ func upgradeUtxoDb(ctx context.Context, db database.DB, utxoBackend UtxoBackend)
 	})
 	if blockDbUtxoSetExists {
 		err := separateUtxoDatabase(ctx, db, utxoBackend)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 3 utxo database if needed.  This entails removing all
+	// treasurybase outputs since they are never directly spendable and thus
+	// should not be part of the utxo set.
+	if utxoDbInfo.version == 2 {
+		err := upgradeUtxoDbToVersion3(ctx, utxoBackend, utxoDbInfo)
 		if err != nil {
 			return err
 		}
