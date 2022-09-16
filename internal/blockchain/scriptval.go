@@ -17,6 +17,13 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// PrevScripter defines an interface that provides access to scripts and their
+// associated version keyed by an outpoint.  The boolean return indicates
+// whether or not the script and version for the provided outpoint was found.
+type PrevScripter interface {
+	PrevScript(*wire.OutPoint) (uint16, []byte, bool)
+}
+
 // txValidateItem holds a transaction along with which input to validate.
 type txValidateItem struct {
 	txInIndex int
@@ -30,7 +37,7 @@ type txValidateItem struct {
 type txValidator struct {
 	validateChan chan *txValidateItem
 	resultChan   chan error
-	utxoView     *UtxoViewpoint
+	prevScripts  PrevScripter
 	flags        txscript.ScriptFlags
 	sigCache     *txscript.SigCache
 }
@@ -59,32 +66,25 @@ out:
 		case txVI := <-v.validateChan:
 			// Ensure the referenced input utxo is available.
 			txIn := txVI.txIn
-			utxo := v.utxoView.LookupEntry(txIn.PreviousOutPoint)
-			if utxo == nil {
-				str := fmt.Sprintf("unable to find unspent "+
-					"output %v referenced from "+
-					"transaction %s:%d",
-					txIn.PreviousOutPoint, txVI.tx.Hash(),
-					txVI.txInIndex)
+			prevOut := &txIn.PreviousOutPoint
+			scriptVersion, pkScript, ok := v.prevScripts.PrevScript(prevOut)
+			if !ok {
+				str := fmt.Sprintf("unable to find unspent output %v "+
+					"referenced from transaction %s:%d", *prevOut,
+					txVI.tx.Hash(), txVI.txInIndex)
 				err := ruleError(ErrMissingTxOut, str)
 				v.sendResult(ctx, err)
 				break out
 			}
-
 			// Create a new script engine for the script pair.
 			sigScript := txIn.SignatureScript
-			version := utxo.ScriptVersion()
-			pkScript := utxo.PkScript()
-
 			vm, err := txscript.NewEngine(pkScript, txVI.tx.MsgTx(),
-				txVI.txInIndex, v.flags, version, v.sigCache)
+				txVI.txInIndex, v.flags, scriptVersion, v.sigCache)
 			if err != nil {
-				str := fmt.Sprintf("failed to parse input "+
-					"%s:%d which references output %v - "+
-					"%v (input script bytes %x, prev output "+
-					"script bytes %x)", txVI.tx.Hash(),
-					txVI.txInIndex, txIn.PreviousOutPoint,
-					err, sigScript, pkScript)
+				str := fmt.Sprintf("failed to parse input %s:%d which "+
+					"references output %v - %v (input script bytes %x, prev "+
+					"output script bytes %x)", txVI.tx.Hash(), txVI.txInIndex,
+					*prevOut, err, sigScript, pkScript)
 				err := ruleError(ErrScriptMalformed, str)
 				v.sendResult(ctx, err)
 				break out
@@ -92,12 +92,10 @@ out:
 
 			// Execute the script pair.
 			if err := vm.Execute(); err != nil {
-				str := fmt.Sprintf("failed to validate input "+
-					"%s:%d which references output %v - "+
-					"%v (input script bytes %x, prev output "+
-					"script bytes %x)", txVI.tx.Hash(),
-					txVI.txInIndex, txIn.PreviousOutPoint,
-					err, sigScript, pkScript)
+				str := fmt.Sprintf("failed to validate input %s:%d which "+
+					"references output %v - %v (input script bytes %x, prev "+
+					"output script bytes %x)", txVI.tx.Hash(), txVI.txInIndex,
+					*prevOut, err, sigScript, pkScript)
 				err := ruleError(ErrScriptValidation, str)
 				v.sendResult(ctx, err)
 				break out
@@ -170,11 +168,11 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 
 // newTxValidator returns a new instance of txValidator to be used for
 // validating transaction scripts asynchronously.
-func newTxValidator(utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCache *txscript.SigCache) *txValidator {
+func newTxValidator(prevScripts PrevScripter, flags txscript.ScriptFlags, sigCache *txscript.SigCache) *txValidator {
 	return &txValidator{
 		validateChan: make(chan *txValidateItem),
 		resultChan:   make(chan error),
-		utxoView:     utxoView,
+		prevScripts:  prevScripts,
 		sigCache:     sigCache,
 		flags:        flags,
 	}
@@ -182,7 +180,7 @@ func newTxValidator(utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCach
 
 // ValidateTransactionScripts validates the scripts for the passed transaction
 // using multiple goroutines.
-func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint,
+func ValidateTransactionScripts(tx *dcrutil.Tx, prevScripts PrevScripter,
 	flags txscript.ScriptFlags, sigCache *txscript.SigCache,
 	isAutoRevocationsEnabled bool) error {
 
@@ -217,7 +215,7 @@ func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint,
 	}
 
 	// Validate all of the inputs.
-	return newTxValidator(utxoView, flags, sigCache).Validate(txValItems)
+	return newTxValidator(prevScripts, flags, sigCache).Validate(txValItems)
 }
 
 // checkBlockScripts executes and validates the scripts for all transactions in
