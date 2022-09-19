@@ -475,24 +475,6 @@ var helpDescsEnUS = map[string]string{
 	"infochainresult-errors":          "Any current errors",
 	"infochainresult-txindex":         "Whether or not server has transaction index enabled",
 
-	// InfoWalletResult help.
-	"infowalletresult-version":         "The version of the server",
-	"infowalletresult-protocolversion": "The latest supported protocol version",
-	"infowalletresult-walletversion":   "The version of the wallet server",
-	"infowalletresult-balance":         "The total Decred balance of the wallet",
-	"infowalletresult-blocks":          "The number of blocks processed",
-	"infowalletresult-timeoffset":      "The time offset",
-	"infowalletresult-connections":     "The number of connected peers",
-	"infowalletresult-proxy":           "The proxy used by the server",
-	"infowalletresult-difficulty":      "The current target difficulty",
-	"infowalletresult-testnet":         "Whether or not server is using testnet",
-	"infowalletresult-keypoololdest":   "Seconds since 1 Jan 1970 GMT of the oldest pre-generated key in the key pool",
-	"infowalletresult-keypoolsize":     "The number of new keys that are pre-generated",
-	"infowalletresult-unlocked_until":  "The timestamp in seconds since 1 Jan 1970 GMT that the wallet is unlocked for transfers, or 0 if the wallet is locked",
-	"infowalletresult-paytxfee":        "The transaction fee set in DCR/KB",
-	"infowalletresult-relayfee":        "The minimum relay fee for non-free transactions in DCR/KB",
-	"infowalletresult-errors":          "Any current errors",
-
 	// GetHeadersCmd help.
 	"getheaders--synopsis":     "Returns block headers starting with the first known block hash from the request",
 	"getheaders-blocklocators": "Array of block locator hashes.  Headers are returned starting from the first known hash in this list",
