@@ -1140,9 +1140,7 @@ func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 // priority).
 //
 // When the fees per kilobyte drop below the TxMinFreeFee policy setting, the
-// transaction will be skipped unless the BlockMinSize policy setting is
-// nonzero, in which case the block will be filled with the low-fee/free
-// transactions until the block size reaches that minimum size.
+// transaction will be skipped.
 //
 // Any transactions which would cause the block to exceed the BlockMaxSize
 // policy setting, exceed the maximum allowed signature operations per block, or
@@ -1165,10 +1163,6 @@ func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 //	|                                   |   |
 //	|                                   |   |
 //	|                                   |   |
-//	|-----------------------------------|   |
-//	|  Low-fee/Non high-priority (free) |   |
-//	|  transactions (while block size   |   |
-//	|  <= policy.BlockMinSize)          |   |
 //	 -----------------------------------  --
 //
 // Which also includes a stake tree that looks like the following:
@@ -1746,18 +1740,13 @@ nextPriorityQueueItem:
 			}
 		}
 
-		// Skip free transactions once the block is larger than the
-		// minimum block size, except for stake transactions.
+		// Skip free transactions except for stake transactions.
 		if sortedByFee &&
 			(prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee)) &&
-			(tx.Tree() != wire.TxTreeStake) &&
-			(blockPlusTxSize >= g.cfg.Policy.BlockMinSize) {
+			(tx.Tree() != wire.TxTreeStake) {
 
-			log.Tracef("Skipping tx %s with feePerKB %.2f "+
-				"< TxMinFreeFee %d and block size %d >= "+
-				"minBlockSize %d", tx.Hash(), prioItem.feePerKB,
-				g.cfg.Policy.TxMinFreeFee, blockPlusTxSize,
-				g.cfg.Policy.BlockMinSize)
+			log.Tracef("Skipping tx %s with feePerKB %.2f < TxMinFreeFee %d ",
+				tx.Hash(), prioItem.feePerKB, g.cfg.Policy.TxMinFreeFee)
 			logSkippedDeps(tx, deps)
 			miningView.reject(tx.Hash())
 			continue

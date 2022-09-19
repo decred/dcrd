@@ -160,8 +160,9 @@ Application Options:
 	                             of addresses to use for generated blocks -- At
 	                             least one address is required if the generate
 	                             option is set
-	    --blockminsize=          Minimum block size in bytes to be used when
-	                             creating a block
+	    --blockminsize=          DEPRECATED: This behavior is no longer available
+	                             and this option will be removed in a future
+	                             version of the software
 	    --blockmaxsize=          Maximum block size in bytes to be used when
 	                             creating a block (default: 375000)
 	    --blockprioritysize=     Size in bytes for high-priority/low-fee

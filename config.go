@@ -73,7 +73,6 @@ const (
 
 	// Defaults for mining options and policy.
 	defaultGenerate            = false
-	defaultBlockMinSize        = 0
 	defaultBlockMaxSize        = 375000
 	blockMaxSizeMin            = 1000
 	defaultNoMiningStateSync   = false
@@ -208,7 +207,7 @@ type config struct {
 	// Mining options and policy.
 	Generate            bool     `long:"generate" description:"Generate (mine) coins using the CPU"`
 	MiningAddrs         []string `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
-	BlockMinSize        uint32   `long:"blockminsize" description:"Minimum block size in bytes to be used when creating a block"`
+	BlockMinSize        uint32   `long:"blockminsize" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	BlockMaxSize        uint32   `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
 	BlockPrioritySize   uint32   `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
 	MiningTimeOffset    int      `long:"miningtimeoffset" description:"Offset the mining timestamp of a block by this many seconds (positive values are in the past)"`
@@ -642,7 +641,6 @@ func loadConfig(appName string) (*config, []string, error) {
 
 		// Mining options and policy.
 		Generate:            defaultGenerate,
-		BlockMinSize:        defaultBlockMinSize,
 		BlockMaxSize:        defaultBlockMaxSize,
 		BlockPrioritySize:   mempool.DefaultBlockPrioritySize,
 		NoMiningStateSync:   defaultNoMiningStateSync,
@@ -1114,6 +1112,14 @@ func loadConfig(appName string) (*config, []string, error) {
 		return nil, nil, err
 	}
 
+	// Warn on use of deprecated option to specify a minimum block size for
+	//  low-fee/free transactions when creating a block.
+	if cfg.BlockMinSize != 0 {
+		fmt.Fprintln(os.Stderr, "The --blockminsize option is deprecated "+
+			"and will be removed in a future version of the software: please "+
+			"remove it from your config")
+	}
+
 	// Ensure the specified max block size is not larger than the network will
 	// allow.  1000 bytes is subtracted from the max to account for overhead.
 	blockMaxSizeMax := uint32(cfg.params.MaximumBlockSizes[0]) - 1000
@@ -1135,9 +1141,8 @@ func loadConfig(appName string) (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Limit the block priority and minimum block sizes to max block size.
+	// Limit the block priority size to max block size.
 	cfg.BlockPrioritySize = minUint32(cfg.BlockPrioritySize, cfg.BlockMaxSize)
-	cfg.BlockMinSize = minUint32(cfg.BlockMinSize, cfg.BlockMaxSize)
 
 	// --txindex and --droptxindex do not mix.
 	if cfg.TxIndex && cfg.DropTxIndex {

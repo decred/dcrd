@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,10 +22,6 @@ const (
 // the generation of block templates.  See the documentation for
 // NewBlockTemplate for more details on each of these parameters are used.
 type Policy struct {
-	// BlockMinSize is the minimum block size in bytes to be used when
-	// generating a block template.
-	BlockMinSize uint32
-
 	// BlockMaxSize is the maximum block size in bytes to be used when
 	// generating a block template.
 	BlockMaxSize uint32

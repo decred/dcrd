@@ -1357,7 +1357,6 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 
 	// Create a mining policy with defaults suitable for testing.
 	policy := &Policy{
-		BlockMinSize:      uint32(0),
 		BlockMaxSize:      uint32(375000),
 		BlockPrioritySize: uint32(20000),
 		TxMinFreeFee:      dcrutil.Amount(1e4),

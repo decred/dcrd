@@ -300,13 +300,6 @@ const fileContents = `[Application Options]
 ; miningaddr=youraddress2
 ; miningaddr=youraddress3
 
-; Specify the minimum block size in bytes to create.  By default, only
-; transactions which have enough fees or a high enough priority will be included
-; in generated block templates.  Specifying a minimum block size will instead
-; attempt to fill generated block templates up with transactions until it is at
-; least the specified number of bytes.
-; blockminsize=0
-
 ; Specify the maximum block size in bytes to create.  This value will be limited
 ; to the consensus limit if it is larger than this value.
 ; blockmaxsize=375000
