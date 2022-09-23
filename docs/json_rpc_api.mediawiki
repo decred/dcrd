@@ -1650,8 +1650,8 @@ of the best block.
 : <code>fee</code> : <code>(numeric)</code> transaction fee in DCR.
 : <code>time</code>:  <code>(numeric)</code> local time transaction entered pool in seconds since 1 Jan 1970 GMT.
 : <code>height</code>: <code>(numeric)</code> block height when transaction entered the pool.
-: <code>startingpriority</code>: <code>(numeric)</code> priority when transaction entered the pool.
-: <code>currentpriority</code>: <code>(numeric)</code> current priority.
+: <code>startingpriority</code>: <code>(numeric)</code> (DEPRECATED) this field is always 0 and will be removed in a future version of the software.
+: <code>currentpriority</code>: <code>(numeric)</code> (DEPRECATED) this field is always 0 and will be removed in a future version of the software.
 : <code>depends</code>:  <code>(json array)</code> unconfirmed transactions used as inputs for this transaction.
 : <code>transactionhash</code>: <code>(string)</code> hash of the parent transaction.
 
