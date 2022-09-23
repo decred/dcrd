@@ -4418,7 +4418,6 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 	t.Parallel()
 
 	txDescOne := &mempool.TxDesc{
-		StartingPriority: 0,
 		TxDesc: mining.TxDesc{
 			Tx:   dcrutil.NewTx(block432100.Transactions[0]),
 			Type: stake.TxTypeSSGen,
@@ -4426,7 +4425,6 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 		},
 	}
 	txDescTwo := &mempool.TxDesc{
-		StartingPriority: 0,
 		TxDesc: mining.TxDesc{
 			Tx:   dcrutil.NewTx(block432100.Transactions[1]),
 			Type: stake.TxTypeRegular,
@@ -6334,9 +6332,7 @@ func TestHandleTicketVWAP(t *testing.T) {
 func TestHandleTxFeeInfo(t *testing.T) {
 	t.Parallel()
 
-	txDesc := &mempool.TxDesc{
-		StartingPriority: 0,
-	}
+	var txDesc mempool.TxDesc
 	txDesc.Tx = dcrutil.NewTx(block432100.Transactions[1])
 	txDesc.Type = stake.TxTypeRegular
 	txDesc.Added = time.Time{}
@@ -6440,7 +6436,7 @@ func TestHandleTxFeeInfo(t *testing.T) {
 		},
 		mockTxMempooler: func() *testTxMempooler {
 			mp := defaultMockTxMempooler()
-			mp.txDescs = []*mempool.TxDesc{txDesc}
+			mp.txDescs = []*mempool.TxDesc{&txDesc}
 			return mp
 		}(),
 		mockChain: func() *testRPCChain {

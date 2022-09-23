@@ -218,10 +218,6 @@ type Policy struct {
 // additional metadata.
 type TxDesc struct {
 	mining.TxDesc
-
-	// StartingPriority is the priority of the transaction when it was added
-	// to the pool.
-	StartingPriority float64
 }
 
 // VerboseTxDesc is a descriptor containing a transaction in the mempool along
@@ -1119,7 +1115,6 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 func (mp *TxPool) newTxDesc(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
 	txType stake.TxType, height int64, fee int64, totalSigOps int, txSize int64) *TxDesc {
 
-	msgTx := tx.MsgTx()
 	return &TxDesc{
 		TxDesc: mining.TxDesc{
 			Tx:          tx,
@@ -1130,7 +1125,6 @@ func (mp *TxPool) newTxDesc(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
 			TotalSigOps: totalSigOps,
 			TxSize:      txSize,
 		},
-		StartingPriority: mining.CalcPriority(msgTx, utxoView, height),
 	}
 }
 
