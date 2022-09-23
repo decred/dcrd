@@ -298,13 +298,15 @@ type GetPeerInfoResult struct {
 // command when the verbose flag is set.  When the verbose flag is not set,
 // getrawmempool returns an array of transaction hashes.
 type GetRawMempoolVerboseResult struct {
-	Size             int32    `json:"size"`
-	Fee              float64  `json:"fee"`
-	Time             int64    `json:"time"`
-	Height           int64    `json:"height"`
-	StartingPriority float64  `json:"startingpriority"`
-	CurrentPriority  float64  `json:"currentpriority"`
-	Depends          []string `json:"depends"`
+	Size   int32   `json:"size"`
+	Fee    float64 `json:"fee"`
+	Time   int64   `json:"time"`
+	Height int64   `json:"height"`
+	// Deprecated: This will be removed in the next major version bump.
+	StartingPriority float64 `json:"startingpriority"`
+	// Deprecated: This will be removed in the next major version bump.
+	CurrentPriority float64  `json:"currentpriority"`
+	Depends         []string `json:"depends"`
 }
 
 // TxRawResult models the data from the getrawtransaction command.
