@@ -148,39 +148,6 @@ func txPQByStakeAndFee(pq *txPriorityQueue, i, j int) bool {
 	return pq.items[i].feePerKB > pq.items[j].feePerKB
 }
 
-// txPQByStakeAndFeeAndThenPriority sorts a txPriorityQueue by stake priority,
-// followed by fees per kilobyte, and then if the transaction type is regular
-// or a revocation it sorts it by priority.
-func txPQByStakeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
-	// Sort by stake priority, continue if they're the same stake priority.
-	cmp := compareStakePriority(pq.items[i], pq.items[j])
-	if cmp == 1 {
-		return true
-	}
-	if cmp == -1 {
-		return false
-	}
-
-	iPrio := txStakePriority(pq.items[i].txType, pq.items[i].autoRevocation)
-	jPrio := txStakePriority(pq.items[j].txType, pq.items[j].autoRevocation)
-	bothAreLowStakePriority := iPrio == regOrRevocPriority &&
-		jPrio == regOrRevocPriority
-
-	// Use fees per KB on high stake priority transactions.
-	if !bothAreLowStakePriority {
-		return pq.items[i].feePerKB > pq.items[j].feePerKB
-	}
-
-	// Both transactions are of low stake importance. Use > here so that
-	// pop gives the highest priority item as opposed to the lowest.
-	// Sort by priority first, then fee.
-	if pq.items[i].priority == pq.items[j].priority {
-		return pq.items[i].feePerKB > pq.items[j].feePerKB
-	}
-
-	return pq.items[i].priority > pq.items[j].priority
-}
-
 // newTxPriorityQueue returns a new transaction priority queue that reserves the
 // passed amount of space for the elements.  The new priority queue uses the
 // less than function lessFunc to sort the items in the min heap. The priority

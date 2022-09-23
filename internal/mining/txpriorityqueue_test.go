@@ -75,43 +75,4 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 			last = txpi
 		}
 	}
-
-	// Test sorting with fees per KB for high stake priority, then
-	// priority for low stake priority.
-	ph = newTxPriorityQueue(numTestItems, txPQByStakeAndFeeAndThenPriority)
-	for i := 0; i < numTestItems; i++ {
-		heap.Push(ph, testItems[i])
-	}
-	last = &txPrioItem{
-		txDesc:   nil,
-		txType:   stake.TxTypeSSGen,
-		priority: 10000.0,
-		feePerKB: 10000.0,
-	}
-	for i := 0; i < numTestItems; i++ {
-		prioItem := heap.Pop(ph)
-		txpi, ok := prioItem.(*txPrioItem)
-		if ok {
-			bothAreLowStakePriority :=
-				txStakePriority(txpi.txType, txpi.autoRevocation) == regOrRevocPriority &&
-					txStakePriority(last.txType, last.autoRevocation) == regOrRevocPriority
-			if !bothAreLowStakePriority {
-				if txpi.feePerKB > last.feePerKB &&
-					compareStakePriority(txpi, last) >= 0 {
-					t.Errorf("bad pop: %v fee per KB was more than last of %v "+
-						"while the txtype was %v but last was %v",
-						txpi.feePerKB, last.feePerKB, txpi.txType, last.txType)
-				}
-			}
-			if bothAreLowStakePriority {
-				if txpi.priority > last.priority &&
-					compareStakePriority(txpi, last) >= 0 {
-					t.Errorf("bad pop: %v priority was more than last of %v "+
-						"while the txtype was %v but last was %v",
-						txpi.feePerKB, last.feePerKB, txpi.txType, last.txType)
-				}
-			}
-			last = txpi
-		}
-	}
 }

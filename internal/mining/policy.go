@@ -26,10 +26,6 @@ type Policy struct {
 	// generating a block template.
 	BlockMaxSize uint32
 
-	// BlockPrioritySize is the size in bytes for high-priority / low-fee
-	// transactions to be used when generating a block template.
-	BlockPrioritySize uint32
-
 	// TxMinFreeFee is the minimum fee in Atoms/1000 bytes that is
 	// required for a transaction to be treated as free for mining purposes
 	// (block template generation).
