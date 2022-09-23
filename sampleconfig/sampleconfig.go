@@ -238,7 +238,7 @@ const fileContents = `[Application Options]
 
 
 ; ------------------------------------------------------------------------------
-; Mempool Settings - The following options
+; Mempool Settings
 ; ------------------------------------------------------------------------------
 
 ; Set the minimum transaction fee to be considered a non-zero fee,
@@ -301,16 +301,8 @@ const fileContents = `[Application Options]
 ; miningaddr=youraddress3
 
 ; Specify the maximum block size in bytes to create.  This value will be limited
-; to the consensus limit if it is larger than this value.
+; to the consensus limit.
 ; blockmaxsize=375000
-
-; Specify the size in bytes of the high-priority/low-fee area when creating a
-; block.  Transactions which consist of large amounts, old inputs, and small
-; sizes have the highest priority.  One consequence of this is that as low-fee
-; or free transactions age, they raise in priority thereby making them more
-; likely to be included in this section of a new block.  This value is limited
-; by the blockmaxsize option and will be limited as needed.
-; blockprioritysize=20000
 
 ; Allow block templates to be generated even when the chain is not considered
 ; synced and there are no connections to other nodes on networks other than the
@@ -319,7 +311,7 @@ const fileContents = `[Application Options]
 ; simulation network is active.
 ;
 ; NOTE: This is an advanced option and should not be used unless you understand
-; exactly why it exists and what it implications it carries.
+; exactly why it exists and what implications it carries.
 ; allowunsyncedmining=0
 
 ; ------------------------------------------------------------------------------

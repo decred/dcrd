@@ -106,15 +106,6 @@ var (
 // to parse and execute service commands specified via the -s flag.
 var runServiceCommand func(string) error
 
-// minUint32 is a helper function to return the minimum of two uint32s.
-// This avoids a math import and the need to cast to floats.
-func minUint32(a, b uint32) uint32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // config defines the configuration options for dcrd.
 //
 // See loadConfig for details on the configuration load process.
@@ -209,7 +200,7 @@ type config struct {
 	MiningAddrs         []string `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
 	BlockMinSize        uint32   `long:"blockminsize" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	BlockMaxSize        uint32   `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
-	BlockPrioritySize   uint32   `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
+	BlockPrioritySize   uint32   `long:"blockprioritysize" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	MiningTimeOffset    int      `long:"miningtimeoffset" description:"Offset the mining timestamp of a block by this many seconds (positive values are in the past)"`
 	NonAggressive       bool     `long:"nonaggressive" description:"Disable mining off of the parent block of the blockchain if there aren't enough voters"`
 	NoMiningStateSync   bool     `long:"nominingstatesync" description:"Disable synchronizing the mining state with other nodes"`
@@ -642,7 +633,6 @@ func loadConfig(appName string) (*config, []string, error) {
 		// Mining options and policy.
 		Generate:            defaultGenerate,
 		BlockMaxSize:        defaultBlockMaxSize,
-		BlockPrioritySize:   mempool.DefaultBlockPrioritySize,
 		NoMiningStateSync:   defaultNoMiningStateSync,
 		AllowUnsyncedMining: defaultAllowUnsyncedMining,
 
@@ -1113,9 +1103,17 @@ func loadConfig(appName string) (*config, []string, error) {
 	}
 
 	// Warn on use of deprecated option to specify a minimum block size for
-	//  low-fee/free transactions when creating a block.
+	// low-fee/free transactions when creating a block.
 	if cfg.BlockMinSize != 0 {
 		fmt.Fprintln(os.Stderr, "The --blockminsize option is deprecated "+
+			"and will be removed in a future version of the software: please "+
+			"remove it from your config")
+	}
+
+	// Warn on use of deprecated option to specify a size for high-priority /
+	// low-fee transactions when creating a block.
+	if cfg.BlockPrioritySize != 0 {
+		fmt.Fprintln(os.Stderr, "The --blockprioritysize option is deprecated "+
 			"and will be removed in a future version of the software: please "+
 			"remove it from your config")
 	}
@@ -1140,9 +1138,6 @@ func loadConfig(appName string) (*config, []string, error) {
 		err := fmt.Errorf(str, funcName, cfg.MaxOrphanTxs)
 		return nil, nil, err
 	}
-
-	// Limit the block priority size to max block size.
-	cfg.BlockPrioritySize = minUint32(cfg.BlockPrioritySize, cfg.BlockMaxSize)
 
 	// --txindex and --droptxindex do not mix.
 	if cfg.TxIndex && cfg.DropTxIndex {

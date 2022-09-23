@@ -3570,10 +3570,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		// NOTE: The CPU miner relies on the mempool, so the mempool has to be
 		// created before calling the function to create the CPU miner.
 		policy := mining.Policy{
-			BlockMaxSize:      cfg.BlockMaxSize,
-			BlockPrioritySize: cfg.BlockPrioritySize,
-			TxMinFreeFee:      cfg.minRelayTxFee,
-			AggressiveMining:  !cfg.NonAggressive,
+			BlockMaxSize:     cfg.BlockMaxSize,
+			TxMinFreeFee:     cfg.minRelayTxFee,
+			AggressiveMining: !cfg.NonAggressive,
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
 				return standardScriptVerifyFlags(s.chain)
 			},

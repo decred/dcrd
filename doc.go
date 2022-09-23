@@ -165,9 +165,9 @@ Application Options:
 	                             version of the software
 	    --blockmaxsize=          Maximum block size in bytes to be used when
 	                             creating a block (default: 375000)
-	    --blockprioritysize=     Size in bytes for high-priority/low-fee
-	                             transactions when creating a block (default:
-	                             20000)
+	    --blockprioritysize=     DEPRECATED: This behavior is no longer available
+	                             and this option will be removed in a future
+	                             version of the software
 	    --miningtimeoffset=      Offset the mining timestamp of a block by this
 	                             many seconds (positive values are in the past)
 	    --nonaggressive          Disable mining off of the parent block of the

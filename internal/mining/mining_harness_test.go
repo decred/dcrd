@@ -1357,10 +1357,9 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 
 	// Create a mining policy with defaults suitable for testing.
 	policy := &Policy{
-		BlockMaxSize:      uint32(375000),
-		BlockPrioritySize: uint32(20000),
-		TxMinFreeFee:      dcrutil.Amount(1e4),
-		AggressiveMining:  true,
+		BlockMaxSize:     uint32(375000),
+		TxMinFreeFee:     dcrutil.Amount(1e4),
+		AggressiveMining: true,
 		StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
 			scriptFlags := txscript.ScriptDiscourageUpgradableNops |
 				txscript.ScriptVerifyCleanStack |
