@@ -231,10 +231,6 @@ type TxDesc struct {
 type VerboseTxDesc struct {
 	TxDesc
 
-	// CurrentPriority is the current priority of the transaction within the
-	// pool.
-	CurrentPriority float64
-
 	// Depends enumerates any unconfirmed transactions in the pool used as
 	// inputs for the transaction.
 	Depends []*TxDesc
@@ -2256,35 +2252,16 @@ func (mp *TxPool) TxDescs() []*TxDesc {
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
-	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
-	if err != nil {
-		return nil
-	}
-
 	mp.mtx.RLock()
 	defer mp.mtx.RUnlock()
 
 	result := make([]*VerboseTxDesc, 0, len(mp.pool))
-	bestHeight := mp.cfg.BestHeight()
-
 	for _, desc := range mp.pool {
-		// Calculate the current priority based on inputs to the transaction.
-		// Use zero if one or more of the input transactions can't be found for
-		// some reason.
-		tx := desc.Tx
-		var currentPriority float64
-		utxos, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
-		if err == nil {
-			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
-				bestHeight+1)
-		}
-
 		// Create the descriptor and add dependencies as needed.
 		vtxd := &VerboseTxDesc{
-			TxDesc:          *desc,
-			CurrentPriority: currentPriority,
+			TxDesc: *desc,
 		}
-		for _, txIn := range tx.MsgTx().TxIn {
+		for _, txIn := range desc.Tx.MsgTx().TxIn {
 			hash := &txIn.PreviousOutPoint.Hash
 			if depDesc, ok := mp.pool[*hash]; ok {
 				vtxd.Depends = append(vtxd.Depends, depDesc)
