@@ -2724,8 +2724,8 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 				Fee:              dcrutil.Amount(desc.Fee).ToCoin(),
 				Time:             desc.Added.Unix(),
 				Height:           desc.Height,
-				StartingPriority: desc.StartingPriority,
-				CurrentPriority:  desc.CurrentPriority,
+				StartingPriority: 0,
+				CurrentPriority:  0,
 				Depends:          make([]string, len(desc.Depends)),
 			}
 			for j, depDesc := range desc.Depends {

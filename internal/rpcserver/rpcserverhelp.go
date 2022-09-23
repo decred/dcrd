@@ -471,7 +471,7 @@ var helpDescsEnUS = map[string]string{
 	"infochainresult-proxy":           "The proxy used by the server",
 	"infochainresult-difficulty":      "The current target difficulty",
 	"infochainresult-testnet":         "Whether or not server is using testnet",
-	"infochainresult-relayfee":        "The minimum relay fee for non-free transactions in DCR/KB",
+	"infochainresult-relayfee":        "The minimum relay fee for transactions in DCR/KB",
 	"infochainresult-errors":          "Any current errors",
 	"infochainresult-txindex":         "Whether or not server has transaction index enabled",
 
@@ -578,8 +578,8 @@ var helpDescsEnUS = map[string]string{
 	"getrawmempoolverboseresult-fee":              "Transaction fee in decred",
 	"getrawmempoolverboseresult-time":             "Local time transaction entered pool in seconds since 1 Jan 1970 GMT",
 	"getrawmempoolverboseresult-height":           "Block height when transaction entered the pool",
-	"getrawmempoolverboseresult-startingpriority": "Priority when transaction entered the pool",
-	"getrawmempoolverboseresult-currentpriority":  "Current priority",
+	"getrawmempoolverboseresult-startingpriority": "(DEPRECATED) This field is always 0 and will be removed in a future version of the software",
+	"getrawmempoolverboseresult-currentpriority":  "(DEPRECATED) This field is always 0 and will be removed in a future version of the software",
 	"getrawmempoolverboseresult-depends":          "Unconfirmed transactions used as inputs for this transaction",
 
 	// GetRawMempoolCmd help.
