@@ -1977,7 +1977,7 @@ type cancelPendingMsg struct {
 
 // handleQuery is the central handler for all queries and commands from other
 // goroutines related to peer state.
-func (s *server) handleQuery(state *peerState, querymsg interface{}) {
+func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
 	switch msg := querymsg.(type) {
 	case getConnCountMsg:
 		nconnected := int32(0)
@@ -2033,7 +2033,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		}
 
 		// TODO: if too many, nuke a non-perm peer.
-		go s.connManager.Connect(context.Background(),
+		go s.connManager.Connect(ctx,
 			&connmgr.ConnReq{
 				Addr:      netAddr,
 				Permanent: msg.permanent,
@@ -2320,7 +2320,7 @@ out:
 			s.handleBroadcastMsg(state, &bmsg)
 
 		case qmsg := <-s.query:
-			s.handleQuery(state, qmsg)
+			s.handleQuery(ctx, state, qmsg)
 
 		case <-ctx.Done():
 			close(s.quit)
@@ -3719,7 +3719,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			return nil, err
 		}
 
-		go s.connManager.Connect(context.Background(),
+		go s.connManager.Connect(ctx,
 			&connmgr.ConnReq{
 				Addr:      tcpAddr,
 				Permanent: true,
