@@ -6060,17 +6060,17 @@ func upgradeUtxoDb(ctx context.Context, db database.DB, utxoBackend UtxoBackend)
 		return err
 	}
 
-	// Update to a version 2 UTXO database as needed.
-	if utxoDbInfo.version == 1 {
-		err := upgradeUtxoDbToVersion2(ctx, utxoBackend, utxoDbInfo)
+	// Update to a version 3 utxo set as needed.
+	if utxoDbInfo.utxoVer == 2 {
+		err := upgradeUtxoSetToVersion3(ctx, db, utxoBackend, utxoDbInfo)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Update to a version 3 utxo set as needed.
-	if utxoDbInfo.version == 2 && utxoDbInfo.utxoVer == 2 {
-		err := upgradeUtxoSetToVersion3(ctx, db, utxoBackend, utxoDbInfo)
+	// Update to a version 2 UTXO database as needed.
+	if utxoDbInfo.version == 1 {
+		err := upgradeUtxoDbToVersion2(ctx, utxoBackend, utxoDbInfo)
 		if err != nil {
 			return err
 		}
