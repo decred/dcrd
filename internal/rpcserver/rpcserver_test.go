@@ -111,7 +111,8 @@ func TestRpcServer(t *testing.T) {
 	// Initialize the primary mining node with a chain of length 125,
 	// providing 25 mature coinbases to allow spending from for testing
 	// purposes.
-	if err := harness.SetUp(true, 25); err != nil {
+	ctx := context.Background()
+	if err := harness.SetUp(ctx, true, 25); err != nil {
 		// Even though the harness was not fully setup, it still needs
 		// to be torn down to ensure all resources such as temp
 		// directories are cleaned up.  The error is intentionally
@@ -163,7 +164,6 @@ func TestRpcServer(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, test := range tests {
 		test.f(ctx, harness, t)
 		t.Logf("=== Running test: %v ===", test.name)

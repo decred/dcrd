@@ -357,7 +357,7 @@ func (m *memWallet) UnwindBlock(header []byte) {
 // newAddress returns a new address from the wallet's hd key chain.  It also
 // loads the address into the RPC client's transaction filter to ensure any
 // transactions that involve it are delivered via the notifications.
-func (m *memWallet) newAddress() (stdaddr.Address, error) {
+func (m *memWallet) newAddress(ctx context.Context) (stdaddr.Address, error) {
 	tracef(m.t, "memwallet.newAddress")
 	defer tracef(m.t, "memwallet.newAddress exit")
 
@@ -377,7 +377,7 @@ func (m *memWallet) newAddress() (stdaddr.Address, error) {
 		return nil, err
 	}
 
-	err = m.rpc.LoadTxFilter(context.Background(), false,
+	err = m.rpc.LoadTxFilter(ctx, false,
 		[]stdaddr.Address{addr}, nil)
 	if err != nil {
 		return nil, err
@@ -393,11 +393,11 @@ func (m *memWallet) newAddress() (stdaddr.Address, error) {
 // NewAddress returns a fresh address spendable by the wallet.
 //
 // This function is safe for concurrent access.
-func (m *memWallet) NewAddress() (stdaddr.Address, error) {
+func (m *memWallet) NewAddress(ctx context.Context) (stdaddr.Address, error) {
 	m.Lock()
 	defer m.Unlock()
 
-	return m.newAddress()
+	return m.newAddress(ctx)
 }
 
 // fundTx attempts to fund a transaction sending amt coins.  The coins are
@@ -406,7 +406,7 @@ func (m *memWallet) NewAddress() (stdaddr.Address, error) {
 // atoms-per-byte.
 //
 // NOTE: The memWallet's mutex must be held when this function is called.
-func (m *memWallet) fundTx(tx *wire.MsgTx, amt dcrutil.Amount, feeRate dcrutil.Amount) error {
+func (m *memWallet) fundTx(ctx context.Context, tx *wire.MsgTx, amt dcrutil.Amount, feeRate dcrutil.Amount) error {
 	tracef(m.t, "memwallet.fundTx")
 	defer tracef(m.t, "memwallet.fundTx exit")
 
@@ -449,7 +449,7 @@ func (m *memWallet) fundTx(tx *wire.MsgTx, amt dcrutil.Amount, feeRate dcrutil.A
 		// output to the transaction reserved for change.
 		changeVal := amtSelected - amt - reqFee
 		if changeVal > 0 {
-			addr, err := m.newAddress()
+			addr, err := m.newAddress(ctx)
 			if err != nil {
 				return err
 			}
@@ -473,16 +473,16 @@ func (m *memWallet) fundTx(tx *wire.MsgTx, amt dcrutil.Amount, feeRate dcrutil.A
 // SendOutputs creates, then sends a transaction paying to the specified output
 // while observing the passed fee rate. The passed fee rate should be expressed
 // in atoms-per-byte.
-func (m *memWallet) SendOutputs(outputs []*wire.TxOut, feeRate dcrutil.Amount) (*chainhash.Hash, error) {
+func (m *memWallet) SendOutputs(ctx context.Context, outputs []*wire.TxOut, feeRate dcrutil.Amount) (*chainhash.Hash, error) {
 	tracef(m.t, "memwallet.SendOutputs")
 	defer tracef(m.t, "memwallet.SendOutputs exit")
 
-	tx, err := m.CreateTransaction(outputs, feeRate)
+	tx, err := m.CreateTransaction(ctx, outputs, feeRate)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.rpc.SendRawTransaction(context.Background(), tx, true)
+	return m.rpc.SendRawTransaction(ctx, tx, true)
 }
 
 // CreateTransaction returns a fully signed transaction paying to the specified
@@ -490,7 +490,7 @@ func (m *memWallet) SendOutputs(outputs []*wire.TxOut, feeRate dcrutil.Amount) (
 // expressed in atoms-per-byte.
 //
 // This function is safe for concurrent access.
-func (m *memWallet) CreateTransaction(outputs []*wire.TxOut, feeRate dcrutil.Amount) (*wire.MsgTx, error) {
+func (m *memWallet) CreateTransaction(ctx context.Context, outputs []*wire.TxOut, feeRate dcrutil.Amount) (*wire.MsgTx, error) {
 	tracef(m.t, "memwallet.CreateTransaction")
 	defer tracef(m.t, "memwallet.CreateTransaction exit")
 
@@ -508,7 +508,7 @@ func (m *memWallet) CreateTransaction(outputs []*wire.TxOut, feeRate dcrutil.Amo
 	}
 
 	// Attempt to fund the transaction with spendable utxos.
-	if err := m.fundTx(tx, outputAmt, feeRate); err != nil {
+	if err := m.fundTx(ctx, tx, outputAmt, feeRate); err != nil {
 		return nil, err
 	}
 
