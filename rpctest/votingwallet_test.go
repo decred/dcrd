@@ -88,7 +88,10 @@ func TestMinimalVotingWallet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = hn.SetUp(true, 8)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err = hn.SetUp(ctx, true, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,9 +108,6 @@ func TestMinimalVotingWallet(t *testing.T) {
 			f:    testCanPassSVH,
 		},
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	for _, tc := range testCases {
 		var vw *VotingWallet

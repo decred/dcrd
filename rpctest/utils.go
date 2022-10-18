@@ -38,19 +38,18 @@ const (
 // passed JoinType. This function be used to ensure all active test
 // harnesses are at a consistent state before proceeding to an assertion or
 // check within rpc tests.
-func JoinNodes(nodes []*Harness, joinType JoinType) error {
+func JoinNodes(ctx context.Context, nodes []*Harness, joinType JoinType) error {
 	switch joinType {
 	case Blocks:
-		return syncBlocks(nodes)
+		return syncBlocks(ctx, nodes)
 	case Mempools:
-		return syncMempools(nodes)
+		return syncMempools(ctx, nodes)
 	}
 	return nil
 }
 
 // syncMempools blocks until all nodes have identical mempools.
-func syncMempools(nodes []*Harness) error {
-	ctx := context.Background()
+func syncMempools(ctx context.Context, nodes []*Harness) error {
 	poolsMatch := false
 
 	for !poolsMatch {
@@ -82,9 +81,8 @@ func syncMempools(nodes []*Harness) error {
 }
 
 // syncBlocks blocks until all nodes report the same block height.
-func syncBlocks(nodes []*Harness) error {
+func syncBlocks(ctx context.Context, nodes []*Harness) error {
 	blocksMatch := false
-	ctx := context.Background()
 
 	for !blocksMatch {
 	retry:
@@ -113,11 +111,10 @@ func syncBlocks(nodes []*Harness) error {
 // harness and the "to" harness.  The connection made is flagged as persistent,
 // therefore in the case of disconnects, "from" will attempt to reestablish a
 // connection to the "to" harness.
-func ConnectNode(from *Harness, to *Harness) error {
+func ConnectNode(ctx context.Context, from *Harness, to *Harness) error {
 	tracef(from.t, "ConnectNode start")
 	defer tracef(from.t, "ConnectNode end")
 
-	ctx := context.Background()
 	peerInfo, err := from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return err

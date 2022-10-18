@@ -234,7 +234,11 @@ func TestTreasury(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = hn.SetUp(false, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err = hn.SetUp(ctx, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,9 +247,6 @@ func TestTreasury(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Create the voting wallet.
 	vw, err := rpctest.NewVotingWallet(ctx, hn)
@@ -288,7 +289,7 @@ func TestTreasury(t *testing.T) {
 	taddPrevOuts := make([]*wire.OutPoint, nbTAddPrevOuts)
 	for i := 0; i < nbTAddPrevOuts; i++ {
 		txOut := newTxOut(int64(taddInAmt), p2pkhScriptVer, p2pkhScript)
-		txHash, err := hn.SendOutputs([]*wire.TxOut{txOut}, defaultFeeRate)
+		txHash, err := hn.SendOutputs(ctx, []*wire.TxOut{txOut}, defaultFeeRate)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -246,7 +246,7 @@ func (w *VotingWallet) Start(ctx context.Context) error {
 		outputs[i] = wire.NewTxOut(value, w.p2pkh)
 	}
 
-	txid, err := w.hn.SendOutputs(outputs, feeRate)
+	txid, err := w.hn.SendOutputs(ctx, outputs, feeRate)
 	if err != nil {
 		return fmt.Errorf("unable to fund voting wallet: %v", err)
 	}
