@@ -723,9 +723,13 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
+		// Be sure the address exists in the address manager.
+		addrManager.AddAddresses([]*addrmgr.NetAddress{remoteAddr},
+			remoteAddr)
+
 		err := addrManager.SetServices(remoteAddr, msg.Services)
 		if err != nil {
-			srvrLog.Debugf("Setting services for address failed: %v", err)
+			srvrLog.Errorf("Setting services for address failed: %v", err)
 		}
 	}
 
@@ -777,7 +781,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// Mark the address as a known good address.
 		err := addrManager.Good(remoteAddr)
 		if err != nil {
-			srvrLog.Debugf("Marking address as good failed: %v", err)
+			srvrLog.Errorf("Marking address as good failed: %v", err)
 		}
 	}
 
