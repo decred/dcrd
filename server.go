@@ -723,10 +723,6 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
-		// Be sure the address exists in the address manager.
-		addrManager.AddAddresses([]*addrmgr.NetAddress{remoteAddr},
-			remoteAddr)
-
 		err := addrManager.SetServices(remoteAddr, msg.Services)
 		if err != nil {
 			srvrLog.Errorf("Setting services for address failed: %v", err)
@@ -1512,6 +1508,35 @@ func randomUint16Number(max uint16) uint16 {
 	}
 }
 
+// attemptDcrdDial is a wrapper function around dcrdDial which adds and marks
+// the remote peer as attempted in the address manager.
+func (s *server) attemptDcrdDial(ctx context.Context, network, addr string) (net.Conn, error) {
+	if !cfg.SimNet && !cfg.RegNet {
+		host, portStr, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		port, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return nil, err
+		}
+		remoteAddr, err := s.addrManager.HostToNetAddress(host, uint16(port), 0)
+		if err != nil {
+			return nil, err
+		}
+		// Be sure the address exists in the address manager.
+		s.addrManager.AddAddresses([]*addrmgr.NetAddress{remoteAddr},
+			remoteAddr)
+
+		err = s.addrManager.Attempt(remoteAddr)
+		if err != nil {
+			srvrLog.Errorf("Marking address as attempted failed: %v", err)
+		}
+	}
+
+	return dcrdDial(ctx, network, addr)
+}
+
 // AddRebroadcastInventory adds 'iv' to the list of inventories to be
 // rebroadcasted at random intervals until they show up in a block.
 func (s *server) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
@@ -1837,7 +1862,7 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 		err := s.addrManager.Connected(remoteAddr)
 		if err != nil {
-			srvrLog.Debugf("Marking address as connected failed: %v", err)
+			srvrLog.Errorf("Marking address as connected failed: %v", err)
 		}
 	}
 
@@ -2217,8 +2242,7 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 // outboundPeerConnected is invoked by the connection manager when a new
 // outbound connection is established.  It initializes a new outbound server
 // peer instance, associates it with the relevant state such as the connection
-// request instance and the connection itself, and finally notifies the address
-// manager of the attempt.
+// request instance and the connection itself.
 func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	sp := newServerPeer(s, c.Permanent)
 	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr.String())
@@ -2232,12 +2256,6 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
 	go s.peerDoneHandler(sp)
-
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-	err = s.addrManager.Attempt(remoteAddr)
-	if err != nil {
-		srvrLog.Debugf("Marking address as attempted failed: %v", err)
-	}
 }
 
 // peerDoneHandler handles peer disconnects by notifying the server that it's
@@ -3702,7 +3720,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		OnAccept:       s.inboundPeerConnected,
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: uint32(targetOutbound),
-		Dial:           dcrdDial,
+		Dial:           s.attemptDcrdDial,
 		Timeout:        cfg.DialTimeout,
 		OnConnection:   s.outboundPeerConnected,
 		GetNewAddress:  newAddressFunc,
