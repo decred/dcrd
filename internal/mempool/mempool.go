@@ -248,11 +248,11 @@ type TxPool struct {
 
 	orphans       map[chainhash.Hash]*orphanTx
 	orphansByPrev map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx
-	outpoints     map[wire.OutPoint]*dcrutil.Tx
+	outpoints     map[wire.OutPoint]*TxDesc
 	miningView    *mining.TxMiningView
 
 	staged          map[chainhash.Hash]*TxDesc
-	stagedOutpoints map[wire.OutPoint]*dcrutil.Tx
+	stagedOutpoints map[wire.OutPoint]*TxDesc
 
 	transient map[chainhash.Hash]*dcrutil.Tx
 
@@ -634,7 +634,7 @@ func (mp *TxPool) stageTransaction(txDesc *TxDesc) {
 	tx := txDesc.Tx
 	mp.staged[*tx.Hash()] = txDesc
 	for _, txIn := range tx.MsgTx().TxIn {
-		mp.stagedOutpoints[txIn.PreviousOutPoint] = tx
+		mp.stagedOutpoints[txIn.PreviousOutPoint] = txDesc
 	}
 }
 
@@ -670,8 +670,8 @@ func (mp *TxPool) hasMempoolInput(tx *dcrutil.Tx) bool {
 // and invokes the function f for each transaction in the set.
 //
 // This function MUST be called with the mempool lock held (for reads).
-func forEachRedeemer(tx *dcrutil.Tx, outpoints map[wire.OutPoint]*dcrutil.Tx,
-	pool map[chainhash.Hash]*TxDesc, f func(redeemerTxDesc *TxDesc)) {
+func forEachRedeemer(tx *dcrutil.Tx, outpoints map[wire.OutPoint]*TxDesc,
+	f func(redeemerTxDesc *TxDesc)) {
 
 	tree := wire.TxTreeRegular
 	numOutputs := uint32(len(tx.MsgTx().TxOut))
@@ -679,20 +679,19 @@ func forEachRedeemer(tx *dcrutil.Tx, outpoints map[wire.OutPoint]*dcrutil.Tx,
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
 	for i := uint32(0); i < numOutputs; i++ {
 		outpoint.Index = i
-		redeemerTx, exists := outpoints[outpoint]
+		redeemerTxDesc, exists := outpoints[outpoint]
 		if !exists {
 			continue
 		}
 
-		redeemerTxHash := redeemerTx.Hash()
-		if redeemerTxDesc, exist := pool[*redeemerTxHash]; exist {
-			// Skip previously seen redeemers.
-			if _, saw := seen[*redeemerTxHash]; saw {
-				continue
-			}
-			seen[*redeemerTxHash] = struct{}{}
-			f(redeemerTxDesc)
+		// Skip previously seen redeemers.
+		redeemerTxHash := redeemerTxDesc.Tx.Hash()
+		if _, saw := seen[*redeemerTxHash]; saw {
+			continue
 		}
+		seen[*redeemerTxHash] = struct{}{}
+
+		f(redeemerTxDesc)
 	}
 }
 
@@ -702,7 +701,7 @@ func forEachRedeemer(tx *dcrutil.Tx, outpoints map[wire.OutPoint]*dcrutil.Tx,
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) forEachRedeemer(tx *dcrutil.Tx, f func(redeemer *TxDesc)) {
-	forEachRedeemer(tx, mp.outpoints, mp.pool, f)
+	forEachRedeemer(tx, mp.outpoints, f)
 }
 
 // forEachStagedRedeemer scans the stage pool for transactions that have an
@@ -711,7 +710,7 @@ func (mp *TxPool) forEachRedeemer(tx *dcrutil.Tx, f func(redeemer *TxDesc)) {
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) forEachStagedRedeemer(tx *dcrutil.Tx, f func(redeemer *TxDesc)) {
-	forEachRedeemer(tx, mp.stagedOutpoints, mp.staged, f)
+	forEachRedeemer(tx, mp.stagedOutpoints, f)
 }
 
 // haveTransaction returns whether or not the passed transaction already exists
@@ -794,13 +793,13 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 		outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
 		for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
 			outpoint.Index = i
-			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
-				mp.removeTransaction(txRedeemer, true)
+			if txRedeemerDesc, exists := mp.outpoints[outpoint]; exists {
+				mp.removeTransaction(txRedeemerDesc.Tx, true)
 				continue
 			}
-			if txRedeemer, exists := mp.stagedOutpoints[outpoint]; exists {
+			if txRedeemerDesc, exists := mp.stagedOutpoints[outpoint]; exists {
 				log.Tracef("Removing staged transaction %v", outpoint.Hash)
-				mp.removeStagedTransaction(txRedeemer)
+				mp.removeStagedTransaction(txRedeemerDesc.Tx)
 			}
 		}
 	}
@@ -859,16 +858,16 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	for _, txIn := range tx.MsgTx().TxIn {
-		if txRedeemer, ok := mp.outpoints[txIn.PreviousOutPoint]; ok {
-			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
-				mp.removeTransaction(txRedeemer, true)
+		if txRedeemerDesc, ok := mp.outpoints[txIn.PreviousOutPoint]; ok {
+			if txRedeemerDesc.Tx.Hash() != tx.Hash() {
+				mp.removeTransaction(txRedeemerDesc.Tx, true)
 			}
 		}
-		if txRedeemer, ok := mp.stagedOutpoints[txIn.PreviousOutPoint]; ok {
-			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
-				log.Debugf("Removing double spend transaction %v "+
-					"from stage pool", tx.Hash())
-				mp.removeStagedTransaction(txRedeemer)
+		if txRedeemerDesc, ok := mp.stagedOutpoints[txIn.PreviousOutPoint]; ok {
+			if txRedeemerDesc.Tx.Hash() != tx.Hash() {
+				log.Debugf("Removing double spend transaction %v from stage "+
+					"pool", tx.Hash())
+				mp.removeStagedTransaction(txRedeemerDesc.Tx)
 			}
 		}
 	}
@@ -908,7 +907,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxD
 
 	msgTx := tx.MsgTx()
 	for _, txIn := range msgTx.TxIn {
-		mp.outpoints[txIn.PreviousOutPoint] = tx
+		mp.outpoints[txIn.PreviousOutPoint] = txDesc
 	}
 	atomic.StoreInt64(&mp.lastUpdated, time.Now().Unix())
 
@@ -948,14 +947,14 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType, isTr
 		}
 
 		if txR, exists := mp.outpoints[txIn.PreviousOutPoint]; exists {
-			str := fmt.Sprintf("transaction %v in the pool "+
-				"already spends the same coins", txR.Hash())
+			str := fmt.Sprintf("transaction %v in the pool already spends the "+
+				"same coins", txR.Tx.Hash())
 			return txRuleError(ErrMempoolDoubleSpend, str)
 		}
 
 		if txR, exists := mp.stagedOutpoints[txIn.PreviousOutPoint]; exists {
 			str := fmt.Sprintf("transaction %v in the stage pool "+
-				"already spends the same coins", txR.Hash())
+				"already spends the same coins", txR.Tx.Hash())
 			return txRuleError(ErrMempoolDoubleSpend, str)
 		}
 	}
@@ -1736,8 +1735,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	// mempool tickets that redeem it to move to the stage pool.
 	if !isNew && txType == stake.TxTypeRegular {
 		mp.forEachRedeemer(tx, func(redeemerTxDesc *TxDesc) {
-			redeemerTx := redeemerTxDesc.Tx
 			if redeemerTxDesc.Type == stake.TxTypeSStx {
+				redeemerTx := redeemerTxDesc.Tx
 				mp.removeTransaction(redeemerTx, true)
 				mp.stageTransaction(redeemerTxDesc)
 				log.Debugf("Moved ticket %v dependent on %v into stage pool",
@@ -2306,12 +2305,12 @@ func New(cfg *Config) *TxPool {
 		pool:            make(map[chainhash.Hash]*TxDesc),
 		orphans:         make(map[chainhash.Hash]*orphanTx),
 		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
-		outpoints:       make(map[wire.OutPoint]*dcrutil.Tx),
+		outpoints:       make(map[wire.OutPoint]*TxDesc),
 		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
 		tspends:         make(map[chainhash.Hash]*dcrutil.Tx),
 		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
 		staged:          make(map[chainhash.Hash]*TxDesc),
-		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
+		stagedOutpoints: make(map[wire.OutPoint]*TxDesc),
 		transient:       make(map[chainhash.Hash]*dcrutil.Tx),
 	}
 
@@ -2323,7 +2322,7 @@ func New(cfg *Config) *TxPool {
 		for i := uint32(0); i < txOutLen; i++ {
 			outpoint.Index = i
 			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
-				f(&mp.pool[txRedeemer.MsgTx().TxHash()].TxDesc)
+				f(&txRedeemer.TxDesc)
 			}
 		}
 	}
