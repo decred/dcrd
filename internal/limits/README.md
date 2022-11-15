@@ -5,7 +5,7 @@ limits
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/limits)
 
-Package limits allows some process limits to be raised.
+Package limits modifies process limits depending on the OS and Go runtime.
 
 ## Installation and Updating
 

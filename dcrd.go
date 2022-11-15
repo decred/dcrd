@@ -73,6 +73,38 @@ func dcrdMain() error {
 		dcrdLog.Info("File logging disabled")
 	}
 
+	// Block and transaction processing can cause bursty allocations.  This
+	// limits the garbage collector from excessively overallocating during
+	// bursts.  It does this by tweaking the target GC percent and soft memory
+	// limit depending on the version of the Go runtime.
+	//
+	// Starting with Go 1.19, a soft upper memory limit is imposed that leaves
+	// plenty of headroom for the minimum recommended value and the target GC
+	// percentage is left at the default value to significantly reduce the
+	// number of GC cycles thereby reducing the amount of CPU time spent doing
+	// garbage collection.
+	//
+	// For versions of Go prior to 1.19, the ability to set a soft upper memory
+	// limit was not available, so the GC percentage is lowered instead which
+	// has the effect of preventing overallocations at the expense of more
+	// frequent GC cycles.
+	//
+	// These values were arrived at with the help of profiling live usage.
+	if limits.SupportsMemoryLimit {
+		// Enforce a soft memory limit for a base amount along with any extra
+		// utxo cache over and above the default max cache size.
+		const memLimitBase = (15 * (1 << 30)) / 10 // 1.5 GiB
+		softMemLimit := int64(memLimitBase)
+		if cfg.UtxoCacheMaxSize > defaultUtxoCacheMaxSize {
+			extra := int64(cfg.UtxoCacheMaxSize) - defaultUtxoCacheMaxSize
+			softMemLimit += extra * (1 << 20)
+		}
+		limits.SetMemoryLimit(softMemLimit)
+		dcrdLog.Infof("Soft memory limit: %s", humanizeBytes(softMemLimit))
+	} else {
+		debug.SetGCPercent(20)
+	}
+
 	// Enable http profiling server if requested.
 	if cfg.Profile != "" {
 		go func() {
@@ -228,12 +260,6 @@ func dcrdMain() error {
 }
 
 func main() {
-	// Block and transaction processing can cause bursty allocations.  This
-	// limits the garbage collector from excessively overallocating during
-	// bursts.  This value was arrived at with the help of profiling live
-	// usage.
-	debug.SetGCPercent(20)
-
 	// Up some limits.
 	if err := limits.SetLimits(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set limits: %v\n", err)
