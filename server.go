@@ -73,7 +73,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.InitStateVersion
+	maxProtocolVersion = wire.RemoveRejectVersion
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
