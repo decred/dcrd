@@ -213,9 +213,10 @@ type config struct {
 	DropExistsAddrIndex bool `long:"dropexistsaddrindex" description:"Deletes the exists address index from the database on start up and then exits"`
 
 	// IPC options.
-	PipeRx         uint `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
-	PipeTx         uint `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
-	LifetimeEvents bool `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
+	PipeRx          uint `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
+	PipeTx          uint `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
+	LifetimeEvents  bool `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
+	BoundAddrEvents bool `long:"boundaddrevents" description:"Send notifications with the locally bound addresses of the P2P and RPC subsystems over the TX pipe"`
 
 	// Cooked options ready for use.
 	onionlookup   func(string) ([]net.IP, error)

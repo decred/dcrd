@@ -205,3 +205,59 @@ func (s lifetimeEventServer) notifyShutdownEvent(action lifetimeAction) {
 		action: action,
 	}
 }
+
+// boundP2PListenAddrEvent are IPC events emitted by dcrd with the bound local
+// addresses for the P2P interface.  Multiple events of this type may be
+// generated.
+//
+// The type of this event is "p2plistenaddr" and the payload is the UTF-8
+// encoded address.
+type boundP2PListenAddrEvent string
+
+func (e boundP2PListenAddrEvent) Type() string        { return "p2plistenaddr" }
+func (e boundP2PListenAddrEvent) PayloadSize() uint32 { return uint32(len(e)) }
+func (e boundP2PListenAddrEvent) WritePayload(w io.Writer) error {
+	_, err := w.Write([]byte(e))
+	return err
+}
+
+// boundRPCListenAddrEvent are IPC events emitted by dcrd with the bound local
+// addresses for the RPC interface.  Multiple events of this type may be
+// generated.
+//
+// The type of this event is "rpclistenaddr" and the payload is the UTF-8
+// encoded address.
+type boundRPCListenAddrEvent string
+
+func (e boundRPCListenAddrEvent) Type() string        { return "rpclistenaddr" }
+func (e boundRPCListenAddrEvent) PayloadSize() uint32 { return uint32(len(e)) }
+func (e boundRPCListenAddrEvent) WritePayload(w io.Writer) error {
+	_, err := w.Write([]byte(e))
+	return err
+}
+
+// boundAddrEventServer is a server that can notify parent processes, via the
+// IPC mechanism, the local addresses to which specific subsystems are bound
+// during initialization.
+//
+// The empty value is a valid server and will not send any events if its
+// notify* methods are called.
+type boundAddrEventServer chan<- pipeMessage
+
+func newBoundAddrEventServer(outChan chan<- pipeMessage) boundAddrEventServer {
+	return boundAddrEventServer(outChan)
+}
+
+func (s boundAddrEventServer) notifyP2PAddress(addr string) {
+	if s == nil {
+		return
+	}
+	s <- boundP2PListenAddrEvent(addr)
+}
+
+func (s boundAddrEventServer) notifyRPCAddress(addr string) {
+	if s == nil {
+		return
+	}
+	s <- boundRPCListenAddrEvent(addr)
+}
