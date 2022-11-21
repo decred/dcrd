@@ -3277,6 +3277,11 @@ func genCertPair(certFile, keyFile string, altDNSNames []string, tlsCurve ellipt
 // with the RPC server depending on the configuration settings for listen
 // addresses and TLS.
 func setupRPCListeners() ([]net.Listener, error) {
+	var notifyAddrServer boundAddrEventServer
+	if cfg.BoundAddrEvents {
+		notifyAddrServer = newBoundAddrEventServer(outgoingPipeMessages)
+	}
+
 	// Setup TLS if not disabled.
 	listenFunc := net.Listen
 	if !cfg.DisableRPC && !cfg.DisableTLS {
@@ -3342,6 +3347,7 @@ func setupRPCListeners() ([]net.Listener, error) {
 			continue
 		}
 		listeners = append(listeners, listener)
+		notifyAddrServer.notifyRPCAddress(listener.Addr().String())
 	}
 
 	return listeners, nil
@@ -3833,6 +3839,11 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 		return nil, nil, err
 	}
 
+	var notifyAddrServer boundAddrEventServer
+	if cfg.BoundAddrEvents {
+		notifyAddrServer = newBoundAddrEventServer(outgoingPipeMessages)
+	}
+
 	listeners := make([]net.Listener, 0, len(netAddrs))
 	for _, addr := range netAddrs {
 		var listenConfig net.ListenConfig
@@ -3842,6 +3853,7 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 			continue
 		}
 		listeners = append(listeners, listener)
+		notifyAddrServer.notifyP2PAddress(listener.Addr().String())
 	}
 
 	var nat *upnpNAT
