@@ -16,19 +16,19 @@ set -ex
 
 go version
 
-ROOTPATH=$(go list)
-
 # run tests on all modules
 echo "==> test all modules"
-go test -short -tags rpctest $ROOTPATH/...
+ROOTPKG=$(go list)
+go test -short -tags rpctest $ROOTPKG/...
 
-ROOTPATHPATTERN=$(echo $ROOTPATH | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
-MODPATHS=$(go list -m all | grep "^$ROOTPATHPATTERN" | cut -d' ' -f1)
+# loop all modules
+ROOTPKGPATTERN=$(echo $ROOTPKG | sed 's,\\,\\\\,g' | sed 's,/,\\/,g')
+MODPATHS=$(go list -m all | grep "^$ROOTPKGPATTERN" | cut -d' ' -f1)
 for module in $MODPATHS; do
   echo "==> lint ${module}"
 
-  # check linters
-  MODNAME=$(echo $module | sed -E -e "s/^$ROOTPATHPATTERN//" \
+  # determine module directory
+  MODNAME=$(echo $module | sed -E -e "s/^$ROOTPKGPATTERN//" \
     -e 's,^/,,' -e 's,/v[0-9]+$,,')
   if [ -z "$MODNAME" ]; then
     MODNAME=.
