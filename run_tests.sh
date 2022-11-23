@@ -17,7 +17,7 @@ set -ex
 go version
 
 # run tests on all modules
-ROOTPATH=$(go list -m)
+ROOTPATH=$(go list)
 ROOTPATHPATTERN=$(echo $ROOTPATH | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
 MODPATHS=$(go list -m all | grep "^$ROOTPATHPATTERN" | cut -d' ' -f1)
 for module in $MODPATHS; do
