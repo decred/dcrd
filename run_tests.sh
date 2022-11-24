@@ -16,13 +16,16 @@ set -ex
 
 go version
 
-# run tests on all modules
 ROOTPATH=$(go list)
+
+# run tests on all modules
+echo "==> test all modules"
+go test -short -tags rpctest $ROOTPATH/...
+
 ROOTPATHPATTERN=$(echo $ROOTPATH | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
 MODPATHS=$(go list -m all | grep "^$ROOTPATHPATTERN" | cut -d' ' -f1)
 for module in $MODPATHS; do
-  echo "==> ${module}"
-  go test -short -tags rpctest ${module}/...
+  echo "==> lint ${module}"
 
   # check linters
   MODNAME=$(echo $module | sed -E -e "s/^$ROOTPATHPATTERN//" \
