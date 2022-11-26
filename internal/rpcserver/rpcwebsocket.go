@@ -15,6 +15,7 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -1179,7 +1180,7 @@ func (m *wsNotificationManager) RemoveClient(wsc *wsClient) {
 }
 
 // Run starts the goroutines required for the manager to queue and process
-// websocket client notifications. It blocks until the provided context is
+// websocket client notifications.  It blocks until the provided context is
 // cancelled.
 func (m *wsNotificationManager) Run(ctx context.Context) {
 	m.wg.Add(3)
@@ -1225,6 +1226,9 @@ type wsResponse struct {
 // subsystems can't block.  Ultimately, all messages are sent via the
 // outHandler.
 type wsClient struct {
+	// The following variables must only be used atomically.
+	disconnected int32 // Websocket client disconnected?
+
 	sync.Mutex
 
 	// server is the RPC server that is servicing the client.
@@ -1232,10 +1236,6 @@ type wsClient struct {
 
 	// conn is the underlying websocket connection.
 	conn *websocket.Conn
-
-	// disconnected indicated whether or not the websocket client is
-	// disconnected.
-	disconnected bool
 
 	// addr is the remote address of the client.
 	addr string
@@ -1267,25 +1267,36 @@ type wsClient struct {
 	wg                sync.WaitGroup
 }
 
+// shouldLogReadError returns whether or not the passed error, which is expected
+// to have come from reading from the websocket client in the inHandler, should
+// be logged.
+func (c *wsClient) shouldLogReadError(err error) bool {
+	// No logging when the client is being forcibly disconnected from the server
+	// side.
+	if atomic.LoadInt32(&c.disconnected) != 0 {
+		return false
+	}
+
+	// No logging when the remote client has disconnected.
+	if errors.Is(err, io.EOF) || websocket.IsCloseError(err,
+		websocket.CloseNormalClosure, websocket.CloseAbnormalClosure) {
+
+		return false
+	}
+
+	return true
+}
+
 // inHandler handles all incoming messages for the websocket connection.  It
 // must be run as a goroutine.
 func (c *wsClient) inHandler(ctx context.Context) {
 out:
-	for {
-		// Break out of the loop once the quit channel has been closed.
-		// Use a non-blocking select here so we fall through otherwise.
-		select {
-		case <-c.quit:
-			break out
-		default:
-		}
-
+	for atomic.LoadInt32(&c.disconnected) == 0 {
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			// Log the error if it's not due to disconnecting.
-			if !errors.Is(err, io.EOF) {
-				log.Errorf("Websocket receive error from "+
-					"%s: %v", c.addr, err)
+			if c.shouldLogReadError(err) {
+				log.Errorf("Websocket receive error from %s: %v", c.addr, err)
 			}
 			break out
 		}
@@ -1894,27 +1905,19 @@ func (c *wsClient) QueueNotification(marshalledJSON []byte) error {
 
 // Disconnected returns whether or not the websocket client is disconnected.
 func (c *wsClient) Disconnected() bool {
-	c.Lock()
-	isDisconnected := c.disconnected
-	c.Unlock()
-
-	return isDisconnected
+	return atomic.LoadInt32(&c.disconnected) > 0
 }
 
 // Disconnect disconnects the websocket client.
 func (c *wsClient) Disconnect() {
-	c.Lock()
-	defer c.Unlock()
-
 	// Nothing to do if already disconnected.
-	if c.disconnected {
+	if atomic.AddInt32(&c.disconnected, 1) != 1 {
 		return
 	}
 
 	log.Tracef("Disconnecting websocket client %s", c.addr)
 	close(c.quit)
 	c.conn.Close()
-	c.disconnected = true
 }
 
 // Start begins processing input and output messages.
