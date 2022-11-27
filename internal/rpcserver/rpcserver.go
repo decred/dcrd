@@ -464,6 +464,13 @@ func rpcBlockNotFoundError(blockHash chainhash.Hash) *dcrjson.RPCError {
 			blockHash))
 }
 
+// rpcConnectionClosedError is a convenience function for returning an RPC error
+// which indicates the associated connection has been closed, most likely due to
+// context cancellation such as when the server is being shutdown.
+func rpcConnectionClosedError() *dcrjson.RPCError {
+	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc, "Connection closed")
+}
+
 // rpcMiscError is a convenience function for returning a nicely formatted RPC
 // error which indicates there is an unquantifiable error.  Use this sparingly;
 // misc return codes are a cop out.
@@ -521,15 +528,34 @@ func normalizeAddress(addr, defaultPort string) string {
 // workState houses state that is used in between multiple RPC invocations to
 // getwork.
 type workState struct {
+	// workSem is a semaphore used to limit multiple RPC invocations for work
+	// requests and submission.  This approach is used over a mutex to support
+	// early cancellation.
+	workSem semaphore
+
+	// These fields are all protected by the embedded mutex.
+	//
+	// prevBestHash houses the previous best known chain tip.
+	//
+	// waitForUpdatedTemplate determines whether or not a getwork invocation
+	// should should block until a new template is received from the background
+	// template generator.
+	//
+	// templatePool houses unique block templates that have been returned to
+	// clients so the full block can be reconstructed from it upon successful
+	// submission of solved work.  The templates are pruned when the get old
+	// enough.
 	sync.Mutex
-	prevHash     *chainhash.Hash
-	templatePool map[[merkleRootPairSize]byte]*wire.MsgBlock
+	prevBestHash           *chainhash.Hash
+	waitForUpdatedTemplate bool
+	templatePool           map[[merkleRootPairSize]byte]*wire.MsgBlock
 }
 
 // newWorkState returns a new instance of a workState with all internal fields
 // initialized and ready to use.
 func newWorkState() *workState {
 	return &workState{
+		workSem:      makeSemaphore(1),
 		templatePool: make(map[[merkleRootPairSize]byte]*wire.MsgBlock),
 	}
 }
@@ -3657,9 +3683,7 @@ func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
 
 // handleGetWorkRequest is a helper for handleGetWork which deals with
 // generating and returning work to the caller.
-//
-// This function MUST be called with the RPC workstate locked.
-func handleGetWorkRequest(s *Server) (interface{}, error) {
+func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	// Return an error immediately in the case of a failed background template.
 	//
 	// The only time this is expected is due to imposition of certain additional
@@ -3670,16 +3694,22 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 		return nil, rpcMiscError(fmt.Sprintf("no work is available: %v", err))
 	}
 
-	// Prune old templates and wait for updated templates when the current best
-	// chain changes.
-	state := s.workState
+	// Prune old templates when the current best chain tip changes.
 	best := s.cfg.Chain.BestSnapshot()
-	var template *mining.BlockTemplate
-	if state.prevHash == nil || *state.prevHash != best.Hash {
-		// Prune old templates from the pool when the best block changes.
+	state := s.workState
+	state.Lock()
+	tipChanged := state.prevBestHash == nil || *state.prevBestHash != best.Hash
+	if tipChanged {
 		state.pruneOldBlockTemplates(best.Height)
-		state.prevHash = &best.Hash
+		state.prevBestHash = &best.Hash
+		state.waitForUpdatedTemplate = true
+	}
+	waitForNewTemplate := state.waitForUpdatedTemplate
+	state.Unlock()
 
+	// Wait for updated templates when the current best chain tip changes.
+	var template *mining.BlockTemplate
+	if waitForNewTemplate {
 		// Wait until a new template is generated.  Since the subscription
 		// immediately sends the current template, the template might not have
 		// been updated yet (for example, it might be waiting on votes).  In
@@ -3687,10 +3717,19 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 		// in case the new tip never gets enough votes and no other events
 		// that trigger a new template have happened.
 		templateSub := bt.Subscribe()
-		templateNtfn := <-templateSub.C()
+		var templateNtfn *mining.TemplateNtfn
+		select {
+		case templateNtfn = <-templateSub.C():
+		case <-ctx.Done():
+			templateSub.Stop()
+			return nil, rpcConnectionClosedError()
+		}
 		template = templateNtfn.Template
 		templateKey := getWorkTemplateKey(&template.Block.Header)
-		if _, ok := state.templatePool[templateKey]; ok {
+		state.Lock()
+		_, templateKnown := state.templatePool[templateKey]
+		state.Unlock()
+		if templateKnown {
 			const maxTemplateTimeoutDuration = time.Millisecond * 5500
 			select {
 			case templateNtfn = <-templateSub.C():
@@ -3698,6 +3737,10 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 
 			case <-time.After(maxTemplateTimeoutDuration):
 				template = nil
+
+			case <-ctx.Done():
+				templateSub.Stop()
+				return nil, rpcConnectionClosedError()
 			}
 		}
 		templateSub.Stop()
@@ -3717,6 +3760,14 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 			return nil, rpcMiscError("no work is available during a chain " +
 				"reorganization")
 		}
+	}
+
+	// Allow future invocations to immediately return the existing background
+	// template now that an acceptable template has been received.
+	if waitForNewTemplate {
+		state.Lock()
+		state.waitForUpdatedTemplate = false
+		state.Unlock()
 	}
 
 	// Update the time of the block template to the current time while
@@ -3751,7 +3802,9 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// of the merkle and stake root fields, this will not add duplicate entries
 	// for the templates with modified timestamps and/or difficulty bits.
 	templateKey := getWorkTemplateKey(&headerCopy)
+	state.Lock()
 	state.templatePool[templateKey] = template.Block
+	state.Unlock()
 
 	// Expand the data slice to include the full data buffer and apply the
 	// internal blake256 padding.  This makes the data ready for callers to
@@ -3774,8 +3827,6 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 
 // handleGetWorkSubmission is a helper for handleGetWork which deals with
 // the calling submitting work to be verified and processed.
-//
-// This function MUST be called with the RPC workstate locked.
 func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (interface{}, error) {
 	// Ensure the provided data is sane.
 	if len(hexData)%2 != 0 {
@@ -3820,7 +3871,9 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	// stake roots.  Return false to indicate the solve failed if it's not
 	// available.
 	templateKey := getWorkTemplateKey(&submittedHeader)
+	s.workState.Lock()
 	templateBlock, ok := s.workState.templatePool[templateKey]
+	s.workState.Unlock()
 	if !ok || templateBlock == nil {
 		log.Errorf("Block submitted via getwork has no matching template "+
 			"for merkle root %s, stake root %s",
@@ -3890,8 +3943,11 @@ func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}
 
 	// No point in generating or accepting work before the chain is synced
 	// unless unsynchronized mining has specifically been allowed.
-	bestHeight := s.cfg.Chain.BestSnapshot().Height
-	if !s.cfg.AllowUnsyncedMining && bestHeight != 0 && !s.cfg.Chain.IsCurrent() {
+	chain := s.cfg.Chain
+	_, bestHeaderHeight := chain.BestHeader()
+	bestHeight := chain.BestSnapshot().Height
+	initialChainState := bestHeaderHeight == 0 && bestHeight == 0
+	if !s.cfg.AllowUnsyncedMining && !initialChainState && !chain.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
 			Message: "Decred is downloading blocks...",
@@ -3900,10 +3956,15 @@ func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}
 
 	c := cmd.(*types.GetWorkCmd)
 
-	// Protect concurrent access from multiple RPC invocations for work
-	// requests and submission.
-	s.workState.Lock()
-	defer s.workState.Unlock()
+	// Protect concurrent access from multiple RPC invocations for work requests
+	// and submission.  A single item semaphore is used over a mutex to support
+	// early cancellation.
+	select {
+	case s.workState.workSem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, rpcConnectionClosedError()
+	}
+	defer s.workState.workSem.release()
 
 	// When the caller provides data, it is a submission of a supposedly
 	// solved block that needs to be checked and submitted to the network
@@ -3913,7 +3974,7 @@ func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}
 	}
 
 	// No data was provided, so the caller is requesting work.
-	return handleGetWorkRequest(s)
+	return handleGetWorkRequest(ctx, s)
 }
 
 // handleHelp implements the help command.

@@ -1542,7 +1542,7 @@ func defaultMockMiningState() *testMiningState {
 	tmplKey := getWorkTemplateKey(&block432100.Header)
 	workState := newWorkState()
 	workState.templatePool[tmplKey] = &block432100
-	workState.prevHash = &blk.Header.PrevBlock
+	workState.prevBestHash = &blk.Header.PrevBlock
 	return &testMiningState{
 		workState: workState,
 	}
@@ -5763,7 +5763,7 @@ func TestHandleGetWork(t *testing.T) {
 			mockChain := defaultMockRPCChain()
 			ms := defaultMockMiningState()
 			ms.miningAddrs = []stdaddr.Address{miningaddr}
-			ms.workState.prevHash = &mockChain.bestSnapshot.Hash
+			ms.workState.prevBestHash = &mockChain.bestSnapshot.Hash
 			return ms
 		}(),
 		mockBlockTemplater: func() *testBlockTemplater {
@@ -7934,13 +7934,14 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				helpCacher = test.mockHelpCacher
 			}
 
+			ctx := context.Background()
 			testServer := &Server{
 				cfg:        *rpcserverConfig,
 				ntfnMgr:    new(testNtfnManager),
 				workState:  workState,
 				helpCacher: helpCacher,
 			}
-			result, err := test.handler(nil, testServer, test.cmd)
+			result, err := test.handler(ctx, testServer, test.cmd)
 			if test.wantErr {
 				var rpcErr *dcrjson.RPCError
 				if !errors.As(err, &rpcErr) || rpcErr.Code != test.errCode {
