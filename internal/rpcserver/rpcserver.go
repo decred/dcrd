@@ -5527,6 +5527,13 @@ func (s *Server) route(ctx context.Context) *http.Server {
 	httpServer := &http.Server{
 		Handler: rpcServeMux,
 
+		// Use the provided context as the parent context for all requests to
+		// ensure handlers are able to react to both client disconnects as well
+		// as shutdown via the provided context.
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx
+		},
+
 		// Timeout connections which don't complete the initial
 		// handshake within the allowed timeframe.
 		ReadTimeout: time.Second * rpcAuthTimeoutSeconds,
@@ -5555,7 +5562,7 @@ func (s *Server) route(ctx context.Context) *http.Server {
 		}
 
 		// Read and respond to the request.
-		s.jsonRPCRead(ctx, w, r, isAdmin)
+		s.jsonRPCRead(r.Context(), w, r, isAdmin)
 	})
 
 	// Websocket endpoint.
@@ -5638,7 +5645,8 @@ func (s *Server) route(ctx context.Context) *http.Server {
 		} else {
 			ws.SetReadLimit(websocketReadLimitAuthenticated)
 		}
-		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
+		s.WebsocketHandler(r.Context(), ws, r.RemoteAddr, authenticated,
+			isAdmin)
 	})
 	return httpServer
 }
