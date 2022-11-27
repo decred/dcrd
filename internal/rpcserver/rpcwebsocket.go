@@ -463,15 +463,7 @@ out:
 			}
 			switch n := n.(type) {
 			case *notificationBlockConnected:
-				block := (*dcrutil.Block)(n)
-
-				// Skip iterating through all txs if no tx
-				// notification requests exist.
-				if len(blockNotifications) == 0 {
-					continue
-				}
-
-				m.notifyBlockConnected(blockNotifications, block)
+				m.notifyBlockConnected(blockNotifications, (*dcrutil.Block)(n))
 
 			case *notificationBlockDisconnected:
 				m.notifyBlockDisconnected(blockNotifications,
@@ -710,6 +702,12 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 // notifyBlockConnected notifies websocket clients that have registered for
 // block updates when a block is connected to the main chain.
 func (m *wsNotificationManager) notifyBlockConnected(clients map[chan struct{}]*wsClient, block *dcrutil.Block) {
+	// Skip notification creation if no clients have requested block connected
+	// notifications.
+	if len(clients) == 0 {
+		return
+	}
+
 	// Create the common portion of the notification that is the same for
 	// every client.
 	headerBytes, err := block.MsgBlock().Header.Bytes()
