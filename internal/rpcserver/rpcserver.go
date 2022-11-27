@@ -5178,13 +5178,14 @@ func (s *Server) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (inte
 // is suitable for use in replies if the command is invalid in some way such as
 // an unregistered command or invalid parameters.
 func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
+	method := types.Method(request.Method)
 	parsedCmd := parsedRPCCmd{
 		jsonrpc: request.Jsonrpc,
 		id:      request.ID,
-		method:  types.Method(request.Method),
+		method:  method,
 	}
 
-	params, err := dcrjson.ParseParams(types.Method(request.Method), request.Params)
+	params, err := dcrjson.ParseParams(method, request.Params)
 	if err != nil {
 		// Produce a relevant error when the requested method is not registered
 		// depending on whether or not it is recognized as being a wallet
