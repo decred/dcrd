@@ -13,15 +13,13 @@ package rpctests
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"runtime/debug"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/rpctest"
+	"github.com/decred/dcrtest/dcrdtest"
 )
 
-func testGetBestBlock(ctx context.Context, r *rpctest.Harness, t *testing.T) {
+func testGetBestBlock(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 	_, prevbestHeight, err := r.Node.GetBestBlock(ctx)
 	if err != nil {
 		t.Fatalf("Call to `getbestblock` failed: %v", err)
@@ -51,7 +49,7 @@ func testGetBestBlock(ctx context.Context, r *rpctest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockCount(ctx context.Context, r *rpctest.Harness, t *testing.T) {
+func testGetBlockCount(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 	// Save the current count.
 	currentCount, err := r.Node.GetBlockCount(ctx)
 	if err != nil {
@@ -73,7 +71,7 @@ func testGetBlockCount(ctx context.Context, r *rpctest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockHash(ctx context.Context, r *rpctest.Harness, t *testing.T) {
+func testGetBlockHash(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 	// Create a new block connecting to the current tip.
 	generatedBlockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
@@ -102,7 +100,7 @@ func TestRpcServer(t *testing.T) {
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
 	args := []string{"--rejectnonstd"}
-	harness, err := rpctest.New(t, chaincfg.RegNetParams(), nil, args)
+	harness, err := dcrdtest.New(t, chaincfg.RegNetParams(), nil, args)
 	if err != nil {
 		t.Fatalf("unable to create primary harness: %v", err)
 	}
@@ -120,34 +118,12 @@ func TestRpcServer(t *testing.T) {
 		_ = harness.TearDown()
 		t.Fatalf("unable to setup test chain: %v", err)
 	}
-
-	defer func() {
-		// Clean up any active harnesses that are still currently
-		// running.This includes removing all temporary directories,
-		// and shutting down any created processes.
-		if err := rpctest.TearDownAll(); err != nil {
-			t.Fatalf("unable to tear down all harnesses: %v", err)
-		}
-	}()
-
-	var currentTestNum int
-	defer func() {
-		// If one of the integration tests caused a panic within the
-		// main goroutine, then tear down all the harnesses in order to
-		// avoid any leaked dcrd processes.
-		if r := recover(); r != nil {
-			fmt.Println("recovering from test panic: ", r)
-			if err := rpctest.TearDownAll(); err != nil {
-				fmt.Println("unable to tear down all harnesses: ", err)
-			}
-			t.Fatalf("test #%v panicked: %s", currentTestNum, debug.Stack())
-		}
-	}()
+	defer harness.TearDownInTest(t)
 
 	// Test cases.
 	tests := []struct {
 		name string
-		f    func(context.Context, *rpctest.Harness, *testing.T)
+		f    func(context.Context, *dcrdtest.Harness, *testing.T)
 	}{
 		{
 			f:    testGetBestBlock,
@@ -166,7 +142,5 @@ func TestRpcServer(t *testing.T) {
 	for _, test := range tests {
 		test.f(ctx, harness, t)
 		t.Logf("=== Running test: %v ===", test.name)
-
-		currentTestNum++
 	}
 }
