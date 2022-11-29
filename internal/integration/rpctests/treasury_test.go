@@ -26,11 +26,11 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/rpcclient/v8"
-	"github.com/decred/dcrd/rpctest"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/dcrtest/dcrdtest"
 )
 
 // timeoutCtx returns a context with the given timeout and automatically calls
@@ -232,9 +232,9 @@ func TestTreasury(t *testing.T) {
 		}
 	}
 
-	// Create the rpctest harness and mine outputs for the voting wallet to
+	// Create the dcrdtest harness and mine outputs for the voting wallet to
 	// use.
-	hn, err := rpctest.New(t, net, handlers, extraArgs)
+	hn, err := dcrdtest.New(t, net, handlers, extraArgs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,13 +247,13 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer hn.TearDown()
-	_, err = rpctest.AdjustedSimnetMiner(timeoutCtx(t, time.Minute), hn.Node, 64)
+	_, err = dcrdtest.AdjustedSimnetMiner(timeoutCtx(t, time.Minute), hn.Node, 64)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create the voting wallet.
-	vw, err := rpctest.NewVotingWallet(ctx, hn)
+	vw, err := dcrdtest.NewVotingWallet(ctx, hn)
 	if err != nil {
 		t.Fatalf("unable to create voting wallet for test: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestTreasury(t *testing.T) {
 		t.Fatalf("voting wallet errored: %v", vwerr)
 	})
 	vw.SetMiner(func(ctx context.Context, nb uint32) ([]*chainhash.Hash, error) {
-		return rpctest.AdjustedSimnetMiner(ctx, hn.Node, nb)
+		return dcrdtest.AdjustedSimnetMiner(ctx, hn.Node, nb)
 	})
 
 	// Create a privkey and p2pkh addr we control for use in the tests.

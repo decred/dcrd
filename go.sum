@@ -7,8 +7,11 @@ github.com/dchest/siphash v1.2.2/go.mod h1:q+IRvb2gOSrUnYoPqHiyHXS0FOBBOdl6tONBl
 github.com/decred/base58 v1.0.3/go.mod h1:pXP9cXCfM2sFLb2viz2FNIdeMWmZDBKG3ZBYbiSM78E=
 github.com/decred/base58 v1.0.4 h1:QJC6B0E0rXOPA8U/kw2rP+qiRJsUaE2Er+pYb3siUeA=
 github.com/decred/base58 v1.0.4/go.mod h1:jJswKPEdvpFpvf7dsDvFZyLT22xZ9lWqEByX38oGd9E=
+github.com/decred/dcrd v1.2.1-0.20221123192607-fc017ce3bb3b/go.mod h1:9MS9DQkbDZGj2yT6znvK4srKr3ZlAm4UTsJTFHgW7Ng=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 h1:bX7rtGTMBDJxujZ29GNqtn7YCAdINjHKnA6J6tBBv6s=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2/go.mod h1:d0H8xGMWbiIQP7gN3v2rByWUcuZPm9YsgmnfoxgbINc=
+github.com/decred/dcrtest/dcrdtest v0.0.0-20221125134442-85f922c0880e h1:QKtZ4/aNVRzMbW/dllhAiLJhXxswhaGGZgnu5Z9YtiM=
+github.com/decred/dcrtest/dcrdtest v0.0.0-20221125134442-85f922c0880e/go.mod h1:9QDaNncc0bWuMeZcbbPhLqUIeE+IBYLAsHio8+2++JI=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
 github.com/decred/go-socks v1.1.0/go.mod h1:sDhHqkZH0X4JjSa02oYOGhcGHYp12FsY1jQ/meV8md0=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
