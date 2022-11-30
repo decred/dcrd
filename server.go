@@ -44,6 +44,7 @@ import (
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
@@ -470,6 +471,13 @@ type server struct {
 	bytesReceived uint64 // Total bytes received from all peers since start.
 	bytesSent     uint64 // Total bytes sent by all peers since start.
 	shutdown      int32
+
+	// minKnownWork houses the minimum known work from the associated network
+	// params converted to a uint256 so the conversion only needs to be
+	// performed once when the server is initialized.  Ideally, the chain params
+	// should be updated to use the new type, but that will be a major version
+	// bump, so a one-time conversion is a good tradeoff in the mean time.
+	minKnownWork uint256.Uint256
 
 	chainParams          *chaincfg.Params
 	addrManager          *addrmgr.AddrManager
@@ -1258,13 +1266,18 @@ func (sp *serverPeer) OnGetBlocks(_ *peer.Peer, msg *wire.MsgGetBlocks) {
 
 // OnGetHeaders is invoked when a peer receives a getheaders wire message.
 func (sp *serverPeer) OnGetHeaders(_ *peer.Peer, msg *wire.MsgGetHeaders) {
-	// Ignore getheaders requests if not in sync unless the local best chain
-	// is exactly at the same tip as the requesting peer.
-	locatorHashes := msg.BlockLocatorHashes
+	// Send an empty headers message in the case the local best known chain does
+	// not have the minimum cumulative work value already known to have been
+	// achieved on the network.  This signals to the remote peer that there are
+	// no interesting headers available without appearing unresponsive.
 	chain := sp.server.chain
-	if !sp.server.syncManager.IsCurrent() && (len(locatorHashes) == 0 ||
-		*locatorHashes[0] != chain.BestSnapshot().PrevHash) {
-
+	tipHash := chain.BestSnapshot().Hash
+	workSum, err := chain.ChainWork(&tipHash)
+	if err == nil && workSum.Lt(&sp.server.minKnownWork) {
+		srvrLog.Debugf("Sending empty headers to peer %s in response to "+
+			"getheaders due to local best known tip having too little work",
+			sp.Peer)
+		sp.QueueMessage(&wire.MsgHeaders{}, nil)
 		return
 	}
 
@@ -1276,6 +1289,7 @@ func (sp *serverPeer) OnGetHeaders(_ *peer.Peer, msg *wire.MsgGetHeaders) {
 	// Use the block after the genesis block if no other blocks in the
 	// provided locator are known.  This does mean the client will start
 	// over with the genesis block if unknown block locators are provided.
+	locatorHashes := msg.BlockLocatorHashes
 	headers := chain.LocateHeaders(locatorHashes, &msg.HashStop)
 
 	// Send found headers to the requesting peer.
@@ -3404,6 +3418,15 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			recentlyConfirmedTxnsFPRate),
 		indexSubscriber: indexers.NewIndexSubscriber(ctx),
 		quit:            make(chan struct{}),
+	}
+
+	// Convert the minimum known work to a uint256 when it exists.  Ideally, the
+	// chain params should be updated to use the new type, but that will be a
+	// major version bump, so a one-time conversion is a good tradeoff in the
+	// mean time.
+	minKnownWorkBig := chainParams.MinKnownChainWork
+	if minKnownWorkBig != nil {
+		s.minKnownWork.SetBig(minKnownWorkBig)
 	}
 
 	feC := fees.EstimatorConfig{
