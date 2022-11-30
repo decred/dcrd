@@ -1947,8 +1947,14 @@ func (c *wsClient) Run(ctx context.Context) {
 	// goroutines are shutdown.
 	c.wg.Add(1)
 	go func(ctx context.Context) {
-		<-ctx.Done()
-		c.Disconnect()
+		// Select across the quit channel as well since the context is not
+		// cancelled when the connection is closed due to websocket connection
+		// hijacking.
+		select {
+		case <-ctx.Done():
+			c.Disconnect()
+		case <-c.quit:
+		}
 		c.wg.Done()
 	}(ctx)
 
