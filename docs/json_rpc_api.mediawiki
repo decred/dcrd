@@ -2576,14 +2576,6 @@ user.  Click the method name for further details such as parameter and return in
 |Cancel registered notifications for whenever when a new tspend arrives in the mempool.
 |None
 |-
-|[[#notifyspent|notifyspent]]
-|Send notification when a txout is spent.
-|[[#redeemingtx|redeemingtx]]
-|-
-|[[#stopnotifyspent|stopnotifyspent]]
-|Cancel registered spending notifications for each passed outpoint.
-|None
-|-
 |[[#loadtxfilter|loadtxfilter]]
 |Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and [[#rescan|rescan]].
 |[[#blockconnected|blockconnected]], [[#relevanttxaccepted|relevanttxaccepted]]
@@ -2761,55 +2753,6 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 
 ----
 
-====notifyspent====
-{|
-!Method
-|notifyspent
-|-
-!Notifications
-|[[#redeemingtx|redeemingtx]]
-|-
-!Parameters
-|
-# <code>Outpoints</code>: <code>(json array, required)</code>
-:  <code>hash</code>: <code>(string)</code> the hex-encoded bytes of the outpoint hash.
-: <code>index</code>: <code>(numeric)</code> the txout index of the outpoint.
-
-<code>[{"hash":"data", "index":n }, ...]</code>
-|-
-!Description
-|Send a redeemingtx notification when a transaction spending an outpoint appears in mempool (if relayed to this dcrd instance) and when such a transaction first appears in a newly-attached block.
-|-
-!Returns
-|Nothing
-|}
-
-----
-
-====stopnotifyspent====
-{|
-!Method
-|stopnotifyspent
-|-
-!Notifications
-|None
-|-
-!Parameters
-|
-# <code>Outpoints</code>: <code>(json array, required)</code>
-: <code>hash</code>: <code>(string)</code> the hex-encoded bytes of the outpoint hash.
-: <code>index</code>: <code>(numeric)</code> the txout index of the outpoint.
-
-<code>[{"hash":"data", "index":n }, ...]</code>
-|-
-!Description
-|Cancel registered spending notifications for each passed outpoint.
-|-
-!Returns
-|Nothing
-
-----
-|}
 ====loadtxfilter====
 {|
 !Method
@@ -3019,7 +2962,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 |[[#redeemingtx|redeemingtx]]
 |Processed a transaction that spends a registered outpoint.
-|[[#notifyspent|notifyspent]]
+|
 |-
 |[[#txaccepted|txaccepted]]
 |Received a new transaction after requesting simple notifications of all new transactions accepted into the mempool.
@@ -3149,7 +3092,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |redeemingtx
 |-
 !Requests
-|[[#notifyspent|notifyspent]]
+|
 |-
 !Parameters
 |
