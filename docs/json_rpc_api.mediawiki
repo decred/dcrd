@@ -2593,16 +2593,16 @@ user.  Click the method name for further details such as parameter and return in
 |None
 |-
 |[[#loadtxfilter|loadtxfilter]]
-|Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and rescanblocks.
-|[[#relevanttxaccepted|relevanttxaccepted]]
+|Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and [[#rescan|rescan]].
+|[[#blockconnected|blockconnected]], [[#relevanttxaccepted|relevanttxaccepted]]
 |-
 |[[#rebroadcastwinners|rebroadcastwinners]]
 |Asks the daemon to rebroadcast the winners of the voting lottery.
 |[[#winningtickets|winningtickets]]
 |-
 |[[#rescan|rescan]]
-|Rescan block chain for transactions to addresses and spent transaction outpoints.
-|[[#recvtx|recvtx]], [[#redeemingtx|redeemingtx]], [[#rescanprogress|rescanprogress]], and [[#rescanfinished|rescanfinished]]
+|Rescan blocks for transactions matching the loaded transaction filter.
+|None
 |-
 |[[#notifynewtransactions|notifynewtransactions]]
 |Send notifications for all new transactions as they are accepted into the mempool.
@@ -2661,7 +2661,7 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |None
 |-
 !Description
-|Request notifications for whenever a block is connected or disconnected from the main (best) chain. NOTE: If a client subscribes to both block and transaction (recvtx and redeemingtx) notifications, the blockconnected notification will be sent after all transaction notifications have been sent.  This allows clients to know when all relevant transactions for a block have been received.
+|Request notifications for whenever a block is connected or disconnected from the main (best) chain.
 |-
 !Returns
 |Nothing
@@ -2872,16 +2872,16 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |loadtxfilter
 |-
 !Notifications
-|[[#relevanttxaccepted|relevanttxaccepted]]
+|[[#blockconnected|blockconnected]], [[#relevanttxaccepted|relevanttxaccepted]]
 |-
 !Parameters
 |
 # <code>Reload</code>: <code>(boolean, required)</code> load a new filter instead of adding data to an existing one.
 # <code>Addresses</code>: <code>(json array, required)</code> array of addresses to add to the transaction filter
-# <code>Outpoints</code>: <code>(JSON array, required)</code> array of outpoints to add to the transaction filter.
+# <code>Outpoints</code>: <code>(json array, required)</code> array of outpoints to add to the transaction filter.
 |-
 !Description
-|Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and [[#rescanblocks|rescanblocks]].
+|Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and [[#rescan|rescan]].
 |-
 !Returns
 |Nothing
@@ -2917,22 +2917,23 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Parameters
 |
-# <code>Blockhashes</code>: <code>(JSON array, required)</code> list of hashes to rescan. Each next block must be a child of the previous.
+# <code>Blockhashes</code>: <code>(JSON array, required)</code> array of block hashes to rescan.  Each subsequent block after the first one must be a child of the previous.
 |-
 !Description
 |Rescan blocks for transactions matching the loaded transaction filter.
 |-
 !Returns
 |
-<code>(json array)</code>
-: <code>hash</code>: <code>(string)</code> hash of the matching block.
-: <code>transactions</code>: <code>(json array)</code> list of matching transactions, serialized and hex-encoded.
-: <code>serializedtx</code>: <code>(string)</code> serialized and hex-encoded transaction.
+<code>(json object)</code>
+: <code>discovereddata</code>: <code>(json array of objects)</code> The data matching the loaded transaction filter as JSON objects.
+: <code>hash</code>: <code>(string)</code> The hash of the block containing matching transactions.
+: <code>transactions</code>: <code>(json array)</code> Array of hex-encoded bytes of the serialized matching transactions.
+: <code>serializedtx</code>: <code>(string)</code> hex-encoded bytes of the serialized transaction.
 
-<code>[{"hash": "data", "transactions": [serializedtx,...]}, ...]</code>
+<code>{"discovereddata": [{"hash": "hash", "transactions": ["serializedtx", ...]}, ...]}</code>
 |-
 !Example Return
-|<code>[{"hash": "0000002099417930b2ae09feda10e38b58c0f6bb44b4d60fa33f0e000000000000000000d53...", "transactions": ["493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8...", ...]}, ...]</code>
+|<code>{"discovereddata": [{"hash": "0000002099417930b2ae09feda10e38b58c0f6bb44b4d60fa33f0e000000000000000000d53...", "transactions": ["493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8...", ...]}, ...]}</code>
 |}
 
 ----
@@ -3066,7 +3067,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 |[[#recvtx|recvtx]]
 |Processed a transaction output spending to a wallet address.
-|[[#notifyreceived|notifyreceived]] and [[#rescan|rescan]]
+|[[#notifyreceived|notifyreceived]]
 |-
 |[[#work|work]]
 |New generated block template.
@@ -3078,7 +3079,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 |[[#redeemingtx|redeemingtx]]
 |Processed a transaction that spends a registered outpoint.
-|[[#notifyspent|notifyspent]] and [[#rescan|rescan]]
+|[[#notifyspent|notifyspent]]
 |-
 |[[#txaccepted|txaccepted]]
 |Received a new transaction after requesting simple notifications of all new transactions accepted into the mempool.
@@ -3088,6 +3089,10 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Received a new transaction after requesting verbose notifications of all new transactions accepted into the mempool.
 |[[#notifynewtransactions|notifynewtransactions]]
 |-
+|[[#relevanttxaccepted|relevanttxaccepted]]
+|Accepted a new transaction that matches the loaded transaction filter into the mempool.
+|[[#loadtxfilter|loadtxfilter]]
+|-
 |[[#winningtickets|winningtickets]]
 |Tickets were chosen to vote.
 |[[#notifywinningtickets|notifywinningtickets]]
@@ -3095,14 +3100,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |[[#newtickets|newtickets]]
 |New tickets matured.
 |[[#notifynewtickets|notifynewtickets]]
-|-
-|[[#rescanprogress|rescanprogress]]
-|A rescan operation that is underway has made progress.
-|[[#rescan|rescan]]
-|-
-|[[#rescanfinished|rescanfinished]]
-|A rescan operation has completed.
-|[[#rescan|rescan]]
 |}
 
 ===7.2 Notification Details===
@@ -3117,9 +3114,8 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 !Parameters
 |
-# <code>BlockHash</code>: <code>(string)</code> hex-encoded bytes of the attached block hash.
-# <code>BlockHeight</code>: <code>(numeric)</code> height of the attached block.
-# <code>BlockTime</code>: <code>(numeric)</code> unix time of the attached block.
+# <code>Header</code>: <code>(string)</code> hex-encoded bytes of the attached serialized block header.
+# <code>SubscribedTxs</code>: <code>(json array of string)</code> array of hex-encoded bytes of the serialized transactions that match the loaded transaction filter.
 |-
 !Description
 |Notifies when a block has been added to the main chain.  Notification is sent to all connected clients.
@@ -3127,7 +3123,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 !Example
 |Example blockconnected notification for mainnet block 280330:
 
-: <code>{"jsonrpc": "1.0", "method": "blockconnected", "params": ["000000000000000004cbdfe387f4df44b914e464ca79838a8ab777b3214dbffd", 280330, 1389636265],"id": null}</code>
+: <code>{"jsonrpc": "1.0", "method": "blockconnected", "params": ["05000000be1e39c54738d534a55e6ee8d2fc62433857368041def11b000000000000000085d...",["01000000010a09cf6e9b4b7b77069cc829e68b5bc5b2b26d7d6698623a5f1e8439ea7f265f0..."]], "id": null}</code>
 |}
 
 ----
@@ -3142,9 +3138,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 !Parameters
 |
-# <code>BlockHash</code>: <code>(string)</code> hex-encoded bytes of the disconnected block hash.
-# <code>BlockHeight</code>: <code>(numeric)</code> height of the disconnected block.
-# <code>BlockTime</code>: <code>(numeric)</code> unix time of the disconnected block.
+# <code>Header</code>: <code>(string)</code> hex-encoded bytes of the disconnected serialized block header.
 |-
 !Description
 |Notifies when a block has been removed from the main chain.  Notification is sent to all connected clients.
@@ -3152,7 +3146,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 !Example
 |Example blockdisconnected notification for mainnet block 280330:
 
-: <code>{"jsonrpc": "1.0","method": "blockdisconnected", "params":["000000000000000004cbdfe387f4df44b914e464ca79838a8ab777b3214dbffd", 280330,1389636265],"id": null}</code>
+: <code>{"jsonrpc": "1.0","method": "blockdisconnected", "params": ["05000000be1e39c54738d534a55e6ee8d2fc62433857368041def11b000000000000000085d..."], "id": null}</code>
 |}
 
 ----
@@ -3163,7 +3157,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |recvtx
 |-
 !Request
-|[[#rescan|rescan]] or [[#notifyreceived|notifyreceived]]
+|[[#notifyreceived|notifyreceived]]
 |-
 !Parameters
 |
@@ -3243,7 +3237,7 @@ The recvtx notification for the same txout, after the transaction was mined into
 |redeemingtx
 |-
 !Requests
-|[[#notifyspent|notifyspent]] and [[#rescan|rescan]]
+|[[#notifyspent|notifyspent]]
 |-
 !Parameters
 |
@@ -3315,6 +3309,29 @@ The redeemingtx notification for the same txout, after the spending transaction 
 
 ----
 
+====relevanttxaccepted====
+{|
+!Method
+|relevanttxaccepted
+|-
+!Request
+|[[#loadtxfilter|loadtxfilter]]
+|-
+!Parameters
+|
+# <code>Transaction</code>: <code>(string)</code> hex-encoded bytes of the serialized transaction.
+|-
+!Description
+|Notifies when a new transaction that matches the loaded transaction filter has been accepted to the mempool.
+|-
+!Example
+|Example relevanttxaccepted notification for mainnet transaction id <code>6364bb003155a5cc4dc89fb73dd50cb0fd58cafa65ee12ecc69b5f724313fead</code>:
+
+: <code>{"jsonrpc": "1.0", "method": "relevanttxaccepted", "params": ["01000000010a09cf6e9b4b7b77069cc829e68b5bc5b2b26d7d6698623a5f1e8439ea7f265f0..."], "id": null}</code>
+|}
+
+----
+
 ====winningtickets====
 {|
 !Method
@@ -3359,52 +3376,6 @@ The redeemingtx notification for the same txout, after the spending transaction 
 !Example
 |Example newtickets notification for block 479903 on testnet:
 : <code>{"jsonrpc": "1.0", "method": "newtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525, ["5297d32d5178c464c279711e771250f4f80a15830dfb89ae6bf414ee22613c88", "237c15fe027797d72c1ffd5aa3b3f9069b50352855bda5a9e7d0fa13d2299e32", "cd11ab320a543c946a021b37d5339a7f0ea72a6baf46fda455edf302165e812b", "eb82dba288e7af4a02a44818376f7228929c89a4fd51cf07ebdd825acc1c039d"]], "id": null}</code>
-|}
-
-----
-
-====rescanprogress====
-{|
-!Method
-|rescanprogress
-|-
-!Request
-|[[#rescan|rescan]]
-|-
-!Parameters
-|
-# <code>Hash</code>: <code>(string)</code> hash of the last processed block.
-# <code>Height</code>: <code>(numeric)</code> height of the last processed block.
-# <code>Time</code>: <code>(numeric)</code> UNIX time of the last processed block.
-|-
-!Description
-|Notifies a client with the current progress at periodic intervals when a long-running [[#rescan|rescan]] is underway.
-|-
-!Example
-|<code>{"jsonrpc": "1.0", "method": "rescanprogress", "params": ["0000000000000ea86b49e11843b2ad937ac89ae74a963c7edd36e0147079b89d", 127213, 1306533807], "id": null }</code>
-|}
-
-----
-
-====rescanfinished====
-{|
-!Method
-|rescanfinished
-|-
-!Request
-|[[#rescan|rescan]]
-|-
-!Parameters
-|
-# <code>Hash</code>: <code>(string)</code> hash of the last rescanned block.
-# <code>Height</code>: <code>(numeric)</code> height of the last rescanned block.
-# <code>Time</code>: <code>(numeric)</code> UNIX time of the last rescanned block.
-|-
-!Description
-|Notifies a client that the [[#rescan|rescan]] has completed and no further notifications will be sent.
-|-
-!Example
-|<code>{"jsonrpc": "1.0", "method": "rescanfinished", "params": ["0000000000000ea86b49e11843b2ad937ac89ae74a963c7edd36e0147079b89d", 127213, 1306533807], "id": null }</code>
 |}
 
 ==8. Example Code==
