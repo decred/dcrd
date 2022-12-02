@@ -1336,11 +1336,6 @@ func (sp *serverPeer) OnGetCFilter(_ *peer.Peer, msg *wire.MsgGetCFilter) {
 
 // OnGetCFilterV2 is invoked when a peer receives a getcfilterv2 wire message.
 func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
-	// Ignore request if the chain is not yet synced.
-	if !sp.server.syncManager.IsCurrent() {
-		return
-	}
-
 	// Attempt to obtain the requested filter.
 	//
 	// Ignore request for unknown block or otherwise missing filters.
