@@ -1000,8 +1000,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifywork":                nil,
 	"notifytspend":              nil,
 	"notifynewtransactions":     nil,
-	"notifyreceived":            nil,
-	"notifyspent":               nil,
 	"rebroadcastwinners":        nil,
 	"rescan":                    {(*types.RescanResult)(nil)},
 	"session":                   {(*types.SessionResult)(nil)},
@@ -1009,8 +1007,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"stopnotifywork":            nil,
 	"stopnotifytspend":          nil,
 	"stopnotifynewtransactions": nil,
-	"stopnotifyreceived":        nil,
-	"stopnotifyspent":           nil,
 }
 
 // helpCacher provides a concurrent safe type that provides help and usage for
