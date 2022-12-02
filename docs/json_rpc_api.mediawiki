@@ -2960,10 +2960,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |New generated tspend.
 |[[#notifytspend|notifytspend]]
 |-
-|[[#redeemingtx|redeemingtx]]
-|Processed a transaction that spends a registered outpoint.
-|
-|-
 |[[#txaccepted|txaccepted]]
 |Received a new transaction after requesting simple notifications of all new transactions accepted into the mempool.
 |[[#notifynewtransactions|notifynewtransactions]]
@@ -3082,34 +3078,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Example tspend notification on simnet:
 
 : <code>{"jsonrpc":"1.0","method":"tspend","params":["03000000010000000000000000000000000000000000000000000000000000000000000000ffffffff00ffffffff0300000000000000000000226a203ff1461b188e100f6fed467eb9b12e2d10ed86446df6c3a99c1df4af159d39f70065cd1d0000000000001ac376a91449a6061cda6d9243cecf3186af60caefc613904988ac0027b9290000000000001ac376a9145722802cd0905b4589d2094fcb6b76f746dcf18988ac000000002200000001c29786470000000000000000ffffffff644039401cb6daacd3310cd282abcc04f92649a3f27d3fd9be2038c94d531addb2ced539a25dbb186fc4c572054d36d457b1416008ac11033175e31d68a5d97877d42102a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7c2"],"id":null}</code>
-|}
-
-----
-
-====redeemingtx====
-{|
-!Method
-|redeemingtx
-|-
-!Requests
-|
-|-
-!Parameters
-|
-# <code>Transaction</code>: <code>(string)</code> full transaction encoded as a hex string.
-# <code>Block details</code>: <code>(object, optional)</code> details about a block and the index of the transaction within a block, if the transaction is mined.
-|-
-!Description
-|Notifies a client when a registered outpoint is spent by a transaction accepted to mempool and/or mined into a block.
-|-
-!Example
-|Example redeemingtx notification for mainnet outpoint <code>61d3696de4c888730cbe06b0ad8ecb6d72d6108e893895aa9bc067bd7eba3fad:0</code> after being spent by transaction <code>4ad0c16ac973ff675dec1f3e5f1273f1c45be2a63554343f21b70240a1e43ece</code>:
-
-: <code>{"jsonrpc": "1.0", "method": "redeemingtx", "params": ["0100000003ad3fba7ebd67c09baa9538898e10d6726dcb8eadb006be0c7388c8e46d69d3610000000..."],"id": null}</code>
-
-The redeemingtx notification for the same txout, after the spending transaction was mined into block 279143:
-
-: <code>{"jsonrpc": "1.0", "method": "recvtx", "params": ["0100000003ad3fba7ebd67c09baa9538898e10d6726dcb8eadb006be0c7388c8e46d69d3610000000...", {"height": 279143, "hash": "00000000000000017188b968a371bab95aa43522665353b646e41865abae02a4", "index": 6, "time": 1389115004 }], "id": null }</code>
 |}
 
 ----
