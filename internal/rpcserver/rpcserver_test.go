@@ -9,6 +9,8 @@ package rpcserver
 import (
 	"net/http"
 	"testing"
+
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 )
 
 func TestCheckAuthUserPass(t *testing.T) {
@@ -133,6 +135,19 @@ func TestCheckAuth(t *testing.T) {
 			if err == nil {
 				t.Errorf("unexpected err -- got %v, want auth failure", err)
 			}
+		}
+	}
+}
+
+// TestLimitedMethodsExist ensures all RPC methods listed in the limited RPC
+// methods map have associated handlers defined.
+func TestLimitedMethodsExist(t *testing.T) {
+	for methodStr := range rpcLimited {
+		method := types.Method(methodStr)
+		_, haveRegularHandler := rpcHandlers[method]
+		_, haveWebsocketHandler := wsHandlers[method]
+		if !haveRegularHandler && !haveWebsocketHandler {
+			t.Errorf("no handler found for limited method %q", method)
 		}
 	}
 }
