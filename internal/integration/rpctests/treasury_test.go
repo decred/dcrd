@@ -5,7 +5,6 @@
 
 // This file is ignored during the regular tests due to the following build tag.
 //go:build rpctest
-// +build rpctest
 
 package rpctests
 

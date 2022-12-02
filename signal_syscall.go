@@ -3,7 +3,6 @@
 // license that can be found in the LICENSE file.
 //
 //go:build windows || aix || android || darwin || dragonfly || freebsd || hurd || illumos || ios || linux || netbsd || openbsd || solaris
-// +build windows aix android darwin dragonfly freebsd hurd illumos ios linux netbsd openbsd solaris
 
 package main
 
