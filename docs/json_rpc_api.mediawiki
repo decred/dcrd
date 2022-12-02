@@ -2576,14 +2576,6 @@ user.  Click the method name for further details such as parameter and return in
 |Cancel registered notifications for whenever when a new tspend arrives in the mempool.
 |None
 |-
-|[[#notifyreceived|notifyreceived]]
-|Send notifications when a txout spends to an address.
-|[[#recvtx|recvtx]] and [[#redeemingtx|redeemingtx]]
-|-
-|[[#stopnotifyreceived|stopnotifyreceived]]
-|Cancel registered notifications for when a txout spends to any of the passed addresses.
-|None
-|-
 |[[#notifyspent|notifyspent]]
 |Send notification when a txout is spent.
 |[[#redeemingtx|redeemingtx]]
@@ -2762,54 +2754,6 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Description
 |Cancel sending notifications for whenever a new tspend arrives in the mempool.
-|-
-!Returns
-|Nothing
-|}
-
-----
-
-====notifyreceived====
-{|
-!Method
-|notifyreceived
-|-
-!Notifications
-|[[#recvtx|recvtx]] and [[#redeemingtx|redeemingtx]]
-|-
-!Parameters
-|
-# <code>Addresses</code>: <code>(JSON array, required)</code>
-: <code>decredaddress</code>: <code>(string)</code> the Decred address.
-
-<code>["decredaddress", ...]</code>
-|-
-!Description
-|Send a recvtx notification when a transaction added to mempool or appears in a newly-attached block contains a txout pkScript sending to any of the passed addresses.  Matching outpoints are automatically registered for redeemingtx notifications.
-|-
-!Returns
-|Nothing
-|}
-
-----
-
-====stopnotifyreceived====
-{|
-!Method
-|stopnotifyreceived
-|-
-!Notifications
-|None
-|-
-!Parameters
-|
-# <code>Addresses</code>: <code>(JSON array, required)</code>
-: <code>decredaddress</code>: <code>(string)</code> the Decred address.
-
-<code>["decredaddress", ...]</code>
-|-
-!Description
-|Cancel registered receive notifications for each passed address.
 |-
 !Returns
 |Nothing
@@ -3067,7 +3011,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |-
 |[[#recvtx|recvtx]]
 |Processed a transaction output spending to a wallet address.
-|[[#notifyreceived|notifyreceived]]
+|
 |-
 |[[#work|work]]
 |New generated block template.
@@ -3157,7 +3101,7 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |recvtx
 |-
 !Request
-|[[#notifyreceived|notifyreceived]]
+|
 |-
 !Parameters
 |
