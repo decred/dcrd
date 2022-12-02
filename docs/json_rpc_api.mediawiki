@@ -3009,10 +3009,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Block disconnected from the main chain.
 |[[#notifyblocks|notifyblocks]]
 |-
-|[[#recvtx|recvtx]]
-|Processed a transaction output spending to a wallet address.
-|
-|-
 |[[#work|work]]
 |New generated block template.
 |[[#notifywork|notifywork]]
@@ -3091,34 +3087,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Example blockdisconnected notification for mainnet block 280330:
 
 : <code>{"jsonrpc": "1.0","method": "blockdisconnected", "params": ["05000000be1e39c54738d534a55e6ee8d2fc62433857368041def11b000000000000000085d..."], "id": null}</code>
-|}
-
-----
-
-====recvtx====
-{|
-!Method
-|recvtx
-|-
-!Request
-|
-|-
-!Parameters
-|
-# <code>Transaction</code>: <code>(string)</code> full transaction encoded as a hex string.
-# <code>Block details</code>: <code>(object, optional)</code> details about a block and the index of the transaction within a block, if the transaction is mined.
-|-
-!Description
-|Notifies a client when a transaction is processed that contains at least a single output with a pkScript sending to a requested address.  If multiple outputs send to requested addresses, a single notification is sent.  If a mempool (unmined) transaction is processed, the block details object (second parameter) is excluded.
-|-
-!Example
-|Example recvtx notification for mainnet transaction <code>61d3696de4c888730cbe06b0ad8ecb6d72d6108e893895aa9bc067bd7eba3fad</code> when processed by mempool:
-
-: <code>{"jsonrpc": "1.0", "method": "recvtx", "params": ["010000000114d9ff358894c486b4ae11c2a8cf7851b1df64c53d2e511278eff17c22fb737300000000...], "id": null }</code>
-
-The recvtx notification for the same txout, after the transaction was mined into block 276425:
-
-: <code>{"jsonrpc": "1.0","method": "recvtx", "params": ["010000000114d9ff358894c486b4ae11c2a8cf7851b1df64c53d2e511278eff17c22fb737300000000...", {"height": 276425, "hash": "000000000000000325474bb799b9e591f965ca4461b72cb7012b808db92bb2fc", "index": 684, "time": 1387737310 }], "id": null }</code>
 |}
 
 ----
