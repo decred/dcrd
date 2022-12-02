@@ -799,10 +799,11 @@ var helpDescsEnUS = map[string]string{
 	"loadtxfilter-outpoints": "Array of outpoints to add to the transaction filter",
 
 	// Rescan help.
-	"rescan--synopsis":   "Rescan blocks for transactions matching the loaded transaction filter.",
-	"rescan-blockhashes": "Array of block hashes to rescan.  Each next block must be a child of the previous.",
-
-	// -------- Decred-specific help --------
+	"rescan--synopsis":            "Rescan blocks for transactions matching the loaded transaction filter.",
+	"rescan-blockhashes":          "Array of block hashes to rescan.  Each subsequent block after the first one must be a child of the previous.",
+	"rescanresult-discovereddata": "The data matching the loaded transaction filter as JSON objects.",
+	"rescannedblock-hash":         "The hash of the block containing matching transactions.",
+	"rescannedblock-transactions": "Array of hex-encoded bytes of the serialized matching transactions.",
 
 	// EstimateFee help.
 	"estimatefee--synopsis": "Returns the estimated fee in dcr/kb.",
@@ -1002,7 +1003,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifyreceived":            nil,
 	"notifyspent":               nil,
 	"rebroadcastwinners":        nil,
-	"rescan":                    nil,
+	"rescan":                    {(*types.RescanResult)(nil)},
 	"session":                   {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":          nil,
 	"stopnotifywork":            nil,
