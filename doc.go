@@ -110,7 +110,7 @@ Application Options:
 	                             Valid time units are {s, m, h}  Minimum 1
 	                             second (default: 30s)
 	    --peeridletimeout        The duration of inactivity before a peer is
-	                             timed out. Valid time units are {s,m,h}.
+	                             timed out.  Valid time units are {s,m,h}.
 	                             Minimum 15 seconds (default: 2m0s)
 	    --noseeders              Disable seeding for peer discovery
 	    --nodnsseed              DEPRECATED: use --noseeders
@@ -126,7 +126,7 @@ Application Options:
 	                             24h0m0s)
 	    --banthreshold=          Maximum allowed ban score before disconnecting
 	                             and banning misbehaving peers (default: 100)
-	    --whitelist=             Add an IP network or IP that will not be banned.
+	    --whitelist=             Add an IP network or IP that will not be banned
 	                             (eg. 192.168.1.0/24 or ::1)
 	    --allowoldforks          Process forks deep in history.  Don't do this
 	                             unless you know what you're doing
@@ -157,7 +157,7 @@ Application Options:
 	                             mempool
 	    --generate               Generate (mine) coins using the CPU
 	    --miningaddr=            Add the specified payment address to the list
-	                             of addresses to use for generated blocks -- At
+	                             of addresses to use for generated blocks.  At
 	                             least one address is required if the generate
 	                             option is set
 	    --blockminsize=          DEPRECATED: This behavior is no longer available

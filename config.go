@@ -165,7 +165,7 @@ type config struct {
 	MaxSameIP       int           `long:"maxsameip" description:"Max number of connections with the same IP -- 0 to disable"`
 	MaxPeers        int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
 	DialTimeout     time.Duration `long:"dialtimeout" description:"How long to wait for TCP connection completion.  Valid time units are {s, m, h}.  Minimum 1 second"`
-	PeerIdleTimeout time.Duration `long:"peeridletimeout" description:"The duration of inactivity before a peer is timed out. Valid time units are {s,m,h}. Minimum 15 seconds"`
+	PeerIdleTimeout time.Duration `long:"peeridletimeout" description:"The duration of inactivity before a peer is timed out.  Valid time units are {s,m,h}.  Minimum 15 seconds"`
 
 	// P2P network discovery options.
 	DisableSeeders bool     `long:"noseeders" description:"Disable seeding for peer discovery"`
@@ -178,7 +178,7 @@ type config struct {
 	DisableBanning bool          `long:"nobanning" description:"Disable banning of misbehaving peers"`
 	BanDuration    time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
 	BanThreshold   uint32        `long:"banthreshold" description:"Maximum allowed ban score before disconnecting and banning misbehaving peers"`
-	Whitelists     []string      `long:"whitelist" description:"Add an IP network or IP that will not be banned. (eg. 192.168.1.0/24 or ::1)"`
+	Whitelists     []string      `long:"whitelist" description:"Add an IP network or IP that will not be banned (eg. 192.168.1.0/24 or ::1)"`
 
 	// Chain related options.
 	AllowOldForks  bool   `long:"allowoldforks" description:"Process forks deep in history.  Don't do this unless you know what you're doing"`
@@ -197,7 +197,7 @@ type config struct {
 
 	// Mining options and policy.
 	Generate            bool     `long:"generate" description:"Generate (mine) coins using the CPU"`
-	MiningAddrs         []string `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
+	MiningAddrs         []string `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks.  At least one address is required if the generate option is set"`
 	BlockMinSize        uint32   `long:"blockminsize" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
 	BlockMaxSize        uint32   `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
 	BlockPrioritySize   uint32   `long:"blockprioritysize" description:"DEPRECATED: This behavior is no longer available and this option will be removed in a future version of the software"`
