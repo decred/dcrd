@@ -23,17 +23,16 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/decred/dcrd/dcrutil/v2"
-	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
-var testnet = flag.Bool("testnet", false, "operate on the testnet Decred network")
-
-// By default (without -testnet), use mainnet.
-var chainParams = chaincfg.MainNetParams()
-
 func main() {
+	var testnet = flag.Bool("testnet", false, "operate on the test network")
 	flag.Parse()
+
+	// By default (without -testnet), use mainnet.
+	var chainParams = chaincfg.MainNetParams()
 
 	// Modify active network parameters if operating on testnet.
 	if *testnet {
@@ -44,7 +43,8 @@ func main() {
 
 	// Create and print new payment address, specific to the active network.
 	pubKeyHash := make([]byte, 20)
-	addr, err := btcutil.NewAddressPubKeyHash(pubKeyHash, chainParams)
+	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pubKeyHash,
+		chainParams)
 	if err != nil {
 		log.Fatal(err)
 	}
