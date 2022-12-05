@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -831,7 +830,7 @@ func TestZero(t *testing.T) {
 
 		wantErr := ErrNotPrivExtKey
 		_, err := key.SerializedPrivKey()
-		if !reflect.DeepEqual(err, wantErr) {
+		if !errors.Is(err, wantErr) {
 			t.Errorf("SerializedPrivKey #%d (%s): mismatched "+
 				"error: want %v, got %v", i, testName, wantErr,
 				err)
