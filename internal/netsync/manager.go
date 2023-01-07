@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -879,7 +879,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// Prune invalidated transactions.
 		best := chain.BestSnapshot()
 		m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
-		m.cfg.TxMemPool.PruneExpiredTx()
+		m.cfg.TxMemPool.PruneExpiredTx(best.Height)
 
 		// Clear the rejected transactions.
 		m.rejectedTxns.Reset()
@@ -1451,7 +1451,7 @@ out:
 					best := m.cfg.Chain.BestSnapshot()
 					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
-					m.cfg.TxMemPool.PruneExpiredTx()
+					m.cfg.TxMemPool.PruneExpiredTx(best.Height)
 				}
 
 				msg.reply <- processBlockResponse{

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2054,12 +2054,13 @@ func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 	mp.mtx.Unlock()
 }
 
-// pruneExpiredTx prunes expired transactions from the mempool that are no
-// longer able to be included into a block.
+// pruneExpiredTx prunes expired transactions that are no longer able to be
+// included into a block from the mempool.  The height is expected to be the
+// height of the current best chain tip.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) pruneExpiredTx() {
-	nextBlockHeight := mp.cfg.BestHeight() + 1
+func (mp *TxPool) pruneExpiredTx(height int64) {
+	nextBlockHeight := height + 1
 
 	for _, txDesc := range mp.pool {
 		tx := txDesc.Tx
@@ -2080,14 +2081,15 @@ func (mp *TxPool) pruneExpiredTx() {
 	}
 }
 
-// PruneExpiredTx prunes expired transactions from the mempool that may no longer
-// be able to be included into a block.
+// PruneExpiredTx prunes expired transactions that are no longer able to be
+// included into a block from the mempool.  The height is expected to be the
+// height of the current best chain tip.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) PruneExpiredTx() {
+func (mp *TxPool) PruneExpiredTx(height int64) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	mp.pruneExpiredTx()
+	mp.pruneExpiredTx(height)
 	mp.mtx.Unlock()
 }
 
