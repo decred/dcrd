@@ -37,6 +37,11 @@ func prepend(args []string, val string) []string {
 	return newArgs
 }
 
+// convertsToFalse returns true if the provided string is "false", "f", or "0".
+func convertsToFalse(val string) bool {
+	return val == "false" || val == "f" || val == "0"
+}
+
 // fileExists reports whether the named file or directory exists.
 func fileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
@@ -63,26 +68,23 @@ func main() {
 		args = prepend(args, defaultApp)
 	}
 
+	// Determine dcrd app data directory based on environment variable.
+	decredData := os.Getenv("DECRED_DATA")
+	dcrdAppData := filepath.Join(decredData, ".dcrd")
+
 	// Additional setup when running in a container.
 	arg0 := argN(args, 0)
 	args = args[1:]
 	switch arg0 {
 	case "dcrd":
-		// Determine the app data directory based on environment variable.
-		decredData := os.Getenv("DECRED_DATA")
-		dcrdAppData := filepath.Join(decredData, ".dcrd")
-
-		// TODO: Recognize t/true/1, f/false/0
-		if os.Getenv("DCRD_NO_FILE_LOGGING") != "false" {
+		if !convertsToFalse(os.Getenv("DCRD_NO_FILE_LOGGING")) {
 			args = append(args, "--nofilelogging")
 		}
 		args = append(args, fmt.Sprintf("--appdata=%s", dcrdAppData))
 		args = append(args, "--rpclisten=")
 
 	case "dcrctl":
-		// Determine the app data directories based on environment variable.
-		decredData := os.Getenv("DECRED_DATA")
-		dcrdAppData := filepath.Join(decredData, ".dcrd")
+		// Determine dcrctl app data directory based on environment variable.
 		rpcCert := filepath.Join(dcrdAppData, "rpc.cert")
 		dcrctlAppData := filepath.Join(decredData, ".dcrctl")
 		dcrctlConfig := filepath.Join(dcrctlAppData, "dcrctl.conf")

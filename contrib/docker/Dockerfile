@@ -1,7 +1,3 @@
-
-# TODO: Needs some documentation here about the RPC server, logging via docker
-# logs, mounting a volume, the conf file, etc...
-
 ###############
 # Builder Stage
 ###############
@@ -34,7 +30,7 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-# Build dcrd and other commands it provides
+# Build dcrd and other commands it provides.
 WORKDIR /go/src/github.com/decred/dcrd
 RUN git clone https://github.com/decred/dcrd . && \
     CGO_ENABLED=0 GOOS=linux \
@@ -42,11 +38,11 @@ RUN git clone https://github.com/decred/dcrd . && \
       -ldflags="-s -w" \
       . ./cmd/gencerts ./cmd/promptsecret
 
-# Build dcrctl
+# Build dcrctl.
 WORKDIR /go/src/github.com/decred/dcrctl
 RUN git clone https://github.com/decred/dcrctl . && \
     CGO_ENABLED=0 GOOS=linux \
-      go install -trimpath -tags safe,netgo -ldflags="-s -w"
+    go install -trimpath -tags safe,netgo -ldflags="-s -w"
 
 # Build entrypoint helper for the production image.
 WORKDIR /go/src/github.com/decred/dcrd/contrib/docker/entrypoint
@@ -56,7 +52,7 @@ RUN go mod init entrypoint && \
     CGO_ENABLED=0 GOOS=linux \
     go install -trimpath -tags netgo,timetzdata -ldflags="-s -w" .
 
-# Compress bins
+# Compress bins.
 RUN upx -9 /go/bin/*
 
 ##################
@@ -66,7 +62,6 @@ RUN upx -9 /go/bin/*
 # Minimal scratch-based environment.
 FROM scratch
 ENV DECRED_DATA=/home/decred
-#ENV DCRD_EXPOSE_RPC=false # TODO: Want something like this?
 ENV DCRD_NO_FILE_LOGGING=true
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
@@ -84,5 +79,9 @@ ENTRYPOINT [ "/bin/entrypoint" ]
 
 RUN [ "dcrd", "--version" ]
 
-# TODO: Want this or not?  I've seen conflicting info and I'm not a docker expert...
+# The volume instruction is intentionally commented here since it has many
+# well-known pitfalls.  It is only provided here for documentation purposes.
+#
+# The preferred approach to mounting the volume is to specify the binding via
+# the `-v` flag of `docker run` or via a Docker Compose file.
 #VOLUME [ "/home/decred" ]
