@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 const (
@@ -101,11 +103,20 @@ func main() {
 	}
 
 	// Run the command with the given arguments while redirecting stdin, stdout,
-	// and stderr to the parent process.
+	// and stderr to the parent process.  Also, listen for SIGTERM and forward
+	// it to ensure the child process has the opportunity to perform a graceful
+	// shutdown.
 	cmd := exec.Command(arg0, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	go func() {
+		interruptChannel := make(chan os.Signal, 1)
+		signal.Notify(interruptChannel, syscall.SIGTERM)
+		for sig := range interruptChannel {
+			cmd.Process.Signal(sig)
+		}
+	}()
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(cmd.ProcessState.ExitCode())
