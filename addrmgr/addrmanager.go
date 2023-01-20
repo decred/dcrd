@@ -840,6 +840,7 @@ func (a *AddrManager) GetAddress() *KnownAddress {
 			for _, value := range a.addrNew[bucket] {
 				if nth == 0 {
 					ka = value
+					break
 				}
 				nth--
 			}
