@@ -6,6 +6,7 @@
 package addrmgr
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -69,19 +70,18 @@ func (ka *KnownAddress) chance() float64 {
 		lastAttempt = 0
 	}
 
-	c := 1.0
+	// Apply a lower limit to the value returned.
+	const minChance = 0.01
 
 	// Very recent attempts are less likely to be retried.
 	if lastAttempt < 10*time.Minute {
-		c *= 0.01
+		return minChance
 	}
 
 	// Failed attempts deprioritise.
-	for i := ka.attempts; i > 0; i-- {
-		c /= 1.5
-	}
+	c := 1.0 / math.Pow(1.5, float64(ka.attempts))
 
-	return c
+	return math.Max(c, minChance)
 }
 
 // isBad returns true if the address in question has not been tried in the last
