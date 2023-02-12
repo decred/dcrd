@@ -15,7 +15,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c #v3.3.0
       - name: Install Linters
-        run: "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.42.0"
+        run: "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.51.1"
       - name: Build
         run: go build ./...
       - name: Test
