@@ -127,7 +127,7 @@ https://decred.org/downloads/
 
 <details><summary><b>Install Dependencies</b></summary>
 
-- **Go 1.18 or 1.19**
+- **Go 1.19 or 1.20**
 
   Installation instructions can be found here: https://golang.org/doc/install.
   Ensure Go was installed properly and is a supported version:
