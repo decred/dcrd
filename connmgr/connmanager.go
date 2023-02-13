@@ -103,9 +103,9 @@ func (c *ConnReq) State() ConnState {
 // String returns a human-readable string for the connection request.
 func (c *ConnReq) String() string {
 	if c.Addr == nil || c.Addr.String() == "" {
-		return fmt.Sprintf("reqid %d", atomic.LoadUint64(&c.id))
+		return fmt.Sprintf("reqid %d", c.ID())
 	}
-	return fmt.Sprintf("%s (reqid %d)", c.Addr, atomic.LoadUint64(&c.id))
+	return fmt.Sprintf("%s (reqid %d)", c.Addr, c.ID())
 }
 
 // Config holds the configuration options related to the connection manager.
@@ -307,12 +307,13 @@ out:
 			case registerPending:
 				connReq := msg.c
 				connReq.updateState(ConnPending)
-				pending[msg.c.id] = connReq
+				pending[msg.c.ID()] = connReq
 				close(msg.done)
 
 			case handleConnected:
 				connReq := msg.c
-				if _, ok := pending[connReq.id]; !ok {
+				connReqID := connReq.ID()
+				if _, ok := pending[connReqID]; !ok {
 					if msg.conn != nil {
 						msg.conn.Close()
 					}
@@ -323,12 +324,12 @@ out:
 
 				connReq.updateState(ConnEstablished)
 				connReq.conn = msg.conn
-				conns[connReq.id] = connReq
+				conns[connReqID] = connReq
 				log.Debugf("Connected to %v", connReq)
 				connReq.retryCount = 0
 				cm.failedAttempts = 0
 
-				delete(pending, connReq.id)
+				delete(pending, connReqID)
 
 				if cm.cfg.OnConnection != nil {
 					go cm.cfg.OnConnection(connReq, msg.conn)
@@ -394,7 +395,7 @@ out:
 
 			case handleFailed:
 				connReq := msg.c
-				if _, ok := pending[connReq.id]; !ok {
+				if _, ok := pending[connReq.ID()]; !ok {
 					log.Debugf("Ignoring connection for "+
 						"canceled conn req: %v", connReq)
 					continue
@@ -465,8 +466,7 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 		return
 	}
 
-	c := &ConnReq{}
-	atomic.StoreUint64(&c.id, atomic.AddUint64(&cm.connReqCount, 1))
+	c := &ConnReq{id: atomic.AddUint64(&cm.connReqCount, 1)}
 
 	// Submit a request of a pending connection attempt to the connection
 	// manager. By registering the id before the connection is even
@@ -530,7 +530,7 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		return
 	}
 
-	if atomic.LoadUint64(&c.id) == 0 {
+	if c.ID() == 0 {
 		atomic.StoreUint64(&c.id, atomic.AddUint64(&cm.connReqCount, 1))
 
 		// Submit a request of a pending connection attempt to the
