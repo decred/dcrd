@@ -215,6 +215,10 @@ type ConnManager struct {
 	// is primarily used to assign unique connection request IDs.
 	connReqCount uint64
 
+	// assignIDMtx synchronizes the assignment of an ID to a connection request
+	// with overall connection request count above.
+	assignIDMtx sync.Mutex
+
 	// The following fields are used for lifecycle management of the connection
 	// manager.
 	wg   sync.WaitGroup
@@ -530,9 +534,25 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		return
 	}
 
+	// Assign an ID and register a pending connection attempt with the
+	// connection manager when an ID has not already been assigned. By
+	// registering the ID before the connection is established, it can later be
+	// canceled via the Remove method.
+	//
+	// Note that the assignment of the ID and the overall request count need to
+	// be synchronized.  So long as this is the only place an existing conn
+	// request ID is updated and this method is not called concurrently on the
+	// same conn request, no race could occur.  However, those preconditions
+	// would be easy to inadvertently violate via updates to the code, so the
+	// mutex is added here for additional safety.
+	var doRegisterPending bool
+	cm.assignIDMtx.Lock()
 	if c.ID() == 0 {
 		atomic.StoreUint64(&c.id, atomic.AddUint64(&cm.connReqCount, 1))
-
+		doRegisterPending = true
+	}
+	cm.assignIDMtx.Unlock()
+	if doRegisterPending {
 		// Submit a request of a pending connection attempt to the
 		// connection manager. By registering the id before the
 		// connection is even established, we'll be able to later
