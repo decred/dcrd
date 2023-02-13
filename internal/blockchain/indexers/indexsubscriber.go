@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -122,7 +122,7 @@ func (s *IndexSubscription) stop() error {
 
 // IndexSubscriber subscribes clients for index updates.
 type IndexSubscriber struct {
-	subscribers uint32 // update atomically.
+	subscribers atomic.Uint32
 
 	c             chan IndexNtfn
 	subscriptions map[string]*IndexSubscription
@@ -172,7 +172,7 @@ func (s *IndexSubscriber) Subscribe(index Indexer, prerequisite string) (*IndexS
 		}
 
 		prereq.dependent = sub
-		atomic.AddUint32(&s.subscribers, 1)
+		s.subscribers.Add(1)
 
 		return sub, nil
 	}
@@ -183,14 +183,14 @@ func (s *IndexSubscriber) Subscribe(index Indexer, prerequisite string) (*IndexS
 	s.subscriptions[sub.id] = sub
 	s.mtx.Unlock()
 
-	atomic.AddUint32(&s.subscribers, 1)
+	s.subscribers.Add(1)
 
 	return sub, nil
 }
 
 // Notify relays an index notification to subscribed indexes for processing.
 func (s *IndexSubscriber) Notify(ntfn *IndexNtfn) {
-	subscribers := atomic.LoadUint32(&s.subscribers)
+	subscribers := s.subscribers.Load()
 
 	// Only relay notifications when there are subscribed indexes
 	// to be notified.

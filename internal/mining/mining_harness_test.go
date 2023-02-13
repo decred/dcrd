@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -263,7 +263,7 @@ type fakeTxSource struct {
 	votes           map[chainhash.Hash][]VoteDesc
 	tspends         map[chainhash.Hash]*dcrutil.Tx
 	miningView      *TxMiningView
-	lastUpdated     int64
+	lastUpdated     atomic.Int64
 }
 
 // isTransactionInTxSource returns whether or not the passed transaction exists
@@ -289,7 +289,7 @@ func (p *fakeTxSource) isTransactionStaged(hash *chainhash.Hash) bool {
 // LastUpdated returns the last time a transaction was added to or removed from
 // the fake tx source.
 func (p *fakeTxSource) LastUpdated() time.Time {
-	return time.Unix(atomic.LoadInt64(&p.lastUpdated), 0)
+	return time.Unix(p.lastUpdated.Load(), 0)
 }
 
 // HaveTransaction returns whether or not the passed transaction hash exists in
@@ -508,7 +508,7 @@ func (p *fakeTxSource) addTransaction(tx *dcrutil.Tx, txType stake.TxType, heigh
 	for _, txIn := range msgTx.TxIn {
 		p.outpoints[txIn.PreviousOutPoint] = tx
 	}
-	atomic.StoreInt64(&p.lastUpdated, time.Now().Unix())
+	p.lastUpdated.Store(time.Now().Unix())
 }
 
 // insertVote inserts a vote into the map of block votes.
@@ -607,7 +607,7 @@ func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers,
 
 		delete(p.pool, *txHash)
 
-		atomic.StoreInt64(&p.lastUpdated, time.Now().Unix())
+		p.lastUpdated.Store(time.Now().Unix())
 
 		// Stop tracking if it's a tspend.
 		delete(p.tspends, *txHash)

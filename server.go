@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -466,11 +466,9 @@ func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr
 // server provides a Decred server for handling communications to and from
 // Decred peers.
 type server struct {
-	// The following variables must only be used atomically.
-	// Putting the uint64s first makes them 64-bit aligned for 32-bit systems.
-	bytesReceived uint64 // Total bytes received from all peers since start.
-	bytesSent     uint64 // Total bytes sent by all peers since start.
-	shutdown      int32
+	bytesReceived atomic.Uint64 // Total bytes received from all peers since start.
+	bytesSent     atomic.Uint64 // Total bytes sent by all peers since start.
+	shutdown      atomic.Bool
 
 	// minKnownWork houses the minimum known work from the associated network
 	// params converted to a uint256 so the conversion only needs to be
@@ -1693,7 +1691,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 	}
 
 	// Ignore new peers if we're shutting down.
-	if atomic.LoadInt32(&s.shutdown) != 0 {
+	if s.shutdown.Load() {
 		srvrLog.Infof("New peer %s ignored - server is shutting down", sp)
 		sp.Disconnect()
 		return false
@@ -2472,20 +2470,19 @@ func (s *server) AddedNodeInfo() []*serverPeer {
 // AddBytesSent adds the passed number of bytes to the total bytes sent counter
 // for the server.  It is safe for concurrent access.
 func (s *server) AddBytesSent(bytesSent uint64) {
-	atomic.AddUint64(&s.bytesSent, bytesSent)
+	s.bytesSent.Add(bytesSent)
 }
 
 // AddBytesReceived adds the passed number of bytes to the total bytes received
 // counter for the server.  It is safe for concurrent access.
 func (s *server) AddBytesReceived(bytesReceived uint64) {
-	atomic.AddUint64(&s.bytesReceived, bytesReceived)
+	s.bytesReceived.Add(bytesReceived)
 }
 
 // NetTotals returns the sum of all bytes received and sent across the network
 // for all peers.  It is safe for concurrent access.
 func (s *server) NetTotals() (uint64, uint64) {
-	return atomic.LoadUint64(&s.bytesReceived),
-		atomic.LoadUint64(&s.bytesSent)
+	return s.bytesReceived.Load(), s.bytesSent.Load()
 }
 
 // notifiedWinningTickets returns whether or not the winning tickets
@@ -3111,7 +3108,7 @@ func (s *server) Run(ctx context.Context) {
 
 	// Wait until the server is signalled to shutdown.
 	<-ctx.Done()
-	atomic.AddInt32(&s.shutdown, 1)
+	s.shutdown.Store(true)
 
 	srvrLog.Warnf("Server shutting down")
 

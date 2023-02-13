@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,8 +55,8 @@ var (
 // speedStats houses tracking information used to monitor the hashing speed of
 // the CPU miner.
 type speedStats struct {
-	totalHashes   uint64 // atomic
-	elapsedMicros uint64 // atomic
+	totalHashes   atomic.Uint64
+	elapsedMicros atomic.Uint64
 }
 
 // Config is a descriptor containing the CPU miner configuration.
@@ -112,7 +112,7 @@ type Config struct {
 // workers which means it will be idle.  The number of worker goroutines for the
 // normal mining mode can be set via the SetNumWorkers method.
 type CPUMiner struct {
-	numWorkers uint32 // update atomically
+	numWorkers atomic.Uint32
 
 	sync.Mutex
 	g                 *mining.BgBlkTmplGenerator
@@ -165,8 +165,8 @@ out:
 			hashesPerSec = 0
 			m.Lock()
 			for _, stats := range m.speedStats {
-				totalHashes := atomic.SwapUint64(&stats.totalHashes, 0)
-				elapsedMicros := atomic.SwapUint64(&stats.elapsedMicros, 0)
+				totalHashes := stats.totalHashes.Swap(0)
+				elapsedMicros := stats.elapsedMicros.Swap(0)
 				elapsedSecs := (elapsedMicros / 1000000)
 				if totalHashes == 0 || elapsedSecs == 0 {
 					continue
@@ -285,9 +285,9 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 	hashesCompleted := uint64(0)
 	start := time.Now()
 	updateSpeedStats := func() {
-		atomic.AddUint64(&stats.totalHashes, hashesCompleted)
+		stats.totalHashes.Add(hashesCompleted)
 		elapsedMicros := time.Since(start).Microseconds()
-		atomic.AddUint64(&stats.elapsedMicros, uint64(elapsedMicros))
+		stats.elapsedMicros.Add(uint64(elapsedMicros))
 
 		hashesCompleted = 0
 		start = time.Now()
@@ -552,7 +552,7 @@ out:
 		// Update the number of running workers.
 		case <-m.updateNumWorkers:
 			numRunning := uint32(len(runningWorkers))
-			numWorkers := atomic.LoadUint32(&m.numWorkers)
+			numWorkers := m.numWorkers.Load()
 
 			// No change.
 			if numWorkers == numRunning {
@@ -678,7 +678,7 @@ func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
 	} else if targetNumWorkers > MaxNumWorkers {
 		targetNumWorkers = MaxNumWorkers
 	}
-	atomic.StoreUint32(&m.numWorkers, targetNumWorkers)
+	m.numWorkers.Store(targetNumWorkers)
 
 	// Set the normal mining state accordingly.
 	if targetNumWorkers != 0 {
@@ -699,7 +699,7 @@ func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
 //
 // This function is safe for concurrent access.
 func (m *CPUMiner) NumWorkers() int32 {
-	return int32(atomic.LoadUint32(&m.numWorkers))
+	return int32(m.numWorkers.Load())
 }
 
 // GenerateNBlocks generates the requested number of blocks in the discrete
@@ -826,14 +826,15 @@ out:
 //
 // See the documentation for CPUMiner type for more details.
 func New(cfg *Config) *CPUMiner {
-	return &CPUMiner{
+	miner := &CPUMiner{
 		g:                 cfg.BgBlkTmplGenerator,
 		cfg:               cfg,
-		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),
 		queryHashesPerSec: make(chan float64),
 		speedStats:        make(map[uint64]*speedStats),
 		minedOnParents:    make(map[chainhash.Hash]uint8),
 		quit:              make(chan struct{}),
 	}
+	miner.numWorkers.Store(defaultNumWorkers)
+	return miner
 }
