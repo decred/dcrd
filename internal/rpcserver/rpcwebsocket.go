@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1262,8 +1262,7 @@ type wsResponse struct {
 // subsystems can't block.  Ultimately, all messages are sent via the
 // outHandler.
 type wsClient struct {
-	// The following variables must only be used atomically.
-	disconnected int32 // Websocket client disconnected?
+	disconnected atomic.Bool // Websocket client disconnected?
 
 	sync.Mutex
 
@@ -1309,7 +1308,7 @@ type wsClient struct {
 func (c *wsClient) shouldLogReadError(err error) bool {
 	// No logging when the client is being forcibly disconnected from the server
 	// side.
-	if atomic.LoadInt32(&c.disconnected) != 0 {
+	if c.disconnected.Load() {
 		return false
 	}
 
@@ -1327,7 +1326,7 @@ func (c *wsClient) shouldLogReadError(err error) bool {
 // must be run as a goroutine.
 func (c *wsClient) inHandler(ctx context.Context) {
 out:
-	for atomic.LoadInt32(&c.disconnected) == 0 {
+	for !c.disconnected.Load() {
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			// Log the error if it's not due to disconnecting.
@@ -1916,13 +1915,13 @@ func (c *wsClient) QueueNotification(marshalledJSON []byte) error {
 
 // Disconnected returns whether or not the websocket client is disconnected.
 func (c *wsClient) Disconnected() bool {
-	return atomic.LoadInt32(&c.disconnected) > 0
+	return c.disconnected.Load()
 }
 
 // Disconnect disconnects the websocket client.
 func (c *wsClient) Disconnect() {
 	// Nothing to do if already disconnected.
-	if atomic.AddInt32(&c.disconnected, 1) != 1 {
+	if !c.disconnected.CompareAndSwap(false, true) {
 		return
 	}
 

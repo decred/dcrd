@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -4913,8 +4913,7 @@ func handleVersion(_ context.Context, _ *Server, _ interface{}) (interface{}, er
 
 // Server provides a concurrent safe RPC server to a chain server.
 type Server struct {
-	// atomic
-	numClients int32
+	numClients atomic.Int32
 
 	cfg                    Config
 	hmac                   hash.Hash
@@ -5097,7 +5096,7 @@ func (s *Server) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
 //
 // This function is safe for concurrent access.
 func (s *Server) limitConnections(w http.ResponseWriter, remoteAddr string) bool {
-	if int(atomic.LoadInt32(&s.numClients)+1) > s.cfg.RPCMaxClients {
+	if int(s.numClients.Load()+1) > s.cfg.RPCMaxClients {
 		log.Infof("Max RPC clients exceeded [%d] - "+
 			"disconnecting client %s", s.cfg.RPCMaxClients,
 			remoteAddr)
@@ -5114,7 +5113,7 @@ func (s *Server) limitConnections(w http.ResponseWriter, remoteAddr string) bool
 //
 // This function is safe for concurrent access.
 func (s *Server) incrementClients() {
-	atomic.AddInt32(&s.numClients, 1)
+	s.numClients.Add(1)
 }
 
 // decrementClients subtracts one from the number of connected RPC clients.
@@ -5123,7 +5122,7 @@ func (s *Server) incrementClients() {
 //
 // This function is safe for concurrent access.
 func (s *Server) decrementClients() {
-	atomic.AddInt32(&s.numClients, -1)
+	s.numClients.Add(-1)
 }
 
 // authMAC calculates the MAC (currently HMAC-SHA256) of an Authorization

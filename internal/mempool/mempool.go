@@ -239,8 +239,7 @@ type orphanTx struct {
 // and relayed to other peers.  It is safe for concurrent access from multiple
 // peers.
 type TxPool struct {
-	// The following variables must only be used atomically.
-	lastUpdated int64 // last time pool was updated.
+	lastUpdated atomic.Int64 // last time pool was updated.
 
 	mtx  sync.RWMutex
 	cfg  Config
@@ -821,7 +820,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 
 		delete(mp.pool, *txHash)
 
-		atomic.StoreInt64(&mp.lastUpdated, time.Now().Unix())
+		mp.lastUpdated.Store(time.Now().Unix())
 
 		// Inform associated fee estimator that the transaction has been removed
 		// from the mempool
@@ -909,7 +908,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxD
 	for _, txIn := range msgTx.TxIn {
 		mp.outpoints[txIn.PreviousOutPoint] = txDesc
 	}
-	atomic.StoreInt64(&mp.lastUpdated, time.Now().Unix())
+	mp.lastUpdated.Store(time.Now().Unix())
 
 	// Add unconfirmed exists address index entries associated with the
 	// transaction if enabled.
@@ -2283,7 +2282,7 @@ func (mp *TxPool) miningDescs() []*mining.TxDesc {
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) LastUpdated() time.Time {
-	return time.Unix(atomic.LoadInt64(&mp.lastUpdated), 0)
+	return time.Unix(mp.lastUpdated.Load(), 0)
 }
 
 // MiningView returns a slice of mining descriptors for all the transactions
