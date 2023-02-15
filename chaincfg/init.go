@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,36 +7,26 @@ package chaincfg
 import (
 	"errors"
 	"fmt"
+	"math/bits"
 	"strings"
 )
 
 var (
-	errDuplicateVoteId  = errors.New("duplicate vote id")
-	errInvalidMask      = errors.New("invalid mask")
-	errNotConsecutive   = errors.New("choices not consecutive")
-	errTooManyChoices   = errors.New("too many choices")
-	errInvalidAbstain   = errors.New("invalid abstain bits")
-	errInvalidBits      = errors.New("invalid vote bits")
-	errInvalidIsAbstain = errors.New("one and only one IsAbstain rule " +
-		"violation")
-	errInvalidIsNo      = errors.New("one and only one IsNo rule violation")
-	errInvalidBothFlags = errors.New("IsNo and IsAbstain may not be both " +
-		"set to true")
+	errDuplicateVoteId   = errors.New("duplicate vote id")
+	errInvalidMask       = errors.New("invalid mask")
+	errNotConsecutive    = errors.New("choices not consecutive")
+	errTooManyChoices    = errors.New("too many choices")
+	errInvalidAbstain    = errors.New("invalid abstain bits")
+	errInvalidBits       = errors.New("invalid vote bits")
+	errMissingAbstain    = errors.New("missing abstain choice")
+	errTooManyAbstain    = errors.New("only one choice may have abstain flag")
+	errMissingNo         = errors.New("missing no choice")
+	errTooManyNo         = errors.New("only one choice may have no flag")
+	errBothFlags         = errors.New("abstain and no flags are mutually exclusive")
 	errDuplicateChoiceId = errors.New("duplicate choice ID")
 )
 
-// bitsSet counts number of bits set.
-// Proudly stolen from:
-// https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan
-func bitsSet(bits uint16) uint {
-	c := uint(0)
-	for v := bits; v != 0; c++ {
-		v &= v - 1
-	}
-	return c
-}
-
-// consecOnes count consecutive 1 bits set.
+// consecOnes counts the number of consecutive 1 bits set.
 func consecOnes(bits uint16) uint {
 	c := uint(0)
 	for v := bits; v != 0; c++ {
@@ -45,56 +35,43 @@ func consecOnes(bits uint16) uint {
 	return c
 }
 
-// shift calculates the number of bits that need shifting to get to an index.
-func shift(mask uint16) uint {
-	shift := uint(0)
-	for {
-		if mask&0x0001 == 0x0001 {
-			break
-		}
-		shift++
-		mask >>= 1
-	}
-	return shift
-}
-
+// validateChoices ensures the provided choices conform to the required voting
+// choice semantics.
 func validateChoices(mask uint16, choices []Choice) error {
-	var (
-		numAbstain, numNo int
-	)
-
-	// Check that mask is consecutive.
-	if consecOnes(mask) != bitsSet(mask) {
+	// Ensure the mask only consists of consecutive bits.
+	maskPopulationCount := uint(bits.OnesCount16(mask))
+	if consecOnes(mask) != maskPopulationCount {
 		return errInvalidMask
 	}
 
-	// Check bits and choice bounds.
-	if len(choices) > 1<<bitsSet(mask) {
+	// Ensure there are not more choices than the mask bits can represent.
+	if len(choices) > 1<<maskPopulationCount {
 		return errTooManyChoices
 	}
 
+	var numAbstain, numNo int
 	dups := make(map[string]struct{})
-	s := shift(mask)
+	s := uint(bits.TrailingZeros16(mask))
 	for index, choice := range choices {
-		// Check that choice 0 is the abstain vote.
+		// Ensure that choice 0 is the abstain vote.
 		if mask&choice.Bits == 0 && !choice.IsAbstain {
 			return errInvalidAbstain
 		}
 
-		// Check mask bits.
+		// Ensure the bits for the choice are covered by the mask.
 		if mask&choice.Bits != choice.Bits {
 			return errInvalidBits
 		}
 
-		// Check that index is consecutive.  This test is below the
-		// Check mask bits one for testing reasons.  Leave it here.
+		// Ensure the index is consecutive.  This test is below the mask check
+		// for testing reasons.  Leave it here.
 		if uint16(index) != choice.Bits>>s {
 			return errNotConsecutive
 		}
 
-		// Check that both flags aren't set to true.
+		// Ensure only one of the choice type identification flags are set.
 		if choice.IsAbstain && choice.IsNo {
-			return errInvalidBothFlags
+			return errBothFlags
 		}
 
 		// Count flags.
@@ -105,73 +82,69 @@ func validateChoices(mask uint16, choices []Choice) error {
 			numNo++
 		}
 
-		// Check for duplicates.
+		// Ensure there are not any duplicates.
 		id := strings.ToLower(choice.Id)
-		_, found := dups[id]
-		if found {
+		if _, found := dups[id]; found {
 			return errDuplicateChoiceId
 		}
 		dups[id] = struct{}{}
 	}
 
-	// Check that there is only one IsNo and IsAbstain flag set to true.
-	if numAbstain != 1 {
-		return errInvalidIsAbstain
-	}
-	if numNo != 1 {
-		return errInvalidIsNo
+	// Ensure there is one and only one of each choice type identification flag
+	// set.
+	switch {
+	case numAbstain == 0:
+		return errMissingAbstain
+	case numAbstain > 1:
+		return errTooManyAbstain
+	case numNo == 0:
+		return errMissingNo
+	case numNo > 1:
+		return errTooManyNo
 	}
 
 	return nil
 }
 
-func validateAgenda(vote Vote) error {
-	return validateChoices(vote.Mask, vote.Choices)
-}
-
-func validateDeployments(deployments []ConsensusDeployment) (int, error) {
-	dups := make(map[string]struct{})
-	for index, deployment := range deployments {
-		// Check for duplicates.
-		id := strings.ToLower(deployment.Vote.Id)
-		_, found := dups[id]
-		if found {
-			return index, errDuplicateVoteId
+// validateDeployments ensures all of deployments in the provided map adhere to
+// the required semantics for deployment definitions.  For example, it ensures
+// there are no duplicate vote IDs and that all choices conform to the required
+// voting choice semantics.
+func validateDeployments(allDeployments map[uint32][]ConsensusDeployment) error {
+	for version, deployments := range allDeployments {
+		// Ensure there are no duplicate vote IDs across the deployment version.
+		dups := make(map[string]struct{})
+		for index, deployment := range deployments {
+			voteID := strings.ToLower(deployment.Vote.Id)
+			if _, found := dups[voteID]; found {
+				return fmt.Errorf("version %d deployment index %d id %q: %w",
+					version, index, deployment.Vote.Id, errDuplicateVoteId)
+			}
+			dups[voteID] = struct{}{}
 		}
-		dups[id] = struct{}{}
 	}
 
-	return -1, nil
-}
-
-func validateAgendas() {
-	allParams := []*Params{MainNetParams(), TestNet3Params(), SimNetParams(),
-		RegNetParams()}
-	for _, params := range allParams {
-		for version, deployments := range params.Deployments {
-			index, err := validateDeployments(deployments)
+	for version, deployments := range allDeployments {
+		for index, deployment := range deployments {
+			// Ensure the vote choices conform to all required semantics.
+			vote := &deployment.Vote
+			err := validateChoices(vote.Mask, vote.Choices)
 			if err != nil {
-				e := fmt.Sprintf("invalid agenda on %v "+
-					"version %v id %v: %v", params.Name,
-					version, deployments[index].Vote.Id,
-					err)
-				panic(e)
-			}
-
-			for _, deployment := range deployments {
-				err := validateAgenda(deployment.Vote)
-				if err != nil {
-					e := fmt.Sprintf("invalid agenda "+
-						"on %v version %v id %v: %v",
-						params.Name, version,
-						deployment.Vote.Id, err)
-					panic(e)
-				}
+				return fmt.Errorf("version %d deployment index %d id %q: %w",
+					version, index, vote.Id, err)
 			}
 		}
 	}
+
+	return nil
 }
 
 func init() {
-	validateAgendas()
+	allParams := []*Params{MainNetParams(), TestNet3Params(), SimNetParams(),
+		RegNetParams()}
+	for _, params := range allParams {
+		if err := validateDeployments(params.Deployments); err != nil {
+			panic(fmt.Sprintf("invalid agenda on %s: %v", params.Name, err))
+		}
+	}
 }

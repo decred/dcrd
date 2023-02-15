@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -324,17 +324,17 @@ func TestChoices(t *testing.T) {
 		{
 			name:     "2 IsAbstain",
 			vote:     twoIsAbstain,
-			expected: errInvalidIsAbstain,
+			expected: errTooManyAbstain,
 		},
 		{
 			name:     "2 IsNo",
 			vote:     twoIsNo,
-			expected: errInvalidIsNo,
+			expected: errTooManyNo,
 		},
 		{
 			name:     "both IsAbstain IsNo",
 			vote:     bothFlags,
-			expected: errInvalidBothFlags,
+			expected: errBothFlags,
 		},
 		{
 			name:     "duplicate choice id",
@@ -345,7 +345,7 @@ func TestChoices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("running: %v", test.name)
-		err := validateAgenda(test.vote)
+		err := validateChoices(test.vote.Mask, test.vote.Choices)
 		if !errors.Is(err, test.expected) {
 			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
 				test.expected)
@@ -363,19 +363,19 @@ var (
 func TestDeployments(t *testing.T) {
 	tests := []struct {
 		name        string
-		deployments []ConsensusDeployment
+		deployments map[uint32][]ConsensusDeployment
 		expected    error
 	}{
 		{
 			name:        "duplicate vote id",
-			deployments: dupVote,
+			deployments: map[uint32][]ConsensusDeployment{1: dupVote},
 			expected:    errDuplicateVoteId,
 		},
 	}
 
 	for _, test := range tests {
 		t.Logf("running: %v", test.name)
-		_, err := validateDeployments(test.deployments)
+		err := validateDeployments(test.deployments)
 		if !errors.Is(err, test.expected) {
 			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
 				test.expected)
