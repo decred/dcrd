@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -130,6 +130,21 @@ func newBestState(node *blockNode, blockSize, numTxns, totalTxns uint64,
 	}
 }
 
+// deploymentInfo houses information about the state of a consensus rule change
+// deployment.
+type deploymentInfo struct {
+	// version is the associated deployment version.
+	version uint32
+
+	// deployment houses the deployment parameters for the consensus rule change
+	// vote.
+	deployment *chaincfg.ConsensusDeployment
+
+	// cache is used to efficiently keep track of the threshold state for the
+	// deployment.
+	cache *thresholdStateCache
+}
+
 // BlockChain provides functions for working with the Decred block chain.  It
 // includes functionality such as rejecting duplicate blocks, ensuring blocks
 // follow all rules, checkpoint handling, and best chain selection with
@@ -141,7 +156,7 @@ type BlockChain struct {
 	assumeValid              chainhash.Hash
 	allowOldForks            bool
 	expectedBlocksInTwoWeeks int64
-	deploymentVers           map[string]uint32
+	deploymentData           map[string]deploymentInfo
 	minKnownWork             *uint256.Uint256
 	minTestNetTarget         *big.Int
 	db                       database.DB
@@ -231,13 +246,6 @@ type BlockChain struct {
 	// chain state can be quickly reconstructed on load.
 	stateLock     sync.RWMutex
 	stateSnapshot *BestState
-
-	// The following caches are used to efficiently keep track of the
-	// current deployment threshold state of each rule change deployment.
-	//
-	// deploymentCaches caches the current deployment threshold state for
-	// blocks in each of the actively defined deployments.
-	deploymentCaches map[uint32][]thresholdStateCache
 
 	// pruner is the automatic pruner for block nodes and stake nodes,
 	// so that the memory may be restored by the garbage collector if
@@ -1592,11 +1600,11 @@ func (b *BlockChain) BestSnapshot() *BestState {
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
-	// Determine the correct deployment version for the block size consensus
-	// vote or treat it as active when voting is not enabled for the current
+	// Determine the correct deployment details for the block size consensus
+	// vote or treat it as inactive when voting is not enabled for the current
 	// network.
 	const deploymentID = chaincfg.VoteIDMaxBlockSize
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return int64(b.chainParams.MaximumBlockSizes[0]), nil
 	}
@@ -1608,7 +1616,7 @@ func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
 	maxSize := int64(b.chainParams.MaximumBlockSizes[0])
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return maxSize, err
 	}
@@ -1965,25 +1973,33 @@ func (b *BlockChain) BlockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 	return locator
 }
 
-// extractDeploymentIDVersions returns a map of all deployment IDs within the
-// provided params to the deployment version for which they are defined.  An
-// error is returned if a duplicate ID is encountered.
-func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, error) {
-	// Generate a deployment ID to version map from the provided params.
-	deploymentVers := make(map[string]uint32)
+// extractDeployments returns a map of all deployment IDs within the provided
+// params to a deployment info structure populated with the associated details.
+// An error is returned if a duplicate ID is encountered.
+func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, error) {
+	// Generate a deployment ID map from the provided params.
+	deploymentData := make(map[string]deploymentInfo)
 	for version, deployments := range params.Deployments {
-		for _, deployment := range deployments {
+		for i := range deployments {
+			deployment := &deployments[i]
 			id := deployment.Vote.Id
-			if _, ok := deploymentVers[id]; ok {
+			if _, ok := deploymentData[id]; ok {
 				str := fmt.Sprintf("deployment ID %s exists in more than one "+
 					"deployment", id)
 				return nil, contextError(ErrDuplicateDeployment, str)
 			}
-			deploymentVers[id] = version
+			deploymentData[id] = deploymentInfo{
+				version:    version,
+				deployment: deployment,
+				cache: &thresholdStateCache{
+					entries:   make(map[chainhash.Hash]ThresholdStateTuple),
+					dbUpdates: make(map[chainhash.Hash]ThresholdStateTuple),
+				},
+			}
 		}
 	}
 
-	return deploymentVers, nil
+	return deploymentData, nil
 }
 
 // ChainQueryerAdapter provides an adapter from a BlockChain instance to the
@@ -2128,9 +2144,9 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
 
-	// Generate a deployment ID to version map from the provided params.
+	// Generate a deployment ID map from the provided params.
 	params := config.ChainParams
-	deploymentVers, err := extractDeploymentIDVersions(params)
+	deploymentData, err := extractDeployments(params)
 	if err != nil {
 		return nil, err
 	}
@@ -2178,7 +2194,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		assumeValid:                   config.AssumeValid,
 		allowOldForks:                 allowOldForks,
 		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
-		deploymentVers:                deploymentVers,
+		deploymentData:                deploymentData,
 		minKnownWork:                  minKnownWork,
 		minTestNetTarget:              minTestNetTarget,
 		db:                            config.DB,
@@ -2193,7 +2209,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		bestChain:                     newChainView(nil),
 		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
 		recentContextChecks:           lru.NewCache(contextCheckCacheSize),
-		deploymentCaches:              newThresholdCaches(params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),

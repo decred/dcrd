@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2022 The Decred developers
+// Copyright (c) 2017-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -80,8 +80,8 @@ type ThresholdStateTuple struct {
 	State ThresholdState
 
 	// Choice is set to invalidChoice unless state is: ThresholdLockedIn,
-	// ThresholdFailed & ThresholdActive.  choice should always be
-	// crosschecked with invalidChoice.
+	// ThresholdFailed & ThresholdActive.  Choice should always be crosschecked
+	// with invalidChoice.
 	Choice uint32
 }
 
@@ -107,6 +107,12 @@ func (t ThresholdStateTuple) String() string {
 func newThresholdState(state ThresholdState, choice uint32) ThresholdStateTuple {
 	return ThresholdStateTuple{State: state, Choice: choice}
 }
+
+var (
+	// invalidThresholdState is a threshold state tuple that represents an
+	// invalid state for use with errors.
+	invalidThresholdState = newThresholdState(ThresholdInvalid, invalidChoice)
+)
 
 // thresholdConditionTally is returned by thresholdConditionChecker.Condition
 // to indicate how many votes an option received.  The isAbstain and isNo flags
@@ -197,21 +203,6 @@ func (c *thresholdStateCache) MarkFlushed() {
 	}
 }
 
-// newThresholdCaches returns a new array of caches to be used when calculating
-// threshold states.
-func newThresholdCaches(params *chaincfg.Params) map[uint32][]thresholdStateCache {
-	caches := make(map[uint32][]thresholdStateCache)
-	for version := range params.Deployments {
-		caches[version] = make([]thresholdStateCache,
-			len(params.Deployments[version]))
-		for k := range caches[version] {
-			caches[version][k].entries = make(map[chainhash.Hash]ThresholdStateTuple)
-			caches[version][k].dbUpdates = make(map[chainhash.Hash]ThresholdStateTuple)
-		}
-	}
-	return caches
-}
-
 // currentDeploymentVersion returns the highest deployment version that is
 // defined in the given network parameters.  Zero is returned if no deployments
 // are defined.
@@ -252,7 +243,7 @@ func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
 // the threshold states for previous windows are only calculated once.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, checker thresholdConditionChecker, cache *thresholdStateCache) (ThresholdStateTuple, error) {
+func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo, checker thresholdConditionChecker) (ThresholdStateTuple, error) {
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
 	confirmationWindow := int64(checker.RuleChangeActivationInterval())
@@ -271,6 +262,7 @@ func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, che
 
 	// Iterate backwards through each of the previous confirmation windows
 	// to find the most recently cached threshold state.
+	cache := deployment.cache
 	var neededStates []*blockNode
 	for prevNode != nil {
 		// Nothing more to do if the state of the block is already
@@ -318,6 +310,7 @@ func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, che
 
 	// Since each threshold state depends on the state of the previous
 	// window, iterate starting from the oldest unknown window.
+	version := deployment.version
 	for neededNum := len(neededStates) - 1; neededNum >= 0; neededNum-- {
 		prevNode := neededStates[neededNum]
 
@@ -470,9 +463,9 @@ func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, che
 	return stateTuple, nil
 }
 
-// deploymentState returns the current rule change threshold for a given stake
-// version and deploymentID.  The threshold is evaluated from the point of view
-// of the block node passed in as the first argument to this method.
+// deploymentState returns the current rule change threshold for a given
+// deployment.  The threshold is evaluated from the point of view of the block
+// node passed in as the first argument to this method.
 //
 // It is important to note that, as the variable name indicates, this function
 // expects the block node prior to the block for which the deployment state is
@@ -480,24 +473,12 @@ func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, che
 // AFTER the passed node.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) deploymentState(prevNode *blockNode, version uint32, deploymentID string) (ThresholdStateTuple, error) {
-	for k := range b.chainParams.Deployments[version] {
-		if b.chainParams.Deployments[version][k].Vote.Id == deploymentID {
-			checker := deploymentChecker{
-				deployment: &b.chainParams.Deployments[version][k],
-				chain:      b,
-			}
-			cache := &b.deploymentCaches[version][k]
-			return b.nextThresholdState(version, prevNode, checker, cache)
-		}
+func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
+	checker := deploymentChecker{
+		deployment: deployment.deployment,
+		chain:      b,
 	}
-
-	invalidState := ThresholdStateTuple{
-		State:  ThresholdInvalid,
-		Choice: invalidChoice,
-	}
-	str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-	return invalidState, contextError(ErrUnknownDeploymentID, str)
+	return b.nextThresholdState(prevNode, deployment, checker)
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
@@ -505,7 +486,7 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, version uint32, deploy
 // never changed.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker thresholdConditionChecker, cache *thresholdStateCache) (*blockNode, error) {
+func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo, checker thresholdConditionChecker) (*blockNode, error) {
 	// No state changes are possible if the chain is not yet past stake
 	// validation height and had a full interval to change.
 	confirmationInterval := int64(checker.RuleChangeActivationInterval())
@@ -517,7 +498,7 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 	// Determine the current state.  Notice that nextThresholdState always
 	// calculates the state for the block after the provided one, so use the
 	// parent to get the state for the requested block.
-	curState, err := b.nextThresholdState(version, node.parent, checker, cache)
+	curState, err := b.nextThresholdState(node.parent, deployment, checker)
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +514,7 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 		// As previously mentioned, nextThresholdState always calculates the
 		// state for the block after the provided one, so use the parent to get
 		// the state of the block itself.
-		state, err := b.nextThresholdState(version, node.parent, checker, cache)
+		state, err := b.nextThresholdState(node.parent, deployment, checker)
 		if err != nil {
 			return nil, err
 		}
@@ -563,29 +544,20 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 		return 0, unknownBlockError(hash)
 	}
 
-	// Fetch the threshold state cache for the provided deployment id as well as
-	// the condition checker.
-	var cache *thresholdStateCache
-	var checker thresholdConditionChecker
-	for k := range b.chainParams.Deployments[version] {
-		if b.chainParams.Deployments[version][k].Vote.Id == deploymentID {
-			checker = deploymentChecker{
-				deployment: &b.chainParams.Deployments[version][k],
-				chain:      b,
-			}
-			cache = &b.deploymentCaches[version][k]
-			break
-		}
+	// Determine the deployment details for the provided deployment id.
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return 0, contextError(ErrUnknownDeploymentID, str)
 	}
-
-	if cache == nil {
-		return 0, fmt.Errorf("threshold state cache for agenda with "+
-			"deployment id (%s) not found", deploymentID)
+	checker := deploymentChecker{
+		deployment: deployment.deployment,
+		chain:      b,
 	}
 
 	// Find the node at which the current state changed.
 	b.chainLock.Lock()
-	stateNode, err := b.stateLastChanged(version, node, checker, cache)
+	stateNode, err := b.stateLastChanged(node, &deployment, checker)
 	b.chainLock.Unlock()
 	if err != nil {
 		return 0, err
@@ -605,15 +577,17 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (ThresholdStateTuple, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.CanValidate(node) {
-		invalidState := ThresholdStateTuple{
-			State:  ThresholdInvalid,
-			Choice: invalidChoice,
-		}
-		return invalidState, unknownBlockError(hash)
+		return invalidThresholdState, unknownBlockError(hash)
+	}
+
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return invalidThresholdState, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	b.chainLock.Lock()
-	state, err := b.deploymentState(node, version, deploymentID)
+	state, err := b.deploymentState(node, &deployment)
 	b.chainLock.Unlock()
 	return state, err
 }
@@ -629,16 +603,16 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, de
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment version for the LN features consensus
+	// Determine the correct deployment details for the LN features consensus
 	// vote as defined in DCP0002 and DCP0003 or treat it as active when voting
 	// is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDLNFeatures
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -677,16 +651,16 @@ func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, e
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment version for the header commitments
+	// Determine the correct deployment details for the header commitments
 	// consensus vote as defined in DCP0005 or treat it as active when voting
 	// is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDHeaderCommitments
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -729,13 +703,17 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 	if prevNode.height == 0 {
 		return false, nil
 	}
+
+	// Determine the correct deployment details for the decentralized treasury
+	// consensus vote as defined in DCP0006 or treat it as active when voting is
+	// not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDTreasury
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -779,13 +757,16 @@ func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, err
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment details for the revert treasury
+	// expenditure policy consensus vote as defined in DCP0007 or treat it as
+	// active when voting is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDRevertTreasuryPolicy
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -824,13 +805,16 @@ func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (boo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment details for the explicit version
+	// upgrades consensus vote as defined in DCP0008 or treat it as active when
+	// voting is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDExplicitVersionUpgrades
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -874,13 +858,16 @@ func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash)
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment details for the automatic ticket
+	// revocations consensus vote as defined in DCP0009 or treat it as active
+	// when voting is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDAutoRevocations
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}
@@ -924,13 +911,16 @@ func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment details for the block reward subsidy
+	// split change consensus vote as defined in DCP0010 or treat it as active
+	// when voting is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDChangeSubsidySplit
-	deploymentVer, ok := b.deploymentVers[deploymentID]
+	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		return true, nil
 	}
 
-	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	state, err := b.deploymentState(prevNode, &deployment)
 	if err != nil {
 		return false, err
 	}

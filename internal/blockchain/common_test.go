@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -187,16 +187,15 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	index.bestHeader = node
 	index.AddNode(node)
 
-	// Generate a deployment ID to version map from the provided params.
-	deploymentVers, err := extractDeploymentIDVersions(params)
+	// Generate a deployment ID map from the provided params.
+	deploymentData, err := extractDeployments(params)
 	if err != nil {
 		panic(err)
 	}
 
 	return &BlockChain{
-		deploymentVers:                deploymentVers,
+		deploymentData:                deploymentData,
 		chainParams:                   params,
-		deploymentCaches:              newThresholdCaches(params),
 		index:                         index,
 		bestChain:                     newChainView(node),
 		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
