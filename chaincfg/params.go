@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -167,19 +167,31 @@ const (
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
-// change that is voted in.  This is part of BIP0009.
+// change that is voted in.
 type ConsensusDeployment struct {
 	// Vote describes the what is being voted on and what the choices are.
-	// This is sitting in a struct in order to make merging between btcd
-	// easier.
 	Vote Vote
 
-	// StartTime is the median block time after which voting on the
-	// deployment starts.
+	// ForcedChoiceID specifies that the indicated vote choice should always be
+	// considered as having been the majority result of a vote.  An empty string
+	// is the default and indicates that the vote should be conducted normally.
+	//
+	// This primarily exists to support testing without needing to go through
+	// the entire voting process.  For example, it is useful for automatically
+	// activating rule changes on newer versions of test networks that were
+	// previously accepted on prior versions.
+	ForcedChoiceID string
+
+	// StartTime is the median block time after which voting on the deployment
+	// starts.
+	//
+	// NOTE: This field is ignored when the forced choice ID field is set.
 	StartTime uint64
 
-	// ExpireTime is the median block time after which the attempted
-	// deployment expires.
+	// ExpireTime is the median block time after which the attempted deployment
+	// expires.
+	//
+	// NOTE: This field is ignored when the forced choice ID field is set.
 	ExpireTime uint64
 }
 

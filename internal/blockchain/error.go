@@ -583,6 +583,18 @@ const (
 	// network parameter deployment definitions.
 	ErrDuplicateDeployment = ErrorKind("ErrDuplicateDeployment")
 
+	// ErrUnknownDeploymentChoice indicates a choice id for a deployment does
+	// not exist.
+	ErrUnknownDeploymentChoice = ErrorKind("ErrUnknownDeploymentChoice")
+
+	// ErrDeploymentChoiceAbstain indicates the forced choice id for a
+	// deployment is the unusable abstaining choice.
+	ErrDeploymentChoiceAbstain = ErrorKind("ErrDeploymentChoiceAbstain")
+
+	// ErrForcedMainNetChoice indicates a forced choice id is configured for a
+	// deployment on the main network.
+	ErrForcedMainNetChoice = ErrorKind("ErrForcedMainNetChoice")
+
 	// ErrUnknownBlock indicates a requested block does not exist.
 	ErrUnknownBlock = ErrorKind("ErrUnknownBlock")
 

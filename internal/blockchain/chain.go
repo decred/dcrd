@@ -140,6 +140,12 @@ type deploymentInfo struct {
 	// vote.
 	deployment *chaincfg.ConsensusDeployment
 
+	// forcedState optionally specifies a threshold state to use instead of
+	// determining the state via the normal means of tallying votes.  This only
+	// applies when it is not nil and is only populated when the associated
+	// chain parameters specify a forced choice.
+	forcedState *ThresholdStateTuple
+
 	// cache is used to efficiently keep track of the threshold state for the
 	// deployment.
 	cache *thresholdStateCache
@@ -1973,9 +1979,67 @@ func (b *BlockChain) BlockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 	return locator
 }
 
+// isMainNet returns whether or not the provided chain params are for the main
+// network.
+func isMainNet(params *chaincfg.Params) bool {
+	return params.Net == wire.MainNet
+}
+
+// determineForcedThresholdState returns the appropriate threshold state and
+// choice for the given deployment when it has a forced choice specified.  It
+// returns nil when a forced choice is not specified or an error when the choice
+// either does not exist or is unsuitable for use as a forced choice.
+func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*ThresholdStateTuple, error) {
+	// Nothing to extract when there is no forced choice.
+	forcedChoiceID := deployment.ForcedChoiceID
+	if forcedChoiceID == "" {
+		return nil, nil
+	}
+	deploymentID := deployment.Vote.Id
+
+	// Attempt to find the choice with the ID that matches the forced choice
+	// specified in the deployment chain params and ensure it exists.
+	var forcedChoice *chaincfg.Choice
+	var forcedChoiceIdx uint32
+	for choiceIdx := range deployment.Vote.Choices {
+		choice := &deployment.Vote.Choices[choiceIdx]
+		if choice.Id == forcedChoiceID {
+			forcedChoice = choice
+			forcedChoiceIdx = uint32(choiceIdx)
+			break
+		}
+	}
+	if forcedChoice == nil {
+		str := fmt.Sprintf("deployment ID %s forced choice %q does not exist "+
+			"in the chain parameters", deploymentID, forcedChoiceID)
+		return nil, contextError(ErrUnknownDeploymentChoice, str)
+	}
+
+	// The forced choice must not be the abstain choice because it must resolve
+	// to either an active or failed state.
+	if forcedChoice.IsAbstain {
+		str := fmt.Sprintf("deployment ID %s forced choice %q is of type "+
+			"abstain which is not a valid forced choice", deploymentID,
+			forcedChoiceID)
+		return nil, contextError(ErrDeploymentChoiceAbstain, str)
+	}
+
+	// Return the appropriate forced threshold state with the associated found
+	// choice.
+	state := ThresholdActive
+	if forcedChoice.IsNo {
+		state = ThresholdFailed
+	}
+	tuple := newThresholdState(state, forcedChoiceIdx)
+	return &tuple, nil
+}
+
 // extractDeployments returns a map of all deployment IDs within the provided
 // params to a deployment info structure populated with the associated details.
-// An error is returned if a duplicate ID is encountered.
+//
+// It also returns an appropriate error when any additional sanity checks fail.
+// For example, duplicate deployment IDs are rejected and forced choices are
+// disallowed on the main network.
 func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, error) {
 	// Generate a deployment ID map from the provided params.
 	deploymentData := make(map[string]deploymentInfo)
@@ -1988,9 +2052,25 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 					"deployment", id)
 				return nil, contextError(ErrDuplicateDeployment, str)
 			}
+
+			// Determine the forced threshold state when the deployment has a
+			// forced choice specified.
+			forcedState, err := determineForcedThresholdState(deployment)
+			if err != nil {
+				return nil, err
+			}
+
+			// Prevent forced choices on the main network.
+			if isMainNet(params) && forcedState != nil {
+				str := fmt.Sprintf("deployment ID %s has a forced choice for "+
+					"the main network", id)
+				return nil, contextError(ErrForcedMainNetChoice, str)
+			}
+
 			deploymentData[id] = deploymentInfo{
-				version:    version,
-				deployment: deployment,
+				version:     version,
+				deployment:  deployment,
+				forcedState: forcedState,
 				cache: &thresholdStateCache{
 					entries:   make(map[chainhash.Hash]ThresholdStateTuple),
 					dbUpdates: make(map[chainhash.Hash]ThresholdStateTuple),

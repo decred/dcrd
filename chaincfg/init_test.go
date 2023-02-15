@@ -184,6 +184,65 @@ func TestRejectDuplicateVoteIDs(t *testing.T) {
 	}
 }
 
+// TestForcedChoice ensures the validate logic for a forced choice works as
+// intended.
+func TestForcedChoice(t *testing.T) {
+	// mockChoices is a series of choices used in the tests below and is defined
+	// here for convenience.
+	mockChoices := []Choice{{
+		Id:          "abstain",
+		Description: "abstain voting for change",
+		Bits:        0x0000,
+		IsAbstain:   true,
+		IsNo:        false,
+	}, {
+		Id:          "no",
+		Description: "keep the existing rules",
+		Bits:        0x0002, // Bit 1
+		IsAbstain:   false,
+		IsNo:        true,
+	}, {
+		Id:          "yes",
+		Description: "change to the new rules",
+		Bits:        0x0004, // Bit 2
+		IsAbstain:   false,
+		IsNo:        false,
+	}}
+
+	tests := []struct {
+		name   string // test description
+		forced string // forced choice
+		err    error  // expected result
+	}{{
+		name: "no forced choice",
+		err:  nil,
+	}, {
+		name:   "forced choice yes",
+		forced: "yes",
+		err:    nil,
+	}, {
+		name:   "forced choice no",
+		forced: "no",
+		err:    nil,
+	}, {
+		name:   "abstain is not a valid forced choice",
+		forced: "abstain",
+		err:    errForcedChoiceAbstain,
+	}, {
+		name:   "forced choice that does not exist",
+		forced: "bogus",
+		err:    errMissingForcedChoice,
+	}}
+
+	for _, test := range tests {
+		err := validateForcedChoice(test.forced, mockChoices)
+		if !errors.Is(err, test.err) {
+			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
+		}
+	}
+}
+
 // allDefaultNetParams returns the parameters for all of the default networks
 // for use in the tests.
 func allDefaultNetParams() []*Params {

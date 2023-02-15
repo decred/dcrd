@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -137,6 +137,64 @@ func TestNet3Params() *Params {
 		RuleChangeActivationDivisor:    4,
 		RuleChangeActivationInterval:   5040, // 1 week
 		Deployments: map[uint32][]ConsensusDeployment{
+			5: {{
+				Vote: Vote{
+					Id:          VoteIDSDiffAlgorithm,
+					Description: "Change stake difficulty algorithm as defined in DCP0001",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing algorithm",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new algorithm",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				ForcedChoiceID: "yes",
+				StartTime:      1493164800, // Apr 26th, 2017
+				ExpireTime:     1524700800, // Apr 26th, 2018
+			}},
+			6: {{
+				Vote: Vote{
+					Id:          VoteIDLNFeatures,
+					Description: "Enable features defined in DCP0002 and DCP0003 necessary to support Lightning Network (LN)",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				ForcedChoiceID: "yes",
+				StartTime:      1505260800, // Sep 13th, 2017
+				ExpireTime:     1536796800, // Sep 13th, 2018
+			}},
 			7: {{
 				Vote: Vote{
 					Id:          VoteIDFixLNSeqLocks,

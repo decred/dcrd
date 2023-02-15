@@ -474,6 +474,10 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
+	if deployment.forcedState != nil {
+		return *deployment.forcedState, nil
+	}
+
 	checker := deploymentChecker{
 		deployment: deployment.deployment,
 		chain:      b,
@@ -550,6 +554,11 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
 		return 0, contextError(ErrUnknownDeploymentID, str)
 	}
+	if deployment.forcedState != nil {
+		// The state change height is 1 since the genesis block never
+		// experiences changes regardless of consensus rule changes.
+		return 1, nil
+	}
 	checker := deploymentChecker{
 		deployment: deployment.deployment,
 		chain:      b,
@@ -604,12 +613,12 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID strin
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the LN features consensus
-	// vote as defined in DCP0002 and DCP0003 or treat it as active when voting
-	// is not enabled for the current network.
+	// vote as defined in DCP0002 and DCP0003.
 	const deploymentID = chaincfg.VoteIDLNFeatures
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -652,12 +661,12 @@ func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, e
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the header commitments
-	// consensus vote as defined in DCP0005 or treat it as active when voting
-	// is not enabled for the current network.
+	// consensus vote as defined in DCP0005.
 	const deploymentID = chaincfg.VoteIDHeaderCommitments
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -705,12 +714,12 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 	}
 
 	// Determine the correct deployment details for the decentralized treasury
-	// consensus vote as defined in DCP0006 or treat it as active when voting is
-	// not enabled for the current network.
+	// consensus vote as defined in DCP0006.
 	const deploymentID = chaincfg.VoteIDTreasury
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -758,12 +767,12 @@ func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, err
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the revert treasury
-	// expenditure policy consensus vote as defined in DCP0007 or treat it as
-	// active when voting is not enabled for the current network.
+	// expenditure policy consensus vote as defined in DCP0007.
 	const deploymentID = chaincfg.VoteIDRevertTreasuryPolicy
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -806,12 +815,12 @@ func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (boo
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the explicit version
-	// upgrades consensus vote as defined in DCP0008 or treat it as active when
-	// voting is not enabled for the current network.
+	// upgrades consensus vote as defined in DCP0008.
 	const deploymentID = chaincfg.VoteIDExplicitVersionUpgrades
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -859,12 +868,12 @@ func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash)
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the automatic ticket
-	// revocations consensus vote as defined in DCP0009 or treat it as active
-	// when voting is not enabled for the current network.
+	// revocations consensus vote as defined in DCP0009.
 	const deploymentID = chaincfg.VoteIDAutoRevocations
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)
@@ -912,12 +921,12 @@ func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bo
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, error) {
 	// Determine the correct deployment details for the block reward subsidy
-	// split change consensus vote as defined in DCP0010 or treat it as active
-	// when voting is not enabled for the current network.
+	// split change consensus vote as defined in DCP0010.
 	const deploymentID = chaincfg.VoteIDChangeSubsidySplit
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return true, nil
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	state, err := b.deploymentState(prevNode, &deployment)

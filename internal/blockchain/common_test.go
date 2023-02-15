@@ -549,29 +549,6 @@ nextvote:
 	return targetDeployVer, nil
 }
 
-// removeDeployment modifies the passed parameters to remove all deployments for
-// the provided vote ID.  An error is returned when not found.
-func removeDeployment(params *chaincfg.Params, voteID string) error {
-	// Remove the deployment(s) for the passed vote ID.
-	var found bool
-	for version, deployments := range params.Deployments {
-		for i, deployment := range deployments {
-			if deployment.Vote.Id == voteID {
-				copy(deployments[i:], deployments[i+1:])
-				deployments[len(deployments)-1] = chaincfg.ConsensusDeployment{}
-				deployments = deployments[:len(deployments)-1]
-				params.Deployments[version] = deployments
-				found = true
-			}
-		}
-	}
-	if found {
-		return nil
-	}
-
-	return fmt.Errorf("unable to find deployment for id %q", voteID)
-}
-
 // removeDeploymentTimeConstraints modifies the passed deployment to remove the
 // voting time constraints by making it always available to vote and to never
 // expire.
@@ -581,6 +558,18 @@ func removeDeployment(params *chaincfg.Params, voteID string) error {
 func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
 	deployment.StartTime = 0               // Always available for vote.
 	deployment.ExpireTime = math.MaxUint64 // Never expires.
+}
+
+// forceDeploymentResult modifies the passed deployment to force the provided
+// choice ID as the result of provided vote ID.  An error is returned when not
+// found.
+func forceDeploymentResult(params *chaincfg.Params, voteID, choiceID string) error {
+	_, deployment, err := findDeployment(params, voteID)
+	if err != nil {
+		return err
+	}
+	deployment.ForcedChoiceID = choiceID
+	return nil
 }
 
 // chaingenHarness provides a test harness which encapsulates a test instance, a

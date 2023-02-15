@@ -3429,12 +3429,12 @@ func TestTSpendCorners(t *testing.T) {
 func TestTSpendFirstTVICorner(t *testing.T) {
 	t.Parallel()
 
-	// Clone the parameters so they can be mutated and remove the deployment
-	// for the treasury agenda to activate it.
-	const tVoteID = chaincfg.VoteIDTreasury
+	// Clone the parameters so they can be mutated and mark the treasury agenda
+	// as always active.
+	const voteID = chaincfg.VoteIDTreasury
 	params := chaincfg.RegNetParams()
 	params = cloneParams(params)
-	removeDeployment(params, tVoteID)
+	forceDeploymentResult(params, voteID, "yes")
 
 	// Change params to hit corner case.
 	params.StakeValidationHeight = 144

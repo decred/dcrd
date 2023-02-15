@@ -12,18 +12,20 @@ import (
 )
 
 var (
-	errDuplicateVoteId   = errors.New("duplicate vote id")
-	errInvalidMask       = errors.New("invalid mask")
-	errNotConsecutive    = errors.New("choices not consecutive")
-	errTooManyChoices    = errors.New("too many choices")
-	errInvalidAbstain    = errors.New("invalid abstain bits")
-	errInvalidBits       = errors.New("invalid vote bits")
-	errMissingAbstain    = errors.New("missing abstain choice")
-	errTooManyAbstain    = errors.New("only one choice may have abstain flag")
-	errMissingNo         = errors.New("missing no choice")
-	errTooManyNo         = errors.New("only one choice may have no flag")
-	errBothFlags         = errors.New("abstain and no flags are mutually exclusive")
-	errDuplicateChoiceId = errors.New("duplicate choice ID")
+	errDuplicateVoteId     = errors.New("duplicate vote id")
+	errInvalidMask         = errors.New("invalid mask")
+	errNotConsecutive      = errors.New("choices not consecutive")
+	errTooManyChoices      = errors.New("too many choices")
+	errInvalidAbstain      = errors.New("invalid abstain bits")
+	errInvalidBits         = errors.New("invalid vote bits")
+	errMissingAbstain      = errors.New("missing abstain choice")
+	errTooManyAbstain      = errors.New("only one choice may have abstain flag")
+	errMissingNo           = errors.New("missing no choice")
+	errTooManyNo           = errors.New("only one choice may have no flag")
+	errBothFlags           = errors.New("abstain and no flags are mutually exclusive")
+	errDuplicateChoiceId   = errors.New("duplicate choice ID")
+	errMissingForcedChoice = errors.New("choice ID does not exist")
+	errForcedChoiceAbstain = errors.New("abstain is not a valid forced choice")
 )
 
 // consecOnes counts the number of consecutive 1 bits set.
@@ -106,6 +108,37 @@ func validateChoices(mask uint16, choices []Choice) error {
 	return nil
 }
 
+// validateForcedChoice ensures the provided forced choice adheres to the
+// required semantics for the given choices.  For example, it ensures the choice
+// exists and that it is not the abstaining choice.
+func validateForcedChoice(choiceID string, choices []Choice) error {
+	// No forced choice.
+	if choiceID == "" {
+		return nil
+	}
+
+	// The forced choice must be a choice that exists.
+	var foundChoice *Choice
+	for index, choice := range choices {
+		if choice.Id == choiceID {
+			foundChoice = &choices[index]
+			break
+		}
+	}
+	if foundChoice == nil {
+		str := "forced choice %q: %w"
+		return fmt.Errorf(str, choiceID, errMissingForcedChoice)
+	}
+
+	// The forced choice must not be the abstain choice.
+	if foundChoice.IsAbstain {
+		str := "forced choice %q: %w"
+		return fmt.Errorf(str, choiceID, errForcedChoiceAbstain)
+	}
+
+	return nil
+}
+
 // validateDeployments ensures all of deployments in the provided map adhere to
 // the required semantics for deployment definitions.  For example, it ensures
 // there are no duplicate vote IDs and that all choices conform to the required
@@ -129,6 +162,13 @@ func validateDeployments(allDeployments map[uint32][]ConsensusDeployment) error 
 			// Ensure the vote choices conform to all required semantics.
 			vote := &deployment.Vote
 			err := validateChoices(vote.Mask, vote.Choices)
+			if err != nil {
+				return fmt.Errorf("version %d deployment index %d id %q: %w",
+					version, index, vote.Id, err)
+			}
+
+			// Ensure the forced choice is a valid choice id (or unset).
+			err = validateForcedChoice(deployment.ForcedChoiceID, vote.Choices)
 			if err != nil {
 				return fmt.Errorf("version %d deployment index %d id %q: %w",
 					version, index, vote.Id, err)
