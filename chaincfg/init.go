@@ -111,9 +111,9 @@ func validateChoices(mask uint16, choices []Choice) error {
 // there are no duplicate vote IDs and that all choices conform to the required
 // voting choice semantics.
 func validateDeployments(allDeployments map[uint32][]ConsensusDeployment) error {
+	// Ensure there are no duplicate vote IDs across all deployments.
+	dups := make(map[string]struct{})
 	for version, deployments := range allDeployments {
-		// Ensure there are no duplicate vote IDs across the deployment version.
-		dups := make(map[string]struct{})
 		for index, deployment := range deployments {
 			voteID := strings.ToLower(deployment.Vote.Id)
 			if _, found := dups[voteID]; found {

@@ -151,8 +151,7 @@ func TestValidateChoices(t *testing.T) {
 }
 
 // TestRejectDuplicateVoteIDs ensures the validation logic for enforcing unique
-// deployment/vote IDs across the deployments for a given deployment version
-// works as intended.
+// deployment/vote IDs across all deployments works as intended.
 func TestRejectDuplicateVoteIDs(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -168,12 +167,12 @@ func TestRejectDuplicateVoteIDs(t *testing.T) {
 		},
 		expected: errDuplicateVoteId,
 	}, {
-		name: "allow duplicate vote id in different versions",
+		name: "reject duplicate vote id in different versions",
 		deployments: map[uint32][]ConsensusDeployment{
 			1: {{Vote: mockVote()}},
 			2: {{Vote: mockVote()}},
 		},
-		expected: nil,
+		expected: errDuplicateVoteId,
 	}}
 
 	for _, test := range tests {
