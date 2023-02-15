@@ -11,373 +11,175 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-var (
-	consecMask = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0xa, // 0b1010 XXX not consecutive mask
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
+// mockVote is a convenience func to return a mock vote that is used as a base
+// throughout the tests.
+func mockVote() Vote {
+	return Vote{
+		Id:   "testvote",
+		Mask: 0x6,
+		Choices: []Choice{{
+			Id:          "abstain",
+			Description: "abstain voting for change",
+			Bits:        0x0000,
+			IsAbstain:   true,
+			IsNo:        false,
+		}, {
+			Id:          "no",
+			Description: "keep the existing rules",
+			Bits:        0x0002, // Bit 1
+			IsAbstain:   false,
+			IsNo:        true,
+		}, {
+			Id:          "yes",
+			Description: "change to the new rules",
+			Bits:        0x0004, // Bit 2
+			IsAbstain:   false,
+			IsNo:        false,
+		}},
 	}
+}
 
-	tooManyChoices = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-			{
-				Id:          "Maybe",
-				Description: "Vote for Pedro",
-				Bits:        0x6, // 0b0110
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			// XXX here we go out of mask bounds
-			{
-				Id:          "Hmmmm",
-				Description: "Vote for Pedro",
-				Bits:        0x6, // 0b0110 XXX invalid bits too
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-		},
-	}
-
-	notConsec = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			// XXX not consecutive
-			{
-				Id:          "Maybe",
-				Description: "Vote for Pedro",
-				Bits:        0x6, // 0b0110
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-		},
-	}
-
-	invalidAbstain = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0,   // 0b0000
-				IsAbstain:   false, // XXX this is the invalid bit
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-
-	invalidVoteBits = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0xc, // 0b1100 XXX invalid bits
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-
-	twoIsAbstain = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2,  // 0b0010
-				IsAbstain:   true, // XXX this is the invalid choice
-				IsNo:        false,
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-
-	twoIsNo = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        true, // XXX this is the invalid choice
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-
-	bothFlags = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2,  // 0b0010
-				IsAbstain:   true, // XXX this is the invalid choice
-				IsNo:        true, // XXX this is the invalid choice
-			},
-			{
-				Id:          "No",
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-
-	dupChoice = Vote{
-		Id:          "voteforpedro",
-		Description: "You should always vote for Pedro",
-		Mask:        0x6, // 0b0110
-		Choices: []Choice{
-			{
-				Id:          "Abstain",
-				Description: "Abstain voting for Pedro",
-				Bits:        0x0, // 0b0000
-				IsAbstain:   true,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes",
-				Description: "Vote for Pedro",
-				Bits:        0x2, // 0b0010
-				IsAbstain:   false,
-				IsNo:        false,
-			},
-			{
-				Id:          "Yes", // XXX this is the invalid ID
-				Description: "Dont vote for Pedro",
-				Bits:        0x4, // 0b0100
-				IsAbstain:   false,
-				IsNo:        true,
-			},
-		},
-	}
-)
-
-func TestChoices(t *testing.T) {
+// TestValidateChoices ensures the validation logic for enforcing choice
+// semantics works as intended.
+func TestValidateChoices(t *testing.T) {
 	tests := []struct {
 		name     string
-		vote     Vote
+		munger   func(*Vote)
 		expected error
-	}{
-		{
-			name:     "consecutive mask",
-			vote:     consecMask,
-			expected: errInvalidMask,
+	}{{
+		name: "require consecutive mask",
+		munger: func(vote *Vote) {
+			vote.Mask = 0xa // 0b1010 -- non-consecutive mask
 		},
-		{
-			name:     "not consecutive choices",
-			vote:     notConsec,
-			expected: errNotConsecutive,
+		expected: errInvalidMask,
+	}, {
+		name: "require consecutive choices",
+		munger: func(vote *Vote) {
+			// The other choices in the mock vote are for abstain and yes, so
+			// the next one should be for bit 2 (0x0004).
+			vote.Choices[2].Bits = 0x6
 		},
-		{
-			name:     "too many choices",
-			vote:     tooManyChoices,
-			expected: errTooManyChoices,
+		expected: errNotConsecutive,
+	}, {
+		name: "reject too many choices",
+		munger: func(vote *Vote) {
+			vote.Choices = append(vote.Choices, Choice{
+				Id:   "maybe",
+				Bits: 0x0006,
+			})
+			vote.Choices = append(vote.Choices, Choice{
+				Id:   "another",
+				Bits: 0x0006, // invalid bits too
+			})
 		},
-		{
-			name:     "invalid ignore",
-			vote:     invalidAbstain,
-			expected: errInvalidAbstain,
+		expected: errTooManyChoices,
+	}, {
+		name: "reject choice with abstain bits but no abstain flag",
+		munger: func(vote *Vote) {
+			// Mark the abstain choice as not being abstain.
+			vote.Choices[0].IsAbstain = false
 		},
-		{
-			name:     "invalid vote bits",
-			vote:     invalidVoteBits,
-			expected: errInvalidBits,
+		expected: errInvalidAbstain,
+	}, {
+		name: "reject choice with bits that do not conform to the mask",
+		munger: func(vote *Vote) {
+			// Assign invalid bits per the mask to a choice.
+			vote.Choices[2].Bits = 0xc // 0b1100
 		},
-		{
-			name:     "2 IsAbstain",
-			vote:     twoIsAbstain,
-			expected: errTooManyAbstain,
+		expected: errInvalidBits,
+	}, {
+		name: "require an abstain choice",
+		munger: func(vote *Vote) {
+			// Remove all choices.
+			vote.Choices = nil
 		},
-		{
-			name:     "2 IsNo",
-			vote:     twoIsNo,
-			expected: errTooManyNo,
+		expected: errMissingAbstain,
+	}, {
+		name: "reject more than one abstain choice",
+		munger: func(vote *Vote) {
+			// Mark a second choice as abstain.
+			vote.Choices[1].IsAbstain = true
+			vote.Choices[1].IsNo = false
 		},
-		{
-			name:     "both IsAbstain IsNo",
-			vote:     bothFlags,
-			expected: errBothFlags,
+		expected: errTooManyAbstain,
+	}, {
+		name: "require a no choice",
+		munger: func(vote *Vote) {
+			// Replace the no choice with the yes choice.
+			vote.Choices = vote.Choices[:2]
+			vote.Choices[1].Id = "yes"
+			vote.Choices[1].IsNo = false
 		},
-		{
-			name:     "duplicate choice id",
-			vote:     dupChoice,
-			expected: errDuplicateChoiceId,
+		expected: errMissingNo,
+	}, {
+		name: "reject more than one no choice",
+		munger: func(vote *Vote) {
+			// Mark a second choice as no.
+			vote.Choices[2].IsNo = true
 		},
-	}
+		expected: errTooManyNo,
+	}, {
+		name: "require exclusive abstain and no flags",
+		munger: func(vote *Vote) {
+			// Mark a choice with both flags.
+			vote.Choices[1].IsAbstain = true
+			vote.Choices[1].IsNo = true
+		},
+		expected: errBothFlags,
+	}, {
+		name: "require unique choice ids",
+		munger: func(vote *Vote) {
+			// Assign duplicate id.
+			vote.Choices[2].Id = vote.Choices[1].Id
+		},
+		expected: errDuplicateChoiceId,
+	}}
 
 	for _, test := range tests {
-		t.Logf("running: %v", test.name)
-		err := validateChoices(test.vote.Mask, test.vote.Choices)
+		// Create the vote and mutate it per the test.
+		vote := mockVote()
+		if test.munger != nil {
+			test.munger(&vote)
+		}
+
+		err := validateChoices(vote.Mask, vote.Choices)
 		if !errors.Is(err, test.expected) {
-			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
+			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
 				test.expected)
 		}
 	}
 }
 
-var (
-	dupVote = []ConsensusDeployment{
-		{Vote: Vote{Id: "moo"}},
-		{Vote: Vote{Id: "moo"}},
-	}
-)
-
-func TestDeployments(t *testing.T) {
+// TestRejectDuplicateVoteIDs ensures the validation logic for enforcing unique
+// deployment/vote IDs across the deployments for a given deployment version
+// works as intended.
+func TestRejectDuplicateVoteIDs(t *testing.T) {
 	tests := []struct {
 		name        string
 		deployments map[uint32][]ConsensusDeployment
 		expected    error
-	}{
-		{
-			name:        "duplicate vote id",
-			deployments: map[uint32][]ConsensusDeployment{1: dupVote},
-			expected:    errDuplicateVoteId,
+	}{{
+		name: "reject duplicate vote id in the same version",
+		deployments: map[uint32][]ConsensusDeployment{
+			1: {
+				{Vote: mockVote()},
+				{Vote: mockVote()},
+			},
 		},
-	}
+		expected: errDuplicateVoteId,
+	}, {
+		name: "allow duplicate vote id in different versions",
+		deployments: map[uint32][]ConsensusDeployment{
+			1: {{Vote: mockVote()}},
+			2: {{Vote: mockVote()}},
+		},
+		expected: nil,
+	}}
 
 	for _, test := range tests {
-		t.Logf("running: %v", test.name)
 		err := validateDeployments(test.deployments)
 		if !errors.Is(err, test.expected) {
-			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
+			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
 				test.expected)
 		}
 	}
