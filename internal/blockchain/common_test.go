@@ -600,9 +600,8 @@ func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
 type chaingenHarness struct {
 	*chaingen.Generator
 
-	t                  *testing.T
-	chain              *BlockChain
-	deploymentVersions map[string]uint32
+	t     *testing.T
+	chain *BlockChain
 }
 
 // newChaingenHarnessWithGen creates and returns a new instance of a chaingen
@@ -623,10 +622,9 @@ func newChaingenHarnessWithGen(t *testing.T, g *chaingen.Generator) *chaingenHar
 	}
 
 	harness := chaingenHarness{
-		Generator:          g,
-		t:                  t,
-		chain:              chain,
-		deploymentVersions: make(map[string]uint32),
+		Generator: g,
+		t:         t,
+		chain:     chain,
 	}
 	return &harness
 }
@@ -1002,23 +1000,6 @@ func (g *chaingenHarness) ExpectIsCurrent(expected bool) {
 			"height %d) -- got %v, want %v", g.BlockName(&best.Hash), best.Hash,
 			best.Height, isCurrent, expected)
 	}
-}
-
-// lookupDeploymentVersion returns the version of the deployment with the
-// provided ID and caches the result for future invocations.  An error is
-// returned if the ID is not found.
-func (g *chaingenHarness) lookupDeploymentVersion(voteID string) (uint32, error) {
-	if version, ok := g.deploymentVersions[voteID]; ok {
-		return version, nil
-	}
-
-	version, _, err := findDeployment(g.Params(), voteID)
-	if err != nil {
-		return 0, err
-	}
-
-	g.deploymentVersions[voteID] = version
-	return version, nil
 }
 
 // TestThresholdState queries the threshold state from the current tip block
