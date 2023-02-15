@@ -1029,14 +1029,7 @@ func (g *chaingenHarness) TestThresholdState(id string, state ThresholdState) {
 
 	tipHash := g.Tip().BlockHash()
 	tipHeight := g.Tip().Header.Height
-	deploymentVer, err := g.lookupDeploymentVersion(id)
-	if err != nil {
-		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
-			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
-			err)
-	}
-
-	s, err := g.chain.NextThresholdState(&tipHash, deploymentVer, id)
+	s, err := g.chain.NextThresholdState(&tipHash, id)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
 			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
@@ -1058,14 +1051,7 @@ func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdSta
 
 	tipHash := g.Tip().BlockHash()
 	tipHeight := g.Tip().Header.Height
-	deploymentVer, err := g.lookupDeploymentVersion(id)
-	if err != nil {
-		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
-			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
-			err)
-	}
-
-	s, err := g.chain.NextThresholdState(&tipHash, deploymentVer, id)
+	s, err := g.chain.NextThresholdState(&tipHash, id)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
 			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,

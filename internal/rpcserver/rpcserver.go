@@ -2095,7 +2095,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 	// threshold states and state activation heights.
 	dInfo := make(map[string]types.AgendaInfo)
 	defaultStatus := types.AgendaInfoStatusDefined
-	for version, deployments := range params.Deployments {
+	for _, deployments := range params.Deployments {
 		for _, agenda := range deployments {
 			aInfo := types.AgendaInfo{
 				StartTime:  agenda.StartTime,
@@ -2110,7 +2110,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 				continue
 			}
 
-			state, err := chain.NextThresholdState(&best.PrevHash, version,
+			state, err := chain.NextThresholdState(&best.PrevHash,
 				agenda.Vote.Id)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
@@ -3412,8 +3412,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 	result.Agendas = make([]types.Agenda, 0, len(vi.Agendas))
 	for _, agenda := range vi.Agendas {
 		// Obtain status of agenda.
-		state, err := chain.NextThresholdState(&snapshot.Hash, c.Version,
-			agenda.Vote.Id)
+		state, err := chain.NextThresholdState(&snapshot.Hash, agenda.Vote.Id)
 		if err != nil {
 			return nil, rpcInternalError(err.Error(),
 				"could not fetch next threshold state")

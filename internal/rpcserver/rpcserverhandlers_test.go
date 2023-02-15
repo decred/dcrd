@@ -368,7 +368,7 @@ func (c *testRPCChain) MissedTickets() ([]chainhash.Hash, error) {
 
 // NextThresholdState returns a mocked current rule change threshold state of
 // the given deployment ID for the block AFTER the provided block hash.
-func (c *testRPCChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (blockchain.ThresholdStateTuple, error) {
+func (c *testRPCChain) NextThresholdState(hash *chainhash.Hash, deploymentID string) (blockchain.ThresholdStateTuple, error) {
 	return c.nextThresholdState, c.nextThresholdStateErr
 }
 

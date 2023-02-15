@@ -353,7 +353,7 @@ type Chain interface {
 
 	// NextThresholdState returns the current rule change threshold state of the
 	// given deployment ID for the block AFTER the provided block hash.
-	NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (blockchain.ThresholdStateTuple, error)
+	NextThresholdState(hash *chainhash.Hash, deploymentID string) (blockchain.ThresholdStateTuple, error)
 
 	// StateLastChangedHeight returns the height at which the provided consensus
 	// deployment agenda last changed state.  Note that, unlike the

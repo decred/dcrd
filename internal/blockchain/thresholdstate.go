@@ -574,7 +574,7 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 // given deployment ID for the block AFTER the provided block hash.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (ThresholdStateTuple, error) {
+func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID string) (ThresholdStateTuple, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.CanValidate(node) {
 		return invalidThresholdState, unknownBlockError(hash)

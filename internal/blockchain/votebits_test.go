@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 The Decred developers
+// Copyright (c) 2017-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -128,7 +128,7 @@ func TestNoQuorum(t *testing.T) {
 		bc.index.AddNode(node)
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
-	ts, err := bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err := bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(SVI): %v", err)
 	}
@@ -150,7 +150,7 @@ func TestNoQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(started): %v", err)
 	}
@@ -181,7 +181,7 @@ func TestNoQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum-1): %v", err)
 	}
@@ -218,7 +218,7 @@ func TestNoQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum 75%%-1): %v", err)
 	}
@@ -255,7 +255,7 @@ func TestNoQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum 75%%): %v", err)
 	}
@@ -285,7 +285,7 @@ func TestYesQuorum(t *testing.T) {
 		bc.index.AddNode(node)
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
-	ts, err := bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err := bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(SVI): %v", err)
 	}
@@ -307,7 +307,7 @@ func TestYesQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(started): %v", err)
 	}
@@ -338,7 +338,7 @@ func TestYesQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum-1): %v", err)
 	}
@@ -375,7 +375,7 @@ func TestYesQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum 75%%-1): %v", err)
 	}
@@ -412,7 +412,7 @@ func TestYesQuorum(t *testing.T) {
 		curTimestamp = curTimestamp.Add(time.Second)
 	}
 
-	ts, err = bc.NextThresholdState(&node.hash, posVersion, pedro.Id)
+	ts, err = bc.NextThresholdState(&node.hash, pedro.Id)
 	if err != nil {
 		t.Fatalf("NextThresholdState(quorum 75%%): %v", err)
 	}
@@ -1484,8 +1484,7 @@ func TestVoting(t *testing.T) {
 				node.height, params.Deployments[4][0].StartTime,
 				node.timestamp, node.timestamp-
 					int64(params.Deployments[4][0].StartTime))
-			ts, err := bc.NextThresholdState(&node.hash, posVersion,
-				test.vote.Id)
+			ts, err := bc.NextThresholdState(&node.hash, test.vote.Id)
 			if err != nil {
 				t.Fatalf("NextThresholdState(%v): %v", k, err)
 			}
@@ -1649,8 +1648,7 @@ func TestParallelVoting(t *testing.T) {
 				curTimestamp = curTimestamp.Add(time.Second)
 			}
 			for i := range test.vote {
-				ts, err := bc.NextThresholdState(&node.hash,
-					posVersion, test.vote[i].Id)
+				ts, err := bc.NextThresholdState(&node.hash, test.vote[i].Id)
 				if err != nil {
 					t.Fatalf("NextThresholdState(%v): %v", k, err)
 				}
