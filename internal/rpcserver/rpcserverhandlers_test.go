@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -380,7 +380,7 @@ func (c *testRPCChain) ReconsiderBlock(hash *chainhash.Hash) error {
 
 // StateLastChangedHeight returns a mocked height at which the provided
 // consensus deployment agenda last changed state.
-func (c *testRPCChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {
+func (c *testRPCChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID string) (int64, error) {
 	return c.stateLastChangedHeight, c.stateLastChangedHeightErr
 }
 

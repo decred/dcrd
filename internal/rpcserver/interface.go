@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -357,9 +357,9 @@ type Chain interface {
 
 	// StateLastChangedHeight returns the height at which the provided consensus
 	// deployment agenda last changed state.  Note that, unlike the
-	// NextThresholdState function, this function returns the information as of the
-	// passed block hash.
-	StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error)
+	// NextThresholdState function, this function returns the information as of
+	// the passed block hash.
+	StateLastChangedHeight(hash *chainhash.Hash, deploymentID string) (int64, error)
 
 	// TicketPoolValue returns the current value of all the locked funds in the
 	// ticket pool.

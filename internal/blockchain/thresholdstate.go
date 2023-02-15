@@ -538,7 +538,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 // passed block hash.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {
+func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID string) (int64, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.CanValidate(node) {
 		return 0, unknownBlockError(hash)

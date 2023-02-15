@@ -2119,7 +2119,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 			}
 
 			stateChangedHeight, err := chain.StateLastChangedHeight(
-				&best.Hash, version, agenda.Vote.Id)
+				&best.Hash, agenda.Vote.Id)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					fmt.Sprintf("Could not fetch state last changed "+
