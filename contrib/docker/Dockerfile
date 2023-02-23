@@ -80,6 +80,7 @@ EXPOSE 9108 9109 19108 19109 18555 19556
 ENTRYPOINT [ "/bin/entrypoint" ]
 
 RUN [ "dcrd", "--version" ]
+RUN [ "dcrctl", "--version" ]
 
 # The volume instruction is intentionally commented here since it has many
 # well-known pitfalls.  It is only provided here for documentation purposes.
