@@ -55,6 +55,20 @@ concrete value.
    $ docker build -t "${DCRD_IMAGE_NAME}" -f contrib/docker/Dockerfile .
    ```
 
+   To build a specific `git` tag or branch, the `DCRD_BUILD_TAG` argument can be specified.  The argument is optional and defaults to `master`.
+
+   ```
+    $ docker build --build-arg DCRD_BUILD_TAG=release-v1.x.x \
+        -t "${DCRD_IMAGE_NAME}" -f contrib/docker/Dockerfile .
+   ```
+
+    By default, the `DCRD_BUILD_TAG` will also specify the tag or branch of the `dcrctl` utility to be built, as well.  It is feasible that `dcrctl` and `dcrd` don't use the same tags; if that's the case then the `DCRCTL_BUILD_TAG` can be used (on its own or alongside `DCRD_BUILD_TAG`):
+
+   ```
+    $ docker build --build-arg DCRCTL_BUILD_TAG=release-v1.x.x \
+        -t "${DCRD_IMAGE_NAME}" -f contrib/docker/Dockerfile .
+   ```
+
 2. Create a data volume and change its ownership to the user id of the user
    inside of the container so it has the necessary permissions to write to it:
 
