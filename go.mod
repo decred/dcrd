@@ -44,7 +44,7 @@ require (
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
-	github.com/dchest/siphash v1.2.2 // indirect
+	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
