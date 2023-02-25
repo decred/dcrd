@@ -2072,8 +2072,7 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 				deployment:  deployment,
 				forcedState: forcedState,
 				cache: &thresholdStateCache{
-					entries:   make(map[chainhash.Hash]ThresholdStateTuple),
-					dbUpdates: make(map[chainhash.Hash]ThresholdStateTuple),
+					entries: make(map[chainhash.Hash]ThresholdStateTuple),
 				},
 			}
 		}

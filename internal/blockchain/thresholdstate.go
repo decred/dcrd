@@ -172,8 +172,7 @@ type thresholdConditionChecker interface {
 // threshold window for a set of IDs.  It also keeps track of which entries have
 // been modified and therefore need to be written to the database.
 type thresholdStateCache struct {
-	dbUpdates map[chainhash.Hash]ThresholdStateTuple
-	entries   map[chainhash.Hash]ThresholdStateTuple
+	entries map[chainhash.Hash]ThresholdStateTuple
 }
 
 // Lookup returns the threshold state associated with the given hash along with
@@ -184,23 +183,13 @@ func (c *thresholdStateCache) Lookup(hash chainhash.Hash) (ThresholdStateTuple, 
 }
 
 // Update updates the cache to contain the provided hash to threshold state
-// mapping while properly tracking needed updates flush changes to the database.
+// mapping.
 func (c *thresholdStateCache) Update(hash chainhash.Hash, state ThresholdStateTuple) {
 	if existing, ok := c.entries[hash]; ok && existing == state {
 		return
 	}
 
-	c.dbUpdates[hash] = state
 	c.entries[hash] = state
-}
-
-// MarkFlushed marks all of the current updates as flushed to the database.
-// This is useful so the caller can ensure the needed database updates are not
-// lost until they have successfully been written to the database.
-func (c *thresholdStateCache) MarkFlushed() {
-	for hash := range c.dbUpdates {
-		delete(c.dbUpdates, hash)
-	}
 }
 
 // currentDeploymentVersion returns the highest deployment version that is
