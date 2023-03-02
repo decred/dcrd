@@ -3425,7 +3425,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 			Choices:     make([]types.Choice, 0, len(agenda.Vote.Choices)),
 			StartTime:   agenda.StartTime,
 			ExpireTime:  agenda.ExpireTime,
-			Status:      state.String(),
+			Status:      thresholdStateToAgendaStatus(state),
 		}
 
 		// Handle choices.
