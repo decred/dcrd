@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"fmt"
+	"math/bits"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -114,60 +115,6 @@ var (
 	invalidThresholdState = newThresholdState(ThresholdInvalid, invalidChoice)
 )
 
-// thresholdConditionTally is returned by thresholdConditionChecker.Condition
-// to indicate how many votes an option received.  The isAbstain and isNo flags
-// are accordingly set.  Note isAbstain and isNo can NOT be both true at the
-// same time.
-type thresholdConditionTally struct {
-	// Vote count
-	count uint32
-
-	// isAbstain is the abstain (or zero vote).
-	isAbstain bool
-
-	// isNo is the hard no vote.
-	isNo bool
-}
-
-// thresholdConditionChecker provides a generic interface that is invoked to
-// determine when a consensus rule change threshold should be changed.
-type thresholdConditionChecker interface {
-	// BeginTime returns the unix timestamp for the median block time after
-	// which voting on a rule change starts (at the next window).
-	BeginTime() uint64
-
-	// EndTime returns the unix timestamp for the median block time after
-	// which an attempted rule change fails if it has not already been
-	// locked in or activated.
-	EndTime() uint64
-
-	// RuleChangeActivationQuorum is the minimum number of votes required
-	// in a voting period for before we check
-	// RuleChangeActivationThreshold.
-	RuleChangeActivationQuorum() uint32
-
-	// RuleChangeActivationThreshold is the number of votes required in
-	// order to lock in a rule change.
-	RuleChangeActivationThreshold(uint32) uint32
-
-	// RuleChangeActivationInterval is the number of blocks in each threshold
-	// state retarget window.
-	RuleChangeActivationInterval() uint32
-
-	// StakeValidationHeight is the minimum height required before votes start
-	// counting.
-	StakeValidationHeight() int64
-
-	// Condition returns an array of thresholdConditionTally that contains
-	// all votes.  By convention isAbstain and isNo can not be true at the
-	// same time.  The array is always returned in the same order so that
-	// the consumer can repeatedly call this function without having to
-	// care about said order.  Only 1 isNo vote is allowed.  By convention
-	// the zero value of the vote as determined by the mask is an isAbstain
-	// vote.
-	Condition(*blockNode, uint32) ([]thresholdConditionTally, error)
-}
-
 // thresholdStateCache provides a type to cache the threshold states of each
 // threshold window for a set of IDs.  It also keeps track of which entries have
 // been modified and therefore need to be written to the database.
@@ -228,15 +175,18 @@ func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
 }
 
 // nextThresholdState returns the current rule change threshold state for the
-// block AFTER the given node and deployment ID.  The cache is used to ensure
-// the threshold states for previous windows are only calculated once.
+// block AFTER the given node and deployment.  The cache is used to ensure the
+// threshold states for previous windows are only calculated once.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo, checker thresholdConditionChecker) (ThresholdStateTuple, error) {
+func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
+	const funcName = "nextThresholdState"
+
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
-	confirmationWindow := int64(checker.RuleChangeActivationInterval())
-	svh := checker.StakeValidationHeight()
+	ruleChangeInterval := b.chainParams.RuleChangeActivationInterval
+	confirmationWindow := int64(ruleChangeInterval)
+	svh := b.chainParams.StakeValidationHeight
 	if prevNode == nil || prevNode.height+1 < svh+confirmationWindow {
 		return newThresholdState(ThresholdDefined, invalidChoice), nil
 	}
@@ -244,13 +194,13 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 	// Get the ancestor that is the last block of the previous confirmation
 	// window in order to get its threshold state.  This can be done because
 	// the state is the same for all blocks within a given window.
-	wantHeight := calcWantHeight(svh,
-		int64(checker.RuleChangeActivationInterval()),
+	wantHeight := calcWantHeight(svh, int64(ruleChangeInterval),
 		prevNode.height+1)
 	prevNode = prevNode.Ancestor(wantHeight)
 
 	// Iterate backwards through each of the previous confirmation windows
 	// to find the most recently cached threshold state.
+	beginTime := deployment.deployment.StartTime
 	cache := deployment.cache
 	var neededStates []*blockNode
 	for prevNode != nil {
@@ -266,7 +216,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 
 		// The state is simply defined if the start time hasn't been
 		// been reached yet.
-		if uint64(medianTime.Unix()) < checker.BeginTime() {
+		if uint64(medianTime.Unix()) < beginTime {
 			cache.Update(prevNode.hash, ThresholdStateTuple{
 				State:  ThresholdDefined,
 				Choice: invalidChoice,
@@ -290,16 +240,16 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 		var ok bool
 		stateTuple, ok = cache.Lookup(prevNode.hash)
 		if !ok {
-			return newThresholdState(ThresholdFailed,
-					invalidChoice), AssertError(fmt.Sprintf(
-					"thresholdState: cache lookup failed "+
-						"for %v", prevNode.hash))
+			return newThresholdState(ThresholdFailed, invalidChoice),
+				AssertError(fmt.Sprintf("%s: cache lookup failed for %v",
+					funcName, prevNode.hash))
 		}
 	}
 
 	// Since each threshold state depends on the state of the previous
 	// window, iterate starting from the oldest unknown window.
 	version := deployment.version
+	endTime := deployment.deployment.ExpireTime
 	for neededNum := len(neededStates) - 1; neededNum >= 0; neededNum-- {
 		prevNode := neededStates[neededNum]
 
@@ -315,7 +265,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 			// before it is accepted and locked in.
 			medianTime := prevNode.CalcPastMedianTime()
 			medianTimeUnix := uint64(medianTime.Unix())
-			if medianTimeUnix >= checker.EndTime() {
+			if medianTimeUnix >= endTime {
 				stateTuple.State = ThresholdFailed
 				break
 			}
@@ -338,7 +288,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 			// The state for the rule moves to the started state
 			// once its start time has been reached (and it hasn't
 			// already expired per the above).
-			if medianTimeUnix >= checker.BeginTime() {
+			if medianTimeUnix >= beginTime {
 				stateTuple.State = ThresholdStarted
 			}
 
@@ -346,91 +296,86 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 			// The deployment of the rule change fails if it expires
 			// before it is accepted and locked in.
 			medianTime := prevNode.CalcPastMedianTime()
-			if uint64(medianTime.Unix()) >= checker.EndTime() {
+			if uint64(medianTime.Unix()) >= endTime {
 				stateTuple.State = ThresholdFailed
 				break
 			}
 
-			// At this point, the rule change is still being voted
-			// on, so iterate backwards through the confirmation
-			// window to count all of the votes in it.
-			var (
-				counts       []thresholdConditionTally
-				totalVotes   uint32
-				abstainVotes uint32
-			)
+			// The choice index is zero based while the deployment voting choice
+			// bit mask is not.  Calculate the number of bits to shift the
+			// relevant vote bits (after applying the relevant mask to them) so
+			// they are zero based as well.
+			voteParams := &deployment.deployment.Vote
+			choiceIdxShift := bits.TrailingZeros16(voteParams.Mask)
+
+			// At this point, the rule change is still being voted on, so
+			// iterate backwards through the confirmation window to count all of
+			// the votes in it.
+			var totalNonAbstainVotes uint32
+			choiceCounts := make([]uint32, len(voteParams.Choices))
 			countNode := prevNode
 			for i := int64(0); i < confirmationWindow; i++ {
-				c, err := checker.Condition(countNode, version)
-				if err != nil {
-					return newThresholdState(
-						ThresholdFailed, invalidChoice), err
-				}
+				for _, vote := range countNode.votes {
+					// Ignore votes that are not for the deployment version.
+					if vote.Version != deployment.version {
+						continue
+					}
 
-				// Create array first time around.
-				if len(counts) == 0 {
-					counts = make([]thresholdConditionTally, len(c))
-				}
+					// Ignore votes for invalid choices.
+					choiceIdx := (vote.Bits & voteParams.Mask) >> choiceIdxShift
+					if choiceIdx > uint16(len(voteParams.Choices)-1) {
+						continue
+					}
 
-				// Tally votes.
-				for k := range c {
-					counts[k].count += c[k].count
-					counts[k].isAbstain = c[k].isAbstain
-					counts[k].isNo = c[k].isNo
-					if c[k].isAbstain {
-						abstainVotes += c[k].count
-					} else {
-						totalVotes += c[k].count
+					choiceCounts[choiceIdx]++
+					if !voteParams.Choices[choiceIdx].IsAbstain {
+						totalNonAbstainVotes++
 					}
 				}
 
 				countNode = countNode.parent
 			}
 
-			// Determine if we have reached quorum.
-			totalNonAbstainVotes := uint32(0)
-			for _, v := range counts {
-				if v.isAbstain && !v.isNo {
-					continue
-				}
-				totalNonAbstainVotes += v.count
-			}
-			if totalNonAbstainVotes < checker.RuleChangeActivationQuorum() {
+			// The state remains in the started state when the quorum has not
+			// been met since the vote requires a quorum for a concrete result.
+			if totalNonAbstainVotes < b.chainParams.RuleChangeActivationQuorum {
 				break
 			}
 
-			// The state is locked in if the number of blocks in the
-			// period that voted for the rule change meets the
+			// The state moves to either locked in or failed with a specific
+			// non-abstaining choice when any of them meets the majority
 			// activation threshold.
-			for k, v := range counts {
-				// We require at least 10% quorum on all votes.
-				if v.count < checker.RuleChangeActivationThreshold(totalVotes) {
-					continue
+			ruleChangeActivationThreshold := totalNonAbstainVotes *
+				b.chainParams.RuleChangeActivationMultiplier /
+				b.chainParams.RuleChangeActivationDivisor
+		nextChoice:
+			for choiceIdx := range voteParams.Choices {
+				// Abstain never changes the state.
+				choice := &voteParams.Choices[choiceIdx]
+				if choice.IsAbstain {
+					continue nextChoice
 				}
-				// Something went over the threshold
+
+				// The state does not change when the choice does not reach
+				// majority.
+				choiceCount := choiceCounts[choiceIdx]
+				if choiceCount < ruleChangeActivationThreshold {
+					continue nextChoice
+				}
+
+				// Move to the locked in or failed state accordingly when the
+				// choice has reached majority.
 				switch {
-				case !v.isAbstain && !v.isNo:
-					// One of the choices has
-					// reached majority.
+				case !choice.IsNo:
 					stateTuple.State = ThresholdLockedIn
-					stateTuple.Choice = uint32(k)
-				case !v.isAbstain && v.isNo:
-					// No choice.  Only 1 No per
-					// vote is allowed.  A No vote
-					// is required though.
+					stateTuple.Choice = uint32(choiceIdx)
+					break nextChoice
+
+				case choice.IsNo:
 					stateTuple.State = ThresholdFailed
-					stateTuple.Choice = uint32(k)
-				case v.isAbstain && !v.isNo:
-					// This is the abstain case.
-					// The statemachine is not
-					// supposed to change.
-					continue
-				case v.isAbstain && v.isNo:
-					// Invalid choice.
-					stateTuple.State = ThresholdFailed
-					stateTuple.Choice = uint32(k)
+					stateTuple.Choice = uint32(choiceIdx)
+					break nextChoice
 				}
-				break
 			}
 
 		case ThresholdLockedIn:
@@ -467,11 +412,7 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deployment
 		return *deployment.forcedState, nil
 	}
 
-	checker := deploymentChecker{
-		deployment: deployment.deployment,
-		chain:      b,
-	}
-	return b.nextThresholdState(prevNode, deployment, checker)
+	return b.nextThresholdState(prevNode, deployment)
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
@@ -479,11 +420,11 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deployment
 // never changed.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo, checker thresholdConditionChecker) (*blockNode, error) {
+func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo) (*blockNode, error) {
 	// No state changes are possible if the chain is not yet past stake
 	// validation height and had a full interval to change.
-	confirmationInterval := int64(checker.RuleChangeActivationInterval())
-	svh := checker.StakeValidationHeight()
+	confirmationInterval := int64(b.chainParams.RuleChangeActivationInterval)
+	svh := b.chainParams.StakeValidationHeight
 	if node == nil || node.height < svh+confirmationInterval {
 		return nil, nil
 	}
@@ -491,7 +432,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 	// Determine the current state.  Notice that nextThresholdState always
 	// calculates the state for the block after the provided one, so use the
 	// parent to get the state for the requested block.
-	curState, err := b.nextThresholdState(node.parent, deployment, checker)
+	curState, err := b.nextThresholdState(node.parent, deployment)
 	if err != nil {
 		return nil, err
 	}
@@ -507,7 +448,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 		// As previously mentioned, nextThresholdState always calculates the
 		// state for the block after the provided one, so use the parent to get
 		// the state of the block itself.
-		state, err := b.nextThresholdState(node.parent, deployment, checker)
+		state, err := b.nextThresholdState(node.parent, deployment)
 		if err != nil {
 			return nil, err
 		}
@@ -548,14 +489,10 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 		// experiences changes regardless of consensus rule changes.
 		return 1, nil
 	}
-	checker := deploymentChecker{
-		deployment: deployment.deployment,
-		chain:      b,
-	}
 
 	// Find the node at which the current state changed.
 	b.chainLock.Lock()
-	stateNode, err := b.stateLastChanged(node, &deployment, checker)
+	stateNode, err := b.stateLastChanged(node, &deployment)
 	b.chainLock.Unlock()
 	if err != nil {
 		return 0, err
