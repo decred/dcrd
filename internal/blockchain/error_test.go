@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -145,12 +145,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrTooManyTAdds, "ErrTooManyTAdds"},
 		{ErrTicketExhaustion, "ErrTicketExhaustion"},
 		{ErrDBTooOldToUpgrade, "ErrDBTooOldToUpgrade"},
-		{ErrUnknownDeploymentID, "ErrUnknownDeploymentID"},
-		{ErrUnknownDeploymentVersion, "ErrUnknownDeploymentVersion"},
-		{ErrDuplicateDeployment, "ErrDuplicateDeployment"},
-		{ErrUnknownDeploymentChoice, "ErrUnknownDeploymentChoice"},
-		{ErrDeploymentChoiceAbstain, "ErrDeploymentChoiceAbstain"},
-		{ErrForcedMainNetChoice, "ErrForcedMainNetChoice"},
 		{ErrUnknownBlock, "ErrUnknownBlock"},
 		{ErrNoFilter, "ErrNoFilter"},
 		{ErrNoTreasuryBalance, "ErrNoTreasuryBalance"},
@@ -163,6 +157,21 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalidRevocationTxVersion, "ErrInvalidRevocationTxVersion"},
 		{ErrNoExpiredTicketRevocation, "ErrNoExpiredTicketRevocation"},
 		{ErrNoMissedTicketRevocation, "ErrNoMissedTicketRevocation"},
+		{ErrUnknownDeploymentID, "ErrUnknownDeploymentID"},
+		{ErrUnknownDeploymentVersion, "ErrUnknownDeploymentVersion"},
+		{ErrDuplicateDeployment, "ErrDuplicateDeployment"},
+		{ErrUnknownDeploymentChoice, "ErrUnknownDeploymentChoice"},
+		{ErrDeploymentBadMask, "ErrDeploymentBadMask"},
+		{ErrDeploymentTooManyChoices, "ErrDeploymentTooManyChoices"},
+		{ErrDeploymentBadChoiceBits, "ErrDeploymentBadChoiceBits"},
+		{ErrDeploymentNonExclusiveFlags, "ErrDeploymentNonExclusiveFlags"},
+		{ErrDeploymentDuplicateChoice, "ErrDeploymentDuplicateChoice"},
+		{ErrDeploymentMissingAbstain, "ErrDeploymentMissingAbstain"},
+		{ErrDeploymentTooManyAbstain, "ErrDeploymentTooManyAbstain"},
+		{ErrDeploymentMissingNo, "ErrDeploymentMissingNo"},
+		{ErrDeploymentTooManyNo, "ErrDeploymentTooManyNo"},
+		{ErrDeploymentChoiceAbstain, "ErrDeploymentChoiceAbstain"},
+		{ErrForcedMainNetChoice, "ErrForcedMainNetChoice"},
 	}
 
 	t.Logf("Running %d tests", len(tests))

@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/bits"
+	"strings"
 	"sync"
 	"time"
 
@@ -1985,6 +1987,110 @@ func isMainNet(params *chaincfg.Params) bool {
 	return params.Net == wire.MainNet
 }
 
+// validateDeploymentChoices ensures the provided choices conform to the
+// semantics required by the consensus rule change vote tallying and state
+// determination logic.
+func validateDeploymentChoices(voteParams *chaincfg.Vote) error {
+	// Ensure the mask is not zero.
+	if voteParams.Mask == 0 {
+		str := fmt.Sprintf("deployment ID %s mask is zero", voteParams.Id)
+		return contextError(ErrDeploymentBadMask, str)
+	}
+
+	// Count the number of consecutive 1 bits set in the mask.
+	var consecOnes uint8
+	for v := voteParams.Mask; v != 0; consecOnes++ {
+		v &= (v << 1)
+	}
+
+	// Ensure the mask only consists of consecutive bits.
+	maskPopulationCount := uint8(bits.OnesCount16(voteParams.Mask))
+	if consecOnes != maskPopulationCount {
+		str := fmt.Sprintf("deployment ID %s mask %#04x does not have "+
+			"consecutive bits", voteParams.Id, voteParams.Mask)
+		return contextError(ErrDeploymentBadMask, str)
+	}
+
+	// Ensure there are not more choices than the mask bits can represent.
+	numChoices := len(voteParams.Choices)
+	if numChoices > 1<<maskPopulationCount {
+		str := fmt.Sprintf("deployment ID %s has %d choices for mask %#04x "+
+			"which can only represent %d choices", voteParams.Id, numChoices,
+			voteParams.Mask, 1<<maskPopulationCount)
+		return contextError(ErrDeploymentTooManyChoices, str)
+	}
+
+	var numAbstain, numNo int
+	dups := make(map[string]int)
+	for choiceIdx, choice := range voteParams.Choices {
+		// Ensure that the choice bits are not zero for all choices except the
+		// abstain choice.
+		if choice.Bits == 0 && !choice.IsAbstain {
+			str := fmt.Sprintf("deployment ID %s choice ID %s (index %d) vote "+
+				"bits are zero for choice that is not marked abstain",
+				voteParams.Id, choice.Id, choiceIdx)
+			return contextError(ErrDeploymentBadChoiceBits, str)
+		}
+
+		// Ensure the bits for the choice are covered by the mask.
+		if voteParams.Mask&choice.Bits != choice.Bits {
+			str := fmt.Sprintf("deployment ID %s choice ID %s (index %d) vote "+
+				"bits %#04x are not covered by the mask %04x", voteParams.Id,
+				choice.Id, choiceIdx, choice.Bits, voteParams.Mask)
+			return contextError(ErrDeploymentBadChoiceBits, str)
+		}
+
+		// Ensure only one of the choice type identification flags are set.
+		if choice.IsAbstain && choice.IsNo {
+			str := fmt.Sprintf("deployment ID %s choice ID %s (index %d) has "+
+				"both the abstain and no choice flags set", voteParams.Id,
+				choice.Id, choiceIdx)
+			return contextError(ErrDeploymentNonExclusiveFlags, str)
+		}
+
+		// Count flags.
+		if choice.IsAbstain {
+			numAbstain++
+		}
+		if choice.IsNo {
+			numNo++
+		}
+
+		// Ensure there are not any duplicates.
+		id := strings.ToLower(choice.Id)
+		if origChoiceIdx, found := dups[id]; found {
+			str := fmt.Sprintf("deployment ID %s choice ID %s at index %d "+
+				"already exists for the choice at index %d", voteParams.Id,
+				choice.Id, choiceIdx, origChoiceIdx)
+			return contextError(ErrDeploymentDuplicateChoice, str)
+		}
+		dups[id] = choiceIdx
+	}
+
+	// Ensure there is one and only one of each choice type identification flag
+	// set.
+	switch {
+	case numAbstain == 0:
+		str := fmt.Sprintf("deployment ID %s does not have an abstain choice",
+			voteParams.Id)
+		return contextError(ErrDeploymentMissingAbstain, str)
+	case numAbstain > 1:
+		str := fmt.Sprintf("deployment ID %s has more than one abstain choice",
+			voteParams.Id)
+		return contextError(ErrDeploymentTooManyAbstain, str)
+	case numNo == 0:
+		str := fmt.Sprintf("deployment ID %s does not have a no choice",
+			voteParams.Id)
+		return contextError(ErrDeploymentMissingNo, str)
+	case numNo > 1:
+		str := fmt.Sprintf("deployment ID %s has more than one no choice",
+			voteParams.Id)
+		return contextError(ErrDeploymentTooManyNo, str)
+	}
+
+	return nil
+}
+
 // determineForcedThresholdState returns the appropriate threshold state and
 // choice for the given deployment when it has a forced choice specified.  It
 // returns nil when a forced choice is not specified or an error when the choice
@@ -2051,6 +2157,12 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 				str := fmt.Sprintf("deployment ID %s exists in more than one "+
 					"deployment", id)
 				return nil, contextError(ErrDuplicateDeployment, str)
+			}
+
+			// Ensure the deployment choices conform to the semantics expected
+			// by the vote tallying threshold state logic.
+			if err := validateDeploymentChoices(&deployment.Vote); err != nil {
+				return nil, err
 			}
 
 			// Determine the forced threshold state when the deployment has a
@@ -2223,7 +2335,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
 
-	// Generate a deployment ID map from the provided params.
+	// Generate a deployment ID map from the provided params while validating
+	// they conform to the required semantics.
 	params := config.ChainParams
 	deploymentData, err := extractDeployments(params)
 	if err != nil {

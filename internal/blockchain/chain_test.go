@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,6 +11,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -45,6 +46,188 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 	dec := gob.NewDecoder(buf)
 	dec.Decode(&paramsCopy)
 	return &paramsCopy
+}
+
+// TestDeploymentParamsValidation ensures that the code related to validating
+// the deployments in the provided chain parameters works as intended.
+func TestDeploymentParamsValidation(t *testing.T) {
+	// Create parameters with the deployments replaced with known mocked
+	// values for use as a base to mutate in the tests below.
+	mockParams := cloneParams(chaincfg.RegNetParams())
+	mockParams.Deployments = map[uint32][]chaincfg.ConsensusDeployment{
+		0: {{
+			Vote: chaincfg.Vote{
+				Id:   "testvote",
+				Mask: 0x6,
+				Choices: []chaincfg.Choice{{
+					Id:          "abstain",
+					Description: "abstain voting for change",
+					Bits:        0x0000,
+					IsAbstain:   true,
+					IsNo:        false,
+				}, {
+					Id:          "no",
+					Description: "keep the existing rules",
+					Bits:        0x0002, // Bit 1
+					IsAbstain:   false,
+					IsNo:        true,
+				}, {
+					Id:          "yes",
+					Description: "change to the new rules",
+					Bits:        0x0004, // Bit 2
+					IsAbstain:   false,
+					IsNo:        false,
+				}},
+			},
+			StartTime:  0,             // Always available for vote
+			ExpireTime: math.MaxInt64, // Never expires
+		}},
+	}
+
+	tests := []struct {
+		name   string                 // test description
+		munger func(*chaincfg.Params) // func to mutate params
+		err    error                  // expected error
+	}{{
+		name: "reject duplicate deployment id in the same version",
+		munger: func(params *chaincfg.Params) {
+			// Duplicate the vote in deployment version 0 so there is a
+			// duplicate id in the same version.
+			votes := params.Deployments[0]
+			params.Deployments[0] = append(votes, votes[0])
+		},
+		err: ErrDuplicateDeployment,
+	}, {
+		name: "reject duplicate deployment id in different versions",
+		munger: func(params *chaincfg.Params) {
+			// Duplicate the votes in deployment version 0 to deployment version
+			// 1 so there is a duplicate id in different versions.
+			params.Deployments[1] = params.Deployments[0]
+		},
+		err: ErrDuplicateDeployment,
+	}, {
+		name: "require optional forced choice to exist when specified",
+		munger: func(params *chaincfg.Params) {
+			deployment := &params.Deployments[0][0]
+			deployment.ForcedChoiceID = "bogus"
+		},
+		err: ErrUnknownDeploymentChoice,
+	}, {
+		name: "require optional forced choice to be non abstain when specified",
+		munger: func(params *chaincfg.Params) {
+			deployment := &params.Deployments[0][0]
+			deployment.ForcedChoiceID = "abstain"
+		},
+		err: ErrDeploymentChoiceAbstain,
+	}, {
+		name: "require non-zero mask",
+		munger: func(params *chaincfg.Params) {
+			vote := &params.Deployments[0][0].Vote
+			vote.Mask = 0
+		},
+		err: ErrDeploymentBadMask,
+	}, {
+		name: "require consecutive mask",
+		munger: func(params *chaincfg.Params) {
+			vote := &params.Deployments[0][0].Vote
+			vote.Mask = 0xa // 0b1010 -- non-consecutive mask
+		},
+		err: ErrDeploymentBadMask,
+	}, {
+		name: "reject too many choices",
+		munger: func(params *chaincfg.Params) {
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices = append(vote.Choices, chaincfg.Choice{
+				Id:   "maybe",
+				Bits: 0x0006,
+			})
+			vote.Choices = append(vote.Choices, chaincfg.Choice{
+				Id:   "another",
+				Bits: 0x0006, // invalid bits too
+			})
+		},
+		err: ErrDeploymentTooManyChoices,
+	}, {
+		name: "reject choice with abstain bits but no abstain flag",
+		munger: func(params *chaincfg.Params) {
+			// Mark the abstain choice as not being abstain.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[0].IsAbstain = false
+		},
+		err: ErrDeploymentBadChoiceBits,
+	}, {
+		name: "reject choice with bits that do not conform to the mask",
+		munger: func(params *chaincfg.Params) {
+			// Assign invalid bits per the mask to a choice.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[2].Bits = 0xc // 0b1100
+		},
+		err: ErrDeploymentBadChoiceBits,
+	}, {
+		name: "require exclusive abstain and no flags",
+		munger: func(params *chaincfg.Params) {
+			// Mark a choice with both flags.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[0].IsNo = true
+		},
+		err: ErrDeploymentNonExclusiveFlags,
+	}, {
+		name: "require unique choice ids",
+		munger: func(params *chaincfg.Params) {
+			// Assign duplicate id.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[2].Id = vote.Choices[1].Id
+		},
+		err: ErrDeploymentDuplicateChoice,
+	}, {
+		name: "require the abstain choice",
+		munger: func(params *chaincfg.Params) {
+			// Remove the abstain choice.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices = vote.Choices[1:]
+		},
+		err: ErrDeploymentMissingAbstain,
+	}, {
+		name: "reject more than one abstain choice",
+		munger: func(params *chaincfg.Params) {
+			// Mark a second choice as abstain.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[1].IsAbstain = true
+			vote.Choices[1].IsNo = false
+		},
+		err: ErrDeploymentTooManyAbstain,
+	}, {
+		name: "require a no choice",
+		munger: func(params *chaincfg.Params) {
+			// Remove the no choice.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices = append(vote.Choices[:1], vote.Choices[2:]...)
+		},
+		err: ErrDeploymentMissingNo,
+	}, {
+		name: "reject more than one no choice",
+		munger: func(params *chaincfg.Params) {
+			// Mark a second choice as no.
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[2].IsNo = true
+		},
+		err: ErrDeploymentTooManyNo,
+	}}
+
+	for _, test := range tests {
+		// Clone the mocked parameters so they can be mutated by each test
+		// without affecting the others and then mutate them per the test.
+		params := cloneParams(mockParams)
+		if test.munger != nil {
+			test.munger(params)
+		}
+
+		_, err := extractDeployments(params)
+		if !errors.Is(err, test.err) {
+			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
+		}
+	}
 }
 
 // TestBlockchainFunction tests the various blockchain API to ensure proper

@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -572,29 +572,6 @@ const (
 	// minimum supported version for which upgrades are supported.
 	ErrDBTooOldToUpgrade = ErrorKind("ErrDBTooOldToUpgrade")
 
-	// ErrUnknownDeploymentID indicates a deployment id does not exist.
-	ErrUnknownDeploymentID = ErrorKind("ErrUnknownDeploymentID")
-
-	// ErrUnknownDeploymentVersion indicates a version for a given deployment id
-	// was specified that does not exist.
-	ErrUnknownDeploymentVersion = ErrorKind("ErrUnknownDeploymentVersion")
-
-	// ErrDuplicateDeployment indicates a duplicate deployment id exists in the
-	// network parameter deployment definitions.
-	ErrDuplicateDeployment = ErrorKind("ErrDuplicateDeployment")
-
-	// ErrUnknownDeploymentChoice indicates a choice id for a deployment does
-	// not exist.
-	ErrUnknownDeploymentChoice = ErrorKind("ErrUnknownDeploymentChoice")
-
-	// ErrDeploymentChoiceAbstain indicates the forced choice id for a
-	// deployment is the unusable abstaining choice.
-	ErrDeploymentChoiceAbstain = ErrorKind("ErrDeploymentChoiceAbstain")
-
-	// ErrForcedMainNetChoice indicates a forced choice id is configured for a
-	// deployment on the main network.
-	ErrForcedMainNetChoice = ErrorKind("ErrForcedMainNetChoice")
-
 	// ErrUnknownBlock indicates a requested block does not exist.
 	ErrUnknownBlock = ErrorKind("ErrUnknownBlock")
 
@@ -648,6 +625,72 @@ const (
 	// ErrNoMissedTicketRevocation indicates that the block does not contain a
 	// revocation for a ticket that is becoming missed as of that block.
 	ErrNoMissedTicketRevocation = ErrorKind("ErrNoMissedTicketRevocation")
+
+	// -----------------------------------------------------------------
+	// Errors related to deployment validation.
+	// -----------------------------------------------------------------
+
+	// ErrUnknownDeploymentID indicates a deployment id does not exist.
+	ErrUnknownDeploymentID = ErrorKind("ErrUnknownDeploymentID")
+
+	// ErrUnknownDeploymentVersion indicates a version for a given deployment id
+	// was specified that does not exist.
+	ErrUnknownDeploymentVersion = ErrorKind("ErrUnknownDeploymentVersion")
+
+	// ErrDuplicateDeployment indicates a duplicate deployment id exists in the
+	// network parameter deployment definitions.
+	ErrDuplicateDeployment = ErrorKind("ErrDuplicateDeployment")
+
+	// ErrUnknownDeploymentChoice indicates a choice id for a deployment does
+	// not exist.
+	ErrUnknownDeploymentChoice = ErrorKind("ErrUnknownDeploymentChoice")
+
+	// ErrDeploymentBadMask indicates the mask for a deployment is invalid in
+	// some way.  For example, if it is equal to zero or does not consist of
+	// only consecutive bits set.
+	ErrDeploymentBadMask = ErrorKind("ErrDeploymentBadMask")
+
+	// ErrDeploymentTooManyChoices indicates there are more choices defined for
+	// a deployment that its mask can represent.
+	ErrDeploymentTooManyChoices = ErrorKind("ErrDeploymentTooManyChoices")
+
+	// ErrDeploymentBadChoiceBits indicates the choice bits that represent a
+	// deployment vote choice are invalid in some way.  For example, when they
+	// are all zero and the choice is not also marked as abstain or they are not
+	// covered by the mask.
+	ErrDeploymentBadChoiceBits = ErrorKind("ErrDeploymentBadChoiceBits")
+
+	// ErrDeploymentNonExclusiveFlags indicates a deployment choice has an
+	// invalid flag combination.
+	ErrDeploymentNonExclusiveFlags = ErrorKind("ErrDeploymentNonExclusiveFlags")
+
+	// ErrDeploymentDuplicateChoice indicates a duplicate deployment choice id
+	// exists.
+	ErrDeploymentDuplicateChoice = ErrorKind("ErrDeploymentDuplicateChoice")
+
+	// ErrDeploymentMissingAbstain indicates a deployment vote does not have a
+	// choice that is marked as abstain.
+	ErrDeploymentMissingAbstain = ErrorKind("ErrDeploymentMissingAbstain")
+
+	// ErrDeploymentTooManyAbstain indicates a deployment vote has more than one
+	// choice that is marked as the abstaining choice.
+	ErrDeploymentTooManyAbstain = ErrorKind("ErrDeploymentTooManyAbstain")
+
+	// ErrDeploymentMissingNo indicates a deployment vote does not have a choice
+	// that is marked as the no choice.
+	ErrDeploymentMissingNo = ErrorKind("ErrDeploymentMissingNo")
+
+	// ErrDeploymentTooManyNo indicates a deployment vote has more than one
+	// choice that is marked as the no choice.
+	ErrDeploymentTooManyNo = ErrorKind("ErrDeploymentTooManyNo")
+
+	// ErrDeploymentChoiceAbstain indicates the forced choice id for a
+	// deployment is the unusable abstaining choice.
+	ErrDeploymentChoiceAbstain = ErrorKind("ErrDeploymentChoiceAbstain")
+
+	// ErrForcedMainNetChoice indicates a forced choice id is configured for a
+	// deployment on the main network.
+	ErrForcedMainNetChoice = ErrorKind("ErrForcedMainNetChoice")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
