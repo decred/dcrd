@@ -84,3 +84,18 @@ func TestHashFunc(t *testing.T) {
 		}
 	}
 }
+
+// TestNew ensures New returns a object that calculates the correct hashes.
+func TestNew(t *testing.T) {
+	h := New()
+	for _, test := range hashTests {
+		h.Reset()
+		h.Write([]byte(test.in))
+		digest := h.Sum(nil)
+		result := fmt.Sprintf("%x", digest)
+		if result != test.out {
+			t.Errorf("hash.Hash (%q) = %s, want %s", test.in, h, test.out)
+			continue
+		}
+	}
+}

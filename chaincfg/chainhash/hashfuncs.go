@@ -6,6 +6,8 @@
 package chainhash
 
 import (
+	"hash"
+
 	"github.com/decred/dcrd/crypto/blake256"
 )
 
@@ -30,3 +32,8 @@ func HashH(b []byte) Hash {
 
 // HashBlockSize is the block size of the hash algorithm in bytes.
 const HashBlockSize = blake256.BlockSize
+
+// New returns a new hash.Hash computing the hash written to the object.
+func New() hash.Hash {
+	return blake256.New()
+}
