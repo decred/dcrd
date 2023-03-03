@@ -18,36 +18,33 @@ import (
 type ThresholdState byte
 
 // These constants are used to identify specific threshold states.
-//
-// NOTE: This section specifically does not use iota for the individual states
-// since these values are serialized and must be stable for long-term storage.
 const (
 	// ThresholdDefined is the first state for each deployment and is the
 	// state for the genesis block has by definition for all deployments.
-	ThresholdDefined ThresholdState = 0
+	ThresholdDefined ThresholdState = iota
 
 	// ThresholdStarted is the state for a deployment once its start time
 	// has been reached.
-	ThresholdStarted ThresholdState = 1
+	ThresholdStarted
 
 	// ThresholdLockedIn is the state for a deployment during the retarget
 	// period which is after the ThresholdStarted state period and the
 	// number of blocks that have voted for the deployment equal or exceed
 	// the required number of votes for the deployment.
-	ThresholdLockedIn ThresholdState = 2
+	ThresholdLockedIn
 
 	// ThresholdActive is the state for a deployment for all blocks after a
 	// retarget period in which the deployment was in the ThresholdLockedIn
 	// state.
-	ThresholdActive ThresholdState = 3
+	ThresholdActive
 
 	// ThresholdFailed is the state for a deployment once its expiration
 	// time has been reached and it did not reach the ThresholdLockedIn
 	// state.
-	ThresholdFailed ThresholdState = 4
+	ThresholdFailed
 
 	// ThresholdInvalid is a deployment that does not exist.
-	ThresholdInvalid ThresholdState = 5
+	ThresholdInvalid
 )
 
 // thresholdStateStrings is a map of ThresholdState values back to their
