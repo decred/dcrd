@@ -1997,6 +1997,14 @@ func validateDeploymentChoices(voteParams *chaincfg.Vote) error {
 		return contextError(ErrDeploymentBadMask, str)
 	}
 
+	// Ensure the mask does not use the bit reserved to specify whether or not
+	// the voters approve the regular transaction tree of the parent block.
+	if dcrutil.IsFlagSet16(voteParams.Mask, dcrutil.BlockValid) {
+		str := fmt.Sprintf("deployment ID %s mask %#04x uses reserved bit 0",
+			voteParams.Id, voteParams.Mask)
+		return contextError(ErrDeploymentBadMask, str)
+	}
+
 	// Count the number of consecutive 1 bits set in the mask.
 	var consecOnes uint8
 	for v := voteParams.Mask; v != 0; consecOnes++ {

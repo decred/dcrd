@@ -127,6 +127,13 @@ func TestDeploymentParamsValidation(t *testing.T) {
 		},
 		err: ErrDeploymentBadMask,
 	}, {
+		name: "reject mask with reserved parent regular tx tree approval bit",
+		munger: func(params *chaincfg.Params) {
+			vote := &params.Deployments[0][0].Vote
+			vote.Mask |= dcrutil.BlockValid
+		},
+		err: ErrDeploymentBadMask,
+	}, {
 		name: "require consecutive mask",
 		munger: func(params *chaincfg.Params) {
 			vote := &params.Deployments[0][0].Vote
