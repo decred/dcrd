@@ -500,7 +500,7 @@ func (p *Peer) UpdateLastBlockHeight(newHeight int64) {
 //
 // This function is safe for concurrent access.
 func (p *Peer) AddKnownInventory(invVect *wire.InvVect) {
-	p.knownInventory.Add(invVect)
+	p.knownInventory.Add(*invVect)
 }
 
 // IsKnownInventory returns whether the passed inventory already exists in
@@ -508,7 +508,7 @@ func (p *Peer) AddKnownInventory(invVect *wire.InvVect) {
 //
 // This function is safe for concurrent access.
 func (p *Peer) IsKnownInventory(invVect *wire.InvVect) bool {
-	return p.knownInventory.Contains(invVect)
+	return p.knownInventory.Contains(*invVect)
 }
 
 // StatsSnapshot returns a snapshot of the current peer flags and statistics.
