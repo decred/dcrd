@@ -34,49 +34,11 @@ func TestVoting(t *testing.T) {
 	mockParams := cloneParams(chaincfg.RegNetParams())
 	mockParams.Deployments = map[uint32][]chaincfg.ConsensusDeployment{
 		posVersion: {{
-			Vote: chaincfg.Vote{
-				Id:          "vote1",
-				Description: "Vote 1",
-				Mask:        0x6, // 0b0110
-				Choices: []chaincfg.Choice{{
-					Id:          "abstain",
-					Description: "abstain voting for change",
-					Bits:        0x0000,
-					IsAbstain:   true,
-				}, {
-					Id:          "no",
-					Description: "vote no",
-					Bits:        0x0002, // Bit 1 (1 << 1)
-					IsNo:        true,
-				}, {
-					Id:          "yes",
-					Description: "vote yes",
-					Bits:        0x0004, // Bit 2 (2 << 1)
-				}},
-			},
+			Vote:       mockVote1(),
 			StartTime:  0,             // Always available for vote
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
-			Vote: chaincfg.Vote{
-				Id:          "vote2",
-				Description: "Vote 2",
-				Mask:        0x18, // 0b11000
-				Choices: []chaincfg.Choice{{
-					Id:          "abstain",
-					Description: "abstain voting for change",
-					Bits:        0x0000,
-					IsAbstain:   true,
-				}, {
-					Id:          "no",
-					Description: "vote no",
-					Bits:        0x0008, // Bit 3 (1 << 3)
-					IsNo:        true,
-				}, {
-					Id:          "yes",
-					Description: "vote yes",
-					Bits:        0x0010, // Bit 4 (2 << 3)
-				}},
-			},
+			Vote:       mockVote2(),
 			StartTime:  0,             // Always available for vote
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
@@ -90,7 +52,7 @@ func TestVoting(t *testing.T) {
 					Bits:        0x0,
 					IsAbstain:   true,
 				}, {
-					Id:          "vote against",
+					Id:          "no",
 					Description: "vote against all multiple",
 					Bits:        0x20, // Bit 5 (1 << 5)
 					IsNo:        true,
@@ -135,29 +97,18 @@ func TestVoting(t *testing.T) {
 	}
 
 	// Convenient references to the mock parameter votes and choices.
-	const (
-		vote1NoIdx      = 1
-		vote1YesIdx     = 2
-		vote2NoIdx      = 1
-		vote2YesIdx     = 2
-		vote3NoIdx      = 1
-		vote3Choice1Idx = 2
-		vote3Choice2Idx = 3
-		vote3Choice3Idx = 4
-		vote3Choice4Idx = 5
-	)
 	vote1 := &mockParams.Deployments[posVersion][0].Vote
-	vote1No := &vote1.Choices[vote1NoIdx]
-	vote1Yes := &vote1.Choices[vote1YesIdx]
+	vote1NoIdx, vote1No := findVoteChoiceIndex(t, vote1, "no")
+	vote1YesIdx, vote1Yes := findVoteChoiceIndex(t, vote1, "yes")
 	vote2 := &mockParams.Deployments[posVersion][1].Vote
-	vote2No := &vote2.Choices[vote2NoIdx]
-	vote2Yes := &vote2.Choices[vote2YesIdx]
+	vote2NoIdx, vote2No := findVoteChoiceIndex(t, vote2, "no")
+	vote2YesIdx, vote2Yes := findVoteChoiceIndex(t, vote2, "yes")
 	vote3 := &mockParams.Deployments[posVersion][2].Vote
-	vote3No := &vote3.Choices[vote3NoIdx]
-	vote3Choice1 := &vote3.Choices[vote3Choice1Idx]
-	vote3Choice2 := &vote3.Choices[vote3Choice2Idx]
-	vote3Choice3 := &vote3.Choices[vote3Choice3Idx]
-	vote3Choice4 := &vote3.Choices[vote3Choice4Idx]
+	vote3NoIdx, vote3No := findVoteChoiceIndex(t, vote3, "no")
+	vote3Choice1Idx, vote3Choice1 := findVoteChoiceIndex(t, vote3, "one")
+	vote3Choice2Idx, vote3Choice2 := findVoteChoiceIndex(t, vote3, "two")
+	vote3Choice3Idx, vote3Choice3 := findVoteChoiceIndex(t, vote3, "three")
+	vote3Choice4Idx, vote3Choice4 := findVoteChoiceIndex(t, vote3, "four")
 
 	// Determine what the vote bits for the next choice in the various votes
 	// would be if they existed.

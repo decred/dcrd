@@ -1062,12 +1062,12 @@ func TestNewDeploymentsStartTime(t *testing.T) {
 	params := cloneParams(chaincfg.RegNetParams())
 	defaultDeployments := map[uint32][]chaincfg.ConsensusDeployment{
 		7: {{
-			Vote:       testDummy1,
+			Vote:       mockVote1(),
 			StartTime:  1596240000,
 			ExpireTime: 1627776000,
 		}},
 		8: {{
-			Vote:       testDummy2,
+			Vote:       mockVote2(),
 			StartTime:  1631750400,
 			ExpireTime: 1694822400,
 		}},
@@ -1150,10 +1150,10 @@ func TestUpdateDeploymentVersion(t *testing.T) {
 	params := cloneParams(chaincfg.RegNetParams())
 	defaultDeployments := map[uint32][]chaincfg.ConsensusDeployment{
 		7: {{
-			Vote: testDummy1,
+			Vote: mockVote1(),
 		}},
 		8: {{
-			Vote: testDummy2,
+			Vote: mockVote2(),
 		}},
 	}
 

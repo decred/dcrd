@@ -18,96 +18,56 @@ const (
 	// vbPrevBlockValid defines the vote bit necessary to vote yes to the
 	// previous block being valid.
 	vbPrevBlockValid = 0x01
-
-	// testDummy1ID is the human-readable ID for the first test dummy voting
-	// agenda.
-	testDummy1ID = "testdummy1"
-
-	// testDummy1YesIndex is the offset in the choices slice of the first
-	// test dummy agenda for the yes choice.
-	testDummy1YesIndex = 2
-
-	// testDummy2NoIndex is the offset in the choices slice of the second
-	// test dummy agenda for the no choice.
-	testDummy2NoIndex = 1
-
-	// vbTestDummy1No defines the vote bits necessary to vote no on the first
-	// test dummy agenda as well as yes to the previous block being valid.
-	vbTestDummy1No = 0x02
-
-	// vbTestDummy1Yes defines the vote bits necessary to vote yes on the
-	// first test dummy agenda as well as yes to the previous block being
-	// valid.
-	vbTestDummy1Yes = 0x04
-
-	// testDummy2ID is the human-readable ID for the second test dummy
-	// voting agenda.
-	testDummy2ID = "testdummy2"
-
-	// vbTestDummy2No defines the vote bits necessary to vote no on the
-	// second test dummy agenda as well as yes to the previous block being
-	// valid.
-	vbTestDummy2No = 0x08
-
-	// vbTestDummy2Yes defines the vote bits necessary to vote yes on the
-	// second test dummy agenda as well as yes to the previous block being
-	// valid.
-	vbTestDummy2Yes = 0x10
 )
 
-var (
-	// testDummy1 is a voting agenda used throughout these tests.
-	testDummy1 = chaincfg.Vote{
-		Id:          testDummy1ID,
-		Description: "",
+// mockVote1 returns a voting agenda for use throughout the tests.
+func mockVote1() chaincfg.Vote {
+	return chaincfg.Vote{
+		Id:          "mockvote1",
+		Description: "Mock vote 1",
 		Mask:        0x6, // 0b0110
 		Choices: []chaincfg.Choice{{
 			Id:          "abstain",
 			Description: "abstain voting for change",
 			Bits:        0x0000,
 			IsAbstain:   true,
-			IsNo:        false,
 		}, {
 			Id:          "no",
 			Description: "vote no",
-			Bits:        0x0002, // Bit 1
-			IsAbstain:   false,
+			Bits:        0x0002, // Bit 1 (1 << 1)
 			IsNo:        true,
 		}, {
 			Id:          "yes",
 			Description: "vote yes",
-			Bits:        0x0004, // Bit 2
-			IsAbstain:   false,
-			IsNo:        false,
+			Bits:        0x0004, // Bit 2 (2 << 1)
 		}},
 	}
+}
 
-	// testDummy2 is a voting agenda used throughout these tests.
-	testDummy2 = chaincfg.Vote{
-		Id:          testDummy2ID,
-		Description: "",
+// mockVote2 returns a voting agenda with a different mask and choice bits than
+// those in mockVote1 for use throughout the tests.
+func mockVote2() chaincfg.Vote {
+	return chaincfg.Vote{
+		Id:          "mockvote2",
+		Description: "Mock vote 2",
 		Mask:        0x18, // 0b11000
 		Choices: []chaincfg.Choice{{
 			Id:          "abstain",
 			Description: "abstain voting for change",
 			Bits:        0x0000,
 			IsAbstain:   true,
-			IsNo:        false,
 		}, {
 			Id:          "no",
 			Description: "vote no",
-			Bits:        0x0008, // Bit 3
-			IsAbstain:   false,
+			Bits:        0x0008, // Bit 3 (1 << 3)
 			IsNo:        true,
 		}, {
 			Id:          "yes",
 			Description: "vote yes",
-			Bits:        0x0010, // Bit 4
-			IsAbstain:   false,
-			IsNo:        false,
+			Bits:        0x0010, // Bit 4 (2 << 3)
 		}},
 	}
-)
+}
 
 // TestCurrentDeploymentVersion ensures that the highest deployment version is
 // returned based on given network parameters.
@@ -129,7 +89,7 @@ func TestCurrentDeploymentVersion(t *testing.T) {
 		name: "single deployment defined",
 		deployments: map[uint32][]chaincfg.ConsensusDeployment{
 			7: {{
-				Vote: testDummy1,
+				Vote: mockVote1(),
 			}},
 		},
 		wantVersion: 7,
@@ -137,15 +97,14 @@ func TestCurrentDeploymentVersion(t *testing.T) {
 		name: "multiple deployments defined",
 		deployments: map[uint32][]chaincfg.ConsensusDeployment{
 			7: {{
-				Vote: testDummy1,
+				Vote: mockVote1(),
 			}},
 			8: {{
-				Vote: testDummy2,
+				Vote: mockVote2(),
 			}},
 		},
 		wantVersion: 8,
 	}}
-
 	for _, test := range tests {
 		// Set deployments based on the test parameter.
 		params.Deployments = test.deployments
@@ -169,10 +128,10 @@ func TestNextDeploymentVersion(t *testing.T) {
 	params := cloneParams(chaincfg.RegNetParams())
 	deployments := map[uint32][]chaincfg.ConsensusDeployment{
 		7: {{
-			Vote: testDummy1,
+			Vote: mockVote1(),
 		}},
 		8: {{
-			Vote: testDummy2,
+			Vote: mockVote2(),
 		}},
 	}
 
@@ -225,11 +184,10 @@ func TestNextDeploymentVersion(t *testing.T) {
 func TestThresholdState(t *testing.T) {
 	t.Parallel()
 
-	// Create chain params based on regnet params, but add a specific test
-	// dummy deployment and set the proof-of-work difficulty readjustment
-	// size to a really large number so that the test chain can be generated
-	// more quickly.
-	posVersion := uint32(4)
+	// Create chain params based on regnet params, but add a specific mock votes
+	// and set the proof-of-work difficulty readjustment size to a really large
+	// number so that the test chain can be generated more quickly.
+	const posVersion = 4
 	params := chaincfg.RegNetParams()
 	params.WorkDiffWindowSize = 200000
 	params.WorkDiffWindows = 1
@@ -240,16 +198,25 @@ func TestThresholdState(t *testing.T) {
 	}
 	params.Deployments[posVersion] = append(params.Deployments[posVersion],
 		chaincfg.ConsensusDeployment{
-			Vote:       testDummy1,
+			Vote:       mockVote1(),
 			StartTime:  0,
 			ExpireTime: math.MaxUint64,
 		})
 	params.Deployments[posVersion] = append(params.Deployments[posVersion],
 		chaincfg.ConsensusDeployment{
-			Vote:       testDummy2,
+			Vote:       mockVote2(),
 			StartTime:  0,
 			ExpireTime: math.MaxUint64,
 		})
+	numDeployments := len(params.Deployments[posVersion])
+
+	// Convenient references to the mock parameter votes and choices.
+	vote1 := &params.Deployments[posVersion][numDeployments-2].Vote
+	vote1YesIdx, vote1Yes := findVoteChoiceIndex(t, vote1, "yes")
+	vote1No := findVoteChoice(t, vote1, "no")
+	vote2 := &params.Deployments[posVersion][numDeployments-1].Vote
+	vote2Yes := findVoteChoice(t, vote2, "yes")
+	vote2NoIdx, vote2No := findVoteChoiceIndex(t, vote2, "no")
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
@@ -280,8 +247,8 @@ func TestThresholdState(t *testing.T) {
 	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
 	g.AcceptTipBlock()
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -296,8 +263,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the stake enabled height while
@@ -318,8 +285,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the stake validation height while
@@ -353,8 +320,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -382,8 +349,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(0)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next rule change
@@ -410,8 +377,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval - 2))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -441,8 +408,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval*4 - 1))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -474,8 +441,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to achieve proof-of-work block version lockin
@@ -499,8 +466,8 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
-			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
-				vbTestDummy2No, 4))
+			chaingen.ReplaceVotes(vbPrevBlockValid|vote1Yes.Bits|vote2No.Bits,
+				4))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
@@ -508,8 +475,8 @@ func TestThresholdState(t *testing.T) {
 		1 + powNumToCheck))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -532,16 +499,16 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
-			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
-				vbTestDummy2No, 4))
+			chaingen.ReplaceVotes(vbPrevBlockValid|vote1Yes.Bits|vote2No.Bits,
+				4))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -562,16 +529,16 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
-			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
-				vbTestDummy2No, 3))
+			chaingen.ReplaceVotes(vbPrevBlockValid|vote1Yes.Bits|vote2No.Bits,
+				3))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*4 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -592,8 +559,7 @@ func TestThresholdState(t *testing.T) {
 		blockName := fmt.Sprintf("bsvtH%d", i)
 		voteBits := uint16(vbPrevBlockValid) // Abstain both test dummy
 		if totalVotes+ticketsPerBlock < ruleChangeQuorum {
-			voteBits = vbPrevBlockValid | vbTestDummy1Yes |
-				vbTestDummy2No
+			voteBits = vbPrevBlockValid | vote1Yes.Bits | vote2No.Bits
 		}
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
@@ -606,8 +572,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*5 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -633,11 +599,9 @@ func TestThresholdState(t *testing.T) {
 		blockName := fmt.Sprintf("bsvtI%d", i)
 		voteBits := uint16(vbPrevBlockValid) // Abstain both test dummy
 		if totalVotes+ticketsPerBlock < numMinorityNeeded {
-			voteBits = vbPrevBlockValid | vbTestDummy1Yes |
-				vbTestDummy2No
+			voteBits = vbPrevBlockValid | vote1Yes.Bits | vote2No.Bits
 		} else if totalVotes+ticketsPerBlock <= numActiveNeeded {
-			voteBits = vbPrevBlockValid | vbTestDummy1No |
-				vbTestDummy2Yes
+			voteBits = vbPrevBlockValid | vote1No.Bits | vote2Yes.Bits
 		}
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
@@ -650,8 +614,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*6 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -673,16 +637,16 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
-			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
-				vbTestDummy2No, 4))
+			chaingen.ReplaceVotes(vbPrevBlockValid|vote1Yes.Bits|vote2No.Bits,
+				4))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*7 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdLockedIn, testDummy1YesIndex)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdFailed, testDummy2NoIndex)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdLockedIn, vote1YesIdx)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2NoIdx)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -706,14 +670,14 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:],
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
-			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1No|
-				vbTestDummy2Yes, 4))
+			chaingen.ReplaceVotes(vbPrevBlockValid|vote1No.Bits|vote2Yes.Bits,
+				4))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*8 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(testDummy1ID, ThresholdActive, testDummy1YesIndex)
-	g.TestThresholdStateChoice(testDummy2ID, ThresholdFailed, testDummy2NoIndex)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdActive, vote1YesIdx)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2NoIdx)
 }
