@@ -120,6 +120,41 @@ func TestDeploymentParamsValidation(t *testing.T) {
 		},
 		err: ErrDeploymentChoiceAbstain,
 	}, {
+		name: "require distinct masks for all votes in same deployment version",
+		munger: func(params *chaincfg.Params) {
+			// Create another deployment with a mask that uses a bit that is
+			// already used in the existing one.
+			deployment := chaincfg.ConsensusDeployment{
+				Vote: chaincfg.Vote{
+					Id:   "testvote2",
+					Mask: 0xc,
+					Choices: []chaincfg.Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new rules",
+						Bits:        0x0008, // Bit 3
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  0,             // Always available for vote
+				ExpireTime: math.MaxInt64, // Never expires
+			}
+			params.Deployments[0] = append(params.Deployments[0], deployment)
+		},
+		err: ErrDeploymentBadMask,
+	}, {
 		name: "require non-zero mask",
 		munger: func(params *chaincfg.Params) {
 			vote := &params.Deployments[0][0].Vote

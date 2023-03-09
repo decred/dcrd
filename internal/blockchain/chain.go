@@ -2158,6 +2158,7 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 	// Generate a deployment ID map from the provided params.
 	deploymentData := make(map[string]deploymentInfo)
 	for version, deployments := range params.Deployments {
+		var usedMaskBits uint16
 		for i := range deployments {
 			deployment := &deployments[i]
 			id := deployment.Vote.Id
@@ -2167,9 +2168,21 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 				return nil, contextError(ErrDuplicateDeployment, str)
 			}
 
+			// Ensure the masks in all deployments for the same version do not
+			// have any shared bits.
+			voteParams := &deployment.Vote
+			if voteParams.Mask&usedMaskBits != 0 {
+				str := fmt.Sprintf("deployment ID %s mask %#04x uses bits "+
+					"that are already used by other votes in the deployment "+
+					"(used bits %#04x)", voteParams.Id, voteParams.Mask,
+					usedMaskBits)
+				return nil, contextError(ErrDeploymentBadMask, str)
+			}
+			usedMaskBits |= voteParams.Mask
+
 			// Ensure the deployment choices conform to the semantics expected
 			// by the vote tallying threshold state logic.
-			if err := validateDeploymentChoices(&deployment.Vote); err != nil {
+			if err := validateDeploymentChoices(voteParams); err != nil {
 				return nil, err
 			}
 
