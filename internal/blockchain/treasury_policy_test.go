@@ -56,10 +56,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -595,10 +592,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	const tVoteID = chaincfg.VoteIDTreasury
 	const tPolVoteID = chaincfg.VoteIDRevertTreasuryPolicy
 	params = cloneParams(params)
-	tVersion, err := mergeAgendas(params, []string{tVoteID, tPolVoteID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion := mergeAgendas(t, params, []string{tVoteID, tPolVoteID})
 	for i := range params.Deployments[tVersion] {
 		removeDeploymentTimeConstraints(&params.Deployments[tVersion][i])
 	}

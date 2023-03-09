@@ -428,42 +428,71 @@ func appendFakeVotes(node *blockNode, numVotes uint16, voteVersion uint32, voteB
 	}
 }
 
+// findVoteChoiceIndex finds the provided choice ID within the given vote and
+// returns the index of that choice along with a pointer to the choice or fails
+// with a fatal test error when not found.
+func findVoteChoiceIndex(t *testing.T, vote *chaincfg.Vote, choiceID string) (uint32, *chaincfg.Choice) {
+	t.Helper()
+
+	// Find the correct choice for the passed choice ID.
+	for choiceIdx := range vote.Choices {
+		choice := &vote.Choices[choiceIdx]
+		if choice.Id == choiceID {
+			return uint32(choiceIdx), choice
+		}
+	}
+
+	t.Fatalf("unable to find vote choice for id %q", choiceID)
+	panic("unreachable")
+}
+
+// findVoteChoice finds the provided choice ID within the given vote and returns
+// a pointer to the found choice or fails with a fatal test error when not
+// found.
+func findVoteChoice(t *testing.T, vote *chaincfg.Vote, choiceID string) *chaincfg.Choice {
+	t.Helper()
+
+	_, choice := findVoteChoiceIndex(t, vote, choiceID)
+	return choice
+}
+
 // findDeployment finds the provided vote ID within the deployments of the
 // provided parameters and either returns the deployment version it was found in
-// along with a pointer to the deployment or an error when not found.
-func findDeployment(params *chaincfg.Params, voteID string) (uint32, *chaincfg.ConsensusDeployment, error) {
+// along with a pointer to the deployment or fails with a fatal test error when
+// not found.
+func findDeployment(t *testing.T, params *chaincfg.Params, voteID string) (uint32, *chaincfg.ConsensusDeployment) {
+	t.Helper()
+
 	// Find the correct deployment for the passed vote ID.
 	for version, deployments := range params.Deployments {
 		for i, deployment := range deployments {
 			if deployment.Vote.Id == voteID {
-				return version, &deployments[i], nil
+				return version, &deployments[i]
 			}
 		}
 	}
 
-	return 0, nil, fmt.Errorf("unable to find deployment for id %q", voteID)
+	t.Fatalf("unable to find deployment for id %q", voteID)
+	panic("unreachable")
 }
 
-// findDeploymentChoice finds the provided choice ID within the given
-// deployment params and either returns a pointer to the found choice or an
+// findDeploymentChoice finds the provided choice ID within the given deployment
+// params and returns a pointer to the found choice or fails with a fatal test
 // error when not found.
-func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID string) (*chaincfg.Choice, error) {
-	// Find the correct choice for the passed choice ID.
-	for i, choice := range deployment.Vote.Choices {
-		if choice.Id == choiceID {
-			return &deployment.Vote.Choices[i], nil
-		}
-	}
+func findDeploymentChoice(t *testing.T, deployment *chaincfg.ConsensusDeployment, choiceID string) *chaincfg.Choice {
+	t.Helper()
 
-	return nil, fmt.Errorf("unable to find vote choice for id %q", choiceID)
+	return findVoteChoice(t, &deployment.Vote, choiceID)
 }
 
 // findDeploymentAllYesChoices returns the deployment version and the OR'ed sum
 // of the 'yes' choices for all the passed agendas.
 //
-// Note that all agendas must be in the same deployment version or this
-// function errors.
-func findDeploymentAllYesChoices(params *chaincfg.Params, voteIDs []string) (uint32, uint16, error) {
+// Note that all agendas must be in the same deployment version or this function
+// will fail with a fatal test error.
+func findDeploymentAllYesChoices(t *testing.T, params *chaincfg.Params, voteIDs []string) (uint32, uint16) {
+	t.Helper()
+
 	var yesBits uint16
 	var deploymentVer uint32
 	var foundIDs int
@@ -471,10 +500,7 @@ func findDeploymentAllYesChoices(params *chaincfg.Params, voteIDs []string) (uin
 		for _, deployment := range deployments {
 			for _, wantID := range voteIDs {
 				if deployment.Vote.Id == wantID {
-					yesChoice, err := findDeploymentChoice(&deployment, "yes")
-					if err != nil {
-						return 0, 0, err
-					}
+					yesChoice := findDeploymentChoice(t, &deployment, "yes")
 					deploymentVer = version
 					foundIDs++
 					yesBits |= yesChoice.Bits
@@ -490,15 +516,14 @@ func findDeploymentAllYesChoices(params *chaincfg.Params, voteIDs []string) (uin
 		// the same deployment version, so return an error if we found
 		// some, but not all vote IDs in a specific version.
 		if foundIDs != len(voteIDs) {
-			return 0, 0, fmt.Errorf("not all voteIDs were found " +
-				"in the same deployment version")
+			t.Fatal("not all voteIDs were found in the same deployment version")
 		}
 
-		return deploymentVer, yesBits, nil
+		return deploymentVer, yesBits
 	}
 
-	return 0, 0, fmt.Errorf("unable to find deployment for any of the " +
-		"provided vote IDs")
+	t.Fatal("unable to find deployment for any of the provided vote IDs")
+	panic("unreachable")
 }
 
 // mergeAgendas moves all the specified agendas into the same deployment,
@@ -507,18 +532,18 @@ func findDeploymentAllYesChoices(params *chaincfg.Params, voteIDs []string) (uin
 // The agendas will be moved to the deployment that contains the first agenda
 // in the voteIDs slice.
 //
-// Returns the resulting deployment version.
-func mergeAgendas(params *chaincfg.Params, voteIDs []string) (uint32, error) {
+// Returns the resulting deployment version or fails with a fatal test error if
+// any errors are encountered.
+func mergeAgendas(t *testing.T, params *chaincfg.Params, voteIDs []string) uint32 {
+	t.Helper()
+
 	if len(voteIDs) < 2 {
-		return 0, fmt.Errorf("at least 2 agenda IDs must be specified")
+		t.Fatal("at least 2 agenda IDs must be specified")
 	}
 
 	// The first agenda defines the destination deployment, where the
 	// others will be moved to.
-	targetDeployVer, _, err := findDeployment(params, voteIDs[0])
-	if err != nil {
-		return 0, err
-	}
+	targetDeployVer, _ := findDeployment(t, params, voteIDs[0])
 	voteIDs = voteIDs[1:]
 	targetDeploy := params.Deployments[targetDeployVer]
 
@@ -543,10 +568,10 @@ nextvote:
 			}
 		}
 
-		return 0, fmt.Errorf("unable to find vote id %s", wantID)
+		t.Fatalf("unable to find vote id %s", wantID)
 	}
 
-	return targetDeployVer, nil
+	return targetDeployVer
 }
 
 // removeDeploymentTimeConstraints modifies the passed deployment to remove the
@@ -561,15 +586,13 @@ func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
 }
 
 // forceDeploymentResult modifies the passed deployment to force the provided
-// choice ID as the result of provided vote ID.  An error is returned when not
-// found.
-func forceDeploymentResult(params *chaincfg.Params, voteID, choiceID string) error {
-	_, deployment, err := findDeployment(params, voteID)
-	if err != nil {
-		return err
-	}
+// choice ID as the result of provided vote ID or fails with a fatal test error
+// if either are not found.
+func forceDeploymentResult(t *testing.T, params *chaincfg.Params, voteID, choiceID string) {
+	t.Helper()
+
+	_, deployment := findDeployment(t, params, voteID)
 	deployment.ForcedChoiceID = choiceID
-	return nil
 }
 
 // chaingenHarness provides a test harness which encapsulates a test instance, a
@@ -1324,10 +1347,7 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgendas(voteIDs ...string) {
 
 	// Sum all yes bits from all the agendas.
 	params := g.Params()
-	deploymentVer, yesBits, err := findDeploymentAllYesChoices(params, voteIDs)
-	if err != nil {
-		g.t.Fatal(err)
-	}
+	deploymentVer, yesBits := findDeploymentAllYesChoices(g.t, params, voteIDs)
 
 	// Shorter versions of useful params for convenience.
 	stakeValidationHeight := params.StakeValidationHeight

@@ -30,15 +30,9 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	// constraints to prevent test failures when the real expiration time
 	// passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDLNFeatures)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
@@ -420,15 +414,9 @@ func testHeaderCommitmentsDeployment(t *testing.T, params *chaincfg.Params) {
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDHeaderCommitments)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
@@ -558,15 +546,9 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDTreasury)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
@@ -704,15 +686,9 @@ func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDExplicitVersionUpgrades)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
@@ -821,15 +797,9 @@ func testAutoRevocationsDeployment(t *testing.T, params *chaincfg.Params) {
 	// the time constraints to prevent test failures when the real expiration time
 	// passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDAutoRevocations)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
@@ -945,15 +915,9 @@ func testSubsidySplitDeployment(t *testing.T, params *chaincfg.Params) {
 	// removing the time constraints to prevent test failures when the real
 	// expiration time passes.
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params,
+	deploymentVer, deployment := findDeployment(t, params,
 		chaincfg.VoteIDChangeSubsidySplit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	yesChoice, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.

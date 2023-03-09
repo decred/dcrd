@@ -984,10 +984,7 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 	// real expiration time passes.
 	const voteID = chaincfg.VoteIDExplicitVersionUpgrades
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params, voteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1752,10 +1749,7 @@ func TestAutoRevocations(t *testing.T) {
 	// prevent test failures when the real expiration time passes.
 	const voteID = chaincfg.VoteIDAutoRevocations
 	params = cloneParams(params)
-	version, deployment, err := findDeployment(params, voteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	version, deployment := findDeployment(t, params, voteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1950,10 +1944,7 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	// real expiration time passes.
 	const voteID = chaincfg.VoteIDChangeSubsidySplit
 	params = cloneParams(params)
-	deploymentVer, deployment, err := findDeployment(params, voteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.

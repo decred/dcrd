@@ -499,10 +499,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -914,10 +911,7 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1054,10 +1048,7 @@ func TestExpendituresReorg(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1306,10 +1297,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1605,10 +1593,7 @@ func TestTSpendDupVote(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1753,10 +1738,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1868,10 +1850,7 @@ func TestTSpendWindow(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -1992,10 +1971,7 @@ func TestTSpendSignature(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -2211,10 +2187,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -2359,10 +2332,7 @@ func TestTSpendExists(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of useful params for convenience.
@@ -2630,10 +2600,7 @@ func TestTreasuryBalance(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
@@ -2930,10 +2897,7 @@ func TestTAddCorners(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
@@ -3125,10 +3089,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
@@ -3325,10 +3286,7 @@ func TestTSpendCorners(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
@@ -3432,9 +3390,8 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 	// Clone the parameters so they can be mutated and mark the treasury agenda
 	// as always active.
 	const voteID = chaincfg.VoteIDTreasury
-	params := chaincfg.RegNetParams()
-	params = cloneParams(params)
-	forceDeploymentResult(params, voteID, "yes")
+	params := cloneParams(chaincfg.RegNetParams())
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Change params to hit corner case.
 	params.StakeValidationHeight = 144
@@ -3649,10 +3606,7 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
@@ -4222,10 +4176,7 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	// test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	tVersion, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
