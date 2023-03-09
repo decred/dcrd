@@ -208,6 +208,7 @@ func TestThresholdState(t *testing.T) {
 			StartTime:  0,
 			ExpireTime: math.MaxUint64,
 		})
+	reassignVoteMaskAndChoiceBits(params.Deployments[posVersion])
 	numDeployments := len(params.Deployments[posVersion])
 
 	// Convenient references to the mock parameter votes and choices.

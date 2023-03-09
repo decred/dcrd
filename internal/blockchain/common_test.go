@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	mrand "math/rand"
 	"os"
 	"reflect"
@@ -526,6 +527,21 @@ func findDeploymentAllYesChoices(t *testing.T, params *chaincfg.Params, voteIDs 
 	panic("unreachable")
 }
 
+// reassignVoteMaskAndChoiceBits calculates and updates the masks and choice
+// bits for all votes in the provided agendas so that they are non-overlapping.
+func reassignVoteMaskAndChoiceBits(agendas []chaincfg.ConsensusDeployment) {
+	choiceIdxShift := uint16(1)
+	for agendaIdx := range agendas {
+		vote := &agendas[agendaIdx].Vote
+		maskBitsNeeded := uint16(bits.Len(uint(len(vote.Choices))))
+		vote.Mask = ((1 << maskBitsNeeded) - 1) << choiceIdxShift
+		for choiceIdx := range vote.Choices {
+			vote.Choices[choiceIdx].Bits = uint16(choiceIdx) << choiceIdxShift
+		}
+		choiceIdxShift += maskBitsNeeded
+	}
+}
+
 // mergeAgendas moves all the specified agendas into the same deployment,
 // suitable for being voted at the same time.
 //
@@ -570,6 +586,7 @@ nextvote:
 
 		t.Fatalf("unable to find vote id %s", wantID)
 	}
+	reassignVoteMaskAndChoiceBits(params.Deployments[targetDeployVer])
 
 	return targetDeployVer
 }
