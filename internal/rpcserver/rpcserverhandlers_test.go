@@ -1500,7 +1500,7 @@ func defaultMockRPCChain() *testRPCChain {
 			Agendas: defaultChainParams.Deployments[0],
 			AgendaStatus: []blockchain.ThresholdStateTuple{{
 				State:  blockchain.ThresholdStarted,
-				Choice: uint32(0xffffffff),
+				Choice: nil,
 			}},
 		},
 		headerByHashFn:    headerByHashFn,
@@ -1511,7 +1511,7 @@ func defaultMockRPCChain() *testRPCChain {
 		medianTimeByHash:  time.Time{},
 		nextThresholdState: blockchain.ThresholdStateTuple{
 			State:  blockchain.ThresholdStarted,
-			Choice: uint32(0xffffffff),
+			Choice: nil,
 		},
 		ticketPoolValue: 570678298669222,
 		treasuryBalance: &blockchain.TreasuryBalanceInfo{
@@ -3637,7 +3637,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 			chain.maxBlockSize = 393216
 			chain.nextThresholdState = blockchain.ThresholdStateTuple{
 				State:  blockchain.ThresholdDefined,
-				Choice: uint32(0xffffffff),
+				Choice: nil,
 			}
 			chain.stateLastChangedHeight = int64(0)
 			return chain
@@ -7006,7 +7006,7 @@ func TestHandleGetVoteInfo(t *testing.T) {
 				Agendas: defaultChainParams.Deployments[v7],
 				AgendaStatus: []blockchain.ThresholdStateTuple{{
 					State:  blockchain.ThresholdStarted,
-					Choice: uint32(0xffffffff),
+					Choice: nil,
 				}},
 			}
 			chain.nextThresholdStateErr = errors.New("unable to fetch next threshold state")
@@ -7026,7 +7026,7 @@ func TestHandleGetVoteInfo(t *testing.T) {
 				Agendas: defaultChainParams.Deployments[v7],
 				AgendaStatus: []blockchain.ThresholdStateTuple{{
 					State:  blockchain.ThresholdStarted,
-					Choice: uint32(0xffffffff),
+					Choice: nil,
 				}},
 			}
 			chain.getVoteCountsErr = errors.New("unable to get vote counts")
@@ -7046,12 +7046,12 @@ func TestHandleGetVoteInfo(t *testing.T) {
 				Agendas: defaultChainParams.Deployments[v7],
 				AgendaStatus: []blockchain.ThresholdStateTuple{{
 					State:  blockchain.ThresholdDefined,
-					Choice: uint32(0xffffffff),
+					Choice: nil,
 				}},
 			}
 			chain.nextThresholdState = blockchain.ThresholdStateTuple{
 				State:  blockchain.ThresholdDefined,
-				Choice: uint32(0xffffffff),
+				Choice: nil,
 			}
 			return chain
 		}(),
@@ -7073,7 +7073,7 @@ func TestHandleGetVoteInfo(t *testing.T) {
 				Agendas: defaultChainParams.Deployments[v7],
 				AgendaStatus: []blockchain.ThresholdStateTuple{{
 					State:  blockchain.ThresholdStarted,
-					Choice: uint32(0xffffffff),
+					Choice: nil,
 				}},
 			}
 			return chain

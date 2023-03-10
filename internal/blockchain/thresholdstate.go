@@ -19,18 +19,22 @@ type ThresholdState byte
 
 // These constants are used to identify specific threshold states.
 const (
-	// ThresholdDefined is the first state for each deployment and is the
-	// state for the genesis block has by definition for all deployments.
-	ThresholdDefined ThresholdState = iota
+	// ThresholdInvalid is an invalid state and exists for use as the zero value
+	// in error paths.
+	ThresholdInvalid ThresholdState = iota
 
-	// ThresholdStarted is the state for a deployment once its start time
-	// has been reached.
+	// ThresholdDefined is the initial state for each deployment and is the
+	// state for the genesis block has by definition for all deployments.
+	ThresholdDefined
+
+	// ThresholdStarted is the state for a deployment once its start time has
+	// been reached.
 	ThresholdStarted
 
 	// ThresholdLockedIn is the state for a deployment during the retarget
-	// period which is after the ThresholdStarted state period and the
-	// number of blocks that have voted for the deployment equal or exceed
-	// the required number of votes for the deployment.
+	// period which is after the ThresholdStarted state period and the number of
+	// blocks that have voted for the deployment equal or exceed the required
+	// number of votes for the deployment.
 	ThresholdLockedIn
 
 	// ThresholdActive is the state for a deployment for all blocks after a
@@ -38,18 +42,15 @@ const (
 	// state.
 	ThresholdActive
 
-	// ThresholdFailed is the state for a deployment once its expiration
-	// time has been reached and it did not reach the ThresholdLockedIn
-	// state.
+	// ThresholdFailed is the state for a deployment once its expiration time
+	// has been reached and it did not reach the ThresholdLockedIn state.
 	ThresholdFailed
-
-	// ThresholdInvalid is a deployment that does not exist.
-	ThresholdInvalid
 )
 
 // thresholdStateStrings is a map of ThresholdState values back to their
 // constant names for pretty printing.
 var thresholdStateStrings = map[ThresholdState]string{
+	ThresholdInvalid:  "ThresholdInvalid",
 	ThresholdDefined:  "ThresholdDefined",
 	ThresholdStarted:  "ThresholdStarted",
 	ThresholdLockedIn: "ThresholdLockedIn",
@@ -65,27 +66,31 @@ func (t ThresholdState) String() string {
 	return fmt.Sprintf("Unknown ThresholdState (%d)", int(t))
 }
 
-const (
-	// invalidChoice indicates an invalid choice in the
-	// ThresholdStateTuple.
-	invalidChoice = uint32(0xffffffff)
-)
-
 // ThresholdStateTuple contains the current state and the activated choice,
 // when valid.
 type ThresholdStateTuple struct {
-	// state contains the current ThresholdState.
+	// State contains the current ThresholdState.
 	State ThresholdState
 
-	// Choice is set to invalidChoice unless state is: ThresholdLockedIn,
-	// ThresholdFailed & ThresholdActive.  Choice should always be crosschecked
-	// with invalidChoice.
-	Choice uint32
+	// Choice is the specific choice that received the majority vote for the
+	// ThresholdLockedIn and ThresholdActive states.
+	//
+	// IMPORTANT: It will only be set to the majority no choice for the
+	// ThresholdFailed state if the vote failed as the result of a majority no
+	// vote.  Otherwise, it will be nil for the ThresholdFailed state if the
+	// vote failed due to the voting period expiring before any majority is
+	// reached.  This distinction allows callers to differentiate between a vote
+	// failing due to a majority no vote versus due to expiring, but it does
+	// mean the caller must check for nil before using it for the state.
+	//
+	// It is nil for all other states.
+	Choice *chaincfg.Choice
 }
 
 // thresholdStateTupleStrings is a map of ThresholdState values back to their
 // constant names for pretty printing.
 var thresholdStateTupleStrings = map[ThresholdState]string{
+	ThresholdInvalid:  "invalid",
 	ThresholdDefined:  "defined",
 	ThresholdStarted:  "started",
 	ThresholdLockedIn: "lockedin",
@@ -96,21 +101,18 @@ var thresholdStateTupleStrings = map[ThresholdState]string{
 // String returns the ThresholdStateTuple as a human-readable tuple.
 func (t ThresholdStateTuple) String() string {
 	if s := thresholdStateTupleStrings[t.State]; s != "" {
+		if t.Choice != nil {
+			return fmt.Sprintf("%v (choice: %v)", s, t.Choice.Id)
+		}
 		return fmt.Sprintf("%v", s)
 	}
 	return "invalid"
 }
 
 // newThresholdState returns an initialized ThresholdStateTuple.
-func newThresholdState(state ThresholdState, choice uint32) ThresholdStateTuple {
+func newThresholdState(state ThresholdState, choice *chaincfg.Choice) ThresholdStateTuple {
 	return ThresholdStateTuple{State: state, Choice: choice}
 }
-
-var (
-	// invalidThresholdState is a threshold state tuple that represents an
-	// invalid state for use with errors.
-	invalidThresholdState = newThresholdState(ThresholdInvalid, invalidChoice)
-)
 
 // thresholdStateCache provides a type to cache the threshold states of each
 // threshold window for a set of IDs.  It also keeps track of which entries have
@@ -177,15 +179,13 @@ func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
-	const funcName = "nextThresholdState"
-
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
 	ruleChangeInterval := b.chainParams.RuleChangeActivationInterval
 	confirmationWindow := int64(ruleChangeInterval)
 	svh := b.chainParams.StakeValidationHeight
 	if prevNode == nil || prevNode.height+1 < svh+confirmationWindow {
-		return newThresholdState(ThresholdDefined, invalidChoice), nil
+		return newThresholdState(ThresholdDefined, nil), nil
 	}
 
 	// Get the ancestor that is the last block of the previous confirmation
@@ -211,13 +211,10 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 		// time, so calculate it now.
 		medianTime := prevNode.CalcPastMedianTime()
 
-		// The state is simply defined if the start time hasn't been
-		// been reached yet.
+		// The state is simply defined if the start time hasn't been reached
+		// yet.
 		if uint64(medianTime.Unix()) < beginTime {
-			cache.Update(prevNode.hash, ThresholdStateTuple{
-				State:  ThresholdDefined,
-				Choice: invalidChoice,
-			})
+			cache.Update(prevNode.hash, newThresholdState(ThresholdDefined, nil))
 			break
 		}
 
@@ -232,20 +229,19 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 
 	// Start with the threshold state for the most recent confirmation
 	// window that has a cached state.
-	stateTuple := newThresholdState(ThresholdDefined, invalidChoice)
+	stateTuple := newThresholdState(ThresholdDefined, nil)
 	if prevNode != nil {
 		var ok bool
 		stateTuple, ok = cache.Lookup(prevNode.hash)
 		if !ok {
-			return newThresholdState(ThresholdFailed, invalidChoice),
-				AssertError(fmt.Sprintf("%s: cache lookup failed for %v",
-					funcName, prevNode.hash))
+			// A cache entry is guaranteed to exist due to the above code and
+			// the code below relies on it, so assert the assumption.
+			panicf("threshold state cache lookup failed for %v", prevNode.hash)
 		}
 	}
 
 	// Since each threshold state depends on the state of the previous
 	// window, iterate starting from the oldest unknown window.
-	version := deployment.version
 	endTime := deployment.deployment.ExpireTime
 	for neededNum := len(neededStates) - 1; neededNum >= 0; neededNum-- {
 		prevNode := neededStates[neededNum]
@@ -268,14 +264,14 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 			}
 
 			// Make sure we are on the correct stake version.
-			if b.calcStakeVersion(prevNode) < version {
+			if b.calcStakeVersion(prevNode) < deployment.version {
 				stateTuple.State = ThresholdDefined
 				break
 			}
 
 			// The state must remain in the defined state so long as
 			// a majority of the PoW miners have not upgraded.
-			if !b.isMajorityVersion(int32(version), prevNode,
+			if !b.isMajorityVersion(int32(deployment.version), prevNode,
 				b.chainParams.BlockRejectNumRequired) {
 
 				stateTuple.State = ThresholdDefined
@@ -365,12 +361,12 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 				switch {
 				case !choice.IsNo:
 					stateTuple.State = ThresholdLockedIn
-					stateTuple.Choice = uint32(choiceIdx)
+					stateTuple.Choice = choice
 					break nextChoice
 
 				case choice.IsNo:
 					stateTuple.State = ThresholdFailed
-					stateTuple.Choice = uint32(choiceIdx)
+					stateTuple.Choice = choice
 					break nextChoice
 				}
 			}
@@ -509,13 +505,13 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID string) (ThresholdStateTuple, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.CanValidate(node) {
-		return invalidThresholdState, unknownBlockError(hash)
+		return ThresholdStateTuple{}, unknownBlockError(hash)
 	}
 
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
 		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return invalidThresholdState, contextError(ErrUnknownDeploymentID, str)
+		return ThresholdStateTuple{}, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	b.chainLock.Lock()

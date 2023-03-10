@@ -2121,12 +2121,10 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	// Attempt to find the choice with the ID that matches the forced choice
 	// specified in the deployment chain params and ensure it exists.
 	var forcedChoice *chaincfg.Choice
-	var forcedChoiceIdx uint32
 	for choiceIdx := range deployment.Vote.Choices {
 		choice := &deployment.Vote.Choices[choiceIdx]
 		if choice.Id == forcedChoiceID {
 			forcedChoice = choice
-			forcedChoiceIdx = uint32(choiceIdx)
 			break
 		}
 	}
@@ -2151,7 +2149,7 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	if forcedChoice.IsNo {
 		state = ThresholdFailed
 	}
-	tuple := newThresholdState(state, forcedChoiceIdx)
+	tuple := newThresholdState(state, forcedChoice)
 	return &tuple, nil
 }
 

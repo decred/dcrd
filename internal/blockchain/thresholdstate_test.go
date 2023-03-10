@@ -213,11 +213,11 @@ func TestThresholdState(t *testing.T) {
 
 	// Convenient references to the mock parameter votes and choices.
 	vote1 := &params.Deployments[posVersion][numDeployments-2].Vote
-	vote1YesIdx, vote1Yes := findVoteChoiceIndex(t, vote1, "yes")
+	vote1Yes := findVoteChoice(t, vote1, "yes")
 	vote1No := findVoteChoice(t, vote1, "no")
 	vote2 := &params.Deployments[posVersion][numDeployments-1].Vote
 	vote2Yes := findVoteChoice(t, vote2, "yes")
-	vote2NoIdx, vote2No := findVoteChoiceIndex(t, vote2, "no")
+	vote2No := findVoteChoice(t, vote2, "no")
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
@@ -248,8 +248,8 @@ func TestThresholdState(t *testing.T) {
 	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
 	g.AcceptTipBlock()
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -264,8 +264,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the stake enabled height while
@@ -286,8 +286,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the stake validation height while
@@ -321,8 +321,8 @@ func TestThresholdState(t *testing.T) {
 		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -350,8 +350,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(0)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next rule change
@@ -378,8 +378,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval - 2))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -409,8 +409,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval*4 - 1))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -442,8 +442,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to achieve proof-of-work block version lockin
@@ -476,8 +476,8 @@ func TestThresholdState(t *testing.T) {
 		1 + powNumToCheck))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdDefined, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdDefined, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -508,8 +508,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -538,8 +538,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*4 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -573,8 +573,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*5 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -615,8 +615,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*6 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, invalidChoice)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, invalidChoice)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdStarted, nil)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdStarted, nil)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -646,8 +646,8 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*7 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdLockedIn, vote1YesIdx)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2NoIdx)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdLockedIn, vote1Yes)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2No)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
@@ -679,6 +679,6 @@ func TestThresholdState(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*8 - 1))
 	g.AssertBlockVersion(4)
 	g.AssertStakeVersion(4)
-	g.TestThresholdStateChoice(vote1.Id, ThresholdActive, vote1YesIdx)
-	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2NoIdx)
+	g.TestThresholdStateChoice(vote1.Id, ThresholdActive, vote1Yes)
+	g.TestThresholdStateChoice(vote2.Id, ThresholdFailed, vote2No)
 }

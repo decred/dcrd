@@ -98,17 +98,17 @@ func TestVoting(t *testing.T) {
 
 	// Convenient references to the mock parameter votes and choices.
 	vote1 := &mockParams.Deployments[posVersion][0].Vote
-	vote1NoIdx, vote1No := findVoteChoiceIndex(t, vote1, "no")
-	vote1YesIdx, vote1Yes := findVoteChoiceIndex(t, vote1, "yes")
+	vote1No := findVoteChoice(t, vote1, "no")
+	vote1Yes := findVoteChoice(t, vote1, "yes")
 	vote2 := &mockParams.Deployments[posVersion][1].Vote
-	vote2NoIdx, vote2No := findVoteChoiceIndex(t, vote2, "no")
-	vote2YesIdx, vote2Yes := findVoteChoiceIndex(t, vote2, "yes")
+	vote2No := findVoteChoice(t, vote2, "no")
+	vote2Yes := findVoteChoice(t, vote2, "yes")
 	vote3 := &mockParams.Deployments[posVersion][2].Vote
-	vote3NoIdx, vote3No := findVoteChoiceIndex(t, vote3, "no")
-	vote3Choice1Idx, vote3Choice1 := findVoteChoiceIndex(t, vote3, "one")
-	vote3Choice2Idx, vote3Choice2 := findVoteChoiceIndex(t, vote3, "two")
-	vote3Choice3Idx, vote3Choice3 := findVoteChoiceIndex(t, vote3, "three")
-	vote3Choice4Idx, vote3Choice4 := findVoteChoiceIndex(t, vote3, "four")
+	vote3No := findVoteChoice(t, vote3, "no")
+	vote3Choice1 := findVoteChoice(t, vote3, "one")
+	vote3Choice2 := findVoteChoice(t, vote3, "two")
+	vote3Choice3 := findVoteChoice(t, vote3, "three")
+	vote3Choice4 := findVoteChoice(t, vote3, "four")
 
 	// Determine what the vote bits for the next choice in the various votes
 	// would be if they existed.
@@ -150,9 +150,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   svh - 2,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}},
 	}, {
@@ -171,9 +171,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast votes with a newer stake version for a full stake version
@@ -185,9 +185,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   stakeVerInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Continue casting normal votes to reach the next rule change
@@ -198,9 +198,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval - stakeVerInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% yes for vote 1, 100% no for vote 2, and 100%
@@ -212,9 +212,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote1Yes.Bits | vote2No.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -225,9 +225,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}},
 	}, {
@@ -248,9 +248,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast votes with an older stake version for as many full stake
@@ -263,9 +263,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   rciDivSvi * stakeVerInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Reach the next rule change interval while casting votes with the
@@ -281,9 +281,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   rciModSvi,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Reach the next stake version interval while continuing to cast
@@ -296,9 +296,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   stakeVerInterval - rciModSvi,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Continue casting normal votes to reach the next rule change
@@ -309,9 +309,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval - (stakeVerInterval - rciModSvi),
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% abstain for vote 1, 100% yes for vote 2, and
@@ -323,9 +323,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote2Yes.Bits | vote3No.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -336,9 +336,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}},
 	}, {
@@ -358,9 +358,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes with the stake version that matches the
@@ -373,9 +373,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% no for vote 1, 100% abstain for vote 2, and 100%
@@ -387,9 +387,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote1No.Bits | vote3Choice1.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -400,9 +400,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1),
 			},
 		}},
 	}, {
@@ -415,9 +415,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the next rule change interval.  The
@@ -428,9 +428,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the next rule change interval.  The
@@ -441,9 +441,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote1Yes.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}},
 	}, {
@@ -463,9 +463,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -475,9 +475,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% yes for vote 1, 100% abstain for vote 2, and
@@ -490,9 +490,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote1Yes.Bits | vote3Choice2.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice2Idx),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice2),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -503,9 +503,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice2Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice2),
 			},
 		}},
 	}, {
@@ -526,9 +526,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes with a vote version that is higher than the
@@ -539,9 +539,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes with a vote version that is higher than the deployment
@@ -554,9 +554,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote2Yes.Bits | vote3Choice3.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes with a vote version that is higher than the deployment
@@ -569,9 +569,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote2Yes.Bits | vote3Choice3.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes with the correct vote version for the deployment this
@@ -583,9 +583,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid | vote2Yes.Bits | vote3Choice3.Bits,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice3Idx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice3),
 			},
 		}, {
 			// Cast normal votes with a vote version that is higher than the
@@ -596,9 +596,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice3Idx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice3),
 			},
 		}},
 	}, {
@@ -615,9 +615,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -627,9 +627,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% yes for vote 1, 100% yes for vote 2, and 100%
@@ -641,9 +641,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice4.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice4Idx),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice4),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -653,9 +653,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice4Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice4),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -665,9 +665,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice4Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice4),
 			},
 		}},
 	}, {
@@ -684,9 +684,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -696,9 +696,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% no for vote 1, 100% no for vote 2, and 100% no
@@ -709,9 +709,9 @@ func TestVoting(t *testing.T) {
 				vote3No.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -721,9 +721,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}},
 	}, {
@@ -740,9 +740,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -752,9 +752,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast normal votes while abstaining from all ongoing votes for a
@@ -765,9 +765,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Continue cast normal votes while abstaining from all ongoing
@@ -778,9 +778,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Continue cast normal votes while abstaining from all ongoing
@@ -791,9 +791,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}},
 	}, {
@@ -812,9 +812,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -824,9 +824,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast 100% invalid votes.  The state should remain started fore
@@ -838,9 +838,9 @@ func TestVoting(t *testing.T) {
 				vbVote3Invalid,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Vote yes for vote 1.  Its state should move to locked in.  The
@@ -851,9 +851,9 @@ func TestVoting(t *testing.T) {
 				vote3No.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}, {
 			// Continue casting normal votes to reach the next rule change
@@ -864,9 +864,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdFailed, vote3NoIdx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdFailed, vote3No),
 			},
 		}},
 	}, {
@@ -886,9 +886,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -898,9 +898,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% invalid for vote 1, 100% yes for vote 2, 100%
@@ -913,9 +913,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice1.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1),
 			},
 		}, {
 			// Continue casting normal votes to reach the next rule change
@@ -926,9 +926,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1),
 			},
 		}},
 	}, {
@@ -943,9 +943,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes with an older stake version until the first
@@ -958,9 +958,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Continue casting normal votes with an older stake version for
@@ -972,9 +972,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdFailed, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdFailed, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdFailed, nil),
+				vote2.Id: newThresholdState(ThresholdFailed, nil),
+				vote3.Id: newThresholdState(ThresholdFailed, nil),
 			},
 		}},
 	}, {
@@ -988,9 +988,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast votes with a newer stake version for a full rule change
@@ -1002,9 +1002,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast yes votes which would ordinarily cause all of the votes in
@@ -1017,9 +1017,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice1.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdFailed, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdFailed, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdFailed, nil),
+				vote2.Id: newThresholdState(ThresholdFailed, nil),
+				vote3.Id: newThresholdState(ThresholdFailed, nil),
 			},
 		}},
 	}, {
@@ -1061,9 +1061,9 @@ func TestVoting(t *testing.T) {
 				return svh + firstAlignment - stakeVerInterval - 1
 			}(),
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes with the correct vote version in order to reach
@@ -1076,9 +1076,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   stakeVerInterval - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast another normal vote with the correct vote version to reach
@@ -1091,9 +1091,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes for one block less than a rule change interval: 100%
@@ -1106,9 +1106,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice2.Bits,
 			numBlocks: ruleChangeInterval - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast one more vote with the same choices as the previous to reach
@@ -1120,9 +1120,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice2.Bits,
 			numBlocks: 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice2Idx),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice2),
 			},
 		}, {
 			// Continue casting normal votes to reach the next rule change
@@ -1133,9 +1133,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice2Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice2),
 			},
 		}},
 	}, {
@@ -1155,9 +1155,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -1167,9 +1167,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes such that:
@@ -1200,9 +1200,9 @@ func TestVoting(t *testing.T) {
 			}(),
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes such that:
@@ -1239,9 +1239,9 @@ func TestVoting(t *testing.T) {
 			}(),
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes such that:
@@ -1278,9 +1278,9 @@ func TestVoting(t *testing.T) {
 			}(),
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdLockedIn, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice3Idx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdLockedIn, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice3),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -1291,9 +1291,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdFailed, vote1NoIdx),
-				vote2.Id: newThresholdState(ThresholdActive, vote2YesIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice3Idx),
+				vote1.Id: newThresholdState(ThresholdFailed, vote1No),
+				vote2.Id: newThresholdState(ThresholdActive, vote2Yes),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice3),
 			},
 		}},
 	}, {
@@ -1306,9 +1306,9 @@ func TestVoting(t *testing.T) {
 			name:      "svh",
 			numBlocks: svh - 1,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdDefined, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdDefined, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdDefined, nil),
+				vote2.Id: newThresholdState(ThresholdDefined, nil),
+				vote3.Id: newThresholdState(ThresholdDefined, nil),
 			},
 		}, {
 			// Cast normal votes to reach the first rule change interval.  The
@@ -1318,9 +1318,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote2.Id: newThresholdState(ThresholdStarted, invalidChoice),
-				vote3.Id: newThresholdState(ThresholdStarted, invalidChoice),
+				vote1.Id: newThresholdState(ThresholdStarted, nil),
+				vote2.Id: newThresholdState(ThresholdStarted, nil),
+				vote3.Id: newThresholdState(ThresholdStarted, nil),
 			},
 		}, {
 			// Cast votes: 100% yes for vote 1, 100% no for vote 2, and 100%
@@ -1332,9 +1332,9 @@ func TestVoting(t *testing.T) {
 				vote3Choice1.Bits,
 			numBlocks: ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdLockedIn, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdLockedIn, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdLockedIn, vote3Choice1),
 			},
 		}, {
 			// Cast votes that are different than they majority results already
@@ -1348,9 +1348,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1),
 			},
 		}, {
 			// Cast normal votes for another rule change interval.  The state
@@ -1360,9 +1360,9 @@ func TestVoting(t *testing.T) {
 			voteBits:    vbPrevBlockValid,
 			numBlocks:   ruleChangeInterval,
 			wantStates: wantStatesMap{
-				vote1.Id: newThresholdState(ThresholdActive, vote1YesIdx),
-				vote2.Id: newThresholdState(ThresholdFailed, vote2NoIdx),
-				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1Idx),
+				vote1.Id: newThresholdState(ThresholdActive, vote1Yes),
+				vote2.Id: newThresholdState(ThresholdFailed, vote2No),
+				vote3.Id: newThresholdState(ThresholdActive, vote3Choice1),
 			},
 		}},
 	}}
