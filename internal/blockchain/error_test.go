@@ -163,6 +163,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrUnknownDeploymentChoice, "ErrUnknownDeploymentChoice"},
 		{ErrDeploymentBadMask, "ErrDeploymentBadMask"},
 		{ErrDeploymentTooManyChoices, "ErrDeploymentTooManyChoices"},
+		{ErrDeploymentMissingChoiceID, "ErrDeploymentMissingChoiceID"},
 		{ErrDeploymentBadChoiceBits, "ErrDeploymentBadChoiceBits"},
 		{ErrDeploymentNonExclusiveFlags, "ErrDeploymentNonExclusiveFlags"},
 		{ErrDeploymentDuplicateChoice, "ErrDeploymentDuplicateChoice"},

@@ -654,6 +654,9 @@ const (
 	// a deployment that its mask can represent.
 	ErrDeploymentTooManyChoices = ErrorKind("ErrDeploymentTooManyChoices")
 
+	// ErrDeploymentMissingChoiceID indicates a choice id is not set.
+	ErrDeploymentMissingChoiceID = ErrorKind("ErrDeploymentMissingChoiceID")
+
 	// ErrDeploymentBadChoiceBits indicates the choice bits that represent a
 	// deployment vote choice are invalid in some way.  For example, when they
 	// are all zero and the choice is not also marked as abstain or they are not

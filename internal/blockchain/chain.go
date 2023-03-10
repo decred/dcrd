@@ -2031,6 +2031,13 @@ func validateDeploymentChoices(voteParams *chaincfg.Vote) error {
 	var numAbstain, numNo int
 	dups := make(map[string]int)
 	for choiceIdx, choice := range voteParams.Choices {
+		// Ensure the id is not empty.
+		if choice.Id == "" {
+			str := fmt.Sprintf("deployment ID %s choice index %d does not "+
+				"have an ID", voteParams.Id, choiceIdx)
+			return contextError(ErrDeploymentMissingChoiceID, str)
+		}
+
 		// Ensure that the choice bits are not zero for all choices except the
 		// abstain choice.
 		if choice.Bits == 0 && !choice.IsAbstain {

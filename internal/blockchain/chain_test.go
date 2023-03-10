@@ -190,6 +190,13 @@ func TestDeploymentParamsValidation(t *testing.T) {
 		},
 		err: ErrDeploymentTooManyChoices,
 	}, {
+		name: "reject choices without an id",
+		munger: func(params *chaincfg.Params) {
+			vote := &params.Deployments[0][0].Vote
+			vote.Choices[1].Id = ""
+		},
+		err: ErrDeploymentMissingChoiceID,
+	}, {
 		name: "reject choice with abstain bits but no abstain flag",
 		munger: func(params *chaincfg.Params) {
 			// Mark the abstain choice as not being abstain.
