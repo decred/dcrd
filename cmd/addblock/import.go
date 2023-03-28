@@ -319,7 +319,7 @@ func newBlockImporter(ctx context.Context, db database.DB, utxoDb *leveldb.DB, r
 		MaxSize:      100 * 1024 * 1024, // 100 MiB
 	})
 
-	chain, err := blockchain.New(context.Background(),
+	chain, err := blockchain.New(ctx,
 		&blockchain.Config{
 			DB:              db,
 			ChainParams:     activeNetParams,
