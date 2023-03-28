@@ -1,0 +1,30 @@
+run:
+  deadline: 10m
+
+linters:
+  build-tags:
+    - rpctest
+
+  disable-all: true
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errchkjson
+    - exportloopref
+    - gofmt
+    - goimports
+    - gosimple
+    - govet
+    - grouper
+    - ineffassign
+    - misspell
+    - nosprintfhostport
+    - reassign
+    - rowserrcheck
+    - tparallel
+    - typecheck
+    - unconvert
+    - unused
+    - vetshadow

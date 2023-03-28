@@ -39,14 +39,7 @@ for module in $MODPATHS; do
     cd $MODNAME
 
     # run linters
-    golangci-lint run --build-tags=rpctest --disable-all --deadline=10m \
-      --enable=gofmt \
-      --enable=gosimple \
-      --enable=unconvert \
-      --enable=ineffassign \
-      --enable=govet \
-      --enable=misspell \
-      --enable=unused \
+    golangci-lint run
   )
 done
 
