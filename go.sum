@@ -53,8 +53,8 @@ github.com/decred/dcrd/lru v1.1.1 h1:kWFDaW0OWx6AD6Ki342c+JPmHbiVdE6rK81pT3fuo/Y
 github.com/decred/dcrd/lru v1.1.1/go.mod h1:mxKOwFd7lFjN2GZYsiz/ecgqR6kkYAl+0pz0tEMk218=
 github.com/decred/dcrd/math/uint256 v1.0.0 h1:RGXQ8WzTMZ1eVeXy5uE67DPMB5Aa8N7qjgBNGlHdIQ0=
 github.com/decred/dcrd/math/uint256 v1.0.0/go.mod h1:s81c06+/jRj3z/Bd73FH79O7nDfOqt1amqtuAnG1cRg=
-github.com/decred/dcrd/peer/v3 v3.0.0 h1:tW7UPsHX1569Jh7txpXs2TyXmRFIlgabkBJvN/eHVVY=
-github.com/decred/dcrd/peer/v3 v3.0.0/go.mod h1:XF7IR19geyX7hRAyUviyAoU3uyA42vk0YjXWs84V/dU=
+github.com/decred/dcrd/peer/v3 v3.0.1 h1:X42CdOQMJ9Kky7XFf0iSNmzT0orxsJviTQP+aU+leJU=
+github.com/decred/dcrd/peer/v3 v3.0.1/go.mod h1:LFE32n5WnQ4E9muO2Zf9tHyZmTIBasfOdIc/L1PQjVQ=
 github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0 h1:WzG2IARR6OghjhWdxfUbXSPE4GEF2hZlCE5y2L/45f4=
 github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0/go.mod h1:1ILDxMKVS/qY71MylpZzuEX4O0u1SON4RPKbaZP71K0=
 github.com/decred/dcrd/rpcclient/v7 v7.0.0 h1:1XuGWpyjOPMscpwSDuumWTnfLl94LbIqg+5X6uCPYeY=
