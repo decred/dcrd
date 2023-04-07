@@ -37,11 +37,7 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 // TestStartStop tests the behavior of the address manager when it is started
 // and stopped.
 func TestStartStop(t *testing.T) {
-	dir, err := os.MkdirTemp("", "teststartstop")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Ensure the peers file does not exist before starting the address manager.
 	peersFile := filepath.Join(dir, peersFilename)
@@ -589,11 +585,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 }
 
 func TestCorruptPeersFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "testcorruptpeersfile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	peersFile := filepath.Join(dir, peersFilename)
 	// create corrupt (empty) peers file
 	fp, err := os.Create(peersFile)
