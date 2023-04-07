@@ -1,6 +1,6 @@
 module github.com/decred/dcrd
 
-go 1.16
+go 1.19
 
 require (
 	github.com/davecgh/go-spew v1.1.1
@@ -38,5 +38,13 @@ require (
 	github.com/jrick/logrotate v1.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+	golang.org/x/sys v0.5.0
+)
+
+require (
+	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
+	github.com/dchest/siphash v1.2.2 // indirect
+	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
+	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
 )
