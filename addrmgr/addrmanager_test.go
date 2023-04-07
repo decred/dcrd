@@ -76,7 +76,7 @@ func TestStartStop(t *testing.T) {
 	wantNetAddrKey := net.JoinHostPort(someIP, "8333")
 	gotNetAddrKey := knownAddress.na.Key()
 	if gotNetAddrKey != wantNetAddrKey {
-		t.Fatal("address manager does not contain expected address - "+
+		t.Fatalf("address manager does not contain expected address - "+
 			"got %v, want %v", gotNetAddrKey, wantNetAddrKey)
 	}
 
