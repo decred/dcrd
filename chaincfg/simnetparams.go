@@ -448,6 +448,34 @@ func SimNetParams() *Params {
 				ForcedChoiceID: "yes",
 				StartTime:      0,             // Always available for vote
 				ExpireTime:     math.MaxInt64, // Never expires
+			}, {
+				Vote: Vote{
+					Id:          VoteIDChangeSubsidySplitR2,
+					Description: "Change block reward subsidy split to 1/89/10 as defined in DCP0012",
+					Mask:        0x0060, // Bits 5 and 6
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0020, // Bit 5
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0040, // Bit 6
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				ForcedChoiceID: "yes",
+				StartTime:      0,             // Always available for vote
+				ExpireTime:     math.MaxInt64, // Never expires
 			}},
 		},
 

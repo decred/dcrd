@@ -168,6 +168,11 @@ const (
 	// VoteIDBlake3Pow is the vote ID for the agenda that changes the proof of
 	// work hashing algorithm to BLAKE3 as defined in DCP0011.
 	VoteIDBlake3Pow = "blake3pow"
+
+	// VoteIDChangeSubsidySplitR2 is the vote ID for the agenda that changes the
+	// block reward subsidy split to 1% PoW, 89% PoS, and 10% Treasury as
+	// defined in DCP0012.
+	VoteIDChangeSubsidySplitR2 = "changesubsidysplitr2"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
