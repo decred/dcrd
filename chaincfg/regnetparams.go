@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -403,6 +403,34 @@ func RegNetParams() *Params {
 						Id:          "yes",
 						Description: "change to the new consensus rules",
 						Bits:        0x0100, // Bit 8
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  0,             // Always available for vote
+				ExpireTime: math.MaxInt64, // Never expires
+			}},
+			11: {{
+				Vote: Vote{
+					Id:          VoteIDBlake3Pow,
+					Description: "Change proof of work hashing algorithm to BLAKE3 as defined in in DCP0011",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
 						IsAbstain:   false,
 						IsNo:        false,
 					}},

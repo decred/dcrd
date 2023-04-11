@@ -21,3 +21,5 @@ require (
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
 	github.com/decred/slog v1.2.0 // indirect
 )
+
+replace github.com/decred/dcrd/chaincfg/v3 => ../chaincfg

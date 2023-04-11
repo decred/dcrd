@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -412,6 +412,34 @@ func MainNetParams() *Params {
 				},
 				StartTime:  1631750400, // Sep 16th, 2021
 				ExpireTime: 1694822400, // Sep 16th, 2023
+			}},
+			10: {{
+				Vote: Vote{
+					Id:          VoteIDBlake3Pow,
+					Description: "Change proof of work hashing algorithm to BLAKE3 as defined in in DCP0011",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1682294400, // Apr 24th, 2023
+				ExpireTime: 1745452800, // Apr 24th, 2025
 			}},
 		},
 
