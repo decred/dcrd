@@ -9,7 +9,7 @@ package secp256k1
 // public key using Diffie-Hellman key exchange (ECDH) (RFC 5903).
 // RFC5903 Section 9 states we should only return x.
 //
-// It is recommended to securily hash the result before using as a cryptographic
+// It is recommended to securely hash the result before using as a cryptographic
 // key.
 func GenerateSharedSecret(privkey *PrivateKey, pubkey *PublicKey) []byte {
 	var point, result JacobianPoint
