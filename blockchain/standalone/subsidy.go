@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -241,7 +241,7 @@ func (c *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
 // calcWorkSubsidy returns the proof of work subsidy for a block for a given
 // number of votes using the provided work subsidy proportion and total
 // proportions.  This is the primary implementation logic used by
-// CalcWorkSubsidy and CalcWorkSubsidyV2.
+// CalcWorkSubsidy, CalcWorkSubsidyV2, and CalcWorkSubsidyV3.
 //
 // See the comments of those functions for further details.
 //
@@ -291,7 +291,7 @@ func (c *SubsidyCache) calcWorkSubsidy(height int64, voters uint16, proportion,
 //
 // This function is safe for concurrent access.
 //
-// Deprecated: Use CalcWorkSubsidyV2 instead.
+// Deprecated: Use CalcWorkSubsidyV3 instead.
 func (c *SubsidyCache) CalcWorkSubsidy(height int64, voters uint16) int64 {
 	return c.calcWorkSubsidy(height, voters, c.params.WorkSubsidyProportion(),
 		c.totalProportions)
@@ -311,6 +311,8 @@ func (c *SubsidyCache) CalcWorkSubsidy(height int64, voters uint16) int64 {
 // the height at which voting begins will return zero.
 //
 // This function is safe for concurrent access.
+//
+// Deprecated: Use CalcWorkSubsidyV3 instead.
 func (c *SubsidyCache) CalcWorkSubsidyV2(height int64, voters uint16, useDCP0010 bool) int64 {
 	if !useDCP0010 {
 		return c.CalcWorkSubsidy(height, voters)
@@ -326,6 +328,71 @@ func (c *SubsidyCache) CalcWorkSubsidyV2(height int64, voters uint16, useDCP0010
 	const totalProportions = 10
 	return c.calcWorkSubsidy(height, voters, workSubsidyProportion,
 		totalProportions)
+}
+
+// SubsidySplitVariant defines the available variants for subsidy split
+// calculations.
+type SubsidySplitVariant uint8
+
+const (
+	// SSVOriginal specifies the original subsidy split that was in effect at
+	// initial launch.  In particular, 60% PoW, 40% PoS, and 10% Treasury.
+	SSVOriginal SubsidySplitVariant = iota
+
+	// SSVDCP0010 specifies the modified subsidy split specified by DCP0010.
+	// In particular, 10% PoW, 80% PoS, and 10% Treasury.
+	SSVDCP0010
+
+	// SSVDCP0012 specifies the modified subsidy split specified by DCP0012.
+	// In particular, 1% PoW, 89% PoS, and 10% Treasury.
+	SSVDCP0012
+)
+
+// CalcWorkSubsidyV3 returns the proof of work subsidy for a block for a given
+// number of votes using the subsidy split determined by the provided subsidy
+// split variant parameter.
+//
+// It is calculated as a proportion of the total subsidy and further reduced
+// proportionally depending on the number of votes once the height at which
+// voting begins has been reached.
+//
+// Note that passing a number of voters fewer than the minimum required for a
+// block to be valid by consensus along with a height greater than or equal to
+// the height at which voting begins will return zero.
+//
+// Passing an invalid subsidy split variant will be treated the same as the
+// SSVOriginal variant.
+//
+// This function is safe for concurrent access.
+func (c *SubsidyCache) CalcWorkSubsidyV3(height int64, voters uint16, splitVariant SubsidySplitVariant) int64 {
+	switch splitVariant {
+	case SSVDCP0010:
+		// The work subsidy proportion defined in DCP0010 is 10%.  Thus it is 10
+		// since 10/100 = 10%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const workSubsidyProportion = 10
+		const totalProportions = 100
+		return c.calcWorkSubsidy(height, voters, workSubsidyProportion,
+			totalProportions)
+
+	case SSVDCP0012:
+		// The work subsidy proportion defined in DCP0012 is 1%.  Thus it is 1
+		// since 1/100 = 1%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const workSubsidyProportion = 1
+		const totalProportions = 100
+		return c.calcWorkSubsidy(height, voters, workSubsidyProportion,
+			totalProportions)
+	}
+
+	// Treat unknown subsidy split variants as the original.
+	return c.CalcWorkSubsidy(height, voters)
 }
 
 // calcStakeVoteSubsidy returns the subsidy for a single stake vote for a block
@@ -373,7 +440,7 @@ func (c *SubsidyCache) calcStakeVoteSubsidy(height int64, proportion, totalPropo
 //
 // This function is safe for concurrent access.
 //
-// Deprecated: Use CalcStakeVoteSubsidyV2 instead.
+// Deprecated: Use CalcStakeVoteSubsidyV3 instead.
 func (c *SubsidyCache) CalcStakeVoteSubsidy(height int64) int64 {
 	return c.calcStakeVoteSubsidy(height, c.params.StakeSubsidyProportion(),
 		c.totalProportions)
@@ -395,6 +462,8 @@ func (c *SubsidyCache) CalcStakeVoteSubsidy(height int64) int64 {
 // any vote subsidy either since they are invalid.
 //
 // This function is safe for concurrent access.
+//
+// Deprecated: Use CalcStakeVoteSubsidyV3 instead.
 func (c *SubsidyCache) CalcStakeVoteSubsidyV2(height int64, useDCP0010 bool) int64 {
 	if !useDCP0010 {
 		return c.CalcStakeVoteSubsidy(height)
@@ -410,6 +479,54 @@ func (c *SubsidyCache) CalcStakeVoteSubsidyV2(height int64, useDCP0010 bool) int
 	const totalProportions = 10
 	return c.calcStakeVoteSubsidy(height, voteSubsidyProportion,
 		totalProportions)
+}
+
+// CalcStakeVoteSubsidyV3 returns the subsidy for a single stake vote for a
+// block using the subsidy split determined by the provided subsidy split
+// variant parameter.
+//
+// It is calculated as a proportion of the total subsidy and max potential
+// number of votes per block.
+//
+// Unlike the Proof-of-Work and Treasury subsidies, the subsidy that votes
+// receive is not reduced when a block contains less than the maximum number of
+// votes.  Consequently, this does not accept the number of votes.  However, it
+// is important to note that blocks that do not receive the minimum required
+// number of votes for a block to be valid by consensus won't actually produce
+// any vote subsidy either since they are invalid.
+//
+// Passing an invalid subsidy split variant will be treated the same as the
+// SSVOriginal variant.
+//
+// This function is safe for concurrent access.
+func (c *SubsidyCache) CalcStakeVoteSubsidyV3(height int64, splitVariant SubsidySplitVariant) int64 {
+	switch splitVariant {
+	case SSVDCP0010:
+		// The stake vote subsidy proportion defined in DCP0010 is 80%.  Thus it
+		// is 80 since 80/100 = 80%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const voteSubsidyProportion = 80
+		const totalProportions = 100
+		return c.calcStakeVoteSubsidy(height, voteSubsidyProportion,
+			totalProportions)
+
+	case SSVDCP0012:
+		// The stake vote subsidy proportion defined in DCP0012 is 89%.  Thus it
+		// is 89 since 89/100 = 89%.
+		//
+		// Note that the value is hard coded here as opposed to using the
+		// subsidy params in order to avoid the need for a major module bump
+		// that would be required if the subsidy params interface were changed.
+		const voteSubsidyProportion = 89
+		const totalProportions = 100
+		return c.calcStakeVoteSubsidy(height, voteSubsidyProportion,
+			totalProportions)
+	}
+
+	return c.CalcStakeVoteSubsidy(height)
 }
 
 // CalcTreasurySubsidy returns the subsidy required to go to the treasury for
