@@ -156,11 +156,11 @@ the tmux command sequence <code>Ctrl+B 1</code> and
   $ ./ctl getbalance
   {
     ...
-    "totalimmaturecoinbaserewards": 800,
+    "totalimmaturecoinbaserewards": 80,
     "totallockedbytickets": 0.004596,
-    "totalspendable": 750,
-    "cumulativetotal": 1649.9998846,
-    "totalunconfirmed": 99.9952886,
+    "totalspendable": 75,
+    "cumulativetotal": 164.9998846,
+    "totalunconfirmed": 9.9952886,
     "totalvotingauthority": 0.004
   }
 
