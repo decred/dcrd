@@ -197,6 +197,8 @@ type testRPCChain struct {
 	treasuryActiveErr             error
 	subsidySplitActive            bool
 	subsidySplitActiveErr         error
+	subsidySplitR2Active          bool
+	subsidySplitR2ActiveErr       error
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -434,6 +436,12 @@ func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, in
 // not the modified subsidy split agenda is active.
 func (c *testRPCChain) IsSubsidySplitAgendaActive(*chainhash.Hash) (bool, error) {
 	return c.subsidySplitActive, c.subsidySplitActiveErr
+}
+
+// IsSubsidySplitR2AgendaActive returns a mocked bool representing whether or
+// not the modified subsidy split round 2 agenda is active.
+func (c *testRPCChain) IsSubsidySplitR2AgendaActive(*chainhash.Hash) (bool, error) {
+	return c.subsidySplitR2Active, c.subsidySplitR2ActiveErr
 }
 
 // testPeer provides a mock peer by implementing the Peer interface.
@@ -4191,6 +4199,38 @@ func TestHandleGetBlockSubsidy(t *testing.T) {
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
 			chain.subsidySplitActiveErr = errors.New("error getting agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetBlockSubsidy: modified subsidy split r2 ok",
+		handler: handleGetBlockSubsidy,
+		cmd: &types.GetBlockSubsidyCmd{
+			Height: 782208,
+			Voters: 5,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.subsidySplitR2Active = true
+			return chain
+		}(),
+		result: types.GetBlockSubsidyResult{
+			Developer: int64(88162116),
+			PoS:       int64(784642840),
+			PoW:       int64(8816211),
+			Total:     int64(881621167),
+		},
+	}, {
+		name:    "handleGetBlockSubsidy: modified subsidy split r2 status failure",
+		handler: handleGetBlockSubsidy,
+		cmd: &types.GetBlockSubsidyCmd{
+			Height: 782208,
+			Voters: 5,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.subsidySplitR2ActiveErr = errors.New("error getting agenda status")
 			return chain
 		}(),
 		wantErr: true,

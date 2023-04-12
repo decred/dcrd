@@ -150,6 +150,10 @@ type Config struct {
 	// is active or not.
 	IsSubsidySplitAgendaActive func() (bool, error)
 
+	// IsSubsidySplitR2AgendaActive returns if the modified subsidy split round
+	// 2 agenda is active or not.
+	IsSubsidySplitR2AgendaActive func() (bool, error)
+
 	// OnTSpendReceived defines the function used to signal receiving a new
 	// tspend in the mempool.
 	OnTSpendReceived func(voteTx *dcrutil.Tx)
@@ -1216,6 +1220,17 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	isTreasuryEnabled := checkTxFlags.IsTreasuryEnabled()
 	isAutoRevocationsEnabled := checkTxFlags.IsAutoRevocationsEnabled()
 	isSubsidyEnabled := checkTxFlags.IsSubsidySplitEnabled()
+	isSubsidyR2Enabled := checkTxFlags.IsSubsidySplitR2Enabled()
+
+	// Determine which subsidy split variant to use depending on the active
+	// agendas.
+	subsidySplitVariant := standalone.SSVOriginal
+	switch {
+	case isSubsidyR2Enabled:
+		subsidySplitVariant = standalone.SSVDCP0012
+	case isSubsidyEnabled:
+		subsidySplitVariant = standalone.SSVDCP0010
+	}
 
 	// Determine the type of transaction (regular or stake) and be sure to set
 	// the transaction tree correctly as it's possible a user submitted it to
@@ -1518,7 +1533,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	}
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache, tx,
 		nextBlockHeight, utxoView, true, mp.cfg.ChainParams, &bestHeader,
-		isTreasuryEnabled, isAutoRevocationsEnabled, isSubsidyEnabled)
+		isTreasuryEnabled, isAutoRevocationsEnabled, subsidySplitVariant)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1781,6 +1796,11 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 		return 0, err
 	}
 
+	isSubsidySplitR2Enabled, err := mp.cfg.IsSubsidySplitR2AgendaActive()
+	if err != nil {
+		return 0, err
+	}
+
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	//
@@ -1794,6 +1814,9 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 	}
 	if isSubsidySplitEnabled {
 		checkTxFlags |= blockchain.AFSubsidySplitEnabled
+	}
+	if isSubsidySplitR2Enabled {
+		checkTxFlags |= blockchain.AFSubsidySplitR2Enabled
 	}
 	return checkTxFlags, nil
 }

@@ -102,7 +102,8 @@ type Config struct {
 	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64,
 		view *blockchain.UtxoViewpoint, checkFraudProof bool,
 		prevHeader *wire.BlockHeader, isTreasuryEnabled,
-		isAutoRevocationsEnabled, isSubsidyEnabled bool) (int64, error)
+		isAutoRevocationsEnabled bool,
+		subsidySplitVariant standalone.SubsidySplitVariant) (int64, error)
 
 	// CheckTSpendHasVotes defines the function to use to check whether the given
 	// tspend has enough votes to be included in a block AFTER the specified block.
@@ -175,6 +176,11 @@ type Config struct {
 	// the modified subsidy split agenda is active or not for the block AFTER
 	// the given block.
 	IsSubsidySplitAgendaActive func(prevHash *chainhash.Hash) (bool, error)
+
+	// IsSubsidySplitR2AgendaActive defines the function to use to determine if
+	// the modified subsidy split round 2 agenda is active or not for the block
+	// AFTER the given block.
+	IsSubsidySplitR2AgendaActive func(prevHash *chainhash.Hash) (bool, error)
 
 	// MaxTreasuryExpenditure defines the function to use to get the maximum amount
 	// of funds that can be spent from the treasury by a set of TSpends for a block
@@ -537,7 +543,8 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 	coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64,
 	addr stdaddr.Address, voters uint16, params *chaincfg.Params,
-	isTreasuryEnabled, isSubsidyEnabled bool) *dcrutil.Tx {
+	isTreasuryEnabled bool,
+	subsidySplitVariant standalone.SubsidySplitVariant) *dcrutil.Tx {
 
 	// Coinbase transactions have no inputs, so previous outpoint is zero hash
 	// and max index.
@@ -621,8 +628,8 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache,
 	//  - Output that includes the block height and potential extra nonce used
 	//    to ensure a unique hash
 	//  - Output that pays the work subsidy to the miner
-	workSubsidy := subsidyCache.CalcWorkSubsidyV2(nextBlockHeight, voters,
-		isSubsidyEnabled)
+	workSubsidy := subsidyCache.CalcWorkSubsidyV3(nextBlockHeight, voters,
+		subsidySplitVariant)
 	tx := wire.NewMsgTx()
 	tx.Version = txVersion
 	tx.AddTxIn(coinbaseInput)
@@ -803,8 +810,8 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 // miner.
 // Safe for concurrent access.
 func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
-	miningAddress stdaddr.Address, isTreasuryEnabled,
-	isSubsidyEnabled bool) (*BlockTemplate, error) {
+	miningAddress stdaddr.Address, isTreasuryEnabled bool,
+	subsidySplitVariant standalone.SubsidySplitVariant) (*BlockTemplate, error) {
 
 	stakeValidationHeight := g.cfg.ChainParams.StakeValidationHeight
 
@@ -837,7 +844,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		coinbaseTx := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 			opReturnPkScript, topBlock.Height(), miningAddress,
 			tipHeader.Voters, g.cfg.ChainParams, isTreasuryEnabled,
-			isSubsidyEnabled)
+			subsidySplitVariant)
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if isTreasuryEnabled {
@@ -1211,6 +1218,21 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 		return nil, err
 	}
 
+	isSubsidyR2Enabled, err := g.cfg.IsSubsidySplitR2AgendaActive(&prevHash)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine which subsidy split variant to use depending on the active
+	// agendas.
+	subsidySplitVariant := standalone.SSVOriginal
+	switch {
+	case isSubsidyR2Enabled:
+		subsidySplitVariant = standalone.SSVDCP0012
+	case isSubsidyEnabled:
+		subsidySplitVariant = standalone.SSVDCP0010
+	}
+
 	var (
 		isTVI            bool
 		maxTreasurySpend int64
@@ -1236,7 +1258,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 			log.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
 			return g.handleTooFewVoters(nextBlockHeight, payToAddress,
-				isTreasuryEnabled, isSubsidyEnabled)
+				isTreasuryEnabled, subsidySplitVariant)
 		}
 
 		log.Debugf("Found eligible parent %v with enough votes to build "+
@@ -1733,7 +1755,7 @@ nextPriorityQueueItem:
 			// by the miner.
 			_, err = g.cfg.CheckTransactionInputs(bundledTx.Tx, nextBlockHeight,
 				blockUtxos, false, &bestHeader, isTreasuryEnabled,
-				isAutoRevocationsEnabled, isSubsidyEnabled)
+				isAutoRevocationsEnabled, subsidySplitVariant)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
@@ -2045,7 +2067,7 @@ nextPriorityQueueItem:
 
 	coinbaseTx := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
-		g.cfg.ChainParams, isTreasuryEnabled, isSubsidyEnabled)
+		g.cfg.ChainParams, isTreasuryEnabled, subsidySplitVariant)
 	coinbaseTx.SetTree(wire.TxTreeRegular)
 
 	numCoinbaseSigOps := int64(g.cfg.CountSigOps(coinbaseTx, true,
@@ -2155,7 +2177,7 @@ nextPriorityQueueItem:
 		log.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
 		return g.handleTooFewVoters(nextBlockHeight, payToAddress,
-			isTreasuryEnabled, isSubsidyEnabled)
+			isTreasuryEnabled, subsidySplitVariant)
 	}
 
 	// Correct transaction index fraud proofs for any transactions that

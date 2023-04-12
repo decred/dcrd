@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
+	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -1939,9 +1940,9 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	params := quickVoteActivationParams()
 
 	// Clone the parameters so they can be mutated, find the correct deployment
-	// for the explicit version upgrade and ensure it is always available to
-	// vote by removing the time constraints to prevent test failures when the
-	// real expiration time passes.
+	// for the agenda and ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
 	const voteID = chaincfg.VoteIDChangeSubsidySplit
 	params = cloneParams(params)
 	deploymentVer, deployment := findDeployment(t, params, voteID)
@@ -1958,10 +1959,10 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 
 		// Calculate the modified pow subsidy along with the treasury subsidy.
 		const numVotes = 5
-		const withDCP0010 = true
+		const splitVariation = standalone.SSVDCP0010
 		height := int64(b.Header.Height)
 		trsySubsidy := cache.CalcTreasurySubsidy(height, numVotes, noTreasury)
-		powSubsidy := cache.CalcWorkSubsidyV2(height, numVotes, withDCP0010)
+		powSubsidy := cache.CalcWorkSubsidyV3(height, numVotes, splitVariation)
 
 		// Update the input value to the new expected subsidy sum.
 		coinbaseTx := b.Transactions[0]
@@ -1987,20 +1988,15 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 
 		// Calculate the modified vote subsidy and update all of the votes
 		// accordingly.
-		const withDCP0010 = true
+		const splitVariation = standalone.SSVDCP0010
 		height := int64(b.Header.Height)
-		voteSubsidy := cache.CalcStakeVoteSubsidyV2(height, withDCP0010)
+		voteSubsidy := cache.CalcStakeVoteSubsidyV3(height, splitVariation)
 		chaingen.ReplaceVoteSubsidies(dcrutil.Amount(voteSubsidy))(b)
 	}
 
-	// -------------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set to
-	// reach one block prior to the modified subsidy split agenda becoming
-	// active.
-	//
-	// Note that this also ensures the subsidy split prior to the activation of
-	// the agenda remains unaffected.
-	// -------------------------------------------------------------------------
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
 
@@ -2069,6 +2065,167 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	// -------------------------------------------------------------------------
 	// Create a block that pays the original work subsidy that was in effect
 	// prior to activation of the modified subsidy split agenda.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	// ...
+	//    \-> b1bad2
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.NextBlock("b1bad2", &outs[0], outs[1:], replaceVers, replaceVoteSubsidies)
+	g.RejectTipBlock(ErrBadCoinbaseAmountIn)
+
+	// -------------------------------------------------------------------------
+	// Create a block that pays the modified work and vote subsidies.
+	//
+	// The block should be accepted because the agenda is active.
+	//
+	// ... -> b1
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.NextBlock("b1", &outs[0], outs[1:], replaceVers, replaceCoinbaseSubsidy,
+		replaceVoteSubsidies)
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+}
+
+// TestModifiedSubsidySplitR2Semantics ensures that the various semantics
+// enforced by the modified subsidy split round 2 agenda behave as intended.
+func TestModifiedSubsidySplitR2Semantics(t *testing.T) {
+	t.Parallel()
+
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the agenda and ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
+	const voteID = chaincfg.VoteIDChangeSubsidySplitR2
+	params = cloneParams(params)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
+	removeDeploymentTimeConstraints(deployment)
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g := newChaingenHarness(t, params)
+
+	// replaceCoinbaseSubsidy is a munge function which modifies the provided
+	// block by replacing the coinbase subsidy with the proportion required for
+	// the modified subsidy split round 2 agenda.
+	replaceCoinbaseSubsidy := func(b *wire.MsgBlock) {
+		cache := g.chain.subsidyCache
+
+		// Calculate the modified pow subsidy along with the treasury subsidy.
+		const numVotes = 5
+		const splitVariation = standalone.SSVDCP0012
+		height := int64(b.Header.Height)
+		trsySubsidy := cache.CalcTreasurySubsidy(height, numVotes, noTreasury)
+		powSubsidy := cache.CalcWorkSubsidyV3(height, numVotes, splitVariation)
+
+		// Update the input value to the new expected subsidy sum.
+		coinbaseTx := b.Transactions[0]
+		coinbaseTx.TxIn[0].ValueIn = trsySubsidy + powSubsidy
+
+		// Evenly split the modified pow subsidy over the relevant outputs.
+		powOutputs := coinbaseTx.TxOut[2:]
+		numPoWOutputs := int64(len(powOutputs))
+		amount := powSubsidy / numPoWOutputs
+		for i := int64(0); i < numPoWOutputs; i++ {
+			if i == numPoWOutputs-1 {
+				amount = powSubsidy - amount*(numPoWOutputs-1)
+			}
+			powOutputs[i].Value = amount
+		}
+	}
+
+	// replaceVoteSubsidies is a munge function which modifies the provided
+	// block by replacing all vote subsidies with the proportion required for
+	// the modified subsidy split round 2 agenda.
+	replaceVoteSubsidies := func(b *wire.MsgBlock) {
+		cache := g.chain.subsidyCache
+
+		// Calculate the modified vote subsidy and update all of the votes
+		// accordingly.
+		const splitVariation = standalone.SSVDCP0012
+		height := int64(b.Header.Height)
+		voteSubsidy := cache.CalcStakeVoteSubsidyV3(height, splitVariation)
+		chaingen.ReplaceVoteSubsidies(dcrutil.Amount(voteSubsidy))(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+
+	// -------------------------------------------------------------------------
+	// Create a block that pays the modified work subsidy prior to activation
+	// of the modified subsidy split round 2 agenda.
+	//
+	// The block should be rejected because the agenda is NOT active.
+	//
+	// ...
+	//    \-> bsvhbad
+	// -------------------------------------------------------------------------
+
+	tipName := g.TipName()
+	outs := g.OldestCoinbaseOuts()
+	g.NextBlock("bsvhbad", &outs[0], outs[1:], replaceCoinbaseSubsidy)
+	g.RejectTipBlock(ErrBadCoinbaseAmountIn)
+
+	// -------------------------------------------------------------------------
+	// Create a block that pays the modified vote subsidy prior to activation
+	// of the modified subsidy split round 2 agenda.
+	//
+	// The block should be rejected because the agenda is NOT active.
+	//
+	// ...
+	//    \-> bsvhbad2
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.NextBlock("bsvhbad2", &outs[0], outs[1:], replaceVoteSubsidies)
+	g.RejectTipBlock(ErrBadStakebaseAmountIn)
+
+	// -------------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set to
+	// reach one block prior to the modified subsidy split round 2 agenda
+	// becoming active.
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.AdvanceFromSVHToActiveAgendas(voteID)
+
+	// replaceVers is a munge function which modifies the provided block by
+	// replacing the block, stake, and vote versions with the modified subsidy
+	// split round 2 deployment version.
+	replaceVers := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(deploymentVer))(b)
+		chaingen.ReplaceStakeVersion(deploymentVer)(b)
+		chaingen.ReplaceVoteVersions(deploymentVer)(b)
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block that pays the original vote subsidy that was in effect
+	// prior to activation of any modified subsidy split agendas.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	// ...
+	//    \-> b1bad
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b1bad", &outs[0], outs[1:], replaceVers, replaceCoinbaseSubsidy)
+	g.RejectTipBlock(ErrBadStakebaseAmountIn)
+
+	// -------------------------------------------------------------------------
+	// Create a block that pays the original work subsidy that was in effect
+	// prior to activation of any modified subsidy split agendas.
 	//
 	// The block should be rejected because the agenda is active.
 	//

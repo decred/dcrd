@@ -391,6 +391,11 @@ type Chain interface {
 	// for the block AFTER the given block.
 	IsSubsidySplitAgendaActive(*chainhash.Hash) (bool, error)
 
+	// IsSubsidySplitR2AgendaActive returns whether or not the modified subsidy
+	// split round 2 agenda vote, as defined in DCP0012, has passed and is now
+	// active for the block AFTER the given block.
+	IsSubsidySplitR2AgendaActive(*chainhash.Hash) (bool, error)
+
 	// FetchTSpend returns all blocks where the treasury spend tx
 	// identified by the specified hash can be found.
 	FetchTSpend(chainhash.Hash) ([]chainhash.Hash, error)

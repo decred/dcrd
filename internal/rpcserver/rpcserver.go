@@ -2270,9 +2270,8 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 	height := c.Height
 	voters := c.Voters
 
-	// Determine if the treasury rules are active as of the provided height when
-	// that height exists in the main chain or as of the current best tip
-	// otherwise.
+	// Determine which agendas are active as of the provided height when that
+	// height exists in the main chain or as of the current best tip otherwise.
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	prevBlkHash := best.Hash
@@ -2293,12 +2292,26 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 	if err != nil {
 		return nil, err
 	}
+	isSubsidyR2Enabled, err := s.isSubsidySplitR2AgendaActive(&prevBlkHash)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine which subsidy split variant to use depending on the active
+	// agendas.
+	subsidySplitVariant := standalone.SSVOriginal
+	switch {
+	case isSubsidyR2Enabled:
+		subsidySplitVariant = standalone.SSVDCP0012
+	case isSubsidyEnabled:
+		subsidySplitVariant = standalone.SSVDCP0010
+	}
 
 	subsidyCache := s.cfg.SubsidyCache
 	dev := subsidyCache.CalcTreasurySubsidy(height, voters, isTreasuryEnabled)
-	pos := subsidyCache.CalcStakeVoteSubsidyV2(height-1, isSubsidyEnabled) *
+	pos := subsidyCache.CalcStakeVoteSubsidyV3(height-1, subsidySplitVariant) *
 		int64(voters)
-	pow := subsidyCache.CalcWorkSubsidyV2(height, voters, isSubsidyEnabled)
+	pow := subsidyCache.CalcWorkSubsidyV3(height, voters, subsidySplitVariant)
 	total := dev + pos + pow
 
 	rep := types.GetBlockSubsidyResult{
@@ -4965,6 +4978,19 @@ func (s *Server) isSubsidySplitAgendaActive(prevBlkHash *chainhash.Hash) (bool, 
 		return false, rpcInternalError(err.Error(), context)
 	}
 	return isSubsidySplitEnabled, nil
+}
+
+// isSubsidySplitR2AgendaActive returns if the modified subsidy split round 2
+// agenda is active or not for the block AFTER the provided block hash.
+func (s *Server) isSubsidySplitR2AgendaActive(prevBlkHash *chainhash.Hash) (bool, error) {
+	chain := s.cfg.Chain
+	isActive, err := chain.IsSubsidySplitR2AgendaActive(prevBlkHash)
+	if err != nil {
+		context := fmt.Sprintf("Could not obtain modified subsidy split "+
+			"round 2 agenda status for block %s", prevBlkHash)
+		return false, rpcInternalError(err.Error(), context)
+	}
+	return isActive, nil
 }
 
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the

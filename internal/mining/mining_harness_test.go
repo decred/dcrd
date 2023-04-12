@@ -74,12 +74,26 @@ type fakeChain struct {
 	isAutoRevocationsAgendaActiveErr   error
 	isSubsidySplitAgendaActive         bool
 	isSubsidySplitAgendaActiveErr      error
+	isSubsidySplitR2AgendaActive       bool
+	isSubsidySplitR2AgendaActiveErr    error
 	maxTreasuryExpenditure             int64
 	maxTreasuryExpenditureErr          error
 	parentUtxos                        *blockchain.UtxoViewpoint
 	tipGeneration                      []chainhash.Hash
 	tipGenerationErr                   error
 	utxos                              *blockchain.UtxoViewpoint
+}
+
+// determineSubsidySplitVariant returns the subsidy split variant to use based
+// on the agendas that are active on the fake chain instance.
+func (c *fakeChain) determineSubsidySplitVariant() standalone.SubsidySplitVariant {
+	switch {
+	case c.isSubsidySplitR2AgendaActive:
+		return standalone.SSVDCP0012
+	case c.isSubsidySplitAgendaActive:
+		return standalone.SSVDCP0010
+	}
+	return standalone.SSVOriginal
 }
 
 // AddBlock adds a block that will be available to the BlockByHash function of
@@ -223,6 +237,13 @@ func (c *fakeChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (boo
 // block.
 func (c *fakeChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	return c.isSubsidySplitAgendaActive, c.isSubsidySplitAgendaActiveErr
+}
+
+// IsSubsidySplitR2AgendaActive returns a mocked bool representing whether the
+// modified subsidy split round 2 agenda is active or not for the block AFTER
+// the given block.
+func (c *fakeChain) IsSubsidySplitR2AgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	return c.isSubsidySplitR2AgendaActive, c.isSubsidySplitR2AgendaActiveErr
 }
 
 // MaxTreasuryExpenditure returns a mocked maximum amount of funds that can be
@@ -670,7 +691,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 	nextHeight := height + 1
 	isTreasuryEnabled := p.chain.isTreasuryAgendaActive
 	isAutoRevocationsEnabled := p.chain.isAutoRevocationsAgendaActive
-	isSubsidySplitEnabled := p.chain.isSubsidySplitAgendaActive
+	subsidySplitVariant := p.chain.determineSubsidySplitVariant()
 
 	// Get the best block and header.
 	bestHeader, err := p.chain.HeaderByHash(&best.Hash)
@@ -742,7 +763,7 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 
 	txFee, err := blockchain.CheckTransactionInputs(p.subsidyCache, tx, nextHeight,
 		utxoView, false, p.chainParams, &bestHeader, isTreasuryEnabled,
-		isAutoRevocationsEnabled, isSubsidySplitEnabled)
+		isAutoRevocationsEnabled, subsidySplitVariant)
 	if err != nil {
 		return nil, err
 	}
@@ -1207,8 +1228,8 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	// Calculate the vote subsidy.
 	best := m.chain.BestSnapshot()
-	subsidy := m.subsidyCache.CalcStakeVoteSubsidyV2(best.Height,
-		m.chain.isSubsidySplitAgendaActive)
+	subsidy := m.subsidyCache.CalcStakeVoteSubsidyV3(best.Height,
+		m.chain.determineSubsidySplitVariant())
 	// Parse the ticket purchase transaction and generate the vote reward.
 	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
 		stake.TxSStxStakeOutputInfo(ticket.MsgTx())
@@ -1431,11 +1452,12 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
 				view *blockchain.UtxoViewpoint, checkFraudProof bool,
 				prevHeader *wire.BlockHeader, isTreasuryEnabled,
-				isAutoRevocationsEnabled, isSubsidySplitEnabled bool) (int64, error) {
+				isAutoRevocationsEnabled bool,
+				subsidySplitVariant standalone.SubsidySplitVariant) (int64, error) {
 
 				return blockchain.CheckTransactionInputs(subsidyCache, tx, txHeight,
 					view, checkFraudProof, chainParams, prevHeader, isTreasuryEnabled,
-					isAutoRevocationsEnabled, isSubsidySplitEnabled)
+					isAutoRevocationsEnabled, subsidySplitVariant)
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
 			CountSigOps:                     blockchain.CountSigOps,
@@ -1449,6 +1471,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			IsTreasuryAgendaActive:          chain.IsTreasuryAgendaActive,
 			IsAutoRevocationsAgendaActive:   chain.IsAutoRevocationsAgendaActive,
 			IsSubsidySplitAgendaActive:      chain.IsSubsidySplitAgendaActive,
+			IsSubsidySplitR2AgendaActive:    chain.IsSubsidySplitR2AgendaActive,
 			MaxTreasuryExpenditure:          chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint:                chain.NewUtxoViewpoint,
 			TipGeneration:                   chain.TipGeneration,
