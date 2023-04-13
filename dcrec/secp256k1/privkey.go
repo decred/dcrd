@@ -40,8 +40,10 @@ func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
 	return &privKey
 }
 
-// generatePrivateKey is a helper function for GeneratePrivateKey and
-// GeneratePrivateKeyFromRand.
+// generatePrivateKey generates and returns a new private key that is suitable
+// for use with secp256k1 using the provided reader as a source of entropy.  The
+// provided reader must be a source of cryptographically secure randomness to
+// avoid weak private keys.
 func generatePrivateKey(rand io.Reader) (*PrivateKey, error) {
 	// The group order is close enough to 2^256 that there is only roughly a 1
 	// in 2^128 chance of generating an invalid private key, so this loop will
@@ -69,13 +71,11 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 	return generatePrivateKey(cryptorand.Reader)
 }
 
-// GeneratePrivateKeyFromRand generates a private key using entropy from rand.
-// If rand is nil, [crypto/rand.Reader] will be used.
+// GeneratePrivateKeyFromRand generates a private key that is suitable for use
+// with secp256k1 using the provided reader as a source of entropy.  The
+// provided reader must be a source of cryptographically secure randomness, such
+// as [crypto/rand.Reader], to avoid weak private keys.
 func GeneratePrivateKeyFromRand(rand io.Reader) (*PrivateKey, error) {
-	if rand == nil {
-		rand = cryptorand.Reader
-	}
-
 	return generatePrivateKey(rand)
 }
 
