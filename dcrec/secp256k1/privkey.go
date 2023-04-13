@@ -6,7 +6,8 @@
 package secp256k1
 
 import (
-	csprng "crypto/rand"
+	cryptorand "crypto/rand"
+	"io"
 )
 
 // PrivateKey provides facilities for working with secp256k1 private keys within
@@ -39,16 +40,16 @@ func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
 	return &privKey
 }
 
-// GeneratePrivateKey generates and returns a new cryptographically secure
-// private key that is suitable for use with secp256k1.
-func GeneratePrivateKey() (*PrivateKey, error) {
+// generatePrivateKey is a helper function for GeneratePrivateKey and
+// GeneratePrivateKeyFromRand.
+func generatePrivateKey(rand io.Reader) (*PrivateKey, error) {
 	// The group order is close enough to 2^256 that there is only roughly a 1
 	// in 2^128 chance of generating an invalid private key, so this loop will
 	// virtually never run more than a single iteration in practice.
 	var key PrivateKey
 	var b32 [32]byte
 	for valid := false; !valid; {
-		if _, err := csprng.Read(b32[:]); err != nil {
+		if _, err := io.ReadFull(rand, b32[:]); err != nil {
 			return nil, err
 		}
 
@@ -60,6 +61,22 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 	zeroArray32(&b32)
 
 	return &key, nil
+}
+
+// GeneratePrivateKey generates and returns a new cryptographically secure
+// private key that is suitable for use with secp256k1.
+func GeneratePrivateKey() (*PrivateKey, error) {
+	return generatePrivateKey(cryptorand.Reader)
+}
+
+// GeneratePrivateKeyFromRand generates a private key using entropy from rand.
+// If rand is nil, [crypto/rand.Reader] will be used.
+func GeneratePrivateKeyFromRand(rand io.Reader) (*PrivateKey, error) {
+	if rand == nil {
+		rand = cryptorand.Reader
+	}
+
+	return generatePrivateKey(rand)
 }
 
 // PubKey computes and returns the public key corresponding to this private key.
