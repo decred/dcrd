@@ -27,13 +27,18 @@ func NewPrivateKey(key *ModNScalar) *PrivateKey {
 // interpreted as an unsigned 256-bit big-endian integer in the range [0, N-1],
 // where N is the order of the curve.
 //
-// Note that this means passing a slice with more than 32 bytes is truncated and
-// that truncated value is reduced modulo N.  It is up to the caller to either
-// provide a value in the appropriate range or choose to accept the described
-// behavior.
+// WARNING: This means passing a slice with more than 32 bytes is truncated and
+// that truncated value is reduced modulo N.  Further, 0 is not a valid private
+// key.  It is up to the caller to provide a value in the appropriate range of
+// [1, N-1].  Failure to do so will either result in an invalid private key or
+// potentially weak private keys that have bias that could be exploited.
 //
-// Typically callers should simply make use of GeneratePrivateKey when creating
-// private keys which properly handles generation of appropriate values.
+// This function primarily exists to provide a mechanism for converting
+// serialized private keys that are already known to be good.
+//
+// Typically callers should make use of GeneratePrivateKey or
+// GeneratePrivateKeyFromRand when creating private keys since they properly
+// handle generation of appropriate values.
 func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
 	var privKey PrivateKey
 	privKey.Key.SetByteSlice(privKeyBytes)
