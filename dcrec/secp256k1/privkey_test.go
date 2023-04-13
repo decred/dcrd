@@ -7,6 +7,9 @@ package secp256k1
 
 import (
 	"bytes"
+	cryptorand "crypto/rand"
+	"errors"
+	"math/big"
 	"testing"
 )
 
@@ -20,6 +23,88 @@ func TestGeneratePrivateKey(t *testing.T) {
 	pub := priv.PubKey()
 	if !isOnCurve(&pub.x, &pub.y) {
 		t.Error("public key is not on the curve")
+	}
+}
+
+// TestGeneratePrivateKeyFromRand ensures generating a private key from a random
+// entropy source works as expected.
+func TestGeneratePrivateKeyFromRand(t *testing.T) {
+	priv, err := GeneratePrivateKeyFromRand(cryptorand.Reader)
+	if err != nil {
+		t.Errorf("failed to generate private key: %s", err)
+		return
+	}
+	pub := priv.PubKey()
+	if !isOnCurve(&pub.x, &pub.y) {
+		t.Error("public key is not on the curve")
+	}
+}
+
+// mockPrivateKeyReaderFunc is an adapter to allow the use of an ordinary
+// function as an io.Reader.
+type mockPrivateKeyReaderFunc func([]byte) (int, error)
+
+// Read calls the function with the provided parameter and returns the result.
+func (f mockPrivateKeyReaderFunc) Read(p []byte) (int, error) {
+	return f(p)
+}
+
+// TestGeneratePrivateKeyCorners ensures random values that private key
+// generation correctly handles entropy values that are invalid for use as
+// private keys by creating a fake source of randomness to inject known bad
+// values.
+func TestGeneratePrivateKeyCorners(t *testing.T) {
+	// Create a mock reader that returns the following sequence of values:
+	// 1st invocation: 0
+	// 2nd invocation: The curve order
+	// 3rd invocation: The curve order + 1
+	// 4th invocation: 1 (32-byte big endian)
+	oneModN := hexToModNScalar("01")
+	var numReads int
+	mockReader := mockPrivateKeyReaderFunc(func(p []byte) (int, error) {
+		numReads++
+		switch numReads {
+		case 1:
+			return copy(p, bytes.Repeat([]byte{0x00}, len(p))), nil
+		case 2:
+			return copy(p, curveParams.N.Bytes()), nil
+		case 3:
+			nPlusOne := new(big.Int).Add(curveParams.N, big.NewInt(1))
+			return copy(p, nPlusOne.Bytes()), nil
+		}
+		oneModNBytes := oneModN.Bytes()
+		return copy(p, oneModNBytes[:]), nil
+	})
+
+	// Generate a private key using the mock reader and ensure the resulting key
+	// is the expected one.  It should be the value "1" since the other values
+	// the sequence produces are invalid and thus should be rejected.
+	priv, err := GeneratePrivateKeyFromRand(mockReader)
+	if err != nil {
+		t.Errorf("failed to generate private key: %s", err)
+		return
+	}
+	if !priv.Key.Equals(oneModN) {
+		t.Fatalf("unexpected private key -- got: %x, want %x", priv.Serialize(),
+			oneModN.Bytes())
+	}
+}
+
+// TestGeneratePrivateKeyError ensures the private key generation properly
+// handles errors when attempting to read from the source of randomness.
+func TestGeneratePrivateKeyError(t *testing.T) {
+	// Create a mock reader that returns an error.
+	errDisabled := errors.New("disabled")
+	mockReader := mockPrivateKeyReaderFunc(func(p []byte) (int, error) {
+		return 0, errDisabled
+	})
+
+	// Generate a private key using the mock reader and ensure the expected
+	// error is returned.
+	_, err := GeneratePrivateKeyFromRand(mockReader)
+	if !errors.Is(err, errDisabled) {
+		t.Fatalf("mismatched err -- got %v, want %v", err, errDisabled)
+		return
 	}
 }
 
