@@ -175,7 +175,7 @@ The following versioned modules are provided by dcrd repository:
   a robust and easy to use Websocket-enabled Decred JSON-RPC client
 * [dcrjson/v4](https://github.com/decred/dcrd/tree/master/dcrjson) - Provides
   infrastructure for working with Decred JSON-RPC APIs
-* [rpc/jsonrpc/types/v3](https://github.com/decred/dcrd/tree/master/rpc/jsonrpc/types) -
+* [rpc/jsonrpc/types/v4](https://github.com/decred/dcrd/tree/master/rpc/jsonrpc/types) -
   Provides concrete types via dcrjson for the chain server JSON-RPC commands,
   return values, and notifications
 * [wire](https://github.com/decred/dcrd/tree/master/wire) - Implements the

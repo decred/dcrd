@@ -98,7 +98,7 @@
 <!-- types -->
 <g id="node7" class="node"><title>types</title>
 <path fill="tomato" stroke="black" d="M212.5,-468C212.5,-468 104.5,-468 104.5,-468 98.5,-468 92.5,-462 92.5,-456 92.5,-456 92.5,-444 92.5,-444 92.5,-438 98.5,-432 104.5,-432 104.5,-432 212.5,-432 212.5,-432 218.5,-432 224.5,-438 224.5,-444 224.5,-444 224.5,-456 224.5,-456 224.5,-462 218.5,-468 212.5,-468"/>
-<text text-anchor="middle" x="158.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types/v3</text>
+<text text-anchor="middle" x="158.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types/v4</text>
 </g>
 <!-- dcrjson&#45;&gt;types -->
 <g id="edge24" class="edge"><title>dcrjson&#45;&gt;types</title>
