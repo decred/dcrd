@@ -213,7 +213,7 @@
 <!-- stake -->
 <g id="node19" class="node"><title>stake</title>
 <path fill="bisque" stroke="black" d="M342,-252C342,-252 239,-252 239,-252 233,-252 227,-246 227,-240 227,-240 227,-228 227,-228 227,-222 233,-216 239,-216 239,-216 342,-216 342,-216 348,-216 354,-222 354,-228 354,-228 354,-240 354,-240 354,-246 348,-252 342,-252"/>
-<text text-anchor="middle" x="290.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake/v4</text>
+<text text-anchor="middle" x="290.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake/v5</text>
 </g>
 <!-- database&#45;&gt;stake -->
 <g id="edge18" class="edge"><title>database&#45;&gt;stake</title>

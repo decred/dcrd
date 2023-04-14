@@ -184,7 +184,7 @@ The following versioned modules are provided by dcrd repository:
   base for creating and managing Decred network peers
 * [blockchain/v4](https://github.com/decred/dcrd/tree/master/blockchain) -
   Implements Decred block handling and chain selection rules
-  * [stake/v4](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
+  * [stake/v5](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
     Provides an API for working with stake transactions and other portions
     related to the Proof-of-Stake (PoS) system
   * [standalone/v2](https://github.com/decred/dcrd/tree/master/blockchain/standalone) -
