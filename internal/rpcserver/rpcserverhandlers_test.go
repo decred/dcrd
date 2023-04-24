@@ -5617,15 +5617,23 @@ func TestHandleVerifyChain(t *testing.T) {
 func TestHandleGetWork(t *testing.T) {
 	t.Parallel()
 
-	data := make([]byte, 0, getworkDataLen)
-	buf := bytes.NewBuffer(data)
-	err := block432100.Header.Serialize(buf)
-	if err != nil {
-		t.Fatalf("unexpected serialize error: %v", err)
-	}
+	// Define lower difficulty to use for solving blocks.
+	mockPowLimit := new(uint256.Uint256).SetUint64(1).Lsh(255).SubUint64(1)
+	mockPowLimitBig := mockPowLimit.ToBig()
+	mockPowLimitBits := standalone.BigToCompact(mockPowLimitBig)
 
-	data = data[:getworkDataLen]
-	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+	serializeGetWorkData := func(header *wire.BlockHeader) []byte {
+		data := make([]byte, 0, getworkDataLen)
+		buf := bytes.NewBuffer(data)
+		err := header.Serialize(buf)
+		if err != nil {
+			t.Fatalf("unexpected serialize error: %v", err)
+		}
+		data = data[:getworkDataLen]
+		copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+		return data
+	}
+	data := serializeGetWorkData(&block432100.Header)
 
 	submissionB := make([]byte, hex.EncodedLen(len(data)))
 	hex.Encode(submissionB, data)
@@ -5633,13 +5641,7 @@ func TestHandleGetWork(t *testing.T) {
 	submission := string(submissionB)
 	lessThanGetWorkDataLen := submission[10:]
 
-	// Create an orphan block by mutating the prevblock field of the data.
-	orphanData := make([]byte, len(data))
-	copy(orphanData, data)
-	orphanData[4] ^= 0x55
-	orphanSubmission := hex.EncodeToString(orphanData)
-
-	buf = &bytes.Buffer{}
+	var buf bytes.Buffer
 	buf.Write(submissionB[:10])
 	buf.WriteRune('g')
 	buf.Write(submissionB[10:])
@@ -5812,11 +5814,36 @@ func TestHandleGetWork(t *testing.T) {
 		name:    "handleGetWork: submission is an orphan",
 		handler: handleGetWork,
 		cmd: &types.GetWorkCmd{
-			Data: &orphanSubmission,
+			Data: func() *string {
+				// Create an orphan block by mutating the previous block field
+				// and solving the block.
+				isSolved := func(header *wire.BlockHeader) bool {
+					powHash := header.BlockHash()
+					err := standalone.CheckProofOfWork(&powHash, header.Bits,
+						mockPowLimitBig)
+					return err == nil
+				}
+				header := block432100.Header
+				header.PrevBlock[0] ^= 0x55
+				header.Bits = mockPowLimitBits
+				for !isSolved(&header) {
+					header.Nonce++
+				}
+
+				encoded := hex.EncodeToString(serializeGetWorkData(&header))
+				return &encoded
+			}(),
 		},
+		mockChainParams: func() *chaincfg.Params {
+			params := cloneParams(defaultChainParams)
+			params.PowLimit = mockPowLimitBig
+			params.PowLimitBits = mockPowLimitBits
+			return params
+		}(),
 		mockMiningState: mine(),
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
+			syncManager.submitBlockErr = blockchain.ErrMissingParent
 			return syncManager
 		}(),
 		result: false,
