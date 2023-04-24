@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,10 +17,6 @@ import (
 // OutOfRangeError describes an error due to accessing an element that is out
 // of range.
 type OutOfRangeError string
-
-// assertBlockImmutability throws a panic when a block has been
-// mutated.
-var assertBlockImmutability = false
 
 // BlockHeightUnknown is the value returned for a block height that is unknown.
 // This is typically because the block has not been inserted into the main chain
@@ -94,15 +90,6 @@ func (b *Block) BlockHeaderBytes() ([]byte, error) {
 // calling BlockHash on the underlying wire.MsgBlock, however it caches the
 // result so subsequent calls are more efficient.
 func (b *Block) Hash() *chainhash.Hash {
-	if assertBlockImmutability {
-		hash := b.msgBlock.BlockHash()
-		if !hash.IsEqual(&b.hash) {
-			str := fmt.Sprintf("ASSERT: mutated util.block detected, old hash "+
-				"%v, new hash %v", b.hash, hash)
-			panic(str)
-		}
-	}
-
 	return &b.hash
 }
 
