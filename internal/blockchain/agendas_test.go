@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 The Decred developers
+// Copyright (c) 2017-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -29,9 +29,9 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	// finally, ensure it is always available to vote by removing the time
 	// constraints to prevent test failures when the real expiration time
 	// passes.
+	const voteID = chaincfg.VoteIDLNFeatures
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDLNFeatures)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
@@ -413,9 +413,9 @@ func testHeaderCommitmentsDeployment(t *testing.T, params *chaincfg.Params) {
 	// it, and, finally, ensure it is always available to vote by removing the
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
+	const voteID = chaincfg.VoteIDHeaderCommitments
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDHeaderCommitments)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
@@ -545,9 +545,9 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	// it, and, finally, ensure it is always available to vote by removing the
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
+	const voteID = chaincfg.VoteIDTreasury
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDTreasury)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
@@ -685,9 +685,9 @@ func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 	// it, and, finally, ensure it is always available to vote by removing the
 	// time constraints to prevent test failures when the real expiration time
 	// passes.
+	const voteID = chaincfg.VoteIDExplicitVersionUpgrades
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDExplicitVersionUpgrades)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
@@ -796,9 +796,9 @@ func testAutoRevocationsDeployment(t *testing.T, params *chaincfg.Params) {
 	// within it, and, finally, ensure it is always available to vote by removing
 	// the time constraints to prevent test failures when the real expiration time
 	// passes.
+	const voteID = chaincfg.VoteIDAutoRevocations
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDAutoRevocations)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
@@ -914,9 +914,9 @@ func testSubsidySplitDeployment(t *testing.T, params *chaincfg.Params) {
 	// within it, and, finally, ensure it is always available to vote by
 	// removing the time constraints to prevent test failures when the real
 	// expiration time passes.
+	const voteID = chaincfg.VoteIDChangeSubsidySplit
 	params = cloneParams(params)
-	deploymentVer, deployment := findDeployment(t, params,
-		chaincfg.VoteIDChangeSubsidySplit)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
 	yesChoice := findDeploymentChoice(t, deployment, "yes")
 	removeDeploymentTimeConstraints(deployment)
 
