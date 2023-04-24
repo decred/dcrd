@@ -1367,7 +1367,6 @@ type rpcTest struct {
 	mockLogManager        *testLogManager
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
-	mockMiningAddrs       []stdaddr.Address
 	mockHelpCacher        *testHelpCacher
 	result                interface{}
 	wantErr               bool
@@ -1538,13 +1537,20 @@ func defaultMockSanityChecker() *testSanityChecker {
 // *testMiningState, and then setting rpcTest.mockMiningState as that
 // *testMiningState.
 func defaultMockMiningState() *testMiningState {
+	addrStr := "DcurAwesomeAddressmqDctW5wJCW1Cn2MF"
+	addr, err := stdaddr.DecodeAddress(addrStr, defaultChainParams)
+	if err != nil {
+		panic(fmt.Sprintf("invalid address %q in source file: %v", addrStr, err))
+	}
+
 	blk := block432100
 	tmplKey := getWorkTemplateKey(&block432100.Header)
 	workState := newWorkState()
 	workState.templatePool[tmplKey] = &block432100
 	workState.prevBestHash = &blk.Header.PrevBlock
 	return &testMiningState{
-		workState: workState,
+		miningAddrs: []stdaddr.Address{addr},
+		workState:   workState,
 	}
 }
 
@@ -3400,11 +3406,6 @@ func TestHandleGenerate(t *testing.T) {
 	hashStrTwo := "00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d"
 	generatedBlocks := []*chainhash.Hash{mustParseHash(hashStrOne), mustParseHash(hashStrTwo)}
 	res := []string{hashStrOne, hashStrTwo}
-	miningAddr, err := stdaddr.DecodeAddress("DcurAwesomeAddressmqDctW5wJCW1Cn2MF", defaultChainParams)
-	if err != nil {
-		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
-	}
-	miningAddrs := []stdaddr.Address{miningAddr}
 	chainParams := cloneParams(defaultChainParams)
 	chainParams.GenerateSupported = true
 	cpu := defaultMockCPUMiner()
@@ -3415,7 +3416,7 @@ func TestHandleGenerate(t *testing.T) {
 		cmd: &types.GenerateCmd{
 			NumBlocks: 2,
 		},
-		mockMiningAddrs: miningAddrs,
+		mockMiningState: defaultMockMiningState(),
 		mockChainParams: chainParams,
 		mockCPUMiner:    cpu,
 		result:          res,
@@ -3435,7 +3436,7 @@ func TestHandleGenerate(t *testing.T) {
 		cmd: &types.GenerateCmd{
 			NumBlocks: 2,
 		},
-		mockMiningAddrs: miningAddrs,
+		mockMiningState: defaultMockMiningState(),
 		mockCPUMiner:    cpu,
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCDifficulty,
@@ -3443,7 +3444,7 @@ func TestHandleGenerate(t *testing.T) {
 		name:            "handleGenerate: generate 0 blocks",
 		handler:         handleGenerate,
 		cmd:             &types.GenerateCmd{},
-		mockMiningAddrs: miningAddrs,
+		mockMiningState: defaultMockMiningState(),
 		mockChainParams: chainParams,
 		mockCPUMiner:    cpu,
 		wantErr:         true,
@@ -3454,7 +3455,7 @@ func TestHandleGenerate(t *testing.T) {
 		cmd: &types.GenerateCmd{
 			NumBlocks: 2,
 		},
-		mockMiningAddrs: miningAddrs,
+		mockMiningState: defaultMockMiningState(),
 		mockChainParams: chainParams,
 		mockCPUMiner: func() *testCPUMiner {
 			cpu := defaultMockCPUMiner()
@@ -5653,17 +5654,6 @@ func TestHandleGetWork(t *testing.T) {
 	buf.Write(submissionB[240:])
 	invalidPOWSub := buf.String()
 
-	miningaddr, err := stdaddr.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
-	if err != nil {
-		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
-	}
-
-	mine := func() *testMiningState {
-		ms := defaultMockMiningState()
-		ms.miningAddrs = []stdaddr.Address{miningaddr}
-		return ms
-	}
-
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetWork: CPU IsMining enabled",
 		handler: handleGetWork,
@@ -5690,14 +5680,14 @@ func TestHandleGetWork(t *testing.T) {
 			connMgr.connectedCount = 0
 			return connMgr
 		}(),
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCClientNotConnected,
 	}, {
 		name:            "handleGetWork: chain is syncing",
 		handler:         handleGetWork,
 		cmd:             &types.GetWorkCmd{},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
 			chain.bestSnapshot = &blockchain.BestState{
@@ -5717,7 +5707,7 @@ func TestHandleGetWork(t *testing.T) {
 			templater.simulateNewNtfn = true
 			return templater
 		}(),
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		result: &types.GetWorkResult{
 			Data: "070000009c3c0efea268c124d46d7daeae2d9667e78daa0523a19725" +
 				"00000000000000000bc8a255edde9901ecc4cdb93e4e573cb38ae91e84" +
@@ -5733,7 +5723,7 @@ func TestHandleGetWork(t *testing.T) {
 		name:            "handleGetWork: ok with no workstate entries",
 		handler:         handleGetWork,
 		cmd:             &types.GetWorkCmd{},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		result: &types.GetWorkResult{
 			Data: "070000009c3c0efea268c124d46d7daeae2d9667e78daa0523a19725" +
 				"00000000000000000bc8a255edde9901ecc4cdb93e4e573cb38ae91e84" +
@@ -5749,7 +5739,7 @@ func TestHandleGetWork(t *testing.T) {
 		name:            "handleGetWork: unable to retrieve template",
 		handler:         handleGetWork,
 		cmd:             &types.GetWorkCmd{},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockBlockTemplater: func() *testBlockTemplater {
 			templater := defaultMockBlockTemplater()
 			templater.currTemplateErr = errors.New("unable to retrieve template")
@@ -5764,7 +5754,6 @@ func TestHandleGetWork(t *testing.T) {
 		mockMiningState: func() *testMiningState {
 			mockChain := defaultMockRPCChain()
 			ms := defaultMockMiningState()
-			ms.miningAddrs = []stdaddr.Address{miningaddr}
 			ms.workState.prevBestHash = &mockChain.bestSnapshot.Hash
 			return ms
 		}(),
@@ -5780,7 +5769,7 @@ func TestHandleGetWork(t *testing.T) {
 		name:            "handleGetWork: unable to update block time",
 		handler:         handleGetWork,
 		cmd:             &types.GetWorkCmd{},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockBlockTemplater: func() *testBlockTemplater {
 			templater := defaultMockBlockTemplater()
 			templater.updateBlockTimeErr = errors.New("unable to update block time")
@@ -5794,7 +5783,7 @@ func TestHandleGetWork(t *testing.T) {
 		cmd: &types.GetWorkCmd{
 			Data: &lessThanGetWorkDataLen,
 		},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -5805,7 +5794,6 @@ func TestHandleGetWork(t *testing.T) {
 		},
 		mockMiningState: func() *testMiningState {
 			ms := defaultMockMiningState()
-			ms.miningAddrs = []stdaddr.Address{miningaddr}
 			ms.workState = newWorkState()
 			return ms
 		}(),
@@ -5840,7 +5828,7 @@ func TestHandleGetWork(t *testing.T) {
 			params.PowLimitBits = mockPowLimitBits
 			return params
 		}(),
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
 			syncManager.submitBlockErr = blockchain.ErrMissingParent
@@ -5853,7 +5841,7 @@ func TestHandleGetWork(t *testing.T) {
 		cmd: &types.GetWorkCmd{
 			Data: &submission,
 		},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
 			syncManager.submitBlockErr = errors.New("unable to submit block")
@@ -5867,7 +5855,7 @@ func TestHandleGetWork(t *testing.T) {
 		cmd: &types.GetWorkCmd{
 			Data: &submission,
 		},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		result:          true,
 	}, {
 		name:    "handleGetWork: invalid submission hex",
@@ -5875,7 +5863,7 @@ func TestHandleGetWork(t *testing.T) {
 		cmd: &types.GetWorkCmd{
 			Data: &invalidHexSub,
 		},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCDecodeHexString,
 	}, {
@@ -5884,16 +5872,20 @@ func TestHandleGetWork(t *testing.T) {
 		cmd: &types.GetWorkCmd{
 			Data: &invalidPOWSub,
 		},
-		mockMiningState: mine(),
-		wantErr:         false,
-		result:          false,
+		mockMiningState: defaultMockMiningState(),
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.submitBlockErr = blockchain.ErrHighHash
+			return syncManager
+		}(),
+		result: false,
 	}, {
 		name:    "handleGetWork: duplicate block",
 		handler: handleGetWork,
 		cmd: &types.GetWorkCmd{
 			Data: &submission,
 		},
-		mockMiningState: mine(),
+		mockMiningState: defaultMockMiningState(),
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
 			syncManager.submitBlockErr = blockchain.RuleError{
@@ -5912,10 +5904,6 @@ func TestHandleSetGenerate(t *testing.T) {
 
 	procLimit := 2
 	zeroProcLimit := 0
-	miningaddr, err := stdaddr.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
-	if err != nil {
-		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
-	}
 
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleSetGenerate: no payment addresses",
@@ -5933,11 +5921,7 @@ func TestHandleSetGenerate(t *testing.T) {
 			Generate:     true,
 			GenProcLimit: &procLimit,
 		},
-		mockMiningState: func() *testMiningState {
-			ms := defaultMockMiningState()
-			ms.miningAddrs = []stdaddr.Address{miningaddr}
-			return ms
-		}(),
+		mockMiningState: defaultMockMiningState(),
 	}, {
 		name:    "handleSetGenerate: ok, generate=false",
 		handler: handleSetGenerate,
@@ -7944,9 +7928,6 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				if ms.workState != nil {
 					workState = ms.workState
 				}
-			}
-			if test.mockMiningAddrs != nil {
-				rpcserverConfig.MiningAddrs = test.mockMiningAddrs
 			}
 			if test.mockBlockTemplater != nil {
 				rpcserverConfig.BlockTemplater = test.mockBlockTemplater
