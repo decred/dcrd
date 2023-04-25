@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -161,9 +161,8 @@ func messageSummary(msg wire.Message) string {
 		return fmt.Sprintf("types %v", msg.Types)
 
 	case *wire.MsgInitState:
-		return fmt.Sprintf("blockHashes %d, voteHashes %d, tspendHashes %d",
-			len(msg.BlockHashes), len(msg.VoteHashes),
-			len(msg.TSpendHashes))
+		return fmt.Sprintf("blocks %d, votes %d, treasury spends %d",
+			len(msg.BlockHashes), len(msg.VoteHashes), len(msg.TSpendHashes))
 	}
 
 	// No summary for other messages.
