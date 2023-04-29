@@ -878,19 +878,6 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		ts := g.medianAdjustedTime()
 		block.Header.Timestamp = ts
 
-		// If we're on testnet, the time since this last block listed as the
-		// parent must be taken into consideration.
-		if g.cfg.ChainParams.ReduceMinDifficulty {
-			parentHash := topBlock.MsgBlock().Header.PrevBlock
-
-			requiredDifficulty, err := g.cfg.CalcNextRequiredDifficulty(&parentHash, ts)
-			if err != nil {
-				return nil, makeError(ErrGettingDifficulty, err.Error())
-			}
-
-			block.Header.Bits = requiredDifficulty
-		}
-
 		// Recalculate the size.
 		block.Header.Size = uint32(block.SerializeSize())
 
@@ -2365,27 +2352,10 @@ nextPriorityQueueItem:
 // UpdateBlockTime updates the timestamp in the passed header to the current
 // time while taking into account the median time of the last several blocks to
 // ensure the new time is after that time per the chain consensus rules.
-//
-// Finally, it will update the target difficulty if needed based on the new time
-// for the test networks since their target difficulty can change based upon
-// time.
-func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
+func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
 	// rules.
 	newTimestamp := g.medianAdjustedTime()
 	header.Timestamp = newTimestamp
-
-	// If running on a network that requires recalculating the difficulty,
-	// do so now.
-	if g.cfg.ChainParams.ReduceMinDifficulty {
-		difficulty, err := g.cfg.CalcNextRequiredDifficulty(&header.PrevBlock,
-			newTimestamp)
-		if err != nil {
-			return makeError(ErrGettingDifficulty, err.Error())
-		}
-		header.Bits = difficulty
-	}
-
-	return nil
 }

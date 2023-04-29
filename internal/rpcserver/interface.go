@@ -533,7 +533,7 @@ type BlockTemplater interface {
 
 	// UpdateBlockTime updates the timestamp in the passed header to the current
 	// time while taking into account the consensus rules.
-	UpdateBlockTime(header *wire.BlockHeader) error
+	UpdateBlockTime(header *wire.BlockHeader)
 }
 
 // FiltererV2 provides an interface for retrieving a block's version 2 GCS

@@ -358,12 +358,8 @@ func NewBgBlkTmplGenerator(cfg *BgBlkTmplConfig) *BgBlkTmplGenerator {
 // UpdateBlockTime updates the timestamp in the passed header to the current
 // time while taking into account the median time of the last several blocks to
 // ensure the new time is after that time per the chain consensus rules.
-//
-// Finally, it will update the target difficulty if needed based on the new time
-// for the test networks since their target difficulty can change based upon
-// time.
-func (g *BgBlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
-	return g.tg.UpdateBlockTime(header)
+func (g *BgBlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) {
+	g.tg.UpdateBlockTime(header)
 }
 
 // sendQueueRegenEvent sends the provided regen event on the internal queue

@@ -216,19 +216,6 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 			return false
 		}
 
-		// When the reduce min difficulty option is set it is possible that the
-		// required difficulty changed while a block was being solved and will
-		// therefore result in an error due to having the incorrect required
-		// difficulty set in the header.  In that case, only log the error as
-		// debug since it is expected to happen from time to time and not really
-		// an error.
-		if m.cfg.ChainParams.ReduceMinDifficulty &&
-			errors.Is(rErr, blockchain.ErrHighHash) {
-			log.Debugf("Block submitted via CPU miner rejected because of "+
-				"ReduceMinDifficulty time sync failure: %v", err)
-			return false
-		}
-
 		// Other rule errors should be reported.
 		log.Errorf("Block submitted via CPU miner rejected: %v", err)
 		return false
@@ -327,17 +314,11 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 					// Non-blocking select to fall through
 				}
 
-				err := m.g.UpdateBlockTime(header)
-				if err != nil {
-					log.Warnf("CPU miner unable to update block template "+
-						"time: %v", err)
-				}
+				m.g.UpdateBlockTime(header)
 
-				// Update the bits and time in the serialized header bytes
-				// directly too since they might have changed.
-				const bitsOffset = 116
+				// Update time in the serialized header bytes directly too since
+				// it might have changed.
 				const timestampOffset = 136
-				littleEndian.PutUint32(hdrBytes[bitsOffset:], header.Bits)
 				timestamp := uint32(header.Timestamp.Unix())
 				littleEndian.PutUint32(hdrBytes[timestampOffset:], timestamp)
 			}

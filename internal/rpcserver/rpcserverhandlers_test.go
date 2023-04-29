@@ -1031,12 +1031,11 @@ func (s *testTemplateSubber) PublishTemplateNtfn(templateNtfn *mining.TemplateNt
 // testBlockTemplater provides a mock block templater by implementing the
 // mining.BlockTemplater interface.
 type testBlockTemplater struct {
-	subscriptions      map[*testTemplateSubber]struct{}
-	regenReason        mining.TemplateUpdateReason
-	currTemplate       *mining.BlockTemplate
-	currTemplateErr    error
-	updateBlockTimeErr error
-	simulateNewNtfn    bool
+	subscriptions   map[*testTemplateSubber]struct{}
+	regenReason     mining.TemplateUpdateReason
+	currTemplate    *mining.BlockTemplate
+	currTemplateErr error
+	simulateNewNtfn bool
 }
 
 // ForceRegen asks the block templater to generate a new template immediately.
@@ -1074,9 +1073,7 @@ func (b *testBlockTemplater) CurrentTemplate() (*mining.BlockTemplate, error) {
 
 // UpdateBlockTime updates the timestamp in the passed header to the current
 // time while taking into account the consensus rules.
-func (b *testBlockTemplater) UpdateBlockTime(header *wire.BlockHeader) error {
-	return b.updateBlockTimeErr
-}
+func (b *testBlockTemplater) UpdateBlockTime(header *wire.BlockHeader) {}
 
 // testTxMempooler provides a mock mempool transaction data source by
 // implementing the TxMempooler interface.
@@ -5805,18 +5802,6 @@ func TestHandleGetWork(t *testing.T) {
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCMisc,
-	}, {
-		name:            "handleGetWork: unable to update block time",
-		handler:         handleGetWork,
-		cmd:             &types.GetWorkCmd{},
-		mockMiningState: defaultMockMiningState(),
-		mockBlockTemplater: func() *testBlockTemplater {
-			templater := defaultMockBlockTemplater()
-			templater.updateBlockTimeErr = errors.New("unable to update block time")
-			return templater
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
 		name:    "handleGetWork: data is not equal to getworkDataLen (192 bytes)",
 		handler: handleGetWork,

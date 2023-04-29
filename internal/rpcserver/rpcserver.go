@@ -3784,11 +3784,7 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	// consensus rules.  Note that the header is copied to avoid mutating the
 	// shared block template.
 	headerCopy := template.Block.Header
-	err := bt.UpdateBlockTime(&headerCopy)
-	if err != nil {
-		context := "Failed to update block time"
-		return nil, rpcInternalError(err.Error(), context)
-	}
+	bt.UpdateBlockTime(&headerCopy)
 
 	// Serialize the block header into a buffer large enough to hold the
 	// the block header and the internal blake256 padding that is added and
@@ -3801,7 +3797,7 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	// data[144:152] --> ExtraNonce
 	data := make([]byte, 0, getworkDataLen)
 	buf := bytes.NewBuffer(data)
-	err = headerCopy.Serialize(buf)
+	err := headerCopy.Serialize(buf)
 	if err != nil {
 		context := "Failed to serialize data"
 		return nil, rpcInternalError(err.Error(), context)
