@@ -400,12 +400,12 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 // AFTER the passed node.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
+func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deploymentInfo) ThresholdStateTuple {
 	if deployment.forcedState != nil {
-		return *deployment.forcedState, nil
+		return *deployment.forcedState
 	}
 
-	return b.nextThresholdState(prevNode, deployment), nil
+	return b.nextThresholdState(prevNode, deployment)
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
@@ -506,9 +506,9 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID strin
 	}
 
 	b.chainLock.Lock()
-	state, err := b.deploymentState(node, &deployment)
+	state := b.deploymentState(node, &deployment)
 	b.chainLock.Unlock()
-	return state, err
+	return state, nil
 }
 
 // isLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
@@ -531,14 +531,10 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -579,14 +575,10 @@ func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool,
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -632,14 +624,10 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -685,14 +673,10 @@ func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, er
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -733,14 +717,10 @@ func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (boo
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -786,14 +766,10 @@ func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, e
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -839,14 +815,10 @@ func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, erro
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 
@@ -892,14 +864,10 @@ func (b *BlockChain) isSubsidySplitR2AgendaActive(prevNode *blockNode) (bool, er
 		return false, contextError(ErrUnknownDeploymentID, str)
 	}
 
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return false, err
-	}
-
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
 	return state.State == ThresholdActive, nil
 }
 

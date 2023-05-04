@@ -706,10 +706,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
-	state, err := b.deploymentState(curNode, &deployment)
-	if err != nil {
-		return 0, err
-	}
+	state := b.deploymentState(curNode, &deployment)
 	if state.State == ThresholdActive {
 		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
 	}
@@ -1196,10 +1193,7 @@ func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets 
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
-	state, err := b.deploymentState(curNode, &deployment)
-	if err != nil {
-		return 0, err
-	}
+	state := b.deploymentState(curNode, &deployment)
 	if state.State == ThresholdActive {
 		return b.estimateNextStakeDifficultyV2(curNode, newTickets,
 			useMaxTickets)

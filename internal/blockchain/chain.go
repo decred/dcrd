@@ -1623,16 +1623,13 @@ func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
-	maxSize := int64(b.chainParams.MaximumBlockSizes[0])
-	state, err := b.deploymentState(prevNode, &deployment)
-	if err != nil {
-		return maxSize, err
-	}
+	state := b.deploymentState(prevNode, &deployment)
 	if state.State == ThresholdActive {
 		return int64(b.chainParams.MaximumBlockSizes[1]), nil
 	}
 
 	// The max block size is not changed in any other cases.
+	maxSize := int64(b.chainParams.MaximumBlockSizes[0])
 	return maxSize, nil
 }
 
