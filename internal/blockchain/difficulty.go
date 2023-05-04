@@ -262,7 +262,7 @@ func mergeDifficulty(oldDiff int64, newDiff1 int64, newDiff2 int64) int64 {
 // launch.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int64, error) {
+func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) int64 {
 	alpha := b.chainParams.StakeDiffAlpha
 	stakeDiffStartHeight := int64(b.chainParams.CoinbaseMaturity) +
 		1
@@ -283,14 +283,14 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int6
 	// parameters.
 	if curNode == nil ||
 		curNode.height < stakeDiffStartHeight {
-		return b.chainParams.MinimumStakeDiff, nil
+		return b.chainParams.MinimumStakeDiff
 	}
 
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
 	oldDiff := curNode.sbits
 	if (curNode.height+1)%b.chainParams.StakeDiffWindowSize != 0 {
-		return oldDiff, nil
+		return oldDiff
 	}
 
 	// The target size of the ticketPool in live tickets. Recast these as int64
@@ -378,7 +378,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int6
 	// if we are, return the maximum or minimum except in the case that oldDiff
 	// is zero.
 	if oldDiff == 0 { // This should never really happen, but in case it does...
-		return nextDiffTicketPool, nil
+		return nextDiffTicketPool
 	} else if nextDiffTicketPool == 0 {
 		nextDiffTicketPool = oldDiff / maxRetarget
 	} else if (nextDiffTicketPool / oldDiff) > (maxRetarget - 1) {
@@ -465,7 +465,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int6
 	// if we are, return the maximum or minimum except in the case that oldDiff
 	// is zero.
 	if oldDiff == 0 { // This should never really happen, but in case it does...
-		return nextDiffFreshStake, nil
+		return nextDiffFreshStake
 	} else if nextDiffFreshStake == 0 {
 		nextDiffFreshStake = oldDiff / maxRetarget
 	} else if (nextDiffFreshStake / oldDiff) > (maxRetarget - 1) {
@@ -481,7 +481,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int6
 	// if we are, return the maximum or minimum except in the case that oldDiff
 	// is zero.
 	if oldDiff == 0 { // This should never really happen, but in case it does...
-		return oldDiff, nil
+		return oldDiff
 	} else if nextDiff == 0 {
 		nextDiff = oldDiff / maxRetarget
 	} else if (nextDiff / oldDiff) > (maxRetarget - 1) {
@@ -493,10 +493,10 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int6
 	// If the next diff is below the network minimum, set the required stake
 	// difficulty to the minimum.
 	if nextDiff < b.chainParams.MinimumStakeDiff {
-		return b.chainParams.MinimumStakeDiff, nil
+		return b.chainParams.MinimumStakeDiff
 	}
 
-	return nextDiff, nil
+	return nextDiff
 }
 
 // estimateSupply returns an estimate of the coin supply for the provided block
@@ -712,7 +712,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 	}
 
 	// Use the old stake difficulty algorithm in any other case.
-	return b.calcNextRequiredStakeDifficultyV1(curNode)
+	return b.calcNextRequiredStakeDifficultyV1(curNode), nil
 }
 
 // CalcNextRequiredStakeDifficulty calculates the required stake difficulty for
