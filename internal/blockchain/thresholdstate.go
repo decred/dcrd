@@ -413,13 +413,13 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deployment
 // never changed.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo) (*blockNode, error) {
+func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo) *blockNode {
 	// No state changes are possible if the chain is not yet past stake
 	// validation height and had a full interval to change.
 	confirmationInterval := int64(b.chainParams.RuleChangeActivationInterval)
 	svh := b.chainParams.StakeValidationHeight
 	if node == nil || node.height < svh+confirmationInterval {
-		return nil, nil
+		return nil
 	}
 
 	// Determine the current state.  Notice that nextThresholdState always
@@ -441,7 +441,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 		state := b.nextThresholdState(node.parent, deployment)
 
 		if state.State != curState.State {
-			return priorStateChangeNode, nil
+			return priorStateChangeNode
 		}
 
 		// Get the ancestor that is the first block of the previous confirmation
@@ -450,7 +450,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 		node = node.RelativeAncestor(confirmationInterval)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // StateLastChangedHeight returns the height at which the provided consensus
@@ -479,11 +479,8 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 
 	// Find the node at which the current state changed.
 	b.chainLock.Lock()
-	stateNode, err := b.stateLastChanged(node, &deployment)
+	stateNode := b.stateLastChanged(node, &deployment)
 	b.chainLock.Unlock()
-	if err != nil {
-		return 0, err
-	}
 
 	var height int64
 	if stateNode != nil {
