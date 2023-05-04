@@ -178,14 +178,14 @@ func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
 // threshold states for previous windows are only calculated once.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo) (ThresholdStateTuple, error) {
+func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo) ThresholdStateTuple {
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
 	ruleChangeInterval := b.chainParams.RuleChangeActivationInterval
 	confirmationWindow := int64(ruleChangeInterval)
 	svh := b.chainParams.StakeValidationHeight
 	if prevNode == nil || prevNode.height+1 < svh+confirmationWindow {
-		return newThresholdState(ThresholdDefined, nil), nil
+		return newThresholdState(ThresholdDefined, nil)
 	}
 
 	// Get the ancestor that is the last block of the previous confirmation
@@ -387,7 +387,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 		cache.Update(prevNode.hash, stateTuple)
 	}
 
-	return stateTuple, nil
+	return stateTuple
 }
 
 // deploymentState returns the current rule change threshold for a given
@@ -405,7 +405,7 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deployment
 		return *deployment.forcedState, nil
 	}
 
-	return b.nextThresholdState(prevNode, deployment)
+	return b.nextThresholdState(prevNode, deployment), nil
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
@@ -425,10 +425,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 	// Determine the current state.  Notice that nextThresholdState always
 	// calculates the state for the block after the provided one, so use the
 	// parent to get the state for the requested block.
-	curState, err := b.nextThresholdState(node.parent, deployment)
-	if err != nil {
-		return nil, err
-	}
+	curState := b.nextThresholdState(node.parent, deployment)
 
 	// Determine the first block of the current confirmation interval in order
 	// to determine block at which the state possibly changed.  Since the state
@@ -441,10 +438,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 		// As previously mentioned, nextThresholdState always calculates the
 		// state for the block after the provided one, so use the parent to get
 		// the state of the block itself.
-		state, err := b.nextThresholdState(node.parent, deployment)
-		if err != nil {
-			return nil, err
-		}
+		state := b.nextThresholdState(node.parent, deployment)
 
 		if state.State != curState.State {
 			return priorStateChangeNode, nil
