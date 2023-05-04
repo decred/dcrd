@@ -690,14 +690,14 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) int64
 // difficulty retarget rules.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64, error) {
+func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) int64 {
 	// Determine the correct deployment details for the new stake difficulty
 	// algorithm consensus vote or treat it as active when voting is not enabled
 	// for the current network.
 	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
 	deployment, ok := b.deploymentData[deploymentID]
 	if !ok {
-		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
+		return b.calcNextRequiredStakeDifficultyV2(curNode)
 	}
 
 	// Use the new stake difficulty algorithm if the stake vote for the new
@@ -708,11 +708,11 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 	// for the agenda, which is yes, so there is no need to check it.
 	state := b.deploymentState(curNode, &deployment)
 	if state.State == ThresholdActive {
-		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
+		return b.calcNextRequiredStakeDifficultyV2(curNode)
 	}
 
 	// Use the old stake difficulty algorithm in any other case.
-	return b.calcNextRequiredStakeDifficultyV1(curNode), nil
+	return b.calcNextRequiredStakeDifficultyV1(curNode)
 }
 
 // CalcNextRequiredStakeDifficulty calculates the required stake difficulty for
@@ -727,9 +727,9 @@ func (b *BlockChain) CalcNextRequiredStakeDifficulty(hash *chainhash.Hash) (int6
 	}
 
 	b.chainLock.Lock()
-	nextDiff, err := b.calcNextRequiredStakeDifficulty(node)
+	nextDiff := b.calcNextRequiredStakeDifficulty(node)
 	b.chainLock.Unlock()
-	return nextDiff, err
+	return nextDiff, nil
 }
 
 // estimateNextStakeDifficultyV1 estimates the next stake difficulty by

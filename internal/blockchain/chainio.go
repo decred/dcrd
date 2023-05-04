@@ -1720,10 +1720,7 @@ func (b *BlockChain) initChainState(ctx context.Context,
 		numTxns := uint64(len(block.Transactions))
 
 		// Calculate the next stake difficulty.
-		nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(tip)
-		if err != nil {
-			return err
-		}
+		nextStakeDiff := b.calcNextRequiredStakeDifficulty(tip)
 
 		// Attempt to discover and set the old fork rejection checkpoint node.
 		b.maybeSetForkRejectionCheckpoint()

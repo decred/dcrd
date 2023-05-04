@@ -1229,10 +1229,7 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 		// Ensure the stake difficulty specified in the block header
 		// matches the calculated difficulty based on the previous block
 		// and difficulty retarget rules.
-		expSDiff, err := b.calcNextRequiredStakeDifficulty(prevNode)
-		if err != nil {
-			return err
-		}
+		expSDiff := b.calcNextRequiredStakeDifficulty(prevNode)
 		if header.SBits != expSDiff {
 			errStr := fmt.Sprintf("block stake difficulty of %d "+
 				"is not the expected value of %d", header.SBits,

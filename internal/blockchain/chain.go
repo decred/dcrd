@@ -614,10 +614,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	}
 
 	// Calculate the next stake difficulty.
-	nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(node)
-	if err != nil {
-		return err
-	}
+	nextStakeDiff := b.calcNextRequiredStakeDifficulty(node)
 
 	// Determine the individual commitment hashes that comprise the leaves of
 	// the header commitment merkle tree depending on the active agendas.  These
@@ -760,12 +757,8 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// Send stake notifications about the new block.
 	if node.height >= b.chainParams.StakeEnabledHeight {
-		nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(node)
-		if err != nil {
-			return err
-		}
-
 		// Notify of new tickets.
+		nextStakeDiff := b.calcNextRequiredStakeDifficulty(node)
 		b.sendNotification(NTNewTickets,
 			&TicketNotificationsData{
 				Hash:            node.hash,
