@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -183,8 +183,8 @@ func calculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
 		subsidy += parent.MsgBlock().Transactions[0].TxIn[0].ValueIn
 	}
 
-	for _, stx := range block.MsgBlock().STransactions {
-		if stake.IsSSGen(stx) {
+	for txIdx, stx := range block.MsgBlock().STransactions {
+		if (txIdx == 0 && stake.IsTreasuryBase(stx)) || stake.IsSSGen(stx) {
 			subsidy += stx.TxIn[0].ValueIn
 		}
 	}
