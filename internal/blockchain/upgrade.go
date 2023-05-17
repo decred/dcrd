@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -5072,6 +5073,331 @@ func upgradeToVersion13(ctx context.Context, db database.DB, chainParams *chainc
 	return nil
 }
 
+// correctTotalSubsidyChainState corrects the total subsidy value in the chain
+// state to account for an issue in legacy code whereby treasurybases were not
+// included in the tally.
+func correctTotalSubsidyChainState(ctx context.Context, db database.DB, params *chaincfg.Params) error {
+	const funcName = "correctTotalSubsidyChainState"
+
+	log.Info("Recalculating total subsidy.  This will take a while...")
+	start := time.Now()
+
+	// Hardcoded data so updates do not affect old upgrades.
+	const (
+		hashSize     = chainhash.HashSize
+		blockHdrSize = 180
+	)
+	v1ChainStateKeyName := []byte("chainstate")
+	v3BlockIdxBucketName := []byte("blockidxv3")
+	byteOrder := binary.LittleEndian
+
+	// Ensure all of the buckets used repeatedly in the remaining code below
+	// exist now to avoid the need to check multiple times.
+	err := db.View(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+		bucketNames := [][]byte{v3BlockIdxBucketName}
+		for _, bucketName := range bucketNames {
+			if bucket := meta.Bucket(bucketName); bucket == nil {
+				return fmt.Errorf("%s: bucket %s does not exist", funcName,
+					bucketName)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// blockTreeEntry represents a version 3 block index entry with just
+	// enough information to be able to determine which blocks comprise the
+	// main chain.
+	type blockTreeEntry struct {
+		parent *blockTreeEntry
+		hash   chainhash.Hash
+		height uint32
+	}
+
+	// Determine the blocks in the main chain using the version 3 block index
+	// and version 1 chain state.
+	blockTree := make(map[chainhash.Hash]*blockTreeEntry)
+	var mainChainBlocks []blockTreeEntry
+	err = db.View(func(dbTx database.Tx) error {
+		// Load the current best chain tip hash and height from the v1 chain
+		// state.
+		//
+		// The serialized format of the v1 chain state is roughly:
+		//
+		//   <block hash><block height><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   hashSize
+		//   block height      uint32           4 bytes
+		//   rest of data...
+		meta := dbTx.Metadata()
+		serializedChainState := meta.Get(v1ChainStateKeyName)
+		if serializedChainState == nil {
+			str := fmt.Sprintf("%s: chain state with key %s does not exist",
+				funcName, v1ChainStateKeyName)
+			return errDeserialize(str)
+		}
+		if len(serializedChainState) < hashSize+4 {
+			str := fmt.Sprintf("%s: version 1 chain state is malformed",
+				funcName)
+			return errDeserialize(str)
+		}
+		var bestTipHash chainhash.Hash
+		copy(bestTipHash[:], serializedChainState[0:hashSize])
+		offset := hashSize
+		bestTipHeight := byteOrder.Uint32(serializedChainState[offset : offset+4])
+
+		// Construct a full block tree from the version 3 block index by mapping
+		// each block to its parent block.
+		var lastEntry, parent *blockTreeEntry
+		v3BlockIdxBucket := meta.Bucket(v3BlockIdxBucketName)
+		cursor := v3BlockIdxBucket.Cursor()
+		for ok := cursor.First(); ok; ok = cursor.Next() {
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			// Deserialize the header from the version 3 block index entry.
+			//
+			// The serializedBlkIdxEntry value format of a v3 block index entry is roughly:
+			//
+			//   <block header><status><rest of data>
+			//
+			//   Field              Type                Size
+			//   block header       wire.BlockHeader    180 bytes
+			//   rest of data...
+			serializedBlkIdxEntry := cursor.Value()
+			if len(serializedBlkIdxEntry) < blockHdrSize {
+				str := fmt.Sprintf("%s: unexpected end of data while reading "+
+					"block header", funcName)
+				return errDeserialize(str)
+			}
+			hB := serializedBlkIdxEntry[0:blockHdrSize]
+			var header wire.BlockHeader
+			if err := header.Deserialize(bytes.NewReader(hB)); err != nil {
+				return err
+			}
+
+			// Stop loading if the best chain tip height is exceeded.  This
+			// can happen when there are block index entries for known headers
+			// that haven't had their associated block data fully validated and
+			// connected yet and therefore are not relevant for this upgrade
+			// code.
+			blockHeight := header.Height
+			if blockHeight > bestTipHeight {
+				break
+			}
+
+			// Determine the parent block node.  Since the entries are iterated
+			// in order of height, there is a very good chance the previous
+			// one processed is the parent.
+			blockHash := header.BlockHash()
+			if lastEntry == nil {
+				if blockHash != params.GenesisHash {
+					str := fmt.Sprintf("%s: expected first entry in block "+
+						"index to be genesis block, found %s", funcName,
+						blockHash)
+					return errDeserialize(str)
+				}
+			} else if header.PrevBlock == lastEntry.hash {
+				parent = lastEntry
+			} else {
+				parent = blockTree[header.PrevBlock]
+				if parent == nil {
+					str := fmt.Sprintf("%s: could not find parent for block %s",
+						funcName, blockHash)
+					return errDeserialize(str)
+				}
+			}
+
+			// Add the block to the block tree.
+			treeEntry := &blockTreeEntry{
+				parent: parent,
+				hash:   blockHash,
+				height: header.Height,
+			}
+			blockTree[blockHash] = treeEntry
+
+			lastEntry = treeEntry
+		}
+
+		// Construct a view of the blocks that comprise the main chain by
+		// starting at the best tip and walking backwards to the genesis block
+		// while assigning each one to its respective height.
+		bestTip := blockTree[bestTipHash]
+		if bestTip == nil {
+			str := fmt.Sprintf("%s: chain tip %s is not in block index",
+				funcName, bestTipHash)
+			return errDeserialize(str)
+		}
+		mainChainBlocks = make([]blockTreeEntry, bestTip.height+1)
+		for entry := bestTip; entry != nil; entry = entry.parent {
+			mainChainBlocks[entry.height] = *entry
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// dbFetchBlock uses an existing database transaction to retrieve the block
+	// for the provided block tree entry.
+	dbFetchBlock := func(dbTx database.Tx, entry *blockTreeEntry) (*wire.MsgBlock, error) {
+		// Load the raw block bytes from the database.
+		blockBytes, err := dbTx.FetchBlock(&entry.hash)
+		if err != nil {
+			return nil, err
+		}
+
+		var block wire.MsgBlock
+		if err := block.FromBytes(blockBytes); err != nil {
+			return nil, err
+		}
+
+		return &block, nil
+	}
+
+	// calcAddedSubsidyV1 calculates the amount of subsidy added by a block and
+	// its parent according to the details of the network as they existed for
+	// the version of the database being upgraded.
+	calcAddedSubsidyV1 := func(block, parent *wire.MsgBlock) int64 {
+		var subsidy int64
+		if headerApprovesParent(&block.Header) {
+			subsidy += parent.Transactions[0].TxIn[0].ValueIn
+		}
+
+		for txIdx, stx := range block.STransactions {
+			if (txIdx == 0 && stake.IsTreasuryBase(stx)) || stake.IsSSGen(stx) {
+				subsidy += stx.TxIn[0].ValueIn
+			}
+		}
+
+		return subsidy
+	}
+
+	// Recalculate the total subsidy by looping through all of the main chain
+	// blocks and tallying the subsidy produced by them.
+	const logInterval = 20000
+	var totalSubsidy int64
+	err = db.View(func(dbTx database.Tx) error {
+		parent, err := dbFetchBlock(dbTx, &mainChainBlocks[0])
+		if err != nil {
+			return err
+		}
+		totalBlocks := int64(len(mainChainBlocks))
+		for height := int64(1); height < totalBlocks; height++ {
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			if height%logInterval == 0 {
+				progress := float64(height) / float64(totalBlocks)
+				progress = math.Min(progress, 1.0) * 100
+				log.Infof("Recalculated subsidy for %d blocks (progress %0.2f%%)",
+					height, progress)
+			}
+
+			block, err := dbFetchBlock(dbTx, &mainChainBlocks[height])
+			if err != nil {
+				return err
+			}
+			totalSubsidy += calcAddedSubsidyV1(block, parent)
+			parent = block
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Update the version 1 chain state with the updated total subsidy.
+	err = db.Update(func(dbTx database.Tx) error {
+		// Load the current v1 chain state.
+		//
+		// The serialized format of the v1 chain state is roughly:
+		//
+		//   <block hash><block height><total txns><total subsidy><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   hashSize
+		//   block height      uint32           4 bytes
+		//   total txns        uint64           8 bytes
+		//   total subsidy     int64            8 bytes
+		//   rest of data...
+		meta := dbTx.Metadata()
+		serialized := meta.Get(v1ChainStateKeyName)
+		if len(serialized) < hashSize+20 {
+			str := "version 1 chain state is malformed"
+			return errDeserialize(str)
+		}
+
+		// Update the raw serialized chain state directly with the corrected
+		// total subsidy and write the result to the database.
+		byteOrder.PutUint64(serialized[hashSize+12:], uint64(totalSubsidy))
+		return meta.Put(v1ChainStateKeyName, serialized)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done updating total subsidy in %v", elapsed)
+	return nil
+}
+
+// upgradeToVersion14 upgrades a version 13 blockchain database to version 14.
+// This entails removing the legacy spend consumer dependencies bucket if needed
+// and correcting the total subsidy value in the chain state.
+func upgradeToVersion14(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 14...")
+	start := time.Now()
+
+	// Remove legacy spend consumer dependencies bucket if needed.
+	err := db.Update(func(dbTx database.Tx) error {
+		spendConsumerDepsBucketName := []byte("spendconsumerdeps")
+		meta := dbTx.Metadata()
+		if meta.Bucket(spendConsumerDepsBucketName) == nil {
+			return nil
+		}
+		return meta.DeleteBucket(spendConsumerDepsBucketName)
+	})
+	if err != nil {
+		return err
+	}
+
+	// Correct the total subsidy value in the chain state as needed.
+	err = correctTotalSubsidyChainState(ctx, db, chainParams)
+	if err != nil {
+		return err
+	}
+
+	// Update and persist the overall block database version.
+	err = db.Update(func(dbTx database.Tx) error {
+		dbInfo.version = 14
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // separateUtxoDatabase moves the UTXO set and state from the block database to
 // the UTXO database.
 func separateUtxoDatabase(ctx context.Context, db database.DB,
@@ -6011,18 +6337,16 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
-	// Remove legacy spend consumer dependencies bucket if needed.  This should
-	// probably be made a part of a future database upgrade that is needed for
-	// other purposes to avoid running every time, however, it does not justify
-	// a version bump on its own.
-	return db.Update(func(dbTx database.Tx) error {
-		spendConsumerDepsBucketName := []byte("spendconsumerdeps")
-		meta := dbTx.Metadata()
-		if meta.Bucket(spendConsumerDepsBucketName) == nil {
-			return nil
+	// Update to a version 14 database if needed.  This entails removing the
+	// legacy spend consumer dependencies bucket if needed and correcting the
+	// total subsidy value in the chain state.
+	if dbInfo.version == 13 {
+		if err := upgradeToVersion14(ctx, db, chainParams, dbInfo); err != nil {
+			return err
 		}
-		return meta.DeleteBucket(spendConsumerDepsBucketName)
-	})
+	}
+
+	return nil
 }
 
 // upgradeSpendJournal upgrades old spend journal versions to the newest version

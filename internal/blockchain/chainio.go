@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -26,7 +26,7 @@ import (
 
 const (
 	// currentDatabaseVersion indicates the current database version.
-	currentDatabaseVersion = 13
+	currentDatabaseVersion = 14
 
 	// currentBlockIndexVersion indicates the current block index database
 	// version.
