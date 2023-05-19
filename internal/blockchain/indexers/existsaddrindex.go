@@ -258,16 +258,6 @@ func (idx *ExistsAddrIndex) IndexSubscription() *IndexSubscription {
 	return idx.sub
 }
 
-// Subscribers returns all client channels waiting for the next index update.
-//
-// This is part of the Indexer interface.
-// Deprecated: This will be removed in the next major version bump.
-func (idx *ExistsAddrIndex) Subscribers() map[chan bool]struct{} {
-	idx.mtx.Lock()
-	defer idx.mtx.Unlock()
-	return idx.subscribers
-}
-
 // NotifySyncSubscribers signals subscribers of an index sync update.
 //
 // This is part of the Indexer interface.

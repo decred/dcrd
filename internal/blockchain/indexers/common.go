@@ -107,10 +107,6 @@ type Indexer interface {
 	// WaitForSync subscribes clients for the next index sync update.
 	WaitForSync() chan bool
 
-	// Subscribers returns all client channels waiting for the next index update.
-	// Deprecated: This will be removed in the next major version bump.
-	Subscribers() map[chan bool]struct{}
-
 	// NotifySyncSubscribers signals subscribers of an index sync update.
 	// This should only be called when an index is synced.
 	NotifySyncSubscribers()
