@@ -2088,11 +2088,7 @@ func handleNotifyBlocks(_ context.Context, wsc *wsClient, _ interface{}) (interf
 func handleRebroadcastWinners(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
 	cfg := wsc.rpcServer.cfg
 	bestHeight := cfg.Chain.BestSnapshot().Height
-	blocks, err := cfg.Chain.TipGeneration()
-	if err != nil {
-		return nil, rpcInternalError("Could not get generation "+
-			err.Error(), "")
-	}
+	blocks := cfg.Chain.TipGeneration()
 
 	for i := range blocks {
 		winningTickets, _, _, err := cfg.Chain.LotteryDataForBlock(&blocks[i])

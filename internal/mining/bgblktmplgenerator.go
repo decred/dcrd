@@ -1240,8 +1240,8 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 // descending order.
 func (g *BgBlkTmplGenerator) tipSiblingsSortedByVotes(state *regenHandlerState) []*blockWithNumVotes {
 	// Obtain all of the current blocks that extend the same parent as the
-	// current tip.  The error is ignored here because it is deprecated.
-	generation, _ := g.tg.cfg.TipGeneration()
+	// current tip.
+	generation := g.tg.cfg.TipGeneration()
 
 	// Nothing else to consider if there is only a single block which will be
 	// the current tip itself.

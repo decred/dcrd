@@ -17,7 +17,6 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrNotEnoughVoters, "ErrNotEnoughVoters"},
-		{ErrFailedToGetGeneration, "ErrFailedToGetGeneration"},
 		{ErrGetTopBlock, "ErrGetTopBlock"},
 		{ErrGettingDifficulty, "ErrGettingDifficulty"},
 		{ErrTransactionAppend, "ErrTransactionAppend"},

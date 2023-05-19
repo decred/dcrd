@@ -414,7 +414,7 @@ func (b *BlockChain) ChainWork(hash *chainhash.Hash) (uint256.Uint256, error) {
 // parent of the current tip.
 //
 // The function is safe for concurrent access.
-func (b *BlockChain) TipGeneration() ([]chainhash.Hash, error) {
+func (b *BlockChain) TipGeneration() []chainhash.Hash {
 	var nodeHashes []chainhash.Hash
 	b.chainLock.Lock()
 	b.index.RLock()
@@ -428,7 +428,7 @@ func (b *BlockChain) TipGeneration() ([]chainhash.Hash, error) {
 	}
 	b.index.RUnlock()
 	b.chainLock.Unlock()
-	return nodeHashes, nil
+	return nodeHashes
 }
 
 // addRecentBlock adds a block to the recent block LRU cache and evicts the

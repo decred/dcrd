@@ -80,7 +80,6 @@ type fakeChain struct {
 	maxTreasuryExpenditureErr          error
 	parentUtxos                        *blockchain.UtxoViewpoint
 	tipGeneration                      []chainhash.Hash
-	tipGenerationErr                   error
 	utxos                              *blockchain.UtxoViewpoint
 }
 
@@ -260,8 +259,8 @@ func (c *fakeChain) NewUtxoViewpoint() *blockchain.UtxoViewpoint {
 
 // TipGeneration returns a mocked entire generation of blocks stemming from the
 // parent of the current tip.
-func (c *fakeChain) TipGeneration() ([]chainhash.Hash, error) {
-	return c.tipGeneration, c.tipGenerationErr
+func (c *fakeChain) TipGeneration() []chainhash.Hash {
+	return c.tipGeneration
 }
 
 // fakeTxSource provides a mocked source of transactions to consider for

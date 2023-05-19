@@ -194,7 +194,7 @@ type Config struct {
 
 	// TipGeneration defines the function to use to get the entire generation of
 	// blocks stemming from the parent of the current tip.
-	TipGeneration func() ([]chainhash.Hash, error)
+	TipGeneration func() []chainhash.Hash
 
 	// ValidateTransactionScripts defines the function to use to validate the
 	// scripts for the passed transaction.
@@ -1231,10 +1231,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := g.cfg.TipGeneration()
-		if err != nil {
-			return nil, makeError(ErrFailedToGetGeneration, err.Error())
-		}
+		children := g.cfg.TipGeneration()
 
 		// Get the list of blocks that we can actually build on top of. If we're
 		// not currently on the block that has the most votes, switch to that

@@ -15,10 +15,6 @@ const (
 	// build a block on top of HEAD.
 	ErrNotEnoughVoters = ErrorKind("ErrNotEnoughVoters")
 
-	// ErrFailedToGetGeneration specifies that the current generation for
-	// a block could not be obtained from blockchain.
-	ErrFailedToGetGeneration = ErrorKind("ErrFailedToGetGeneration")
-
 	// ErrGetTopBlock indicates that the current top block of the
 	// blockchain could not be obtained.
 	ErrGetTopBlock = ErrorKind("ErrGetTopBlock")

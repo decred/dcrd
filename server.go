@@ -890,14 +890,9 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 		return
 	}
 
-	// Obtain the entire generation of blocks stemming from the parent of
-	// the current tip.
-	children, err := sp.server.chain.TipGeneration()
-	if err != nil {
-		peerLog.Warnf("failed to access sync manager to get the generation "+
-			"for a mining state request (block: %v): %v", best.Hash, err)
-		return
-	}
+	// Obtain the entire generation of blocks stemming from the parent of the
+	// current tip.
+	children := sp.server.chain.TipGeneration()
 
 	// Get the list of blocks that are eligible to build on and limit the
 	// list to the maximum number of allowed eligible block hashes per
@@ -929,7 +924,7 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 		voteHashes = append(voteHashes, vhsForBlock...)
 	}
 
-	err = sp.pushMiningStateMsg(uint32(best.Height), blockHashes, voteHashes)
+	err := sp.pushMiningStateMsg(uint32(best.Height), blockHashes, voteHashes)
 	if err != nil {
 		peerLog.Warnf("unexpected error while pushing data for "+
 			"mining state request: %v", err.Error())
@@ -993,14 +988,9 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 	// votes.
 	mp := sp.server.txMemPool
 	if wantBlocks || wantVotes {
-		// Obtain the entire generation of blocks stemming from the
-		// parent of the current tip.
-		children, err := sp.server.chain.TipGeneration()
-		if err != nil {
-			peerLog.Warnf("Failed to access sync manager to get the generation "+
-				"for a init state request (block: %v): %v", best.Hash, err)
-			return
-		}
+		// Obtain the entire generation of blocks stemming from the parent of
+		// the current tip.
+		children := sp.server.chain.TipGeneration()
 
 		// Get the list of blocks that are eligible to build on and
 		// limit the list to the maximum number of allowed eligible

@@ -400,8 +400,8 @@ func (c *testRPCChain) TicketsWithAddress(address stdaddr.StakeAddress) ([]chain
 
 // TipGeneration returns a mocked slice of the entire generation of blocks
 // stemming from the parent of the current tip.
-func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
-	return c.tipGeneration, nil
+func (c *testRPCChain) TipGeneration() []chainhash.Hash {
+	return c.tipGeneration
 }
 
 // TreasuryBalance returns the treasury balance at the provided block.

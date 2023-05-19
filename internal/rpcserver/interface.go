@@ -371,7 +371,7 @@ type Chain interface {
 
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
-	TipGeneration() ([]chainhash.Hash, error)
+	TipGeneration() []chainhash.Hash
 
 	// TreasuryBalance returns the treasury balance at the provided block.
 	TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBalanceInfo, error)
