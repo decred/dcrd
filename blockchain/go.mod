@@ -20,6 +20,8 @@ require (
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.2 // indirect
 	github.com/decred/slog v1.2.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+	lukechampine.com/blake3 v1.2.1 // indirect
 )
 
 replace (

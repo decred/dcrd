@@ -361,8 +361,17 @@ func (msg *MsgBlock) BlockHash() chainhash.Hash {
 
 // PowHashV1 calculates and returns the version 1 proof of work hash for the
 // block.
+//
+// NOTE: This is the original proof of work hash that was used at Decred launch
+// and applies to all blocks prior to the activation of DCP0011.
 func (msg *MsgBlock) PowHashV1() chainhash.Hash {
 	return msg.Header.PowHashV1()
+}
+
+// PowHashV2 calculates and returns the version 2 proof of work hash as defined
+// in DCP0011 for the block.
+func (msg *MsgBlock) PowHashV2() chainhash.Hash {
+	return msg.Header.PowHashV2()
 }
 
 // TxHashes returns a slice of hashes of all of transactions in this block.
