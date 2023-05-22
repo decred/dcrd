@@ -163,6 +163,21 @@ type spendableOutsSnap struct {
 	prevCollectedHash chainhash.Hash
 }
 
+// PowHashAlgorithm defines the supported proof of work hash functions the
+// generator can use when generating solved blocks.
+type PowHashAlgorithm uint8
+
+const (
+	// PHABlake256r14 specifies the original blake256 hashing algorithm with 14
+	// rounds that was in effect at initial launch.
+	//
+	// This is the algorithm the generator will use by default.
+	PHABlake256r14 PowHashAlgorithm = iota
+
+	// PHABlake3 specifies the blake3 hashing algorithm introduced by DCP0011.
+	PHABlake3
+)
+
 // Generator houses state used to ease the process of generating test blocks
 // that build from one another along with housing other useful things such as
 // available spendable outputs and generic payment scripts used throughout the
@@ -192,6 +207,9 @@ type Generator struct {
 	expiredTickets  []*stakeTicket
 	revokedTickets  map[chainhash.Hash][]*stakeTicket
 	missedVotes     map[chainhash.Hash]*stakeTicket
+
+	// Used for tracking different behavior depending on voting agendas.
+	powHashAlgo PowHashAlgorithm
 }
 
 // MakeGenerator returns a generator instance initialized with the genesis block
@@ -224,7 +242,23 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 		wonTickets:          make(map[chainhash.Hash][]*stakeTicket),
 		revokedTickets:      make(map[chainhash.Hash][]*stakeTicket),
 		missedVotes:         make(map[chainhash.Hash]*stakeTicket),
+		powHashAlgo:         PHABlake256r14,
 	}, nil
+}
+
+// UsePowHashAlgo specifies the proof of work hashing algorithm the generator
+// should use when generating blocks.
+//
+// It will panic if an unsupported algorithm is provided.
+func (g *Generator) UsePowHashAlgo(algo PowHashAlgorithm) {
+	switch algo {
+	case PHABlake256r14:
+	case PHABlake3:
+	default:
+		panic(fmt.Sprintf("unsupported proof of work hash algorithm %d", algo))
+	}
+
+	g.powHashAlgo = algo
 }
 
 // Params returns the chain params associated with the generator instance.
@@ -1508,7 +1542,16 @@ func compactToBig(compact uint32) *big.Int {
 // state.
 func (g *Generator) IsSolved(header *wire.BlockHeader) bool {
 	targetDifficulty := compactToBig(header.Bits)
-	hash := header.PowHashV1()
+	var hash chainhash.Hash
+	switch g.powHashAlgo {
+	case PHABlake256r14:
+		hash = header.PowHashV1()
+	case PHABlake3:
+		hash = header.PowHashV2()
+	default:
+		panic(fmt.Sprintf("unsupported proof of work hash algorithm %d",
+			g.powHashAlgo))
+	}
 	return hashToBig(&hash).Cmp(targetDifficulty) <= 0
 }
 
@@ -1533,6 +1576,19 @@ func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 	quit := make(chan bool)
 	results := make(chan sbResult)
 	solver := func(hdr wire.BlockHeader, startNonce, stopNonce uint32) {
+		// Choose which proof of work hash algorithm to use based on the
+		// associated state.
+		var powHashFn func() chainhash.Hash
+		switch g.powHashAlgo {
+		case PHABlake256r14:
+			powHashFn = hdr.PowHashV1
+		case PHABlake3:
+			powHashFn = hdr.PowHashV2
+		default:
+			panic(fmt.Sprintf("unsupported proof of work hash algorithm %d",
+				g.powHashAlgo))
+		}
+
 		// We need to modify the nonce field of the header, so make sure
 		// we work with a copy of the original header.
 		for i := startNonce; i >= startNonce && i <= stopNonce; i++ {
@@ -1542,7 +1598,7 @@ func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 				return
 			default:
 				hdr.Nonce = i
-				hash := hdr.PowHashV1()
+				hash := powHashFn()
 				if hashToBig(&hash).Cmp(targetDifficulty) <= 0 {
 					results <- sbResult{true, i}
 					return
@@ -2239,8 +2295,8 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 // invoked with the block prior to solving it.  This provides callers with the
 // opportunity to modify the block which is especially useful for testing.
 //
-// In order to simply the logic in the munge functions, the following rules are
-// applied after all munge functions have been invoked:
+// In order to simplify the logic in the munge functions, the following rules
+// are applied after all munge functions have been invoked:
 //   - All votes will have their commitments updated if the previous hash or
 //     height was manually changed after stake validation height has been reached
 //   - The merkle root will be recalculated unless it was manually changed
