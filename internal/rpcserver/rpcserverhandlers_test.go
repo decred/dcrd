@@ -5660,18 +5660,14 @@ func TestHandleGetWork(t *testing.T) {
 	mockPowLimitBig := mockPowLimit.ToBig()
 	mockPowLimitBits := standalone.BigToCompact(mockPowLimitBig)
 
-	serializeGetWorkData := func(header *wire.BlockHeader) []byte {
-		data := make([]byte, 0, getworkDataLen)
-		buf := bytes.NewBuffer(data)
-		err := header.Serialize(buf)
+	serializeGetWorkDataBlake256 := func(header *wire.BlockHeader) []byte {
+		data, err := serializeGetWorkData(header)
 		if err != nil {
 			t.Fatalf("unexpected serialize error: %v", err)
 		}
-		data = data[:getworkDataLen]
-		copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
 		return data
 	}
-	data := serializeGetWorkData(&block432100.Header)
+	data := serializeGetWorkDataBlake256(&block432100.Header)
 
 	submissionB := make([]byte, hex.EncodedLen(len(data)))
 	hex.Encode(submissionB, data)
@@ -5843,7 +5839,8 @@ func TestHandleGetWork(t *testing.T) {
 					header.Nonce++
 				}
 
-				encoded := hex.EncodeToString(serializeGetWorkData(&header))
+				data := serializeGetWorkDataBlake256(&header)
+				encoded := hex.EncodeToString(data)
 				return &encoded
 			}(),
 		},

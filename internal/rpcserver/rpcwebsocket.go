@@ -834,41 +834,21 @@ func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, 
 		return
 	}
 
-	// Serialize the block header into a buffer large enough to hold the
-	// the block header and the internal blake256 padding that is added and
-	// retuned as part of the data below.
-	//
-	// For reference (0-index based, end value is exclusive):
-	// data[115:119] --> Bits
-	// data[135:139] --> Timestamp
-	// data[139:143] --> Nonce
-	// data[143:151] --> ExtraNonce
+	// Serialize the data that represents work to be solved as well as any
+	// internal padding that makes the data ready for callers to make use of
+	// only the final chunk along with the midstate for the rest when solving
+	// the block.
 	header := &templateNtfn.Template.Block.Header
-	data := make([]byte, 0, getworkDataLen)
-	buf := bytes.NewBuffer(data)
-	err := header.Serialize(buf)
+	data, err := serializeGetWorkData(header)
 	if err != nil {
 		log.Errorf("Failed to serialize data: %v", err)
 		return
 	}
 
-	// Expand the data slice to include the full data buffer and apply the
-	// internal blake256 padding.  This makes the data ready for callers to
-	// make use of only the final chunk along with the midstate for the
-	// rest.
-	data = data[:getworkDataLen]
-	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
-
-	// The final result reverses each of the fields to little endian.  In
-	// particular, the data, hash1, and midstate fields are treated as
-	// arrays of uint32s (per the internal sha256 hashing state) which are
-	// in big endian, and thus each 4 bytes is byte swapped.  The target is
-	// also in big endian, but it is treated as a uint256 and byte swapped
-	// to little endian accordingly.
-	//
-	// The fact the fields are reversed in this way is rather odd and likey
-	// an artifact of some legacy internal state in the reference
-	// implementation, but it is required for compatibility.
+	// The target is in big endian, but it is treated as a uint256 and byte
+	// swapped to little endian in the final result.  Even though there is
+	// really no reason for it to be swapped, it is a holdover from legacy code
+	// and is now required for compatibility.
 	target := bigToLEUint256(standalone.CompactToBig(header.Bits))
 	ntfn := types.WorkNtfn{
 		Data:   hex.EncodeToString(data),

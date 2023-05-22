@@ -42,6 +42,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 	"github.com/decred/dcrd/dcrjson/v4"
@@ -78,19 +79,19 @@ const (
 	// 256-bit integer.
 	uint256Size = 32
 
-	// getworkDataLen is the length of the data field of the getwork RPC.
-	// It consists of the serialized block header plus the internal blake256
-	// padding.  The internal blake256 padding consists of a single 1 bit
-	// followed by zeros and a final 1 bit in order to pad the message out
-	// to 56 bytes followed by length of the message in bits encoded as a
-	// big-endian uint64 (8 bytes).  Thus, the resulting length is a
-	// multiple of the blake256 block size (64 bytes).  Given the padding
-	// requires at least a 1 bit and 64 bits for the padding, the following
-	// converts the block header length and hash block size to bits in order
-	// to ensure the correct number of hash blocks are calculated and then
-	// multiplies the result by the block hash block size in bytes.
-	getworkDataLen = (1 + ((wire.MaxBlockHeaderPayload*8 + 65) /
-		(chainhash.HashBlockSize * 8))) * chainhash.HashBlockSize
+	// getworkDataLenBlake256 is the length of the data field of the getwork
+	// RPC when providing work for blake256.  It consists of the serialized
+	// block header plus the internal blake256 padding.  The internal blake256
+	// padding consists of a single 1 bit followed by zeros and a final 1 bit in
+	// order to pad the message out to 56 bytes followed by length of the
+	// message in bits encoded as a big-endian uint64 (8 bytes).  Thus, the
+	// resulting length is a multiple of the blake256 block size (64 bytes).
+	// Given the padding requires at least a 1 bit and 64 bits for the padding,
+	// the following converts the block header length and hash block size to
+	// bits in order to ensure the correct number of hash blocks are calculated
+	// and then multiplies the result by the block hash block size in bytes.
+	getworkDataLenBlake256 = (1 + ((wire.MaxBlockHeaderPayload*8 + 65) /
+		(blake256.BlockSize * 8))) * blake256.BlockSize
 
 	// getworkExpirationDiff is the number of blocks below the current
 	// best block in height to begin pruning out old block work from
@@ -3690,6 +3691,39 @@ func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
 	return merkleRootPair
 }
 
+// serializeGetWorkData returns serialized data that represents work to be
+// solved and is used in the getwork RPC and notifywork WebSocket notification.
+// It consists of the serialized block header along with any internal padding
+// that makes the data ready for callers to make use of only the final chunk
+// along with the midstate for the rest when solving the block.
+func serializeGetWorkData(header *wire.BlockHeader) ([]byte, error) {
+	const getworkDataLen = getworkDataLenBlake256
+
+	// Serialize the block header into a buffer large enough to hold the block
+	// header and any internal padding that is added and returned as part of the
+	// data below.
+	//
+	// For reference (0-index based, end value is exclusive):
+	// data[115:119] --> Bits
+	// data[135:139] --> Timestamp
+	// data[139:143] --> Nonce
+	// data[143:151] --> ExtraNonce
+	data := make([]byte, 0, getworkDataLen)
+	buf := bytes.NewBuffer(data)
+	err := header.Serialize(buf)
+	if err != nil {
+		context := "Failed to serialize data"
+		return nil, rpcInternalError(err.Error(), context)
+	}
+
+	// Expand the data slice to include the full data buffer and apply internal
+	// padding for the hash function.  This makes the data ready for callers to
+	// make use of only the final chunk along with the midstate for the rest.
+	data = data[:getworkDataLen]
+	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+	return data, nil
+}
+
 // handleGetWorkRequest is a helper for handleGetWork which deals with
 // generating and returning work to the caller.
 func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
@@ -3786,21 +3820,13 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	headerCopy := template.Block.Header
 	bt.UpdateBlockTime(&headerCopy)
 
-	// Serialize the block header into a buffer large enough to hold the
-	// the block header and the internal blake256 padding that is added and
-	// retuned as part of the data below.
-	//
-	// For reference (0-index based, end value is exclusive):
-	// data[116:120] --> Bits
-	// data[136:140] --> Timestamp
-	// data[140:144] --> Nonce
-	// data[144:152] --> ExtraNonce
-	data := make([]byte, 0, getworkDataLen)
-	buf := bytes.NewBuffer(data)
-	err := headerCopy.Serialize(buf)
+	// Serialize the data that represents work to be solved as well as any
+	// internal padding that makes the data ready for callers to make use of
+	// only the final chunk along with the midstate for the rest when solving
+	// the block.
+	data, err := serializeGetWorkData(&headerCopy)
 	if err != nil {
-		context := "Failed to serialize data"
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, err
 	}
 
 	// Add the template to the template pool.  Since the key is a combination
@@ -3810,13 +3836,6 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	state.Lock()
 	state.templatePool[templateKey] = template.Block
 	state.Unlock()
-
-	// Expand the data slice to include the full data buffer and apply the
-	// internal blake256 padding.  This makes the data ready for callers to
-	// make use of only the final chunk along with the midstate for the
-	// rest.
-	data = data[:getworkDataLen]
-	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
 
 	// The target is in big endian, but it is treated as a uint256 and byte
 	// swapped to little endian in the final result.  Even though there is
@@ -3841,9 +3860,9 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	if err != nil {
 		return false, rpcDecodeHexError(hexData)
 	}
-	if len(data) != getworkDataLen {
-		return nil, rpcInvalidError("Argument must be %d bytes (not "+
-			"%d)", getworkDataLen, len(data))
+	if len(data) != getworkDataLenBlake256 {
+		return nil, rpcInvalidError("Argument must be %d bytes (not %d)",
+			getworkDataLenBlake256, len(data))
 	}
 
 	// Deserialize the block header from the data.
@@ -5935,7 +5954,7 @@ func init() {
 	// length is a multiple of the blake256 block size (64 bytes).  Since
 	// the block header is a fixed size, it only needs to be calculated
 	// once.
-	blake256Pad = make([]byte, getworkDataLen-wire.MaxBlockHeaderPayload)
+	blake256Pad = make([]byte, getworkDataLenBlake256-wire.MaxBlockHeaderPayload)
 	blake256Pad[0] = 0x80
 	blake256Pad[len(blake256Pad)-9] |= 0x01
 	binary.BigEndian.PutUint64(blake256Pad[len(blake256Pad)-8:],
