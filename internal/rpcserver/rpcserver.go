@@ -93,6 +93,17 @@ const (
 	getworkDataLenBlake256 = (1 + ((wire.MaxBlockHeaderPayload*8 + 65) /
 		(blake256.BlockSize * 8))) * blake256.BlockSize
 
+	// blake3BlkSize is the internal block size of the blake3 hashing algorithm.
+	blake3BlkSize = 64
+
+	// getworkDataLenBlake3 is the length of the data field of the getwork RPC
+	// when providing work for blake3.  It consists of the serialized block
+	// header plus the internal blake3 padding.  The internal blake3 padding
+	// consists of enough zeros to pad the message out to a multiple of the
+	// blake3 block size (64 bytes).
+	getworkDataLenBlake3 = ((wire.MaxBlockHeaderPayload + (blake3BlkSize - 1)) /
+		blake3BlkSize) * blake3BlkSize
+
 	// getworkExpirationDiff is the number of blocks below the current
 	// best block in height to begin pruning out old block work from
 	// the template pool.
@@ -122,6 +133,10 @@ var (
 	// based on the size of the block header and requires a bit of
 	// calculation.
 	blake256Pad []byte
+
+	// blake3Pad is the extra blake3 internal padding needed for the data of the
+	// getwork RPC.  It consists of all zeros.
+	blake3Pad = make([]byte, getworkDataLenBlake3-wire.MaxBlockHeaderPayload)
 
 	// JSON 2.0 batched request prefix
 	batchedRequestPrefix = []byte("[")
@@ -1756,7 +1771,7 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 
 	c := cmd.(*types.GenerateCmd)
 
-	// Respond with an error if the client is requesting 0 blocks to be generated.
+	// Respond with an error when no blocks are requested.
 	if c.NumBlocks == 0 {
 		return nil, rpcInternalError("Invalid number of blocks",
 			"Configuration")
@@ -3696,8 +3711,15 @@ func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
 // It consists of the serialized block header along with any internal padding
 // that makes the data ready for callers to make use of only the final chunk
 // along with the midstate for the rest when solving the block.
-func serializeGetWorkData(header *wire.BlockHeader) ([]byte, error) {
-	const getworkDataLen = getworkDataLenBlake256
+func serializeGetWorkData(header *wire.BlockHeader, isBlake3PowActive bool) ([]byte, error) {
+	// Choose the full buffer data length as well as internal padding to apply
+	// based on the result of the vote for the blake3 proof of work agenda.
+	getworkDataLen := getworkDataLenBlake256
+	internalHashFuncPad := blake256Pad
+	if isBlake3PowActive {
+		getworkDataLen = getworkDataLenBlake3
+		internalHashFuncPad = blake3Pad
+	}
 
 	// Serialize the block header into a buffer large enough to hold the block
 	// header and any internal padding that is added and returned as part of the
@@ -3720,7 +3742,7 @@ func serializeGetWorkData(header *wire.BlockHeader) ([]byte, error) {
 	// padding for the hash function.  This makes the data ready for callers to
 	// make use of only the final chunk along with the midstate for the rest.
 	data = data[:getworkDataLen]
-	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+	copy(data[wire.MaxBlockHeaderPayload:], internalHashFuncPad)
 	return data, nil
 }
 
@@ -3824,7 +3846,11 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	// internal padding that makes the data ready for callers to make use of
 	// only the final chunk along with the midstate for the rest when solving
 	// the block.
-	data, err := serializeGetWorkData(&headerCopy)
+	isBlake3PowActive, err := s.isBlake3PowAgendaActive(&headerCopy.PrevBlock)
+	if err != nil {
+		return nil, err
+	}
+	data, err := serializeGetWorkData(&headerCopy, isBlake3PowActive)
 	if err != nil {
 		return nil, err
 	}
@@ -3849,20 +3875,49 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 	return reply, nil
 }
 
+// minInt is a helper function to return the minimum of two ints.  This avoids
+// the need to cast to floats.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// maxInt is a helper function to return the maximum of two ints.  This avoids
+// the need to cast to floats.
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // handleGetWorkSubmission is a helper for handleGetWork which deals with
 // the calling submitting work to be verified and processed.
 func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (interface{}, error) {
 	// Ensure the provided data is sane.
+	minDataLen := minInt(getworkDataLenBlake256, getworkDataLenBlake3)
+	maxDataLen := maxInt(getworkDataLenBlake256, getworkDataLenBlake3)
+	paddedHexDataLen := len(hexData) + len(hexData)%2
+	if paddedHexDataLen < minDataLen*2 || paddedHexDataLen > maxDataLen*2 {
+		if minDataLen == maxDataLen {
+			return nil, rpcInvalidError("Argument must be a hexadecimal string "+
+				"with length %d (not %d)", minDataLen*2, len(hexData))
+		}
+		return nil, rpcInvalidError("Argument must be a hexadecimal string "+
+			"with a length between %d and %d (not %d)", minDataLen*2,
+			maxDataLen*2, len(hexData))
+	}
+
+	// Decode the provided hex data while padding the front with a 0 for
+	// odd-length strings since the decoder requires even-length strings.
 	if len(hexData)%2 != 0 {
 		hexData = "0" + hexData
 	}
 	data, err := hex.DecodeString(hexData)
 	if err != nil {
 		return false, rpcDecodeHexError(hexData)
-	}
-	if len(data) != getworkDataLenBlake256 {
-		return nil, rpcInvalidError("Argument must be %d bytes (not %d)",
-			getworkDataLenBlake256, len(data))
 	}
 
 	// Deserialize the block header from the data.
@@ -3873,9 +3928,30 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 		return false, rpcInvalidError("Invalid block header: %v", err)
 	}
 
+	// Reject orphan blocks.  This is done here to provide nicer feedback about
+	// why the block was rejected since attempting to determine the state of a
+	// voting agenda requires all previous blocks to be known.
+	prevBlkHash := &submittedHeader.PrevBlock
+	if _, err := s.cfg.Chain.HeaderByHash(prevBlkHash); err != nil {
+		log.Infof("Block submitted via getwork rejected: orphan building on "+
+			"parent %v", prevBlkHash)
+		return false, nil
+	}
+
+	// Choose the proof of work mining algorithm based on the result of the vote
+	// for the blake3 proof of work agenda.
+	isBlake3PowActive, err := s.isBlake3PowAgendaActive(prevBlkHash)
+	if err != nil {
+		return false, err
+	}
+	powHashFn := submittedHeader.PowHashV1
+	if isBlake3PowActive {
+		powHashFn = submittedHeader.PowHashV2
+	}
+
 	// Ensure the submitted proof of work hash is less than the target
 	// difficulty.
-	powHash := submittedHeader.PowHashV1()
+	powHash := powHashFn()
 	err = standalone.CheckProofOfWork(&powHash, submittedHeader.Bits,
 		s.cfg.ChainParams.PowLimit)
 	if err != nil {
@@ -3917,12 +3993,6 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	// nodes.  This will in turn relay it to the network like normal.
 	err = s.cfg.SyncMgr.SubmitBlock(block)
 	if err != nil {
-		if errors.Is(err, blockchain.ErrMissingParent) {
-			log.Infof("Block submitted via getwork rejected: orphan building "+
-				"on parent %v", block.MsgBlock().Header.PrevBlock)
-			return false, nil
-		}
-
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
 		var rErr blockchain.RuleError
@@ -4999,6 +5069,20 @@ func (s *Server) isSubsidySplitAgendaActive(prevBlkHash *chainhash.Hash) (bool, 
 		return false, rpcInternalError(err.Error(), context)
 	}
 	return isSubsidySplitEnabled, nil
+}
+
+// isBlake3PowAgendaActive returns whether or not the agenda to change the proof
+// of work hash function to blake3 is active or not for the block AFTER the
+// provided block hash.
+func (s *Server) isBlake3PowAgendaActive(prevBlkHash *chainhash.Hash) (bool, error) {
+	chain := s.cfg.Chain
+	isActive, err := chain.IsBlake3PowAgendaActive(prevBlkHash)
+	if err != nil {
+		context := fmt.Sprintf("Could not obtain blake3 proof of work "+
+			"agenda status for block %s", prevBlkHash)
+		return false, rpcInternalError(err.Error(), context)
+	}
+	return isActive, nil
 }
 
 // isSubsidySplitR2AgendaActive returns if the modified subsidy split round 2

@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/staging/primitives"
 	"github.com/decred/dcrd/wire"
+	"lukechampine.com/blake3"
 )
 
 const (
@@ -98,6 +99,11 @@ type Config struct {
 	// not either the provided block is itself known to be invalid or is
 	// known to have an invalid ancestor.
 	IsKnownInvalidBlock func(*chainhash.Hash) bool
+
+	// IsBlake3PowAgendaActive returns whether or not the agenda to change the
+	// proof of work hash function to blake3, as defined in DCP0011, has passed
+	// and is now active for the block AFTER the given block.
+	IsBlake3PowAgendaActive func(prevHash *chainhash.Hash) (bool, error)
 }
 
 // CPUMiner provides facilities for solving blocks (mining) using the CPU in a
@@ -194,7 +200,7 @@ out:
 
 // submitBlock submits the passed block to network after ensuring it passes all
 // of the consensus validation rules.
-func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
+func (m *CPUMiner) submitBlock(block *dcrutil.Block, isBlake3PowActive bool) bool {
 	m.submitBlockLock.Lock()
 	defer m.submitBlockLock.Unlock()
 
@@ -225,7 +231,11 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	// The block was accepted.
 	blockHash := block.Hash()
 	var powHashStr string
-	powHash := block.MsgBlock().PowHashV1()
+	powHashFn := block.MsgBlock().PowHashV1
+	if isBlake3PowActive {
+		powHashFn = block.MsgBlock().PowHashV2
+	}
+	powHash := powHashFn()
 	if powHash != *blockHash {
 		powHashStr = ", pow hash " + powHash.String()
 	}
@@ -242,7 +252,9 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 //
 // This function will return early with false when the provided context is
 // cancelled or an unexpected error happens.
-func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, stats *speedStats) bool {
+func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader,
+	stats *speedStats, isBlake3PowActive bool) bool {
+
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -258,6 +270,12 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 		log.Errorf("Unable to convert diff bits %08x to uint256 (negative: %v"+
 			", overflows: %v)", header.Bits, isNeg, overflows)
 		return false
+	}
+
+	// Choose the hash function depending on the active agendas.
+	powHashFn := blake256.Sum256
+	if isBlake3PowActive {
+		powHashFn = blake3.Sum256
 	}
 
 	// Serialize the header once so only the specific bytes that need to be
@@ -328,7 +346,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 			// compute the block header hash.
 			const nonceSerOffset = 140
 			littleEndian.PutUint32(hdrBytes[nonceSerOffset:], nonce)
-			hash := chainhash.Hash(blake256.Sum256(hdrBytes))
+			hash := chainhash.Hash(powHashFn(hdrBytes))
 			hashesCompleted++
 
 			// The block is solved when the new block hash is less than the
@@ -359,7 +377,9 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 // are mined when on the simulation network.
 //
 // It must be run as a goroutine.
-func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, speedStats *speedStats) {
+func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate,
+	speedStats *speedStats, isBlake3PowActive bool) {
+
 	defer m.workerWg.Done()
 
 	for {
@@ -409,7 +429,8 @@ func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, s
 		// The block in the template is shallow copied to avoid mutating the
 		// data of the shared template.
 		shallowBlockCopy := *template.Block
-		if m.solveBlock(ctx, &shallowBlockCopy.Header, speedStats) {
+		shallowBlockHdr := &shallowBlockCopy.Header
+		if m.solveBlock(ctx, shallowBlockHdr, speedStats, isBlake3PowActive) {
 			// Avoid submitting any solutions that might have been found in
 			// between the time a worker was signalled to stop and it actually
 			// stopping.
@@ -418,7 +439,7 @@ func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate, s
 			}
 
 			block := dcrutil.NewBlock(&shallowBlockCopy)
-			if !m.submitBlock(block) {
+			if !m.submitBlock(block, isBlake3PowActive) {
 				m.Lock()
 				m.minedOnParents[prevBlock]++
 				m.Unlock()
@@ -467,9 +488,9 @@ func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 		case templateNtfn := <-templateSub.C():
 			// Clean up the map that tracks the number of blocks mined on a
 			// given parent whenever a template is received due to a new parent.
+			prevHash := templateNtfn.Template.Block.Header.PrevBlock
 			if m.cfg.PermitConnectionlessMining {
 				if templateNtfn.Reason == mining.TURNewParent {
-					prevHash := templateNtfn.Template.Block.Header.PrevBlock
 					m.Lock()
 					for k := range m.minedOnParents {
 						if k != prevHash {
@@ -480,14 +501,24 @@ func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 				}
 			}
 
-			// Ensure the previous solver goroutine (if any) is stopped and
-			// start another one for the new template.
+			// Ensure the previous solver goroutine (if any) is stopped.
 			if solverCancel != nil {
 				solverCancel()
 			}
+
+			// Determine the state of the blake3 proof of work agenda.  An error
+			// should never really happen here in practice, but just loop around
+			// and wait for another template if it does.
+			isBlake3PowActive, err := m.cfg.IsBlake3PowAgendaActive(&prevHash)
+			if err != nil {
+				continue
+			}
+
+			// Start another goroutine for the new template.
 			solverCtx, solverCancel = context.WithCancel(ctx)
 			m.workerWg.Add(1)
-			go m.solver(solverCtx, templateNtfn.Template, &speedStats)
+			go m.solver(solverCtx, templateNtfn.Template, &speedStats,
+				isBlake3PowActive)
 
 		case <-ctx.Done():
 			// Ensure resources associated with the solver goroutine context are
@@ -752,9 +783,18 @@ out:
 		discretePrev := m.discretePrevHash
 		discreteBlockHash := m.discreteBlockHash
 		m.Unlock()
-		if templateNtfn.Template.Block.Header.PrevBlock == discretePrev &&
+		prevHash := templateNtfn.Template.Block.Header.PrevBlock
+		if prevHash == discretePrev &&
 			!m.cfg.IsKnownInvalidBlock(&discreteBlockHash) {
 
+			continue
+		}
+
+		// Determine the state of the blake3 proof of work agenda.  An error
+		// should never really happen here in practice, but just loop around and
+		// wait for another template if it does.
+		isBlake3PowActive, err := m.cfg.IsBlake3PowAgendaActive(&prevHash)
+		if err != nil {
 			continue
 		}
 
@@ -774,11 +814,12 @@ out:
 		// The block in the template is shallow copied to avoid mutating the
 		// data of the shared template.
 		shallowBlockCopy := *templateNtfn.Template.Block
-		if m.solveBlock(ctx, &shallowBlockCopy.Header, &stats) {
+		shallowBlockHdr := &shallowBlockCopy.Header
+		if m.solveBlock(ctx, shallowBlockHdr, &stats, isBlake3PowActive) {
 			block := dcrutil.NewBlock(&shallowBlockCopy)
-			if m.submitBlock(block) {
+			if m.submitBlock(block, isBlake3PowActive) {
 				m.Lock()
-				m.discretePrevHash = shallowBlockCopy.Header.PrevBlock
+				m.discretePrevHash = shallowBlockHdr.PrevBlock
 				m.discreteBlockHash = *block.Hash()
 				m.Unlock()
 				blockHashes = append(blockHashes, block.Hash())

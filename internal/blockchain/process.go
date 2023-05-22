@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -290,7 +290,7 @@ func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader) error {
 // the code is changed to violate that assumption.
 //
 // The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to checkBlockPositional.
+// are needed to pass along to checkBlockDataPositional.
 //
 // This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) maybeAcceptBlockData(node *blockNode, block *dcrutil.Block, flags BehaviorFlags) ([]*blockNode, error) {

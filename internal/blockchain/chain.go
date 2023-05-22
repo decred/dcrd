@@ -15,6 +15,7 @@ import (
 	"math/bits"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
@@ -167,6 +168,7 @@ type BlockChain struct {
 	deploymentData           map[string]deploymentInfo
 	minKnownWork             *uint256.Uint256
 	minTestNetTarget         *big.Int
+	minTestNetDiffBits       uint32
 	db                       database.DB
 	dbInfo                   *databaseInfo
 	chainParams              *chaincfg.Params
@@ -270,6 +272,24 @@ type BlockChain struct {
 	calcPriorStakeVersionCache    map[[chainhash.HashSize]byte]uint32
 	calcVoterVersionIntervalCache map[[chainhash.HashSize]byte]uint32
 	calcStakeVersionCache         map[[chainhash.HashSize]byte]uint32
+
+	// cachedBlake3WorkDiffCandidateAnchor houses a cached candidate anchor
+	// point to use for the difficulty algorithm defined in DCP0011 before the
+	// state of the blake3 proof of work agenda can be determined definitively.
+	//
+	// This is set based on heuristics that make it very likely to be the
+	// correct anchor point and exists to avoid additional work that would
+	// otherwise be required during the initial header sync.
+	cachedBlake3WorkDiffCandidateAnchor atomic.Pointer[blockNode]
+
+	// cachedBlake3WorkDiffAnchor houses a cached anchor point to use for the
+	// difficulty algorithm defined in DCP0011.
+	//
+	// It is only set when the blake3 proof of work agenda has been determined
+	// to be active and will be the block just prior to the activation of the
+	// agenda.  It will not be set for networks where the agenda is always
+	// active such as the simulation network.
+	cachedBlake3WorkDiffAnchor atomic.Pointer[blockNode]
 
 	// bulkImportMode provides a mechanism to indicate that several validation
 	// checks can be avoided when bulk importing blocks already known to be valid.
@@ -2372,10 +2392,12 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// difficulty on testnet by ASICs and GPUs since it's not reasonable to
 	// require high-powered hardware to keep the test network running smoothly.
 	var minTestNetTarget *big.Int
+	var minTestNetDiffBits uint32
 	if params.Net == wire.TestNet3 {
 		// This equates to a maximum difficulty of 2^6 = 64.
 		const maxTestDiffShift = 6
 		minTestNetTarget = new(big.Int).Rsh(params.PowLimit, maxTestDiffShift)
+		minTestNetDiffBits = standalone.BigToCompact(minTestNetTarget)
 	}
 
 	// Either use the subsidy cache provided by the caller or create a new
@@ -2405,6 +2427,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		deploymentData:                deploymentData,
 		minKnownWork:                  minKnownWork,
 		minTestNetTarget:              minTestNetTarget,
+		minTestNetDiffBits:            minTestNetDiffBits,
 		db:                            config.DB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,

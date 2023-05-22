@@ -420,6 +420,11 @@ type Chain interface {
 	// block with the most cumulative proof of work that is valid becomes the
 	// tip of the main chain.
 	ReconsiderBlock(*chainhash.Hash) error
+
+	// IsBlake3PowAgendaActive returns whether or not the agenda to change the
+	// proof of work hash function to blake3, as defined in DCP0011, has passed
+	// and is now active for the block AFTER the given block.
+	IsBlake3PowAgendaActive(*chainhash.Hash) (bool, error)
 }
 
 // Clock represents a clock for use with the RPC server. The purpose of this

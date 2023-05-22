@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -315,15 +315,15 @@ func TestNewBlockTemplateAutoRevocations(t *testing.T) {
 	vote.MsgTx().TxIn[0].ValueIn = 0
 
 	// Get the best header bytes.
-	bestHeader, err := harness.chain.HeaderByHash(&harness.chain.bestState.Hash)
+	bestStateHash := harness.chain.bestState.Hash
+	bestHeader, err := harness.chain.HeaderByHash(&bestStateHash)
 	if err != nil {
-		t.Fatalf("unable to get tip block header %v: %v",
-			harness.chain.bestState.Hash, err)
+		t.Fatalf("unable to get tip block header %v: %v", bestStateHash, err)
 	}
 	bestHeaderBytes, err := bestHeader.Bytes()
 	if err != nil {
-		t.Fatalf("failed to serialize header for block %v: %v",
-			bestHeader.BlockHash(), err)
+		t.Fatalf("failed to serialize header for block %v: %v", bestStateHash,
+			err)
 	}
 
 	// Add revocations for tickets that were previously missed.

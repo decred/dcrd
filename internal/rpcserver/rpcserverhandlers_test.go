@@ -197,6 +197,8 @@ type testRPCChain struct {
 	treasuryActiveErr             error
 	subsidySplitActive            bool
 	subsidySplitActiveErr         error
+	blake3PowActive               bool
+	blake3PowActiveErr            error
 	subsidySplitR2Active          bool
 	subsidySplitR2ActiveErr       error
 }
@@ -436,6 +438,12 @@ func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, in
 // not the modified subsidy split agenda is active.
 func (c *testRPCChain) IsSubsidySplitAgendaActive(*chainhash.Hash) (bool, error) {
 	return c.subsidySplitActive, c.subsidySplitActiveErr
+}
+
+// IsBlake3PowAgendaActive returns a mocked bool representing whether or not the
+// blake3 proof of work agenda is active.
+func (c *testRPCChain) IsBlake3PowAgendaActive(*chainhash.Hash) (bool, error) {
+	return c.blake3PowActive, c.blake3PowActiveErr
 }
 
 // IsSubsidySplitR2AgendaActive returns a mocked bool representing whether or
@@ -5661,7 +5669,8 @@ func TestHandleGetWork(t *testing.T) {
 	mockPowLimitBits := standalone.BigToCompact(mockPowLimitBig)
 
 	serializeGetWorkDataBlake256 := func(header *wire.BlockHeader) []byte {
-		data, err := serializeGetWorkData(header)
+		const isBlake3PowActive = false
+		data, err := serializeGetWorkData(header, isBlake3PowActive)
 		if err != nil {
 			t.Fatalf("unexpected serialize error: %v", err)
 		}
@@ -5678,7 +5687,7 @@ func TestHandleGetWork(t *testing.T) {
 	var buf bytes.Buffer
 	buf.Write(submissionB[:10])
 	buf.WriteRune('g')
-	buf.Write(submissionB[10:])
+	buf.Write(submissionB[10 : len(submissionB)-2])
 	invalidHexSub := buf.String()
 
 	buf.Reset()
@@ -5686,6 +5695,23 @@ func TestHandleGetWork(t *testing.T) {
 	buf.WriteString("ffffffff")
 	buf.Write(submissionB[240:])
 	invalidPOWSub := buf.String()
+
+	// Create a mock block solved by blake3 based on the existing test block.
+	solvedBlake3Block := func() *wire.MsgBlock {
+		isSolved := func(header *wire.BlockHeader) bool {
+			powHash := header.PowHashV2()
+			err := standalone.CheckProofOfWork(&powHash, header.Bits,
+				mockPowLimitBig)
+			return err == nil
+		}
+		blk := block432100
+		header := &blk.Header
+		header.Bits = mockPowLimitBits
+		for !isSolved(header) {
+			header.Nonce++
+		}
+		return &blk
+	}()
 
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetWork: CPU IsMining enabled",
@@ -5851,10 +5877,10 @@ func TestHandleGetWork(t *testing.T) {
 			return params
 		}(),
 		mockMiningState: defaultMockMiningState(),
-		mockSyncManager: func() *testSyncManager {
-			syncManager := defaultMockSyncManager()
-			syncManager.submitBlockErr = blockchain.ErrMissingParent
-			return syncManager
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = blockchain.ErrUnknownBlock
+			return chain
 		}(),
 		result: false,
 	}, {
@@ -5880,6 +5906,66 @@ func TestHandleGetWork(t *testing.T) {
 		mockMiningState: defaultMockMiningState(),
 		result:          true,
 	}, {
+		name:    "handleGetWork: blake3 submission ok",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: func() *string {
+				const isBlake3PowActive = true
+				data, err := serializeGetWorkData(&solvedBlake3Block.Header,
+					isBlake3PowActive)
+				if err != nil {
+					t.Fatalf("unexpected serialize error: %v", err)
+				}
+				encoded := hex.EncodeToString(data)
+				return &encoded
+			}(),
+		},
+		mockChainParams: func() *chaincfg.Params {
+			params := cloneParams(defaultChainParams)
+			params.PowLimit = mockPowLimitBig
+			params.PowLimitBits = mockPowLimitBits
+			return params
+		}(),
+		mockMiningState: func() *testMiningState {
+			mockMiningState := defaultMockMiningState()
+			tmplKey := getWorkTemplateKey(&solvedBlake3Block.Header)
+			workState := newWorkState()
+			workState.templatePool[tmplKey] = solvedBlake3Block
+			workState.prevBestHash = &solvedBlake3Block.Header.PrevBlock
+			mockMiningState.workState = workState
+			return mockMiningState
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blake3PowActive = true
+			return chain
+		}(),
+		result: true,
+	}, {
+		name:    "handleGetWork: submission hex too short",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: func() *string {
+				submissionHex := string(submissionB[:getworkDataLenBlake256-1])
+				return &submissionHex
+			}(),
+		},
+		mockMiningState: defaultMockMiningState(),
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetWork: submission hex too long",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: func() *string {
+				submissionHex := string(submissionB) + "a"
+				return &submissionHex
+			}(),
+		},
+		mockMiningState: defaultMockMiningState(),
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
 		name:    "handleGetWork: invalid submission hex",
 		handler: handleGetWork,
 		cmd: &types.GetWorkCmd{
@@ -5888,6 +5974,20 @@ func TestHandleGetWork(t *testing.T) {
 		mockMiningState: defaultMockMiningState(),
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetWork: unable to obtain blake3 pow agenda status",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &submission,
+		},
+		mockMiningState: defaultMockMiningState(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blake3PowActiveErr = blockchain.ErrUnknownBlock
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
 		name:    "handleGetWork: invalid proof of work",
 		handler: handleGetWork,

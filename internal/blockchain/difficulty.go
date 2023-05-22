@@ -24,8 +24,6 @@ var (
 
 // findPrevTestNetDifficulty returns the difficulty of the previous block which
 // did not have the special testnet minimum difficulty rule applied.
-//
-// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 	// Search backwards through the chain for the last block without
 	// the special rule applied.
@@ -47,9 +45,10 @@ func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 	return lastBits
 }
 
-// calcNextRequiredDifficulty calculates the required difficulty for the block
-// after the passed previous block node based on the difficulty retarget rules.
-func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTime time.Time) uint32 {
+// calcNextBlake256Diff calculates the required difficulty for the block AFTER
+// the passed previous block node based on the difficulty retarget rules for the
+// blake256 hash algorithm used at Decred launch.
+func (b *BlockChain) calcNextBlake256Diff(prevNode *blockNode, newBlockTime time.Time) uint32 {
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
 	oldDiff := prevNode.bits
@@ -212,20 +211,186 @@ func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTim
 	return nextDiffBits
 }
 
+// calcNextBlake3DiffFromAnchor calculates the required difficulty for the block
+// AFTER the passed previous block node relative to the given anchor block based
+// on the difficulty retarget rules defined in DCP0011.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) calcNextBlake3DiffFromAnchor(prevNode *blockNode, blake3Anchor *blockNode) uint32 {
+	// Calculate the time and height deltas as the difference between the
+	// provided block and the blake3 anchor block.
+	//
+	// Notice that if the difficulty prior to the activation point were being
+	// maintained, this would need to be the timestamp and height of the parent
+	// of the blake3 anchor block (except when the anchor is the genesis block)
+	// in order for the absolute calculations to exactly match the behavior of
+	// relative calculations.
+	//
+	// However, since the initial difficulty is reset with the agenda, no
+	// additional offsets are needed.
+	timeDelta := prevNode.timestamp - blake3Anchor.timestamp
+	heightDelta := prevNode.height - blake3Anchor.height
+
+	// Calculate the next target difficulty using the ASERT algorithm.
+	//
+	// Note that the difficulty of the anchor block is NOT used for the initial
+	// difficulty because the difficulty must be reset due to the change to
+	// blake3 for proof of work.  The initial difficulty comes from the chain
+	// parameters instead.
+	params := b.chainParams
+	nextDiff := standalone.CalcASERTDiff(params.WorkDiffV2Blake3StartBits,
+		params.PowLimit, int64(params.TargetTimePerBlock.Seconds()), timeDelta,
+		heightDelta, params.WorkDiffV2HalfLifeSecs)
+
+	// Prevent the difficulty from going higher than a maximum allowed
+	// difficulty on the test network.  This is to prevent runaway difficulty on
+	// testnet by ASICs and GPUs since it's not reasonable to require
+	// high-powered hardware to keep the test network running smoothly.
+	//
+	// Smaller numbers result in a higher difficulty, so imposing a maximum
+	// difficulty equates to limiting the minimum target value.
+	if b.minTestNetTarget != nil && nextDiff < b.minTestNetDiffBits {
+		nextDiff = b.minTestNetDiffBits
+	}
+
+	return nextDiff
+}
+
+// blake3WorkDiffAnchor returns the block to treat as the anchor block for the
+// purposes of determining how far ahead or behind the ideal schedule the
+// provided block is when calculating the blake3 target difficulty for the block
+// AFTER the passed previous block node.
+//
+// This function MUST only be called with the blake3 proof of work agenda active
+// after having gone through a vote.  That is to say it MUST NOT be called when
+// the agenda is forced to always be active.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) blake3WorkDiffAnchor(prevNode *blockNode) *blockNode {
+	// Use the previously cached anchor when it exists and is actually an
+	// ancestor of the passed node.
+	anchor := b.cachedBlake3WorkDiffAnchor.Load()
+	if anchor != nil && anchor.IsAncestorOf(prevNode) {
+		return anchor
+	}
+
+	// Find the block just prior to the activation of the blake3 proof of work
+	// agenda from the perspective of the block AFTER the passed block.
+	//
+	// The state of an agenda can only change at a rule change activation
+	// boundary, so determine the final block of the rule change activation
+	// interval just prior to the interval the block AFTER the provided one
+	// falls in and then loop backwards one interval at a time until the agenda
+	// is no longer active.
+	rcai := int64(b.chainParams.RuleChangeActivationInterval)
+	svh := b.chainParams.StakeValidationHeight
+	finalNodeHeight := calcWantHeight(svh, rcai, prevNode.height+1)
+	candidate := prevNode.Ancestor(finalNodeHeight)
+	for candidate != nil && candidate.parent != nil {
+		// Since isBlake3PowAgendaActive returns the state for the block AFTER
+		// the provided one and the goal here is to determine the state of the
+		// agenda for the candidate anchor (which is the final block of the rule
+		// change activation interval under test), use the parent to get the
+		// state of the candidate itself.
+		isActive, err := b.isBlake3PowAgendaActive(candidate.parent)
+		if err != nil {
+			panicf("known good agenda state lookup failed for block node "+
+				"hash %v (height %v) -- %v", candidate.parent.hash,
+				candidate.parent.height, err)
+		}
+		if !isActive {
+			anchor = candidate
+			break
+		}
+
+		// Skip back to the ancestor that is the final block of the previous
+		// rule change interval.
+		candidate = candidate.RelativeAncestor(rcai)
+	}
+
+	// Update the cached anchor to the discovered one since it is highly likely
+	// the next call will involve a descendant of this anchor as opposed to some
+	// other anchor on an entirely unrelated side chain.
+	if anchor != nil {
+		b.cachedBlake3WorkDiffAnchor.Store(anchor)
+	}
+
+	return anchor
+}
+
+// calcNextBlake3Diff calculates the required difficulty for the block AFTER the
+// passed previous block node based on the difficulty retarget rules defined in
+// DCP0011.
+//
+// This function MUST only be called with the blake3 proof of work agenda active
+// and, unless the agenda is always forced to be active, with the chain state
+// lock held (for writes).
+func (b *BlockChain) calcNextBlake3Diff(prevNode *blockNode) uint32 {
+	// Apply special handling for networks where the agenda is always active to
+	// always require the initial starting difficulty for the first block and to
+	// treat the first block as the anchor once it has been mined.
+	//
+	// This is to done to help provide better difficulty target behavior for the
+	// initial blocks on such networks since the genesis block will necessarily
+	// have a hard-coded timestamp that will very likely be outdated by the time
+	// mining starts.  As a result, merely using the genesis block as the anchor
+	// for all blocks would likely result in a lot of the initial blocks having
+	// a significantly lower difficulty than desired because they would all be
+	// behind the ideal schedule relative to that outdated timestamp.
+	if b.isBlake3PowAgendaForcedActive() {
+		// Use the initial starting difficulty for the first block.
+		if prevNode.height == 0 {
+			return b.chainParams.WorkDiffV2Blake3StartBits
+		}
+
+		// Treat the first block as the anchor for all descendants of it.
+		anchor := prevNode.Ancestor(1)
+		return b.calcNextBlake3DiffFromAnchor(prevNode, anchor)
+	}
+
+	// Determine the block to treat as the anchor block for the purposes of
+	// determining how far ahead or behind the ideal schedule the provided block
+	// is when calculating the blake3 target difficulty.
+	//
+	// This will be the block just prior to the activation of the blake3 proof
+	// of work agenda.
+	anchor := b.blake3WorkDiffAnchor(prevNode)
+	return b.calcNextBlake3DiffFromAnchor(prevNode, anchor)
+}
+
+// calcNextRequiredDifficulty calculates the required difficulty for the block
+// AFTER the passed previous block node based on the active difficulty retarget
+// rules.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) calcNextRequiredDifficulty(prevNode *blockNode, newBlockTime time.Time) (uint32, error) {
+	// Choose the difficulty algorithm based on the result of the vote for the
+	// blake3 proof of work agenda.
+	isActive, err := b.isBlake3PowAgendaActive(prevNode)
+	if err != nil {
+		return 0, err
+	}
+	if isActive {
+		return b.calcNextBlake3Diff(prevNode), nil
+	}
+
+	return b.calcNextBlake256Diff(prevNode, newBlockTime), nil
+}
+
 // CalcNextRequiredDifficulty calculates the required difficulty for the block
-// after the given block based on the difficulty retarget rules.
+// AFTER the given block based on the active difficulty retarget rules.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) CalcNextRequiredDifficulty(hash *chainhash.Hash, timestamp time.Time) (uint32, error) {
 	node := b.index.LookupNode(hash)
-	if node == nil {
+	if node == nil || !b.index.CanValidate(node) {
 		return 0, unknownBlockError(hash)
 	}
 
 	b.chainLock.Lock()
-	difficulty := b.calcNextRequiredDifficulty(node, timestamp)
+	difficulty, err := b.calcNextRequiredDifficulty(node, timestamp)
 	b.chainLock.Unlock()
-	return difficulty, nil
+	return difficulty, err
 }
 
 // mergeDifficulty takes an original stake difficulty and two new, scaled

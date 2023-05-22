@@ -844,6 +844,67 @@ func (b *BlockChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool,
 	return isActive, err
 }
 
+// isBlake3PowAgendaForcedActive returns whether or not the agenda to change the
+// proof of work hash function to blake3, as defined in DCP0011, is forced
+// active by the chain parameters.
+func (b *BlockChain) isBlake3PowAgendaForcedActive() bool {
+	const deploymentID = chaincfg.VoteIDBlake3Pow
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		return false
+	}
+
+	state := deployment.forcedState
+	return state != nil && state.State == ThresholdActive
+}
+
+// isBlake3PowAgendaActive returns whether or not the agenda to change the proof
+// of work hash function to blake3, as defined in DCP0011, has passed and is now
+// active from the point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isBlake3PowAgendaActive(prevNode *blockNode) (bool, error) {
+	const deploymentID = chaincfg.VoteIDBlake3Pow
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
+	return state.State == ThresholdActive, nil
+}
+
+// IsBlake3PowAgendaActive returns whether or not the agenda to change the proof
+// of work hash function to blake3, as defined in DCP0011, has passed and is now
+// active for the block AFTER the given block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsBlake3PowAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	// The agenda is never active for the genesis block.
+	if *prevHash == *zeroHash {
+		return false, nil
+	}
+
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
+		return false, unknownBlockError(prevHash)
+	}
+
+	b.chainLock.Lock()
+	isActive, err := b.isBlake3PowAgendaActive(prevNode)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
 // isSubsidySplitR2AgendaActive returns whether or not the agenda to change the
 // block reward subsidy split to 1/89/10, as defined in DCP0012, has passed and
 // is now active from the point of view of the passed block node.

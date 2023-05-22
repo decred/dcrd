@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1116,7 +1116,10 @@ func TestMinDifficultyReduction(t *testing.T) {
 			// Update the block time according to the test data and calculate
 			// the difficulty for the next block.
 			blockTime = blockTime.Add(test.timeAdjustment(i))
-			diff := bc.calcNextRequiredDifficulty(node, blockTime)
+			diff, err := bc.calcNextRequiredDifficulty(node, blockTime)
+			if err != nil {
+				t.Fatalf("%s: unexpected err: %v", test.name, err)
+			}
 
 			// Ensure the calculated difficulty matches the expected value.
 			expectedDiff := test.expectedDiff(i)

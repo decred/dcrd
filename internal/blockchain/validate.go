@@ -689,14 +689,19 @@ func standaloneToChainRuleError(err error) error {
 	return err
 }
 
-// checkProofOfWork ensures the block header bits which indicate the target
-// difficulty is in min/max range and that the block hash is less than the
-// target difficulty as claimed.
+// checkProofOfWorkSanity ensures the block header bits which indicate the
+// target difficulty is in min/max range and that the proof of work hash is less
+// than the target difficulty as claimed.  This check is context free.
+//
+// NOTE: This version differs from checkProofOfWorkContext in that it is run in
+// the context free sanity checks where the result of the vote to change the
+// proof of work hash function is not available.  See the comments in the
+// function itself for more details.
 //
 // The flags modify the behavior of this function as follows:
 //   - BFNoPoWCheck: The check to ensure the block hash is less than the target
 //     difficulty is not performed.
-func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
+func checkProofOfWorkSanity(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
 	// Only ensure the target difficulty bits are in the valid range when the
 	// the flag to avoid proof of work checks is set.
 	if flags&BFNoPoWCheck == BFNoPoWCheck {
@@ -709,8 +714,24 @@ func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags Behavio
 	// - The target difficulty must be larger than zero.
 	// - The target difficulty must be less than the maximum allowed.
 	// - The proof of work hash must be less than the claimed target.
-	powHash := header.PowHashV1()
-	err := standalone.CheckProofOfWork(&powHash, header.Bits, powLimit)
+	//
+	// The ability to determine whether or not the blake3 proof of work agenda
+	// is active is not possible here because that relies on additional context
+	// that is not available in the context free checks.  However, it is
+	// important to check proof of work here in the context free checks to
+	// protect against various forms of malicious behavior.
+	//
+	// Thus, allow valid proof of work under both algorithms while rejecting
+	// blocks that satisify neither here in the context free checks and allow
+	// the contextual checks that happen later to ensure the proof of work is
+	// valid specifically for the correct hash algorithm as determined by the
+	// state of the blake3 proof of work agenda.
+	powHashV1 := header.PowHashV1()
+	err := standalone.CheckProofOfWork(&powHashV1, header.Bits, powLimit)
+	if err != nil {
+		powHashV2 := header.PowHashV2()
+		err = standalone.CheckProofOfWork(&powHashV2, header.Bits, powLimit)
+	}
 	return standaloneToChainRuleError(err)
 }
 
@@ -719,7 +740,7 @@ func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags Behavio
 // context free.
 //
 // The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to checkProofOfWork.
+// are needed to pass along to checkProofOfWorkSanity.
 func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
 	// The stake validation height should always be at least stake enabled
 	// height, so assert it because the code below relies on that assumption.
@@ -731,10 +752,10 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 			"height %d", stakeEnabledHeight, stakeValidationHeight))
 	}
 
-	// Ensure the proof of work bits in the block header is in min/max
-	// range and the block hash is less than the target value described by
-	// the bits.
-	err := checkProofOfWork(header, chainParams.PowLimit, flags)
+	// Ensure the proof of work bits in the block header is in min/max range and
+	// the proof of work hash is less than the target value described by the
+	// bits.
+	err := checkProofOfWorkSanity(header, chainParams.PowLimit, flags)
 	if err != nil {
 		return err
 	}
@@ -1014,6 +1035,172 @@ func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, block
 	return b.isMajorityVersion(nextVersion, prevNode, rejectNumRequired)
 }
 
+// checkDifficultyPositional ensures the difficulty specified in the block
+// header matches the calculated difficulty based on the difficulty retarget
+// rules.  These checks do not, and must not, rely on having the full block data
+// of all ancestors available.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) checkDifficultyPositional(header *wire.BlockHeader, prevNode *blockNode) error {
+	// -------------------------------------------------------------------------
+	// The ability to determine whether or not the blake3 proof of work agenda
+	// is active is not possible in the general case here because that relies on
+	// additional context that is not available in the positional checks.
+	// However, it is important to check for valid bits in the positional checks
+	// to protect against various forms of malicious behavior.
+	//
+	// Thus, with the exception of the special cases where it is possible to
+	// definitively determine the agenda is active, allow valid difficulty bits
+	// under both difficulty algorithms while rejecting blocks that satisify
+	// neither here in the positional checks and allow the contextual checks
+	// that happen later to ensure the difficulty bits are valid specifically
+	// for the correct difficulty algorithm as determined by the state of the
+	// blake3 proof of work agenda.
+	// -------------------------------------------------------------------------
+
+	// Ensure the difficulty specified in the block header matches the
+	// calculated difficulty using the algorithm defined in DCP0011 when the
+	// blake3 proof of work agenda is always active.
+	if b.isBlake3PowAgendaForcedActive() {
+		blake3Diff := b.calcNextBlake3Diff(prevNode)
+		if header.Bits != blake3Diff {
+			str := fmt.Sprintf("block difficulty of %d is not the expected "+
+				"value of %d (difficulty algorithm: ASERT)", header.Bits,
+				blake3Diff)
+			return ruleError(ErrUnexpectedDifficulty, str)
+		}
+
+		return nil
+	}
+
+	// A cached anchor point for the difficulty algorithm defined in DCP0011 is
+	// set when the contextual checks have determined that the agenda is
+	// actually active.
+	//
+	// Since contextual checks for previous block(s) may or may not have been
+	// done yet, this can't be relied on entirely, however, it is a nice
+	// optimization when it can be used.
+	//
+	// In practice, once the chain is synced, and the agenda is active, the
+	// anchor will be set and thus this can run immediately.
+	cachedAnchor := b.cachedBlake3WorkDiffAnchor.Load()
+	if cachedAnchor != nil && cachedAnchor.IsAncestorOf(prevNode) {
+		blake3Diff := b.calcNextBlake3DiffFromAnchor(prevNode, cachedAnchor)
+		if header.Bits != blake3Diff {
+			str := fmt.Sprintf("block difficulty of %d is not the expected "+
+				"value of %d (difficulty algorithm: ASERT)", header.Bits,
+				blake3Diff)
+			return ruleError(ErrUnexpectedDifficulty, str)
+		}
+
+		return nil
+	}
+
+	// Only the original difficulty algorithm needs to be checked when it is
+	// impossible for the blake3 proof of work agenda to be active or the block
+	// is not solved for blake3.
+	//
+	// Note that since the case where the blake3 proof of work agenda is always
+	// active is already handled above, the only remaining way for the agenda to
+	// be active is for it to have been voted in which requires voting to be
+	// possible (stake validation height), at least one interval of voting, and
+	// one interval of being locked in.
+	isSolvedBlake3 := func(header *wire.BlockHeader) bool {
+		powHash := header.PowHashV2()
+		err := standalone.CheckProofOfWorkHash(&powHash, header.Bits)
+		return err == nil
+	}
+	rcai := int64(b.chainParams.RuleChangeActivationInterval)
+	svh := b.chainParams.StakeValidationHeight
+	firstPossibleActivationHeight := svh + rcai*2
+	minBlake3BlockVersion := uint32(10)
+	if !isMainNet(b.chainParams) {
+		minBlake3BlockVersion++
+	}
+	isBlake3PossiblyActive := uint32(header.Version) >= minBlake3BlockVersion &&
+		int64(header.Height) >= firstPossibleActivationHeight
+	if !isBlake3PossiblyActive || !isSolvedBlake3(header) {
+		// Ensure the difficulty specified in the block header matches the
+		// calculated difficulty based on the previous block and difficulty
+		// retarget rules for the blake256 hash algorithm used at Decred launch.
+		blake256Diff := b.calcNextBlake256Diff(prevNode, header.Timestamp)
+		if header.Bits != blake256Diff {
+			str := fmt.Sprintf("block difficulty of %d is not the expected "+
+				"value of %d (difficulty algorithm: EMA)", header.Bits,
+				blake256Diff)
+			return ruleError(ErrUnexpectedDifficulty, str)
+		}
+
+		return nil
+	}
+
+	// At this point, the blake3 proof of work agenda might possibly be active
+	// and the block is solved using blake3, so the agenda is very likely
+	// active.
+	//
+	// Calculating the required difficulty once the agenda activates for the
+	// algorithm defined in DCP0011 requires the block prior to the activation
+	// of the agenda as an anchor.  However, as previously discussed, the
+	// additional context needed to definitively determine when the agenda
+	// activated is not available here in the positional checks.
+	//
+	// In light of that, the following logic uses the fact that the agenda could
+	// have only possibly activated at a rule change activation interval to
+	// iterate backwards one interval at a time through all possible candidate
+	// anchors until one of them results in a required difficulty that matches.
+	//
+	// In the case there is a match, the header is assumed to be valid enough to
+	// make it through the positional checks.
+	//
+	// As an additional optimization to avoid a bunch of extra work during the
+	// initial header sync, a candidate anchor that results in a matching
+	// required difficulty is cached and tried first on subsequent descendant
+	// headers since it is very likely to be the correct one.
+	cachedCandidate := b.cachedBlake3WorkDiffCandidateAnchor.Load()
+	if cachedCandidate != nil && cachedCandidate.IsAncestorOf(prevNode) {
+		blake3Diff := b.calcNextBlake3DiffFromAnchor(prevNode, cachedCandidate)
+		if header.Bits == blake3Diff {
+			return nil
+		}
+	}
+
+	// Iterate backwards through all possible anchor candidates which
+	// consist of the final blocks of previous rule change activation
+	// intervals so long as the block also has a version that is at least
+	// the minimum version that is enforced before voting on the agenda
+	// could have even started and the agenda could still possibly be
+	// active.
+	finalNodeHeight := calcWantHeight(svh, rcai, int64(header.Height))
+	candidate := prevNode.Ancestor(finalNodeHeight)
+	for candidate != nil &&
+		uint32(candidate.blockVersion) >= minBlake3BlockVersion &&
+		candidate.height >= firstPossibleActivationHeight-1 {
+
+		blake3Diff := b.calcNextBlake3DiffFromAnchor(prevNode, candidate)
+		if header.Bits == blake3Diff {
+			b.cachedBlake3WorkDiffCandidateAnchor.Store(candidate)
+			return nil
+		}
+		candidate = candidate.RelativeAncestor(rcai)
+	}
+
+	// At this point, none of the possible difficulties for blake3 matched, so
+	// the agenda is very likely not actually active and therefore the only
+	// remaining valid option is the original difficulty algorithm.
+	//
+	// Ensure the difficulty specified in the block header matches the
+	// calculated difficulty based on the previous block and difficulty retarget
+	// rules for the blake256 hash algorithm used at Decred launch.
+	blake256Diff := b.calcNextBlake256Diff(prevNode, header.Timestamp)
+	if header.Bits != blake256Diff {
+		str := fmt.Sprintf("block difficulty of %d is not the expected value "+
+			"of %d (difficulty algorithm: EMA)", header.Bits, blake256Diff)
+		return ruleError(ErrUnexpectedDifficulty, str)
+	}
+
+	return nil
+}
+
 // checkBlockHeaderPositional performs several validation checks on the block
 // header which depend on its position within the block chain and having the
 // headers of all ancestors available.  These checks do not, and must not, rely
@@ -1032,17 +1219,6 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
 	if !fastAdd {
-		// Ensure the difficulty specified in the block header matches
-		// the calculated difficulty based on the previous block and
-		// difficulty retarget rules.
-		expDiff := b.calcNextRequiredDifficulty(prevNode, header.Timestamp)
-		blockDifficulty := header.Bits
-		if blockDifficulty != expDiff {
-			str := fmt.Sprintf("block difficulty of %d is not the "+
-				"expected value of %d", blockDifficulty, expDiff)
-			return ruleError(ErrUnexpectedDifficulty, str)
-		}
-
 		// Ensure the timestamp for the block header is after the
 		// median time of the last several blocks (medianTimeBlocks).
 		medianTime := prevNode.CalcPastMedianTime()
@@ -1062,8 +1238,8 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		// diff activation height has been reached.
 		blockHeight := prevNode.height + 1
 		if b.minTestNetTarget != nil &&
-			expDiff <= standalone.BigToCompact(b.minTestNetTarget) &&
-			(!b.isTestNet3() || blockHeight >= testNet3MaxDiffActivationHeight) {
+			header.Bits <= b.minTestNetDiffBits && (!b.isTestNet3() ||
+			blockHeight >= testNet3MaxDiffActivationHeight) {
 
 			minTime := time.Unix(prevNode.timestamp, 0).Add(time.Minute)
 			if header.Timestamp.Before(minTime) {
@@ -1071,6 +1247,13 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 				str = fmt.Sprintf(str, header.Timestamp, minTime)
 				return ruleError(ErrTimeTooOld, str)
 			}
+		}
+
+		// Ensure the difficulty specified in the block header matches the
+		// calculated difficulty based on the difficulty retarget rules.
+		err := b.checkDifficultyPositional(header, prevNode)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -1201,6 +1384,39 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 	return b.checkBlockDataPositional(block, prevNode, flags)
 }
 
+// checkProofOfWorkContext ensures the proof of work hash is less than the
+// target difficulty indicated by the block header difficulty bits.
+//
+// NOTE: This does not ensure the target difficulty is in the valid min/max
+// range since that is already handled in checkProofOfWorkSanity which is
+// required to have been called prior.
+//
+// The flags modify the behavior of this function as follows:
+//   - BFNoPoWCheck: The check to ensure the block hash is less than the target
+//     difficulty is not performed.
+func (b *BlockChain) checkProofOfWorkContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
+	// Nothing to do when the flag to avoid proof of work checks is set.
+	if flags&BFNoPoWCheck == BFNoPoWCheck {
+		return nil
+	}
+
+	// Choose the proof of work mining algorithm based on the result of the vote
+	// for the blake3 proof of work agenda.
+	isBlake3PowActive, err := b.isBlake3PowAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	powHashFn := header.PowHashV1
+	if isBlake3PowActive {
+		powHashFn = header.PowHashV2
+	}
+
+	// Ensure the proof of work hash is less than the claimed target.
+	powHash := powHashFn()
+	err = standalone.CheckProofOfWorkHash(&powHash, header.Bits)
+	return standaloneToChainRuleError(err)
+}
+
 // checkBlockHeaderContext performs several validation checks on the block
 // header which depend on having the full block data for all of its ancestors
 // available.  This includes checks which depend on tallying the results of
@@ -1215,7 +1431,19 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 // vote will necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//   - BFFastAdd: No check are performed.
+//
+// BFFastAdd:
+//   - The difficulty bits value is not checked to ensure it matches the next
+//     required calculated value
+//   - The stake difficulty is not checked to ensure it matches the next
+//     required calculated value
+//   - The stake version is not check to ensure it matches the expected version
+//   - The pool size commitment is not checked
+//   - The ticket lottery final state is not checked
+//
+// BFNoPoWCheck:
+//   - The check to ensure the block hash is less than the target difficulty is
+//     not performed
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
@@ -1224,8 +1452,32 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 		return nil
 	}
 
+	// Ensure the proof of work bits in the block header is in min/max range and
+	// the proof of work hash is less than the target value described by the
+	// bits.
+	//
+	// Note that the bits have already been validated to ensure they are in the
+	// min/max range in the header sanity checks.
+	err := b.checkProofOfWorkContext(header, prevNode, flags)
+	if err != nil {
+		return err
+	}
+
 	fastAdd := flags&BFFastAdd == BFFastAdd
 	if !fastAdd {
+		// Ensure the difficulty specified in the block header matches the
+		// calculated difficulty based on the previous block and difficulty
+		// retarget rules.
+		expDiff, err := b.calcNextRequiredDifficulty(prevNode, header.Timestamp)
+		if err != nil {
+			return err
+		}
+		if header.Bits != expDiff {
+			str := fmt.Sprintf("block difficulty of %d is not the expected "+
+				"value of %d", header.Bits, expDiff)
+			return ruleError(ErrUnexpectedDifficulty, str)
+		}
+
 		// Ensure the stake difficulty specified in the block header
 		// matches the calculated difficulty based on the previous block
 		// and difficulty retarget rules.

@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1474,7 +1474,7 @@ mempoolLoop:
 	bestHeaderBytes, err := bestHeader.Bytes()
 	if err != nil {
 		str := fmt.Sprintf("failed to serialize header for block %v: %v",
-			bestHeader.BlockHash(), err)
+			best.Hash, err)
 		return nil, makeError(ErrSerializeHeader, str)
 	}
 

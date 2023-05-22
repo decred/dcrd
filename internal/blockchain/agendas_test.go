@@ -1017,6 +1017,176 @@ func TestSubsidySplitDeployment(t *testing.T) {
 	testSubsidySplitDeployment(t, chaincfg.RegNetParams())
 }
 
+// testBlake3PowDeployment ensures the deployment of the blake3 proof of work
+// agenda activates for the provided network parameters.
+func testBlake3PowDeployment(t *testing.T, params *chaincfg.Params) {
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the modified subsidy split agenda as well as the yes vote choice
+	// within it, and, finally, ensure it is always available to vote by
+	// removing the time constraints to prevent test failures when the real
+	// expiration time passes.
+	const voteID = chaincfg.VoteIDBlake3Pow
+	params = cloneParams(params)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
+	removeDeploymentTimeConstraints(deployment)
+
+	// Shorter versions of params for convenience.
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+	ruleChangeActivationInterval := params.RuleChangeActivationInterval
+
+	// blake3AnchorHeight is the height of the expected blake3 anchor block
+	// given the test conditions below.
+	blake3AnchorHeight := int64(stakeValidationHeight +
+		ruleChangeActivationInterval*3 - 1)
+
+	tests := []struct {
+		name        string
+		numNodes    uint32 // num fake nodes to create
+		curActive   bool   // whether agenda active for current block
+		nextActive  bool   // whether agenda active for NEXT block
+		resetAnchor bool   // whether or not to reset cached blake3 anchors
+	}{{
+		name:       "stake validation height",
+		numNodes:   stakeValidationHeight,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "started",
+		numNodes:   ruleChangeActivationInterval,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "lockedin",
+		numNodes:   ruleChangeActivationInterval,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "one before active",
+		numNodes:   ruleChangeActivationInterval - 1,
+		curActive:  false,
+		nextActive: true,
+	}, {
+		name:       "exactly active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:       "one after active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:       "one before next rcai after active",
+		numNodes:   ruleChangeActivationInterval - 2,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:       "exactly next rcai after active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:       "one after next rcai after active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:        "one before 2nd rcai after active with anchor reset",
+		numNodes:    ruleChangeActivationInterval - 2,
+		curActive:   true,
+		nextActive:  true,
+		resetAnchor: true,
+	}, {
+		name:        "exactly 2nd rcai after active with anchor reset",
+		numNodes:    1,
+		curActive:   true,
+		nextActive:  true,
+		resetAnchor: true,
+	}, {
+		name:        "one after 2nd rcai after active with anchor reset",
+		numNodes:    1,
+		curActive:   true,
+		nextActive:  true,
+		resetAnchor: true,
+	}}
+
+	curTimestamp := time.Now()
+	bc := newFakeChain(params)
+	node := bc.bestChain.Tip()
+	for _, test := range tests {
+		for i := uint32(0); i < test.numNodes; i++ {
+			node = newFakeNode(node, int32(deploymentVer), deploymentVer, 0,
+				curTimestamp)
+
+			// Create fake votes that vote yes on the agenda to ensure it is
+			// activated.
+			for j := uint16(0); j < params.TicketsPerBlock; j++ {
+				node.votes = append(node.votes, stake.VoteVersionTuple{
+					Version: deploymentVer,
+					Bits:    yesChoice.Bits | 0x01,
+				})
+			}
+			bc.index.AddNode(node)
+			bc.bestChain.SetTip(node)
+			curTimestamp = curTimestamp.Add(time.Second)
+		}
+
+		// Ensure the agenda reports the expected activation status for the
+		// current block.
+		gotActive, err := bc.isBlake3PowAgendaActive(node.parent)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.curActive {
+			t.Errorf("%s: mismatched current active status - got: %v, want: %v",
+				test.name, gotActive, test.curActive)
+			continue
+		}
+
+		// Ensure the agenda reports the expected activation status for the NEXT
+		// block
+		gotActive, err = bc.IsBlake3PowAgendaActive(&node.hash)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.nextActive {
+			t.Errorf("%s: mismatched next active status - got: %v, want: %v",
+				test.name, gotActive, test.nextActive)
+			continue
+		}
+
+		// Reset the cached blake3 anchor block when requested by the test flag.
+		// This helps ensure the logic that walks backwards to find the anchor
+		// works as intended.
+		if test.resetAnchor {
+			bc.cachedBlake3WorkDiffCandidateAnchor.Store(nil)
+			bc.cachedBlake3WorkDiffAnchor.Store(nil)
+		}
+
+		// Ensure the blake3 anchor block is the expected value once the agenda
+		// is active.
+		if test.nextActive {
+			wantAnchor := bc.bestChain.nodeByHeight(blake3AnchorHeight)
+			gotAnchor := bc.blake3WorkDiffAnchor(node)
+			if gotAnchor != wantAnchor {
+				t.Errorf("%s: mistmatched blake3 anchor - got: %s, want %s",
+					test.name, gotAnchor, wantAnchor)
+				continue
+			}
+		}
+	}
+}
+
+// TestBlake3PowDeployment ensures the deployment of the blake3 proof of work
+// agenda activates as expected.
+func TestBlake3PowDeployment(t *testing.T) {
+	testBlake3PowDeployment(t, chaincfg.MainNetParams())
+	testBlake3PowDeployment(t, chaincfg.RegNetParams())
+}
+
 // testSubsidySplitR2Deployment ensures the deployment of the 1/89/10 subsidy
 // split agenda activates for the provided network parameters.
 func testSubsidySplitR2Deployment(t *testing.T, params *chaincfg.Params) {

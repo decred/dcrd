@@ -839,7 +839,12 @@ func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, 
 	// only the final chunk along with the midstate for the rest when solving
 	// the block.
 	header := &templateNtfn.Template.Block.Header
-	data, err := serializeGetWorkData(header)
+	isBlake3PowActive, err := m.server.isBlake3PowAgendaActive(&header.PrevBlock)
+	if err != nil {
+		log.Errorf("Could not obtain blake3 agenda status: %v", err)
+		return
+	}
+	data, err := serializeGetWorkData(header, isBlake3PowActive)
 	if err != nil {
 		log.Errorf("Failed to serialize data: %v", err)
 		return

@@ -40,6 +40,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/sys v0.5.0
 	golang.org/x/term v0.5.0
+	lukechampine.com/blake3 v1.2.1
 )
 
 require (
@@ -49,7 +50,6 @@ require (
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	lukechampine.com/blake3 v1.2.1 // indirect
 )
 
 replace (

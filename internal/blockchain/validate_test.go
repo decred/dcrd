@@ -2091,6 +2091,198 @@ func TestModifiedSubsidySplitSemantics(t *testing.T) {
 	g.AcceptTipBlock()
 }
 
+// TestBlake3PowSemantics ensures that the various semantics enforced by the
+// blake3 proof of work agenda behave as intended.
+func TestBlake3PowSemantics(t *testing.T) {
+	t.Parallel()
+
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the blake3 proof of work agenda and ensure it is always available to
+	// vote by removing the time constraints to prevent test failures when the
+	// real expiration time passes.
+	const voteID = chaincfg.VoteIDBlake3Pow
+	params = cloneParams(params)
+	deploymentVer, deployment := findDeployment(t, params, voteID)
+	removeDeploymentTimeConstraints(deployment)
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g := newChaingenHarness(t, params)
+
+	// Convenience funcs to determine if a block is solved for the original and
+	// updated hash algorithms.
+	powLimit := params.PowLimit
+	isSolvedV1 := func(header *wire.BlockHeader) bool {
+		powHash := header.PowHashV1()
+		err := standalone.CheckProofOfWork(&powHash, header.Bits, powLimit)
+		return err == nil
+	}
+	isSolvedV2 := func(header *wire.BlockHeader) bool {
+		powHash := header.PowHashV2()
+		err := standalone.CheckProofOfWork(&powHash, header.Bits, powLimit)
+		return err == nil
+	}
+
+	// -------------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	//
+	// Note that this also ensures the proof of work requirements prior to the
+	// activation of the agenda remains unaffected.
+	// -------------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+
+	// -------------------------------------------------------------------------
+	// Create a block that is solved with the new hash algorithm, and unsolved
+	// with the original hash algorithm.
+	//
+	// The block should be rejected because the agenda is NOT active.
+	//
+	// ...
+	//    \-> bsvhbad
+	// -------------------------------------------------------------------------
+
+	tipName := g.TipName()
+	outs := g.OldestCoinbaseOuts()
+	g.UsePowHashAlgo(chaingen.PHABlake3)
+	g.UsePowDiffAlgo(chaingen.PDAAsert, "bfb")
+	bsvhbad := g.NextBlock("bsvhbad", &outs[0], outs[1:])
+	// This test requires the block to be solved for the new hash algorithm and
+	// unsolved for the original one, but since the difficulty is so low in the
+	// tests, the block might still end up being inadvertently solved.  It can't
+	// be checked inside a munger because the block is finalized after the
+	// function returns and those changes could also inadvertently solve the
+	// block.  Thus, just increment the nonce until both conditions are
+	// satisfied and then replace it in the generator's state.
+	{
+		origHash := bsvhbad.BlockHash()
+		for !isSolvedV2(&bsvhbad.Header) || isSolvedV1(&bsvhbad.Header) {
+			bsvhbad.Header.Nonce++
+		}
+		g.UpdateBlockState("bsvhbad", origHash, "bsvhbad", bsvhbad)
+	}
+	g.RejectTipBlock(ErrHighHash)
+
+	// -------------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set to
+	// reach one block prior to the blake3 proof of work agenda becoming
+	// active.
+	//
+	// Note that this also ensures the proof of work hash prior to the
+	// activation of the agenda remains unaffected.
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.UsePowHashAlgo(chaingen.PHABlake256r14)
+	g.UsePowDiffAlgo(chaingen.PDAEma)
+	g.AdvanceFromSVHToActiveAgendas(voteID)
+
+	// replaceVers is a munge function which modifies the provided block by
+	// replacing the block, stake, and vote versions with the blake3 proof of
+	// work deployment version.
+	replaceVers := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(deploymentVer))(b)
+		chaingen.ReplaceStakeVersion(deploymentVer)(b)
+		chaingen.ReplaceVoteVersions(deploymentVer)(b)
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block that is solved with the original hash algorithm and
+	// unsolved with the new one.
+	//
+	// The block should be rejected because the agenda is active.
+	//
+	// ...
+	//    \-> b1bad
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	blake3AnchorName := tipName
+	outs = g.OldestCoinbaseOuts()
+	b1bad := g.NextBlock("b1bad", &outs[0], outs[1:], replaceVers)
+	// This test requires the block to be solved for the original hash
+	// algorithm and unsolved for the updated one, but since the difficulty is
+	// so low in the tests, the block might still end up being inadvertently
+	// solved.  It can't be checked inside a munger because the block is
+	// finalized after the function returns and those changes could also
+	// inadvertently solve the block.  Thus, just increment the nonce until both
+	// conditions are satisfied and then replace it in the generator's state.
+	{
+		origHash := b1bad.BlockHash()
+		for !isSolvedV1(&b1bad.Header) || isSolvedV2(&b1bad.Header) {
+			b1bad.Header.Nonce++
+		}
+		g.UpdateBlockState("b1bad", origHash, "b1bad", b1bad)
+	}
+	g.RejectTipBlock(ErrHighHash)
+
+	// -------------------------------------------------------------------------
+	// Create a block that is mined with the new hash and difficulty algorithms.
+	//
+	// The block should be accepted because the agenda is active.
+	//
+	// ... -> b1
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.UsePowHashAlgo(chaingen.PHABlake3)
+	g.UsePowDiffAlgo(chaingen.PDAAsert, blake3AnchorName)
+	g.NextBlock("b1", &outs[0], outs[1:], replaceVers)
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Create a block that is mined with the new hash and difficulty algorithms
+	// and has a timestamp that is behind schedule in order to cause the
+	// required difficulty of the next block to rise according to the new
+	// difficulty algorithm.
+	//
+	// The block should be accepted because the agenda is active.
+	//
+	// ... -> b1 -> b2
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b2", &outs[0], outs[1:], replaceVers, func(b *wire.MsgBlock) {
+		b.Header.Timestamp = b.Header.Timestamp.Add(-time.Second)
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Create a block that is mined with the new hash algorithm and uses the
+	// version 1 difficulty algorithm.
+	//
+	// The block should be rejected because the agenda is active and the block
+	// claims the wrong required difficulty.
+	//
+	// ... -> b1 -> b2
+	//                \-> b3bad
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	g.UsePowDiffAlgo(chaingen.PDAEma)
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b3bad", &outs[0], outs[1:], replaceVers)
+	g.RejectTipBlock(ErrUnexpectedDifficulty)
+
+	// -------------------------------------------------------------------------
+	// Create a block that is mined with the new hash and difficulty algorithms.
+	//
+	// The block should be accepted because the agenda is active.
+	//
+	// ... -> b1 -> b2 -> b3
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.UsePowDiffAlgo(chaingen.PDAAsert, blake3AnchorName)
+	g.NextBlock("b3", &outs[0], outs[1:], replaceVers)
+	g.AcceptTipBlock()
+}
+
 // TestModifiedSubsidySplitR2Semantics ensures that the various semantics
 // enforced by the modified subsidy split round 2 agenda behave as intended.
 func TestModifiedSubsidySplitR2Semantics(t *testing.T) {
