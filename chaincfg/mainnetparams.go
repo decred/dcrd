@@ -19,6 +19,15 @@ func MainNetParams() *Params {
 	// for the main network.  It is the value 2^224 - 1.
 	mainPowLimit := new(big.Int).Sub(new(big.Int).Lsh(bigOne, 224), bigOne)
 
+	// mainNetPowLimitBits is the main network proof of work limit in its
+	// compact representation.
+	//
+	// Note that due to the limited precision of the compact representation,
+	// this is not exactly equal to the pow limit.  It is the value:
+	//
+	// 0x00000000ffff0000000000000000000000000000000000000000000000000000
+	const mainPowLimitBits = 0x1d00ffff // 486604799
+
 	// genesisBlock defines the genesis block of the block chain which serves as
 	// the public transaction ledger for the main network.
 	//
@@ -87,7 +96,7 @@ func MainNetParams() *Params {
 		GenesisBlock:             &genesisBlock,
 		GenesisHash:              genesisBlock.BlockHash(),
 		PowLimit:                 mainPowLimit,
-		PowLimitBits:             0x1d00ffff,
+		PowLimitBits:             mainPowLimitBits,
 		ReduceMinDifficulty:      false,
 		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
 		GenerateSupported:        false,

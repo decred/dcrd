@@ -30,6 +30,15 @@ func SimNetParams() *Params {
 	// for the simulation test network.  It is the value 2^255 - 1.
 	simNetPowLimit := new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
 
+	// simNetPowLimitBits is the simulation test network proof of work limit in
+	// its compact representation.
+	//
+	// Note that due to the limited precision of the compact representation,
+	// this is not exactly equal to the pow limit.  It is the value:
+	//
+	// 0x7fffff0000000000000000000000000000000000000000000000000000000000
+	const simNetPowLimitBits = 0x207fffff // 545259519
+
 	// genesisBlock defines the genesis block of the block chain which serves
 	// as the public transaction ledger for the simulation test network.
 	genesisBlock := wire.MsgBlock{
@@ -45,7 +54,7 @@ func SimNetParams() *Params {
 			Revocations:  0,
 			Timestamp:    time.Unix(1401292357, 0), // 2009-01-08 20:54:25 -0600 CST
 			PoolSize:     0,
-			Bits:         0x207fffff, // 545259519 [7fffff0000000000000000000000000000000000000000000000000000000000]
+			Bits:         simNetPowLimitBits,
 			SBits:        0,
 			Nonce:        0,
 			StakeVersion: 0,
@@ -87,7 +96,7 @@ func SimNetParams() *Params {
 		GenesisBlock:             &genesisBlock,
 		GenesisHash:              genesisBlock.BlockHash(),
 		PowLimit:                 simNetPowLimit,
-		PowLimitBits:             0x207fffff,
+		PowLimitBits:             simNetPowLimitBits,
 		ReduceMinDifficulty:      false,
 		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
 		GenerateSupported:        true,

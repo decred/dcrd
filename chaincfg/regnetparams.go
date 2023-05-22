@@ -28,6 +28,15 @@ func RegNetParams() *Params {
 	// can have for the regression test network.  It is the value 2^255 - 1.
 	regNetPowLimit := new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
 
+	// regNetPowLimitBits is the regression test network proof of work limit in
+	// its compact representation.
+	//
+	// Note that due to the limited precision of the compact representation,
+	// this is not exactly equal to the pow limit.  It is the value:
+	//
+	// 0x7fffff0000000000000000000000000000000000000000000000000000000000
+	const regNetPowLimitBits = 0x207fffff // 545259519
+
 	// genesisBlock defines the genesis block of the block chain which serves as
 	// the public transaction ledger for the regression test network.
 	genesisBlock := wire.MsgBlock{
@@ -43,7 +52,7 @@ func RegNetParams() *Params {
 			Revocations:  0,
 			Timestamp:    time.Unix(1538524800, 0), // 2018-10-03 00:00:00 +0000 UTC
 			PoolSize:     0,
-			Bits:         0x207fffff, // 545259519 [7fffff0000000000000000000000000000000000000000000000000000000000]
+			Bits:         regNetPowLimitBits,
 			SBits:        0,
 			Nonce:        0,
 			StakeVersion: 0,
@@ -87,7 +96,7 @@ func RegNetParams() *Params {
 		GenesisBlock:             &genesisBlock,
 		GenesisHash:              genesisBlock.BlockHash(),
 		PowLimit:                 regNetPowLimit,
-		PowLimitBits:             0x207fffff,
+		PowLimitBits:             regNetPowLimitBits,
 		ReduceMinDifficulty:      false,
 		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
 		GenerateSupported:        true,

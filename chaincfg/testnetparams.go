@@ -21,6 +21,15 @@ func TestNet3Params() *Params {
 	// can have for the test network.  It is the value 2^232 - 1.
 	testNetPowLimit := new(big.Int).Sub(new(big.Int).Lsh(bigOne, 232), bigOne)
 
+	// testNetPowLimitBits is the test network proof of work limit in its
+	// compact representation.
+	//
+	// Note that due to the limited precision of the compact representation,
+	// this is not exactly equal to the pow limit.  It is the value:
+	//
+	// 0x000000ffff000000000000000000000000000000000000000000000000000000
+	const testNetPowLimitBits = 0x1e00ffff // 503382015
+
 	// genesisBlock defines the genesis block of the block chain which serves as
 	// the public transaction ledger for the test network (version 3).
 	genesisBlock := wire.MsgBlock{
@@ -29,7 +38,7 @@ func TestNet3Params() *Params {
 			PrevBlock: chainhash.Hash{},
 			// MerkleRoot: Calculated below.
 			Timestamp:    time.Unix(1533513600, 0), // 2018-08-06 00:00:00 +0000 UTC
-			Bits:         0x1e00ffff,               // Difficulty 1 [000000ffff000000000000000000000000000000000000000000000000000000]
+			Bits:         testNetPowLimitBits,      // Difficulty 1
 			SBits:        20000000,
 			Nonce:        0x18aea41a,
 			StakeVersion: 6,
@@ -85,7 +94,7 @@ func TestNet3Params() *Params {
 		GenesisBlock:             &genesisBlock,
 		GenesisHash:              genesisBlock.BlockHash(),
 		PowLimit:                 testNetPowLimit,
-		PowLimitBits:             0x1e00ffff,
+		PowLimitBits:             testNetPowLimitBits,
 		ReduceMinDifficulty:      true,
 		MinDiffReductionTime:     time.Minute * 10, // ~99.3% chance to be mined before reduction
 		GenerateSupported:        true,
