@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -182,20 +182,20 @@ func CheckProofOfWorkRange(difficultyBits uint32, powLimit *big.Int) error {
 	return checkProofOfWorkRange(target, powLimit)
 }
 
-// CheckProofOfWork ensures the provided block hash is less than the provided
-// compact target difficulty and that the target difficulty is in min/max range
-// per the provided proof-of-work limit.
-func CheckProofOfWork(blockHash *chainhash.Hash, difficultyBits uint32, powLimit *big.Int) error {
+// CheckProofOfWork ensures the provided hash is less than the provided compact
+// target difficulty and that the target difficulty is in min/max range per the
+// provided proof-of-work limit.
+func CheckProofOfWork(powHash *chainhash.Hash, difficultyBits uint32, powLimit *big.Int) error {
 	target := CompactToBig(difficultyBits)
 	if err := checkProofOfWorkRange(target, powLimit); err != nil {
 		return err
 	}
 
-	// The block hash must be less than the target difficulty.
-	hashNum := HashToBig(blockHash)
+	// The proof of work hash must be less than the target difficulty.
+	hashNum := HashToBig(powHash)
 	if hashNum.Cmp(target) > 0 {
-		str := fmt.Sprintf("block hash of %064x is higher than expected max "+
-			"of %064x", hashNum, target)
+		str := fmt.Sprintf("proof of work hash %064x is higher than "+
+			"expected max of %064x", hashNum, target)
 		return ruleError(ErrHighHash, str)
 	}
 

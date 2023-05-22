@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -217,7 +217,7 @@ func checkProofOfWorkRange(diffBits uint32, powLimit *uint256.Uint256) (uint256.
 	}
 	if overflows {
 		str := fmt.Sprintf("target difficulty bits %08x is higher than the "+
-			"max limit %x", diffBits, powLimit)
+			"max limit %064x", diffBits, powLimit)
 		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
 	}
 	if target.IsZero() {
@@ -227,7 +227,7 @@ func checkProofOfWorkRange(diffBits uint32, powLimit *uint256.Uint256) (uint256.
 
 	// The target difficulty must not exceed the maximum allowed.
 	if target.Gt(powLimit) {
-		str := fmt.Sprintf("target difficulty of %x is higher than max of %x",
+		str := fmt.Sprintf("target difficulty %064x is higher than max %064x",
 			target, powLimit)
 		return uint256.Uint256{}, ruleError(ErrUnexpectedDifficulty, str)
 	}
@@ -243,20 +243,20 @@ func CheckProofOfWorkRange(diffBits uint32, powLimit *uint256.Uint256) error {
 	return err
 }
 
-// CheckProofOfWork ensures the provided block hash is less than the target
-// difficulty represented by given header bits and that said difficulty is in
-// min/max range per the provided proof-of-work limit.
-func CheckProofOfWork(blockHash *chainhash.Hash, diffBits uint32, powLimit *uint256.Uint256) error {
+// CheckProofOfWork ensures the provided hash is less than the target difficulty
+// represented by given header bits and that said difficulty is in min/max range
+// per the provided proof-of-work limit.
+func CheckProofOfWork(powHash *chainhash.Hash, diffBits uint32, powLimit *uint256.Uint256) error {
 	target, err := checkProofOfWorkRange(diffBits, powLimit)
 	if err != nil {
 		return err
 	}
 
 	// The block hash must be less than the target difficulty.
-	hashNum := HashToUint256(blockHash)
+	hashNum := HashToUint256(powHash)
 	if hashNum.Gt(&target) {
-		str := fmt.Sprintf("block hash of %x is higher than expected max of %x",
-			hashNum, target)
+		str := fmt.Sprintf("proof of work hash %064x is higher than expected "+
+			"max of %064x", hashNum, target)
 		return ruleError(ErrHighHash, str)
 	}
 

@@ -3854,9 +3854,10 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 		return false, rpcInvalidError("Invalid block header: %v", err)
 	}
 
-	// Ensure the submitted block hash is less than the target difficulty.
-	blockHash := submittedHeader.BlockHash()
-	err = standalone.CheckProofOfWork(&blockHash, submittedHeader.Bits,
+	// Ensure the submitted proof of work hash is less than the target
+	// difficulty.
+	powHash := submittedHeader.PowHashV1()
+	err = standalone.CheckProofOfWork(&powHash, submittedHeader.Bits,
 		s.cfg.ChainParams.PowLimit)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error, so
@@ -3916,8 +3917,13 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	}
 
 	// The block was accepted.
-	log.Infof("Block submitted via getwork accepted: %s (height %d)",
-		block.Hash(), msgBlock.Header.Height)
+	var powHashStr string
+	blockHash := block.Hash()
+	if *blockHash != powHash {
+		powHashStr = ", pow hash " + powHash.String()
+	}
+	log.Infof("Block submitted via getwork accepted: %s (height %d%s)",
+		blockHash, msgBlock.Header.Height, powHashStr)
 	return true, nil
 }
 

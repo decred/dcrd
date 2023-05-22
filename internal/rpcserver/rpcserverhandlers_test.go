@@ -5831,7 +5831,7 @@ func TestHandleGetWork(t *testing.T) {
 				// Create an orphan block by mutating the previous block field
 				// and solving the block.
 				isSolved := func(header *wire.BlockHeader) bool {
-					powHash := header.BlockHash()
+					powHash := header.PowHashV1()
 					err := standalone.CheckProofOfWork(&powHash, header.Bits,
 						mockPowLimitBig)
 					return err == nil

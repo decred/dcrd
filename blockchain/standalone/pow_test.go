@@ -278,24 +278,23 @@ func TestCheckProofOfWorkRange(t *testing.T) {
 	}
 }
 
-// TestCheckProofOfWorkRange ensures hashes and target difficulties that are
-// outside of the acceptable ranges are detected as an error and those inside
-// are not.
+// TestCheckProofOfWork ensures hashes and target difficulties that are outside
+// of the acceptable ranges are detected as an error and those inside are not.
 func TestCheckProofOfWork(t *testing.T) {
 	tests := []struct {
 		name     string // test description
-		hash     string // block hash to test
+		hash     string // proof of work hash to test
 		bits     uint32 // compact target difficulty bits to test
 		powLimit string // proof of work limit
 		err      error  // expected error
 	}{{
-		name:     "mainnet block 1 hash",
+		name:     "mainnet block 1 pow hash",
 		hash:     "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9",
 		bits:     0x1b01ffff,
 		powLimit: mockMainNetPowLimit(),
 		err:      nil,
 	}, {
-		name:     "mainnet block 288 hash",
+		name:     "mainnet block 288 pow hash",
 		hash:     "000000000000e0ab546b8fc19f6d94054d47ffa5fe79e17611d170662c8b702b",
 		bits:     0x1b01330e,
 		powLimit: mockMainNetPowLimit(),

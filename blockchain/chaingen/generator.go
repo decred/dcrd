@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1508,7 +1508,7 @@ func compactToBig(compact uint32) *big.Int {
 // state.
 func (g *Generator) IsSolved(header *wire.BlockHeader) bool {
 	targetDifficulty := compactToBig(header.Bits)
-	hash := header.BlockHash()
+	hash := header.PowHashV1()
 	return hashToBig(&hash).Cmp(targetDifficulty) <= 0
 }
 
@@ -1542,10 +1542,8 @@ func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 				return
 			default:
 				hdr.Nonce = i
-				hash := hdr.BlockHash()
-				if hashToBig(&hash).Cmp(
-					targetDifficulty) <= 0 {
-
+				hash := hdr.PowHashV1()
+				if hashToBig(&hash).Cmp(targetDifficulty) <= 0 {
 					results <- sbResult{true, i}
 					return
 				}

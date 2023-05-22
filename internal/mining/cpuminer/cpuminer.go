@@ -17,6 +17,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mining"
@@ -222,14 +223,14 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	}
 
 	// The block was accepted.
-	coinbaseTxOuts := block.MsgBlock().Transactions[0].TxOut
-	coinbaseTxGenerated := int64(0)
-	for _, out := range coinbaseTxOuts {
-		coinbaseTxGenerated += out.Value
+	blockHash := block.Hash()
+	var powHashStr string
+	powHash := block.MsgBlock().PowHashV1()
+	if powHash != *blockHash {
+		powHashStr = ", pow hash " + powHash.String()
 	}
-	log.Infof("Block submitted via CPU miner accepted (hash %s, height %v, "+
-		"amount %v)", block.Hash(), block.Height(),
-		dcrutil.Amount(coinbaseTxGenerated))
+	log.Infof("Block submitted via CPU miner accepted (hash %s, height %d%s)",
+		blockHash, block.Height(), powHashStr)
 	return true
 }
 
@@ -327,7 +328,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader, sta
 			// compute the block header hash.
 			const nonceSerOffset = 140
 			littleEndian.PutUint32(hdrBytes[nonceSerOffset:], nonce)
-			hash := chainhash.HashH(hdrBytes)
+			hash := chainhash.Hash(blake256.Sum256(hdrBytes))
 			hashesCompleted++
 
 			// The block is solved when the new block hash is less than the

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -357,6 +357,12 @@ func (msg *MsgBlock) MaxPayloadLength(pver uint32) uint32 {
 // BlockHash computes the block identifier hash for this block.
 func (msg *MsgBlock) BlockHash() chainhash.Hash {
 	return msg.Header.BlockHash()
+}
+
+// PowHashV1 calculates and returns the version 1 proof of work hash for the
+// block.
+func (msg *MsgBlock) PowHashV1() chainhash.Hash {
+	return msg.Header.PowHashV1()
 }
 
 // TxHashes returns a slice of hashes of all of transactions in this block.

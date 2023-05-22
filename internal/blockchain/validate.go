@@ -708,9 +708,9 @@ func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags Behavio
 	//
 	// - The target difficulty must be larger than zero.
 	// - The target difficulty must be less than the maximum allowed.
-	// - The block hash must be less than the claimed target.
-	blockHash := header.BlockHash()
-	err := standalone.CheckProofOfWork(&blockHash, header.Bits, powLimit)
+	// - The proof of work hash must be less than the claimed target.
+	powHash := header.PowHashV1()
+	err := standalone.CheckProofOfWork(&powHash, header.Bits, powLimit)
 	return standaloneToChainRuleError(err)
 }
 

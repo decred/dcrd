@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2018-2022 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -440,7 +440,7 @@ func compareHashesAsUint256LE(a, b *chainhash.Hash) int {
 // 1. More total cumulative work
 // 2. Having block data available
 // 3. Receiving data earlier
-// 4. Hash that represents more work (smaller value as a little-endian uint256)
+// 4. Hash that represents a smaller value as a little-endian uint256
 //
 // This function MUST be called with the block index lock held (for reads).
 func betterCandidate(a, b *blockNode) bool {
@@ -479,9 +479,17 @@ func betterCandidate(a, b *blockNode) bool {
 	// can be the same when the block data for a given header is not yet known
 	// as well.
 	//
-	// Note that it is more difficult to find hashes with more leading zeros
-	// when treated as a little-endian uint256, so smaller values represent more
-	// work and are therefore better candidates.
+	// Note that this logic was originally based on the block hash and proof of
+	// work hash being the same and the fact that it is more difficult to find
+	// hashes with more leading zeros when treated as a little-endian uint256,
+	// meaning that smaller values represent more work and were therefore
+	// considered better candidates.
+	//
+	// While the initial motivation no longer applies now that the block hash
+	// and proof of work hash are independent, it is still necessary to break
+	// the tie to have a stable order and continuing to consider hashes with
+	// smaller values when treated as a little-endian uint256 as better
+	// candidates serves that purpose well.
 	return compareHashesAsUint256LE(&a.hash, &b.hash) < 0
 }
 
@@ -625,14 +633,26 @@ func (bi *blockIndex) HaveBlock(hash *chainhash.Hash) bool {
 // as a key in the block index.
 func shortBlockKey(hash *chainhash.Hash) uint32 {
 	// Use the first bytes of the hash directly since it is the result of a hash
-	// function that produces a uniformly-random distribution.  It is also worth
-	// noting that the mining process reduces entropy by zeroing the bits at the
-	// other end of the array, but there would need to be effectively impossible
-	// to achieve hash rates exceeding ~2^215.77 hashes/sec (aka ~89.8 peta
-	// yotta yotta hashes/sec) in order to start zeroing out the bits used here.
-	// Not only is that impossible for all intents and purposes, the only effect
-	// would be reducing overall memory savings due to increased collisions
-	// among the shortened keys.
+	// function that produces a uniformly-random distribution.
+	//
+	// It is also worth noting that the choice of bytes was made based on the
+	// possibility of the block hash and proof of work hash being the same and
+	// considering that the mining process reduces entropy by zeroing the bits
+	// at the other end of the array.
+	//
+	// Since the block hash and proof of work hash are independent, the entropy
+	// concern may or may not be relevant dependening on whether or not the same
+	// hash function is used (or was ever used historically in the case of hash
+	// algorithm changes), but this choice of bytes covers both possibilities
+	// without any notable downside.
+	//
+	// For the case when the block hash and proof of work hash are the same,
+	// there would need to be effectively impossible to achieve hash rates
+	// exceeding ~2^215.77 hashes/sec (aka ~89.8 peta yotta yotta hashes/sec) in
+	// order to start zeroing out the bits used here.  Not only is that
+	// impossible for all intents and purposes, the only effect would be
+	// reducing overall memory savings due to increased collisions among the
+	// shortened keys.
 	return binary.BigEndian.Uint32(hash[0:4])
 }
 

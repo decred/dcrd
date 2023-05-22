@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -89,14 +89,19 @@ const blockHeaderLen = 180
 
 // BlockHash computes the block identifier hash for the given block header.
 func (h *BlockHeader) BlockHash() chainhash.Hash {
-	// Encode the header and hash256 everything prior to the number of
-	// transactions.  Ignore the error returns since there is no way the
-	// encode could fail except being out of memory which would cause a
-	// run-time panic.
+	// Encode the header and hash everything prior to the number of
+	// transactions.  Ignore the error returns since there is no way the encode
+	// could fail except being out of memory which would cause a run-time panic.
 	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
 	_ = writeBlockHeader(buf, 0, h)
 
 	return chainhash.HashH(buf.Bytes())
+}
+
+// PowHashV1 calculates and returns the version 1 proof of work hash for the
+// block header.
+func (h *BlockHeader) PowHashV1() chainhash.Hash {
+	return h.BlockHash()
 }
 
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.

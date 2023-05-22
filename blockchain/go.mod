@@ -22,4 +22,7 @@ require (
 	github.com/decred/slog v1.2.0 // indirect
 )
 
-replace github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
+replace (
+	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
+	github.com/decred/dcrd/wire => ../wire
+)
