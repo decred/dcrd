@@ -182,15 +182,9 @@ func CheckProofOfWorkRange(difficultyBits uint32, powLimit *big.Int) error {
 	return checkProofOfWorkRange(target, powLimit)
 }
 
-// CheckProofOfWork ensures the provided hash is less than the provided compact
-// target difficulty and that the target difficulty is in min/max range per the
-// provided proof-of-work limit.
-func CheckProofOfWork(powHash *chainhash.Hash, difficultyBits uint32, powLimit *big.Int) error {
-	target := CompactToBig(difficultyBits)
-	if err := checkProofOfWorkRange(target, powLimit); err != nil {
-		return err
-	}
-
+// checkProofOfWorkHash ensures the provided hash is less than the provided
+// target difficulty.
+func checkProofOfWorkHash(powHash *chainhash.Hash, target *big.Int) error {
 	// The proof of work hash must be less than the target difficulty.
 	hashNum := HashToBig(powHash)
 	if hashNum.Cmp(target) > 0 {
@@ -200,4 +194,27 @@ func CheckProofOfWork(powHash *chainhash.Hash, difficultyBits uint32, powLimit *
 	}
 
 	return nil
+}
+
+// CheckProofOfWorkHash ensures the provided hash is less than the provided
+// compact target difficulty.
+func CheckProofOfWorkHash(powHash *chainhash.Hash, difficultyBits uint32) error {
+	target := CompactToBig(difficultyBits)
+	return checkProofOfWorkHash(powHash, target)
+}
+
+// CheckProofOfWork ensures the provided hash is less than the provided compact
+// target difficulty and that the target difficulty is in min/max range per the
+// provided proof-of-work limit.
+//
+// This is semantically equivalent to and slightly more efficient than calling
+// CheckProofOfWorkRange followed by CheckProofOfWorkHash.
+func CheckProofOfWork(powHash *chainhash.Hash, difficultyBits uint32, powLimit *big.Int) error {
+	target := CompactToBig(difficultyBits)
+	if err := checkProofOfWorkRange(target, powLimit); err != nil {
+		return err
+	}
+
+	// The proof of work hash must be less than the target difficulty.
+	return checkProofOfWorkHash(powHash, target)
 }
