@@ -1503,8 +1503,10 @@ func compactToBig(compact uint32) *big.Int {
 }
 
 // IsSolved returns whether or not the header hashes to a value that is less
-// than or equal to the target difficulty as specified by its bits field.
-func IsSolved(header *wire.BlockHeader) bool {
+// than or equal to the target difficulty as specified by its bits field while
+// respecting the proof of work hashing algorithm associated with the generator
+// state.
+func (g *Generator) IsSolved(header *wire.BlockHeader) bool {
 	targetDifficulty := compactToBig(header.Bits)
 	hash := header.BlockHash()
 	return hashToBig(&hash).Cmp(targetDifficulty) <= 0
@@ -1518,7 +1520,7 @@ func IsSolved(header *wire.BlockHeader) bool {
 // NOTE: This function will never solve blocks with a nonce of 0.  This is done
 // so the 'NextBlock' function can properly detect when a nonce was modified by
 // a munge function.
-func solveBlock(header *wire.BlockHeader) bool {
+func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 	// sbResult is used by the solver goroutines to send results.
 	type sbResult struct {
 		found bool
@@ -2441,7 +2443,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 
 	// Only solve the block if the nonce wasn't manually changed by a munge
 	// function.
-	if block.Header.Nonce == curNonce && !solveBlock(&block.Header) {
+	if block.Header.Nonce == curNonce && !g.solveBlock(&block.Header) {
 		panic(fmt.Sprintf("unable to solve block at height %d",
 			block.Header.Height))
 	}

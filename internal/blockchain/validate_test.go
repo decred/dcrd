@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -455,7 +455,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	// generator's state.
 	{
 		origHash := bfbunsolved.BlockHash()
-		for chaingen.IsSolved(&bfbunsolved.Header) {
+		for g.IsSolved(&bfbunsolved.Header) {
 			bfbunsolved.Header.Nonce++
 		}
 		g.UpdateBlockState("bfbunsolved", origHash, "bfbunsolved", bfbunsolved)

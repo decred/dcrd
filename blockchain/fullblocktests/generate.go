@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1689,7 +1689,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// it's not solved and then replace it in the generator's state.
 	{
 		origHash := bmf3.BlockHash()
-		for chaingen.IsSolved(&bmf3.Header) {
+		for g.IsSolved(&bmf3.Header) {
 			bmf3.Header.Nonce++
 		}
 		g.UpdateBlockState("bmf3", origHash, "bmf3", bmf3)
