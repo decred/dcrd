@@ -5,8 +5,11 @@
 package standalone
 
 import (
+	"encoding/json"
 	"errors"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -391,5 +394,144 @@ func TestCheckProofOfWork(t *testing.T) {
 				test.err)
 			continue
 		}
+	}
+}
+
+// TestCalcASERTDiff ensures the proof-of-work target difficulty calculation for
+// the algorithm defined by DCP0011 works as expected by using the reference
+// test vectors.
+func TestCalcASERTDiff(t *testing.T) {
+	t.Parallel()
+
+	// Read and parse the reference test vectors.
+	f, err := os.ReadFile(filepath.Join("testdata", "asert_test_vectors.json"))
+	if err != nil {
+		t.Fatalf("failed to read test vectors: %v", err)
+	}
+	var testData struct {
+		Comments []string `json:"comments"`
+		Params   map[string]struct {
+			PowLimit           string `json:"powLimit"`
+			PowLimitBits       uint32 `json:"powLimitBits"`
+			TargetSecsPerBlock int64  `json:"targetSecsPerBlock"`
+			HalfLifeSecs       int64  `json:"halfLifeSecs"`
+		} `json:"params"`
+		Scenarios []struct {
+			Desc          string `json:"description"`
+			Params        string `json:"params"`
+			StartDiffBits uint32 `json:"startDiffBits"`
+			StartHeight   int64  `json:"startHeight"`
+			StartTime     int64  `json:"startTime"`
+			Tests         []struct {
+				Height           uint64 `json:"height"`
+				Timestamp        int64  `json:"timestamp"`
+				ExpectedDiffBits uint32 `json:"expectedDiffBits"`
+			} `json:"tests"`
+		} `json:"scenarios"`
+	}
+	err = json.Unmarshal(f, &testData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Basic sanity check to ensure scenarios parsed.
+	if len(testData.Scenarios) == 0 {
+		t.Fatal("No test scenarios found")
+	}
+
+	for _, scenario := range testData.Scenarios {
+		// Basic sanity check to ensure test cases parsed.
+		if len(scenario.Tests) == 0 {
+			t.Fatalf("%q: No test cases found", scenario.Desc)
+		}
+
+		// Lookup the associated network parameters and parse the proof of work
+		// limit hexadecimal to a uint256.
+		paramsKey := scenario.Params
+		params, ok := testData.Params[paramsKey]
+		if !ok {
+			t.Errorf("%q: bad network params key %q", scenario.Desc, paramsKey)
+			continue
+		}
+		powLimit, ok := new(big.Int).SetString(params.PowLimit, 16)
+		if !ok {
+			t.Errorf("%q: malformed pow limit %q", paramsKey, params.PowLimit)
+			continue
+		}
+
+		for _, test := range scenario.Tests {
+			// Calculate the time and height deltas from the test data.
+			heightDelta := int64(test.Height - uint64(scenario.StartHeight))
+			timeDelta := test.Timestamp - scenario.StartTime
+
+			// Ensure the calculated difficulty matches the expected result.
+			gotDiff := CalcASERTDiff(scenario.StartDiffBits, powLimit,
+				params.TargetSecsPerBlock, timeDelta, heightDelta,
+				params.HalfLifeSecs)
+			if gotDiff != test.ExpectedDiffBits {
+				t.Errorf("%q@height %d: did not get expected difficulty bits "+
+					"-- got %08x, want %08x", scenario.Desc, test.Height,
+					gotDiff, test.ExpectedDiffBits)
+				continue
+			}
+		}
+	}
+}
+
+// TestCalcASERTDiffPanics ensures the proof-of-work target difficulty
+// calculation for the algorithm defined by DCP0011 panics when called
+// improperly.
+func TestCalcASERTDiffPanics(t *testing.T) {
+	testPanic := func(fn func()) (paniced bool) {
+		// Setup a defer to catch the expected panic and update the return
+		// variable.
+		defer func() {
+			if err := recover(); err != nil {
+				paniced = true
+			}
+		}()
+
+		fn()
+		return false
+	}
+
+	// Parameters used in the tests below.
+	const (
+		startDiffBits      = 0x1b00a5a6
+		powLimitBits       = 0x1d00ffff
+		targetSecsPerBlock = 300
+		halfLifeSecs       = 43200
+	)
+	powLimit := CompactToBig(powLimitBits)
+
+	// Ensure attempting to calculate a target difficulty with an invalid
+	// starting target difficulty of 0 panics.
+	paniced := testPanic(func() {
+		CalcASERTDiff(0, powLimit, targetSecsPerBlock, 0, 0, halfLifeSecs)
+	})
+	if !paniced {
+		t.Fatal("CalcASERTDiff did not panic with zero starting difficulty")
+	}
+
+	// Ensure attempting to calculate a target difficulty with a starting target
+	// difficulty greater than the proof of work limit panics.
+	paniced = testPanic(func() {
+		invalidBits := uint32(powLimitBits + 1)
+		CalcASERTDiff(invalidBits, powLimit, targetSecsPerBlock, 0, 0,
+			halfLifeSecs)
+	})
+	if !paniced {
+		t.Fatal("CalcASERTDiff did not panic with a starting difficulty " +
+			"greater than the proof of work limit")
+	}
+
+	// Ensure attempting to calculate a target difficulty with a negative height
+	// delta panics.
+	paniced = testPanic(func() {
+		CalcASERTDiff(startDiffBits, powLimit, targetSecsPerBlock, 0, -1,
+			halfLifeSecs)
+	})
+	if !paniced {
+		t.Fatal("CalcASERTDiff did not panic with a negative height delta")
 	}
 }

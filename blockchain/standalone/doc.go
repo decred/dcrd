@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -34,6 +34,7 @@ The provided functions fall into the following categories:
   - Calculating work values based on the compact target difficulty
   - Checking a block hash satisfies a target difficulty and that target
     difficulty is within a valid range
+  - Calculating required target difficulties using the ASERT algorithm
 
 # Merkle root calculation
 

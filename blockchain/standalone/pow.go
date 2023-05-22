@@ -218,3 +218,187 @@ func CheckProofOfWork(powHash *chainhash.Hash, difficultyBits uint32, powLimit *
 	// The proof of work hash must be less than the target difficulty.
 	return checkProofOfWorkHash(powHash, target)
 }
+
+// CalcASERTDiff calculates an absolutely scheduled exponentially weighted
+// target difficulty for the given set of parameters using the algorithm defined
+// in DCP0011.
+//
+// The Absolutely Scheduled Exponentially weighted Rising Targets (ASERT)
+// algorithm defines an ideal schedule for block issuance and calculates the
+// difficulty based on how far the most recent block's timestamp is ahead or
+// behind that schedule.
+//
+// The target difficulty is set exponentially such that it is doubled or halved
+// for every multiple of the half life the most recent block is ahead or behind
+// the ideal schedule.
+//
+// The starting difficulty bits parameter is the initial target difficulty all
+// calculations use as a reference.  This value is defined on a per-chain basis.
+// It must be non-zero and less than or equal to the provided proof of work
+// limit or the function will panic.
+//
+// The time delta is the number of seconds that have elapsed between the most
+// recent block and an initial reference timestamp.
+//
+// The height delta is the number of blocks between the most recent block height
+// and an initial reference height.  It must be non-negative or the function
+// will panic.
+//
+// NOTE: This only performs the primary target difficulty calculation and does
+// not include any additional special network rules such as enforcing a maximum
+// allowed test network difficulty.  It is up to the caller to impose any such
+// additional restrictions.
+//
+// This function is safe for concurrent access.
+func CalcASERTDiff(startDiffBits uint32, powLimit *big.Int, targetSecsPerBlock,
+	timeDelta, heightDelta, halfLife int64) uint32 {
+
+	// Ensure parameter assumptions are not violated.
+	//
+	// 1. The starting target difficulty must be in the range [1, powLimit]
+	// 2. The height to calculate the difficulty for must come after the height
+	//    of the reference block
+	startDiff := CompactToBig(startDiffBits)
+	if startDiff.Sign() <= 0 || startDiff.Cmp(powLimit) > 0 {
+		panicf("starting difficulty %064x is not in the valid range [1, %064x]",
+			startDiff, powLimit)
+	}
+	if heightDelta < 0 {
+		panicf("provided height delta %d is negative", heightDelta)
+	}
+
+	// Calculate the target difficulty by multiplying the provided starting
+	// target difficulty by an exponential scaling factor that is determined
+	// based on how far ahead or behind the ideal schedule the given time delta
+	// is along with a half life that acts as a smoothing factor.
+	//
+	// Per DCP0011, the goal equation is:
+	//
+	//   nextDiff = min(max(startDiff * 2^((Δt - Δh*Ib)/halfLife), 1), powLimit)
+	//
+	// However, in order to avoid the need to perform floating point math which
+	// is problematic across languages due to uncertainty in floating point math
+	// libs, the formula is implemented using a combination of fixed-point
+	// integer arithmetic and a cubic polynomial approximation to the 2^x term.
+	//
+	// In particular, the goal cubic polynomial approximation over the interval
+	// 0 <= x < 1 is:
+	//
+	//   2^x ~= 1 + 0.695502049712533x + 0.2262697964x^2 + 0.0782318x^3
+	//
+	// This approximation provides an absolute error margin < 0.013% over the
+	// aforementioned interval of [0,1) which is well under the 0.1% error
+	// margin needed for good results.  Note that since the input domain is not
+	// constrained to that interval, the exponent is decomposed into an integer
+	// part, n, and a fractional part, f, such that f is in the desired range of
+	// [0,1).  By exponent rules 2^(n + f) = 2^n * 2^f, so the strategy is to
+	// calculate the result by applying the cubic polynomial approximation to
+	// the fractional part and using the fact that multiplying by 2^n is
+	// equivalent to an arithmetic left or right shift depending on the sign.
+	//
+	// In other words, start by calculating the exponent (x) using 64.16 fixed
+	// point and decompose it into integer (n) and fractional (f) parts as
+	// follows:
+	//
+	//       2^16 * (Δt - Δh*Ib)   (Δt - Δh*Ib) << 16
+	//   x = ------------------- = ------------------
+	//            halfLife              halfLife
+	//
+	//        x
+	//   n = ---- = x >> 16
+	//       2^16
+	//
+	//   f = x (mod 2^16) = x & 0xffff
+	//
+	// The use of 64.16 fixed point for the exponent means both the integer (n)
+	// and fractional (f) parts have an additional factor of 2^16.  Since the
+	// fractional part of the exponent is cubed in the polynomial approximation
+	// and (2^16)^3 = 2^48, the addition step in the approximation is internally
+	// performed using 16.48 fixed point to compensate.
+	//
+	// In other words, the fixed point formulation of the goal cubic polynomial
+	// approximation for the fractional part is:
+	//
+	//                 195766423245049*f + 971821376*f^2 + 5127*f^3 + 2^47
+	//   2^f ~= 2^16 + ---------------------------------------------------
+	//                                          2^48
+	//
+	// Finally, the final target difficulty is calculated using x.16 fixed point
+	// and then clamped to the valid range as follows:
+	//
+	//              startDiff * 2^f * 2^n
+	//   nextDiff = ---------------------
+	//                       2^16
+	//
+	//   nextDiff = min(max(nextDiff, 1), powLimit)
+	//
+	// NOTE: The division by the half life uses Quo instead of Div because it
+	// must be truncated division (which is truncated towards zero as Quo
+	// implements) as opposed to the Euclidean division that Div implements.
+	idealTimeDelta := heightDelta * targetSecsPerBlock
+	exponentBig := big.NewInt(timeDelta - idealTimeDelta)
+	exponentBig.Lsh(exponentBig, 16)
+	exponentBig.Quo(exponentBig, big.NewInt(halfLife))
+
+	// Decompose the exponent into integer and fractional parts.  Since the
+	// exponent is using 64.16 fixed point, the bottom 16 bits are the
+	// fractional part and the integer part is the exponent arithmetic right
+	// shifted by 16.
+	frac64 := uint64(exponentBig.Int64() & 0xffff)
+	shifts := exponentBig.Rsh(exponentBig, 16).Int64()
+
+	// Calculate 2^16 * 2^(fractional part) of the exponent.
+	//
+	// Note that a full unsigned 64-bit type is required to avoid overflow in
+	// the internal 16.48 fixed point calculation.  Also, the overall result is
+	// guaranteed to be positive and a maximum of 17 bits, so it is safe to cast
+	// to a uint32.
+	const (
+		polyCoeff1 uint64 = 195766423245049 // ceil(0.695502049712533 * 2^48)
+		polyCoeff2 uint64 = 971821376       // ceil(0.2262697964 * 2^32)
+		polyCoeff3 uint64 = 5127            // ceil(0.0782318 * 2^16)
+	)
+	fracFactor := uint32(1<<16 + (polyCoeff1*frac64+
+		polyCoeff2*frac64*frac64+
+		polyCoeff3*frac64*frac64*frac64+
+		1<<47)>>48)
+
+	// Calculate the target difficulty per the previous discussion:
+	//
+	//              startDiff * 2^f * 2^n
+	//   nextDiff = ---------------------
+	//                       2^16
+	//
+	// Note that by exponent rules 2^n / 2^16 = 2^(n - 16).  This takes
+	// advantage of that property to reduce the multiplication by 2^n and
+	// division by 2^16 to a single shift.
+	//
+	// This approach also has the benefit of lowering the maximum magnitude
+	// relative to what would be the case when first left shifting by a larger
+	// value and then right shifting after.  Since arbitrary precision integers
+	// are used for this implementation, it doesn't make any difference from a
+	// correctness standpoint, however, it does potentially lower the amount of
+	// memory for the arbitrary precision type and can be used to help prevent
+	// overflow in implementations that use fixed precision types.
+	nextDiff := new(big.Int).Set(startDiff)
+	nextDiff.Mul(nextDiff, big.NewInt(int64(fracFactor)))
+	shifts -= 16
+	if shifts >= 0 {
+		nextDiff.Lsh(nextDiff, uint(shifts))
+	} else {
+		nextDiff.Rsh(nextDiff, uint(-shifts))
+	}
+
+	// Limit the target difficulty to the valid hardest and easiest values.
+	// The valid range is [1, powLimit].
+	if nextDiff.Sign() == 0 {
+		// The hardest valid target difficulty is 1 since it would be impossible
+		// to find a non-negative integer less than 0.
+		nextDiff.SetInt64(1)
+	} else if nextDiff.Cmp(powLimit) > 0 {
+		nextDiff.Set(powLimit)
+	}
+
+	// Convert the difficulty to the compact representation and return it.
+	return BigToCompact(nextDiff)
+}

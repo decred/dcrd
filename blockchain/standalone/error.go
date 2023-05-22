@@ -1,8 +1,17 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package standalone
+
+import "fmt"
+
+// panicf is a convenience function that formats according to the given format
+// specifier and arguments and panics with it.
+func panicf(format string, args ...interface{}) {
+	str := fmt.Sprintf(format, args...)
+	panic(str)
+}
 
 // ErrorKind identifies a kind of error.  It has full support for errors.Is and
 // errors.As, so the caller can directly check against an error kind when
