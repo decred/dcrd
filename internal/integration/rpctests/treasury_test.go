@@ -205,10 +205,11 @@ func assertTBaseAmount(t *testing.T, node *rpcclient.Client, amount int64) {
 // TestTreasury performs a test of treasury functionality across the entire
 // dcrd stack.
 func TestTreasury(t *testing.T) {
-	// TODO: Remove once the RPC test framework is updated to work with the
-	// latest simnet.
+	// TODO: Remove this comment and the nolint line below once the RPC
+	// test framework is updated to work with the latest simnet.
 	return
 
+	// nolint:govet
 	var handlers *rpcclient.NotificationHandlers
 	net := chaincfg.SimNetParams()
 
