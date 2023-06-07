@@ -93,21 +93,27 @@ func MainNetParams() *Params {
 		},
 
 		// Chain parameters
-		GenesisBlock:             &genesisBlock,
-		GenesisHash:              genesisBlock.BlockHash(),
-		PowLimit:                 mainPowLimit,
-		PowLimitBits:             mainPowLimitBits,
-		ReduceMinDifficulty:      false,
-		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
-		GenerateSupported:        false,
-		MaximumBlockSizes:        []int{393216},
-		MaxTxSize:                393216,
-		TargetTimePerBlock:       time.Minute * 5,
+		GenesisBlock:         &genesisBlock,
+		GenesisHash:          genesisBlock.BlockHash(),
+		PowLimit:             mainPowLimit,
+		PowLimitBits:         mainPowLimitBits,
+		ReduceMinDifficulty:  false,
+		MinDiffReductionTime: 0, // Does not apply since ReduceMinDifficulty false
+		GenerateSupported:    false,
+		MaximumBlockSizes:    []int{393216},
+		MaxTxSize:            393216,
+		TargetTimePerBlock:   time.Minute * 5,
+
+		// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.
 		WorkDiffAlpha:            1,
 		WorkDiffWindowSize:       144,
 		WorkDiffWindows:          20,
 		TargetTimespan:           time.Minute * 5 * 144, // TimePerBlock * WindowSize
 		RetargetAdjustmentFactor: 4,
+
+		// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
+		WorkDiffV2Blake3StartBits: 0x1b00a5a6,
+		WorkDiffV2HalfLifeSecs:    43200, // 144 * TimePerBlock (12 hours)
 
 		// Subsidy parameters.
 		BaseSubsidy:              3119582664, // 21m

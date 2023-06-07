@@ -91,21 +91,27 @@ func TestNet3Params() *Params {
 		//
 		// Note that the minimum difficulty reduction parameter only applies up
 		// to and including block height 962927.
-		GenesisBlock:             &genesisBlock,
-		GenesisHash:              genesisBlock.BlockHash(),
-		PowLimit:                 testNetPowLimit,
-		PowLimitBits:             testNetPowLimitBits,
-		ReduceMinDifficulty:      true,
-		MinDiffReductionTime:     time.Minute * 10, // ~99.3% chance to be mined before reduction
-		GenerateSupported:        true,
-		MaximumBlockSizes:        []int{1310720},
-		MaxTxSize:                1000000,
-		TargetTimePerBlock:       time.Minute * 2,
+		GenesisBlock:         &genesisBlock,
+		GenesisHash:          genesisBlock.BlockHash(),
+		PowLimit:             testNetPowLimit,
+		PowLimitBits:         testNetPowLimitBits,
+		ReduceMinDifficulty:  true,
+		MinDiffReductionTime: time.Minute * 10, // ~99.3% chance to be mined before reduction
+		GenerateSupported:    true,
+		MaximumBlockSizes:    []int{1310720},
+		MaxTxSize:            1000000,
+		TargetTimePerBlock:   time.Minute * 2,
+
+		// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.
 		WorkDiffAlpha:            1,
 		WorkDiffWindowSize:       144,
 		WorkDiffWindows:          20,
 		TargetTimespan:           time.Minute * 2 * 144, // TimePerBlock * WindowSize
 		RetargetAdjustmentFactor: 4,
+
+		// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
+		WorkDiffV2Blake3StartBits: testNetPowLimitBits,
+		WorkDiffV2HalfLifeSecs:    720, // 6 * TimePerBlock (12 minutes)
 
 		// Subsidy parameters.
 		BaseSubsidy:              2500000000, // 25 Coin

@@ -93,21 +93,27 @@ func RegNetParams() *Params {
 		DNSSeeds:    nil, // NOTE: There must NOT be any seeds.
 
 		// Chain parameters
-		GenesisBlock:             &genesisBlock,
-		GenesisHash:              genesisBlock.BlockHash(),
-		PowLimit:                 regNetPowLimit,
-		PowLimitBits:             regNetPowLimitBits,
-		ReduceMinDifficulty:      false,
-		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
-		GenerateSupported:        true,
-		MaximumBlockSizes:        []int{1000000, 1310720},
-		MaxTxSize:                1000000,
-		TargetTimePerBlock:       time.Second,
+		GenesisBlock:         &genesisBlock,
+		GenesisHash:          genesisBlock.BlockHash(),
+		PowLimit:             regNetPowLimit,
+		PowLimitBits:         regNetPowLimitBits,
+		ReduceMinDifficulty:  false,
+		MinDiffReductionTime: 0, // Does not apply since ReduceMinDifficulty false
+		GenerateSupported:    true,
+		MaximumBlockSizes:    []int{1000000, 1310720},
+		MaxTxSize:            1000000,
+		TargetTimePerBlock:   time.Second,
+
+		// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.
 		WorkDiffAlpha:            1,
 		WorkDiffWindowSize:       8,
 		WorkDiffWindows:          4,
 		TargetTimespan:           time.Second * 8, // TimePerBlock * WindowSize
 		RetargetAdjustmentFactor: 4,
+
+		// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
+		WorkDiffV2Blake3StartBits: regNetPowLimitBits,
+		WorkDiffV2HalfLifeSecs:    6, // 6 * TimePerBlock
 
 		// Subsidy parameters.
 		BaseSubsidy:              50000000000,

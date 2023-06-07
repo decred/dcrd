@@ -52,7 +52,7 @@ func SimNetParams() *Params {
 			Voters:       0,
 			FreshStake:   0,
 			Revocations:  0,
-			Timestamp:    time.Unix(1401292357, 0), // 2009-01-08 20:54:25 -0600 CST
+			Timestamp:    time.Unix(1401292357, 0), // 2014-05-28 15:52:37 +0000 UTC
 			PoolSize:     0,
 			Bits:         simNetPowLimitBits,
 			SBits:        0,
@@ -93,21 +93,27 @@ func SimNetParams() *Params {
 		DNSSeeds:    nil, // NOTE: There must NOT be any seeds.
 
 		// Chain parameters
-		GenesisBlock:             &genesisBlock,
-		GenesisHash:              genesisBlock.BlockHash(),
-		PowLimit:                 simNetPowLimit,
-		PowLimitBits:             simNetPowLimitBits,
-		ReduceMinDifficulty:      false,
-		MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
-		GenerateSupported:        true,
-		MaximumBlockSizes:        []int{1000000, 1310720},
-		MaxTxSize:                1000000,
-		TargetTimePerBlock:       time.Second,
+		GenesisBlock:         &genesisBlock,
+		GenesisHash:          genesisBlock.BlockHash(),
+		PowLimit:             simNetPowLimit,
+		PowLimitBits:         simNetPowLimitBits,
+		ReduceMinDifficulty:  false,
+		MinDiffReductionTime: 0, // Does not apply since ReduceMinDifficulty false
+		GenerateSupported:    true,
+		MaximumBlockSizes:    []int{1000000, 1310720},
+		MaxTxSize:            1000000,
+		TargetTimePerBlock:   time.Second,
+
+		// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.
 		WorkDiffAlpha:            1,
 		WorkDiffWindowSize:       8,
 		WorkDiffWindows:          4,
 		TargetTimespan:           time.Second * 8, // TimePerBlock * WindowSize
 		RetargetAdjustmentFactor: 4,
+
+		// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
+		WorkDiffV2Blake3StartBits: simNetPowLimitBits,
+		WorkDiffV2HalfLifeSecs:    6, // 6 * TimePerBlock
 
 		// Subsidy parameters.
 		BaseSubsidy:              50000000000,

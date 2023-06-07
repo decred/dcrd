@@ -297,16 +297,26 @@ type Params struct {
 	// block.
 	TargetTimePerBlock time.Duration
 
+	// -------------------------------------------------------------------------
+	// Version 1 difficulty algorithm (EMA + BLAKE256) parameters.
+	// -------------------------------------------------------------------------
+
 	// WorkDiffAlpha is the stake difficulty EMA calculation alpha (smoothing)
 	// value. It is different from a normal EMA alpha. Closer to 1 --> smoother.
+	//
+	// This only applies to the version 1 difficulty retarget algorithm.
 	WorkDiffAlpha int64
 
 	// WorkDiffWindowSize is the number of windows (intervals) used for calculation
 	// of the exponentially weighted average.
+	//
+	// This only applies to the version 1 difficulty retarget algorithm.
 	WorkDiffWindowSize int64
 
 	// WorkDiffWindows is the number of windows (intervals) used for calculation
 	// of the exponentially weighted average.
+	//
+	// This only applies to the version 1 difficulty retarget algorithm.
 	WorkDiffWindows int64
 
 	// TargetTimespan is the desired amount of time that should elapse
@@ -314,12 +324,31 @@ type Params struct {
 	// it should be changed in order to maintain the desired block
 	// generation rate.  This value should correspond to the product of
 	// WorkDiffWindowSize and TimePerBlock above.
+	//
+	// This only applies to the version 1 difficulty retarget algorithm.
 	TargetTimespan time.Duration
 
 	// RetargetAdjustmentFactor is the adjustment factor used to limit
 	// the minimum and maximum amount of adjustment that can occur between
 	// difficulty retargets.
+	//
+	// This only applies to the version 1 difficulty retarget algorithm.
 	RetargetAdjustmentFactor int64
+
+	// -------------------------------------------------------------------------
+	// Version 2 difficulty algorithm (ASERT + BLAKE3) parameters.
+	// -------------------------------------------------------------------------
+
+	// WorkDiffV2Blake3StartBits is the starting difficulty bits to use for
+	// proof of work under BLAKE3.
+	WorkDiffV2Blake3StartBits uint32
+
+	// WorkDiffV2HalfLife is the number of seconds to use for the relaxation
+	// time when calculating how difficult it is to solve a block.  The
+	// algorithm sets the difficulty exponentially such that it is halved or
+	// doubled for every multiple of this value the most recent block is behind
+	// or ahead of the ideal schedule.
+	WorkDiffV2HalfLifeSecs int64
 
 	// Subsidy parameters.
 	//
