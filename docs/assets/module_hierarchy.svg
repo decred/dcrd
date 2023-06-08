@@ -108,7 +108,7 @@
 <!-- rpcclient -->
 <g id="node25" class="node"><title>rpcclient</title>
 <path fill="mediumseagreen" stroke="black" d="M223.5,-108C223.5,-108 165.5,-108 165.5,-108 159.5,-108 153.5,-102 153.5,-96 153.5,-96 153.5,-84 153.5,-84 153.5,-78 159.5,-72 165.5,-72 165.5,-72 223.5,-72 223.5,-72 229.5,-72 235.5,-78 235.5,-84 235.5,-84 235.5,-96 235.5,-96 235.5,-102 229.5,-108 223.5,-108"/>
-<text text-anchor="middle" x="194.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">rpcclient/v7</text>
+<text text-anchor="middle" x="194.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">rpcclient/v8</text>
 </g>
 <!-- types&#45;&gt;rpcclient -->
 <g id="edge25" class="edge"><title>types&#45;&gt;rpcclient</title>

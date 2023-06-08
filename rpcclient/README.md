@@ -3,7 +3,7 @@ rpcclient
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/rpcclient/v7)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/rpcclient/v8)
 
 rpcclient implements a Websocket-enabled Decred JSON-RPC client package written
 in [Go](https://golang.org/).  It provides a robust and easy to use client for
@@ -18,7 +18,7 @@ implement and the API is not stable yet.
 
 ## Documentation
 
-* [API Reference](https://pkg.go.dev/github.com/decred/dcrd/rpcclient/v7)
+* [API Reference](https://pkg.go.dev/github.com/decred/dcrd/rpcclient/v8)
 * [dcrd Websockets Example](https://github.com/decred/dcrd/tree/master/rpcclient/examples/dcrdwebsockets)
   Connects to a dcrd RPC server using TLS-secured websockets, registers for
   block connected and block disconnected notifications, and gets the current
@@ -38,7 +38,7 @@ implement and the API is not stable yet.
 
 ## Installation and Updating
 
-This package is part of the `github.com/decred/dcrd/rpcclient/v7` module.  Use
+This package is part of the `github.com/decred/dcrd/rpcclient/v8` module.  Use
 the standard go tooling for working with modules to incorporate it.
 
 ## License
