@@ -253,7 +253,7 @@
 <!-- gcs -->
 <g id="node21" class="node"><title>gcs</title>
 <path fill="gold" stroke="black" d="M305.5,-180C305.5,-180 275.5,-180 275.5,-180 269.5,-180 263.5,-174 263.5,-168 263.5,-168 263.5,-156 263.5,-156 263.5,-150 269.5,-144 275.5,-144 275.5,-144 305.5,-144 305.5,-144 311.5,-144 317.5,-150 317.5,-156 317.5,-156 317.5,-168 317.5,-168 317.5,-174 311.5,-180 305.5,-180"/>
-<text text-anchor="middle" x="290.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">gcs/v3</text>
+<text text-anchor="middle" x="290.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">gcs/v4</text>
 </g>
 <!-- stake&#45;&gt;gcs -->
 <g id="edge19" class="edge"><title>stake&#45;&gt;gcs</title>
