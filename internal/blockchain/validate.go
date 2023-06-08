@@ -1011,7 +1011,7 @@ func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, bloc
 func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, blockHash *chainhash.Hash, prevNode *blockNode) bool {
 	// Note that the latest block version for all networks other than the main
 	// network is one higher.
-	latestBlockVersion := int32(9)
+	latestBlockVersion := int32(10)
 	if b.chainParams.Net != wire.MainNet {
 		latestBlockVersion++
 	}
