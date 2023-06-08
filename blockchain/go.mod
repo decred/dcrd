@@ -9,7 +9,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
 	github.com/decred/dcrd/txscript/v4 v4.0.0
-	github.com/decred/dcrd/wire v1.5.0
+	github.com/decred/dcrd/wire v1.6.0
 )
 
 require (
