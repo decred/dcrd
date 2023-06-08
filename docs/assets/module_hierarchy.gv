@@ -23,7 +23,7 @@ digraph {
 	stake [label="blockchain/stake/v5" fillcolor=bisque]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	gcs [label="gcs/v4" fillcolor=gold]
-	blockchain [label="blockchain/v4" fillcolor=orchid]
+	blockchain [label="blockchain/v5" fillcolor=orchid]
 	lru [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]
 	rpcclient [label="rpcclient/v7" fillcolor=mediumseagreen]

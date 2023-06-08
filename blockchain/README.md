@@ -3,7 +3,7 @@ blockchain
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v4)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v5)
 
 The blockchain module provides a couple of packages useful for testing:
 
@@ -25,7 +25,7 @@ module are also available:
 
 ## Installation and Updating
 
-This is the `github.com/decred/dcrd/blockchain/v4` module.  Use the standard go
+This is the `github.com/decred/dcrd/blockchain/v5` module.  Use the standard go
 tooling for working with modules to incorporate it.
 
 ## License
