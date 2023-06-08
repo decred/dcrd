@@ -23,7 +23,7 @@ require (
 	github.com/decred/dcrd/dcrjson/v4 v4.0.1
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
 	github.com/decred/dcrd/gcs/v4 v4.0.0
-	github.com/decred/dcrd/lru v1.1.1
+	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.0
 	github.com/decred/dcrd/peer/v3 v3.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
