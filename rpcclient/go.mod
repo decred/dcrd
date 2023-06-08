@@ -30,9 +30,3 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 )
-
-replace (
-	github.com/decred/dcrd/blockchain/stake/v5 => ../blockchain/stake
-	github.com/decred/dcrd/gcs/v4 => ../gcs
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ../rpc/jsonrpc/types
-)
