@@ -2,12 +2,13 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// This file exists to prevent go mod tidy from removing requires for newer
-// module versions that are not yet fully integrated and to allow them to be
-// automatically discovered by the testing infrastructure.
+// This file exists to prevent go mod tidy from removing requires on tools.
 //
 // It is excluded from the build to avoid including unused modules in the final
 // binary.
+
+//go:build require
+// +build require
 
 package main
 
