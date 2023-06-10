@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/database/v3 instead.
 module github.com/decred/dcrd/database
 
 go 1.11
