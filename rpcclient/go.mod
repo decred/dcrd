@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/rpcclient/v8 instead.
 module github.com/decred/dcrd/rpcclient
 
 require (
