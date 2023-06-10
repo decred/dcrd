@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/blockchain/v5 instead.
 module github.com/decred/dcrd/blockchain/v4
 
 go 1.16
