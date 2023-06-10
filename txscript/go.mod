@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/txscript/v4 instead.
 module github.com/decred/dcrd/txscript/v2
 
 go 1.11
