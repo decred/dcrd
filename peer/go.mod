@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/peer/v3 instead.
 module github.com/decred/dcrd/peer
 
 go 1.11
