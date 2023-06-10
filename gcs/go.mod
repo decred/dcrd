@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/gcs/v4 instead.
 module github.com/decred/dcrd/gcs
 
 go 1.11
