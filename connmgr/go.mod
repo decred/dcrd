@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/connmgr/v3 instead.
 module github.com/decred/dcrd/connmgr
 
 go 1.11
