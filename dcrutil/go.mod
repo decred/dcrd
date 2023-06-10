@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/dcrutil/v4 instead.
 module github.com/decred/dcrd/dcrutil
 
 go 1.11
