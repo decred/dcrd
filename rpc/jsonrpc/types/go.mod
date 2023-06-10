@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/rpc/jsonrpc/types/v4 instead.
 module github.com/decred/dcrd/rpc/jsonrpc/types
 
 go 1.11
