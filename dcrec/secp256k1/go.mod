@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/dcrec/secp256k1/v4 instead.
 module github.com/decred/dcrd/dcrec/secp256k1
 
 go 1.11
