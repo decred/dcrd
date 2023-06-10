@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/hdkeychain/v3 instead.
 module github.com/decred/dcrd/hdkeychain/v2
 
 go 1.11
