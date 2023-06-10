@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/addrmgr/v2 instead.
 module github.com/decred/dcrd/addrmgr
 
 go 1.11
