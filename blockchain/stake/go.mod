@@ -1,3 +1,4 @@
+// Deprecated: github.com/decred/dcrd/blockchain/stake/v5 instead.
 module github.com/decred/dcrd/blockchain/stake
 
 go 1.11
