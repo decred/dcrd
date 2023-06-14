@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -316,7 +317,7 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 // TestScripts ensures all of the tests in script_tests.json execute with the
 // expected results as defined in the test data.
 func TestScripts(t *testing.T) {
-	file, err := os.ReadFile("data/script_tests.json")
+	file, err := os.ReadFile(filepath.Join(testDataPath, "script_tests.json"))
 	if err != nil {
 		t.Fatalf("TestScripts: %v\n", err)
 	}
@@ -347,7 +348,7 @@ func testVecF64ToUint32(f float64) uint32 {
 // TestTxInvalidTests ensures all of the tests in tx_invalid.json fail as
 // expected.
 func TestTxInvalidTests(t *testing.T) {
-	file, err := os.ReadFile("data/tx_invalid.json")
+	file, err := os.ReadFile(filepath.Join(testDataPath, "tx_invalid.json"))
 	if err != nil {
 		t.Errorf("TestTxInvalidTests: %v\n", err)
 		return
@@ -487,7 +488,7 @@ testloop:
 
 // TestTxValidTests ensures all of the tests in tx_valid.json pass as expected.
 func TestTxValidTests(t *testing.T) {
-	file, err := os.ReadFile("data/tx_valid.json")
+	file, err := os.ReadFile(filepath.Join(testDataPath, "tx_valid.json"))
 	if err != nil {
 		t.Errorf("TestTxValidTests: %v\n", err)
 		return
@@ -642,7 +643,7 @@ func parseSigHashExpectedResult(expected string) (error, error) {
 // TestCalcSignatureHashReference runs the reference signature hash calculation
 // tests in sighash.json.
 func TestCalcSignatureHashReference(t *testing.T) {
-	file, err := os.ReadFile("data/sighash.json")
+	file, err := os.ReadFile(filepath.Join(testDataPath, "sighash.json"))
 	if err != nil {
 		t.Fatalf("TestCalcSignatureHash: %v\n", err)
 	}

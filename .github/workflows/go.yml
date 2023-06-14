@@ -19,6 +19,17 @@ jobs:
         uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab #v3.5.2
       - name: Install Linters
         run: "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.1"
+      - name: Use test and module cache
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 #v3.3.1
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-test-${{ matrix.go }}-${{ github.sha }}
+          restore-keys: go-test-${{ matrix.go }}
+      - name: Stablilize testdata timestamps
+        run: |
+          bash ./.github/stablilize_testdata_timestamps.sh "${{ github.workspace }}"
       - name: Build
         run: go build ./...
       - name: Test

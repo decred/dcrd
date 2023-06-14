@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/decred/dcrd/wire"
@@ -36,7 +37,8 @@ var (
 
 func init() {
 	// tx 620f57c92cf05a7f7e7f7d28255d5f7089437bc48e34dcfebf7751d08b7fb8f5
-	txHex, err := os.ReadFile("data/many_inputs_tx.hex")
+	inputFilePath := filepath.Join(testDataPath, "many_inputs_tx.hex")
+	txHex, err := os.ReadFile(inputFilePath)
 	if err != nil {
 		panic(fmt.Sprintf("unable to read benchmark tx file: %v", err))
 	}

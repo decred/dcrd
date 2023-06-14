@@ -19,7 +19,7 @@ import (
 )
 
 // testDataPath is the path where txscript test fixtures reside.
-const testDataPath = "data"
+const testDataPath = "testdata"
 
 // block432100 mocks block 432,100 of the block chain.  It is loaded and
 // deserialized immediately here and then can be used throughout the tests.

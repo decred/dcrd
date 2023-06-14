@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -211,7 +212,8 @@ func TestTreasury(t *testing.T) {
 	defaultFeeRate := dcrutil.Amount(1e4)
 
 	// Setup the log dir for tests to ease debugging after failures.
-	logDir := ".dcrdlogs"
+	logDir := filepath.Join(os.TempDir(), t.Name(), ".dcrdlogs")
+	t.Logf("Logdir: %s", logDir)
 	extraArgs := []string{
 		"--rejectnonstd",
 		"--debuglevel=MINR=trace,TRSY=trace",
