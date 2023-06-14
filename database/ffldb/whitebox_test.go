@@ -141,7 +141,7 @@ func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
 	// Create a file at the database path to force the open below to fail.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-errors-v2")
+	dbPath := t.TempDir()
 	_ = os.RemoveAll(dbPath)
 	fi, err := os.Create(dbPath)
 	if err != nil {
@@ -159,7 +159,6 @@ func TestCornerCases(t *testing.T) {
 		if err == nil {
 			idb.Close()
 		}
-		_ = os.RemoveAll(dbPath)
 		return
 	}
 
@@ -171,8 +170,9 @@ func TestCornerCases(t *testing.T) {
 		t.Errorf("openDB: unexpected error: %v", err)
 		return
 	}
-	defer os.RemoveAll(dbPath)
-	defer idb.Close()
+	t.Cleanup(func() {
+		idb.Close()
+	})
 
 	// Ensure attempting to write to a file that can't be created returns
 	// the expected error.
@@ -578,14 +578,12 @@ func testCorruption(tc *testContext) bool {
 // correctly.
 func TestFailureScenarios(t *testing.T) {
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-failurescenarios-v2")
-	_ = os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	idb, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
 		t.Errorf("Failed to create test database (%s) %v", dbType, err)
 		return
 	}
-	defer os.RemoveAll(dbPath)
 	defer idb.Close()
 
 	// Create a test context to pass around.

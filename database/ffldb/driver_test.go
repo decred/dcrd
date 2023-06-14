@@ -7,8 +7,6 @@ package ffldb_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -103,14 +101,12 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure operations against a closed database return the expected
 	// error.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-createfail-v2")
-	_ = os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
 		t.Errorf("Create: unexpected error: %v", err)
 		return
 	}
-	defer os.RemoveAll(dbPath)
 	db.Close()
 
 	wantErrKind = database.ErrDbNotOpen
@@ -154,15 +150,15 @@ func TestPersistence(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-persistencetest-v2")
-	_ = os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
 		t.Errorf("Failed to create test database (%s) %v", dbType, err)
 		return
 	}
-	defer os.RemoveAll(dbPath)
-	defer db.Close()
+	t.Cleanup(func() {
+		db.Close()
+	})
 
 	// Create a bucket, put some values into it, and store a block so they
 	// can be tested for existence on re-open.
@@ -261,15 +257,15 @@ func TestInterface(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-interfacetest-v2")
-	_ = os.RemoveAll(dbPath)
+	dbPath := t.TempDir()
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
 		t.Errorf("failed to create test database (%s) %v", dbType, err)
 		return
 	}
-	defer os.RemoveAll(dbPath)
-	defer db.Close()
+	t.Cleanup(func() {
+		db.Close()
+	})
 
 	// Ensure the driver type is the expected value.
 	gotDbType := db.Type()

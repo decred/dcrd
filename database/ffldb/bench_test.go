@@ -6,8 +6,6 @@
 package ffldb
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -20,14 +18,14 @@ import (
 func BenchmarkBlockHeader(b *testing.B) {
 	// Start by creating a new database and populating it with the mainnet
 	// genesis block.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-benchblkhdr")
-	_ = os.RemoveAll(dbPath)
+	dbPath := b.TempDir()
 	db, err := database.Create("ffldb", dbPath, blockDataNet)
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.RemoveAll(dbPath)
-	defer db.Close()
+	b.Cleanup(func() {
+		db.Close()
+	})
 	mainNetParams := chaincfg.MainNetParams()
 	err = db.Update(func(tx database.Tx) error {
 		block := dcrutil.NewBlock(mainNetParams.GenesisBlock)
@@ -62,14 +60,14 @@ func BenchmarkBlockHeader(b *testing.B) {
 func BenchmarkBlock(b *testing.B) {
 	// Start by creating a new database and populating it with the mainnet
 	// genesis block.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-benchblk")
-	_ = os.RemoveAll(dbPath)
+	dbPath := b.TempDir()
 	db, err := database.Create("ffldb", dbPath, blockDataNet)
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.RemoveAll(dbPath)
-	defer db.Close()
+	b.Cleanup(func() {
+		db.Close()
+	})
 	mainNetParams := chaincfg.MainNetParams()
 	err = db.Update(func(tx database.Tx) error {
 		block := dcrutil.NewBlock(mainNetParams.GenesisBlock)
