@@ -47,6 +47,8 @@ var (
 // loadBlocks loads the blocks contained in the testdata directory and returns
 // a slice of them.
 func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcrutil.Block, error) {
+	t.Helper()
+
 	// Open the file that contains the blocks for reading.
 	fi, err := os.Open(dataFile)
 	if err != nil {
@@ -92,6 +94,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 // checkDbError ensures the passed error is a database.Error that matches the
 // passed error kind.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErr database.ErrorKind) bool {
+	t.Helper()
+
 	if !errors.Is(gotErr, wantErr) {
 		t.Errorf("%s: unexpected error code - got %v, want %v",
 			testName, gotErr, wantErr)
@@ -597,6 +601,8 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 // thereby leading to a deadlock and masking the real reason for the panic.  It
 // also logs a test error and repanics so the original panic can be traced.
 func rollbackOnPanic(t *testing.T, tx database.Tx) {
+	t.Helper()
+
 	if err := recover(); err != nil {
 		t.Errorf("Unexpected panic: %v", err)
 		_ = tx.Rollback()
@@ -2225,6 +2231,8 @@ func testConcurrentClose(tc *testContext) bool {
 // testInterface tests performs tests for the various interfaces of the database
 // package which require state in the database for the given database type.
 func testInterface(t *testing.T, db database.DB) {
+	t.Helper()
+
 	// Create a test context to pass around.
 	context := testContext{t: t, db: db}
 

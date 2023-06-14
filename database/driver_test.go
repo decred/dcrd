@@ -17,9 +17,11 @@ import (
 // checkDbError ensures the passed error is an Error that matches the passed
 // error kind.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErr database.ErrorKind) bool {
+	t.Helper()
+
 	if !errors.Is(gotErr, wantErr) {
-		t.Errorf("%s: unexpected error - got %v, want %v",
-			testName, gotErr, wantErr)
+		t.Errorf("%s: unexpected error - got %v, want %v", testName, gotErr,
+			wantErr)
 		return false
 	}
 

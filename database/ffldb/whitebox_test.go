@@ -42,6 +42,8 @@ var (
 // loadBlocks loads the blocks contained in the testdata directory and returns
 // a slice of them.
 func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcrutil.Block, error) {
+	t.Helper()
+
 	// Open the file that contains the blocks for reading.
 	fi, err := os.Open(dataFile)
 	if err != nil {
@@ -87,6 +89,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 // checkDbError ensures the passed error is a database.Error that matches the
 // passed error kind.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErr database.ErrorKind) bool {
+	t.Helper()
+
 	if !errors.Is(gotErr, wantErr) {
 		t.Errorf("%s: unexpected error - got %v, want %v",
 			testName, gotErr, wantErr)
