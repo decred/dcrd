@@ -1,6 +1,6 @@
 digraph {
 	graph [splines=ortho colorscheme=svg label=<<u>Module Hierarchy</u>> labelloc=t fontsize=18.0]
-	node [shape=box style="filled, rounded"]
+	node [shape=box style="filled, rounded" margin=0.1]
 
 	blake256 [label="crypto/blake256" fillcolor=cornflowerblue]
 	ripemd160 [label="crypto/ripemd160" fillcolor=darkturquoise]
@@ -10,9 +10,7 @@ digraph {
 	dcrjson [label="dcrjson/v4" fillcolor=indianred]
 	types [label="rpc/jsonrpc/types/v4" fillcolor=tomato]
 	wire [label="wire" fillcolor=coral]
-	addrmgr [label="addrmgr/v2" fillcolor=lightsalmon]
 	chaincfg [label="chaincfg/v3" fillcolor=cadetblue]
-	connmgr [label="connmgr/v3" fillcolor=mistyrose]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
 	secp256k1 [label="dcrec/secp256k1/v4" fillcolor=mediumvioletred]
@@ -21,19 +19,22 @@ digraph {
 	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
 	txscript [label="txscript/v4" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake/v5" fillcolor=bisque]
-	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	gcs [label="gcs/v4" fillcolor=gold]
-	blockchain [label="blockchain/v5" fillcolor=orchid]
+	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	lru [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]
 	rpcclient [label="rpcclient/v8" fillcolor=mediumseagreen]
+	addrmgr [label="addrmgr/v2" fillcolor=lightsalmon]
+	connmgr [label="connmgr/v3" fillcolor=mistyrose]
+	blockchain [label="blockchain/v5" fillcolor=orchid]
 	apbf [label="container/apbf" fillcolor=goldenrod]
 	uint256  [label="math/uint256" fillcolor=lightgreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same blake256 chainhash}
 	{rank=same dcrec secp256k1}
-	{rank=same connmgr addrmgr hdkeychain peer blockchain rpcclient}
+	{rank=same certgen bech32 apbf uint256}
+	{rank=same addrmgr connmgr hdkeychain peer blockchain standalone rpcclient}
 
 	certgen
 	bech32
@@ -53,18 +54,18 @@ digraph {
 	txscript -> dcrutil [dir=back color=mediumspringgreen]
 	txscript -> hdkeychain [dir=back color=mediumspringgreen]
 	txscript -> peer [dir=back color=mediumspringgreen]
+	dcrutil -> blockchain [dir=back color=burlywood]
 	dcrutil -> database [dir=back color=burlywood]
 	database -> stake [dir=back color=dodgerblue]
 	stake -> gcs [dir=back color=bisque]
-	standalone -> blockchain [dir=back color=firebrick4]
-	gcs -> blockchain [dir=back color=gold]
 	gcs -> rpcclient [dir=back color=gold]
 
 	lru -> peer [dir=back color=royalblue3]
-	dcrjson -> types [dir=back color=tomato]
-	types -> rpcclient [dir=back color=indianred]
+	dcrjson -> types [dir=back color=indianred]
+	types -> rpcclient [dir=back color=tomato]
 
 	blockchain -> dcrd [dir=back color=orchid]
+	standalone -> dcrd [dir=back color=firebrick]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	bech32 -> dcrd [dir=back color=antiquewhite3]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
