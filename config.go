@@ -112,7 +112,7 @@ var runServiceCommand func(string) error
 type config struct {
 	// General application behavior.
 	ShowVersion      bool   `short:"V" long:"version" description:"Display version information and exit"`
-	HomeDir          string `short:"A" long:"appdata" description:"Path to application home directory"`
+	HomeDir          string `short:"A" long:"appdata" description:"Path to application home directory" env:"DCRD_APPDATA"`
 	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir          string `short:"b" long:"datadir" description:"Directory to store data"`
 	LogDir           string `long:"logdir" description:"Directory to log output"`
