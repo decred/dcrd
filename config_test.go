@@ -1,15 +1,26 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	// Trim -test.* flags from the command line arguments list to allow
+	// go-flags tests to succeed.
+	os.Args = append([]string{os.Args[0]}, flag.Args()...)
+
+	os.Exit(m.Run())
+}
 
 // In order to test command line arguments and environment variables, append
 // the flags to the os.Args variable like so:
@@ -79,10 +90,4 @@ func TestAltDNSNamesWithArg(t *testing.T) {
 			hostnames)
 	}
 	os.Args = old
-}
-
-// init parses the -test.* flags from the command line arguments list and then
-// removes them to allow go-flags tests to succeed.
-func init() {
-	os.Args = os.Args[:1]
 }
