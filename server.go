@@ -3269,6 +3269,195 @@ func genCertPair(certFile, keyFile string, altDNSNames []string, tlsCurve ellipt
 	return nil
 }
 
+// watchedFile houses details about a file that is being watched for updates.
+type watchedFile struct {
+	path    string
+	curTime time.Time
+	curSize int64
+}
+
+// updated returns whether or not the file has been updated since the last time
+// it was checked and updates the file info details used to make that
+// determination accordingly.
+//
+// It returns true for files that no longer exist.
+//
+// It returns false when any unexpected errors are encountered while attempting
+// to get the file details or the provided watched file does not have a path
+// associated with it.
+func (f *watchedFile) updated() bool {
+	// Ignore watched files that don't have a path associated with them.
+	if f.path == "" {
+		return false
+	}
+
+	// Attempt to get file info about the watched file.  Note that errors aside
+	// from files that no longer exist are intentionally ignored here so
+	// unexpected errors do not result in the file being reported as changed
+	// when it very likely was not.
+	fi, err := os.Stat(f.path)
+	if err != nil {
+		return os.IsNotExist(err)
+	}
+	changed := fi.Size() != f.curSize || fi.ModTime() != f.curTime
+	if changed {
+		f.curSize = fi.Size()
+		f.curTime = fi.ModTime()
+	}
+	return changed
+}
+
+// reloadableTLSConfig houses information for a TLS configuration that will
+// dynamically reload the server certificate, server key, and client CAs when
+// the associated files are updated.
+type reloadableTLSConfig struct {
+	mtx                 sync.Mutex
+	minReloadCheckDelay time.Duration
+	nextReloadCheck     time.Time
+	cert                watchedFile
+	key                 watchedFile
+	clientCAs           watchedFile
+	cachedConfig        *tls.Config
+	prevAttemptErr      error
+}
+
+// needsReload determines whether or the not the watched certificate files (and
+// hence the TLS config that houses them) need to be reloaded.
+//
+// The conditions for reload are as follows:
+//   - Enough time has passed since the last time the files were checked
+//   - Either the modified time or file of any of the watched cert files have
+//     changed.
+//
+// This function MUST be called with the embedded mutex locked (for writes).
+func (c *reloadableTLSConfig) needsReload() bool {
+	// Avoid checking for cert updates when not enough time has passed.
+	now := time.Now()
+	if now.Before(c.nextReloadCheck) {
+		return false
+	}
+	c.nextReloadCheck = now.Add(c.minReloadCheckDelay)
+
+	return c.cert.updated() || c.key.updated() || c.clientCAs.updated()
+}
+
+// newTLSConfig loads the provided server certificate and key pair along with
+// the provided client CAs and returns a new tls.Config instance populated with
+// the parsed values.
+//
+// The clientCAsPath may be an empty string when client authentication is not
+// required.
+func newTLSConfig(certPath, keyPath, clientCAsPath string, minVersion uint16) (*tls.Config, error) {
+	serverCert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConfig := tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		MinVersion:   minVersion,
+	}
+	if clientCAsPath != "" {
+		clientCAs, err := os.ReadFile(clientCAsPath)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = x509.NewCertPool()
+		if !tlsConfig.ClientCAs.AppendCertsFromPEM(clientCAs) {
+			return nil, fmt.Errorf("no certificates found in %q", clientCAsPath)
+		}
+	}
+	return &tlsConfig, nil
+}
+
+// configFileClient is intended to be set as the GetConfigForClient callback in
+// the initial TLS configuration passed to the listener in order to enable
+// automatically detecting and reloading certificate changes.
+//
+// This function is safe for concurrent access.
+func (c *reloadableTLSConfig) configFileClient(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+	defer c.mtx.Unlock()
+	c.mtx.Lock()
+
+	if !c.needsReload() {
+		return c.cachedConfig, nil
+	}
+
+	// Attempt to reload the certs and generate a new TLS config for them.
+	//
+	// Only update the cached config when there was no error in order to
+	// preserve the current working config.
+	tlsConfig, err := newTLSConfig(c.cert.path, c.key.path, c.clientCAs.path,
+		c.cachedConfig.MinVersion)
+	if err != nil {
+		if c.prevAttemptErr == nil || err.Error() != c.prevAttemptErr.Error() {
+			rpcsLog.Warnf("RPC certificates modification detected, but existing "+
+				"configuration preserved because the certificates failed to "+
+				"reload: %v\n", err)
+		}
+		c.prevAttemptErr = err
+		return c.cachedConfig, nil
+	}
+	c.prevAttemptErr = nil
+
+	rpcsLog.Info("Reloaded modified RPC certificates")
+	c.cachedConfig = tlsConfig
+	return c.cachedConfig, nil
+}
+
+// makeReloadableTLSConfig returns a TLS configuration that will dynamically
+// reload the server certificate, server key, and client CAs from the configured
+// paths when the files are updated.
+//
+// The client CAs path may be an empty string when client authentication is not
+// required.
+//
+// This works by hooking up the GetConfigForClient callback which is invoked
+// when a client connects.  It makes use of caching and lazy loading (as opposed
+// to polling) for better efficiency.
+//
+// An overview of the behavior is as follows:
+//
+//   - All connections used a cached TLS config
+//   - When an underlying file is updated, as determined by its modification
+//     time being newer or its size changing, the certificates are reloaded and
+//     cached
+//   - Files are not checked for updates more than once every several seconds
+//   - Files are only checked for updates when a connection is made and are not
+//     checked more than once every several seconds
+//   - The existing cached config will be retained if any errors that would
+//     result in an invalid config are encountered (for example, removing the
+//     files, replacing the files with malformed or empty data, or replacing the
+//     key with one that is not valid for the cert)
+func makeReloadableTLSConfig(certPath, keyPath, clientCAsPath string) (*tls.Config, error) {
+	const minVer = tls.VersionTLS12
+	cachedConfig, err := newTLSConfig(certPath, keyPath, clientCAsPath, minVer)
+	if err != nil {
+		return nil, err
+	}
+
+	minReloadCheckDelay := 5 * time.Second
+	c := &reloadableTLSConfig{
+		minReloadCheckDelay: minReloadCheckDelay,
+		nextReloadCheck:     time.Now().Add(minReloadCheckDelay),
+		cert:                watchedFile{path: certPath},
+		key:                 watchedFile{path: keyPath},
+		clientCAs:           watchedFile{path: clientCAsPath},
+		cachedConfig:        cachedConfig,
+	}
+
+	// Populate the initial file info for all watched files.
+	c.cert.updated()
+	c.key.updated()
+	c.clientCAs.updated()
+
+	return &tls.Config{
+		GetConfigForClient: c.configFileClient,
+		MinVersion:         minVer,
+	}, nil
+}
+
 // setupRPCListeners returns a slice of listeners that are configured for use
 // with the RPC server depending on the configuration settings for listen
 // addresses and TLS.
@@ -3301,32 +3490,19 @@ func setupRPCListeners() ([]net.Listener, error) {
 				return nil, err
 			}
 		}
-		keypair, err := tls.LoadX509KeyPair(cfg.RPCCert, cfg.RPCKey)
+		var clientCACerts string
+		if cfg.RPCAuthType == authTypeClientCert {
+			clientCACerts = cfg.RPCClientCAs
+		}
+		tlsConfig, err := makeReloadableTLSConfig(cfg.RPCCert, cfg.RPCKey,
+			clientCACerts)
 		if err != nil {
 			return nil, err
 		}
 
-		tlsConfig := tls.Config{
-			Certificates: []tls.Certificate{keypair},
-			MinVersion:   tls.VersionTLS12,
-		}
-
-		if cfg.RPCAuthType == authTypeClientCert {
-			pemCerts, err := os.ReadFile(cfg.RPCClientCAs)
-			if err != nil {
-				return nil, err
-			}
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-			tlsConfig.ClientCAs = x509.NewCertPool()
-			if !tlsConfig.ClientCAs.AppendCertsFromPEM(pemCerts) {
-				return nil, fmt.Errorf("no certificates found in %q",
-					cfg.RPCClientCAs)
-			}
-		}
-
 		// Change the standard net.Listen function to the tls one.
 		listenFunc = func(net string, laddr string) (net.Listener, error) {
-			return tls.Listen(net, laddr, &tlsConfig)
+			return tls.Listen(net, laddr, tlsConfig)
 		}
 	}
 
