@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -62,6 +62,7 @@ type GetAddedNodeInfoResult struct {
 // hex-encoded string.  Contains Decred additions.
 type GetBlockVerboseResult struct {
 	Hash          string        `json:"hash"`
+	PoWHash       string        `json:"powhash"`
 	Confirmations int64         `json:"confirmations"`
 	Size          int32         `json:"size"`
 	Height        int64         `json:"height"`
@@ -137,6 +138,7 @@ type GetBlockChainInfoResult struct {
 // returns a hex-encoded string.
 type GetBlockHeaderVerboseResult struct {
 	Hash          string  `json:"hash"`
+	PowHash       string  `json:"powhash"`
 	Confirmations int64   `json:"confirmations"`
 	Version       int32   `json:"version"`
 	MerkleRoot    string  `json:"merkleroot"`
