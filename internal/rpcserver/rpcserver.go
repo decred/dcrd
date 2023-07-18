@@ -61,7 +61,7 @@ import (
 // API version constants
 const (
 	jsonrpcSemverMajor = 8
-	jsonrpcSemverMinor = 0
+	jsonrpcSemverMinor = 1
 	jsonrpcSemverPatch = 0
 )
 
@@ -1969,8 +1969,19 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
 	}
 
+	isBlake3PowActive, err := s.isBlake3PowAgendaActive(&blockHeader.PrevBlock)
+	if err != nil {
+		return nil, err
+	}
+	powHashFn := blockHeader.PowHashV1
+	if isBlake3PowActive {
+		powHashFn = blockHeader.PowHashV2
+	}
+	powHash := powHashFn()
+
 	blockReply := types.GetBlockVerboseResult{
 		Hash:          c.Hash,
+		PoWHash:       powHash.String(),
 		Version:       blockHeader.Version,
 		MerkleRoot:    blockHeader.MerkleRoot.String(),
 		StakeRoot:     blockHeader.StakeRoot.String(),
@@ -2249,8 +2260,19 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
 	}
 
+	isBlake3PowActive, err := s.isBlake3PowAgendaActive(&blockHeader.PrevBlock)
+	if err != nil {
+		return nil, err
+	}
+	powHashFn := blockHeader.PowHashV1
+	if isBlake3PowActive {
+		powHashFn = blockHeader.PowHashV2
+	}
+	powHash := powHashFn()
+
 	blockHeaderReply := types.GetBlockHeaderVerboseResult{
 		Hash:          c.Hash,
+		PowHash:       powHash.String(),
 		Confirmations: confirmations,
 		Version:       blockHeader.Version,
 		MerkleRoot:    blockHeader.MerkleRoot.String(),
