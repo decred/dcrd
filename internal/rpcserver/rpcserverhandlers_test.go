@@ -3763,6 +3763,8 @@ func TestHandleGetBlock(t *testing.T) {
 	blk := dcrutil.NewBlock(&block432100)
 	blkHash := blk.Hash()
 	blkHashString := blkHash.String()
+	powHash := blkHeader.PowHashV1() // pre-DCP0011 activation
+	powHashString := powHash.String()
 	blkBytes, err := blk.Bytes()
 	if err != nil {
 		t.Fatalf("error serializing block: %+v", err)
@@ -3827,6 +3829,7 @@ func TestHandleGetBlock(t *testing.T) {
 		}(),
 		result: types.GetBlockVerboseResult{
 			Hash:          blkHashString,
+			PoWHash:       powHashString,
 			Version:       blkHeader.Version,
 			MerkleRoot:    blkHeader.MerkleRoot.String(),
 			StakeRoot:     blkHeader.StakeRoot.String(),
@@ -3882,6 +3885,7 @@ func TestHandleGetBlock(t *testing.T) {
 		}(),
 		result: types.GetBlockVerboseResult{
 			Hash:          blkHashString,
+			PoWHash:       powHashString,
 			Version:       blkHeader.Version,
 			MerkleRoot:    blkHeader.MerkleRoot.String(),
 			StakeRoot:     blkHeader.StakeRoot.String(),
@@ -4032,6 +4036,7 @@ func TestHandleGetBlockHeader(t *testing.T) {
 		t.Fatalf("error serializing block header: %+v", err)
 	}
 	blkHeaderHexString := hex.EncodeToString(blkHeaderBytes)
+	powHashString := blkHeader.PowHashV1().String() // pre-DCP0011 block
 	blk := dcrutil.NewBlock(&block432100)
 	blkHash := blk.Hash()
 	blkHashString := blkHash.String()
@@ -4065,6 +4070,7 @@ func TestHandleGetBlockHeader(t *testing.T) {
 		}(),
 		result: types.GetBlockHeaderVerboseResult{
 			Hash:          blkHashString,
+			PowHash:       powHashString,
 			Confirmations: confirmations,
 			Version:       blkHeader.Version,
 			MerkleRoot:    blkHeader.MerkleRoot.String(),
