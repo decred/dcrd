@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -276,6 +276,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetBlockVerboseResult help.
 	"getblockverboseresult-hash":              "The hash of the block (same as provided)",
+	"getblockverboseresult-powhash":           "The Proof-of-Work hash of the block (same as hash prior to DCP0011 activation)",
 	"getblockverboseresult-confirmations":     "The number of confirmations",
 	"getblockverboseresult-size":              "The size of the block",
 	"getblockverboseresult-height":            "The height of the block in the block chain",
@@ -323,6 +324,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetBlockHeaderVerboseResult help.
 	"getblockheaderverboseresult-hash":              "The hash of the block (same as provided)",
+	"getblockheaderverboseresult-powhash":           "The Proof-of-Work hash of the block (same as hash prior to DCP0011 activation)",
 	"getblockheaderverboseresult-confirmations":     "The number of confirmations",
 	"getblockheaderverboseresult-height":            "The height of the block in the block chain",
 	"getblockheaderverboseresult-version":           "The block version",
