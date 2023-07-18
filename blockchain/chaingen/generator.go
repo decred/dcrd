@@ -1308,9 +1308,9 @@ func calcASERTDiff(startDiffBits uint32, powLimit *big.Int, targetSecsPerBlock,
 	// guaranteed to be positive and a maximum of 17 bits, so it is safe to cast
 	// to a uint32.
 	const (
-		polyCoeff1 uint64 = 195766423245049 // 0.695502049 * 2^48
-		polyCoeff2 uint64 = 971821376       // 0.2262698 * 2^32
-		polyCoeff3 uint64 = 5127            // 0.0782318 * 2^16
+		polyCoeff1 uint64 = 195766423245049 // ceil(0.695502049712533 * 2^48)
+		polyCoeff2 uint64 = 971821376       // ceil(0.2262697964 * 2^32)
+		polyCoeff3 uint64 = 5127            // ceil(0.0782318 * 2^16)
 	)
 	fracFactor := uint32(1<<16 + (polyCoeff1*frac64+
 		polyCoeff2*frac64*frac64+
