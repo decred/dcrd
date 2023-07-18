@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -193,11 +193,7 @@ func (idx *ExistsAddrIndex) Init(ctx context.Context, chainParams *chaincfg.Para
 
 	// Recover the exists address index and its dependents to the main
 	// chain if needed.
-	if err := recoverIndex(ctx, idx); err != nil {
-		return err
-	}
-
-	return nil
+	return recoverIndex(ctx, idx)
 }
 
 // Key returns the database key to use for the index as a byte slice.

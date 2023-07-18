@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,7 +23,7 @@ var (
 )
 
 // DropCfIndex drops the CF index from the provided database if it exists.
-func DropCfIndex(ctx context.Context, db database.DB) error {
+func DropCfIndex(_ context.Context, db database.DB) error {
 	// Nothing to do if the index doesn't already exist.
 	exists, err := existsIndex(db, cfIndexParentBucketKey)
 	if err != nil {

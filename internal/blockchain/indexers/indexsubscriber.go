@@ -87,7 +87,6 @@ func newIndexSubscription(subber *IndexSubscriber, indexer Indexer, prereq strin
 //
 // This must be called with the index subscriber mutex held for writes.
 func (s *IndexSubscription) stop() error {
-
 	// If the subscription has a prerequisite, find it and remove the
 	// subscription as a dependency.
 	if s.prerequisite != noPrereqs {
@@ -247,7 +246,7 @@ func (s *IndexSubscriber) findLowestIndexTipHeight(queryer ChainQueryer) (int64,
 // from after the lowest index tip to the current main chain tip.
 //
 // This should be called after all indexes have subscribed for updates.
-func (s *IndexSubscriber) CatchUp(ctx context.Context, db database.DB, queryer ChainQueryer) error {
+func (s *IndexSubscriber) CatchUp(ctx context.Context, _ database.DB, queryer ChainQueryer) error {
 	lowestHeight, bestHeight, err := s.findLowestIndexTipHeight(queryer)
 	if err != nil {
 		return err

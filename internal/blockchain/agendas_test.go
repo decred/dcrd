@@ -248,7 +248,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Create block that involves reorganize to a sequence lock spending
 	// from an output created in a block prior to the parent also spent on
-	// on the side chain.
+	// the side chain.
 	//
 	//   ... -> b0 -> b1  -> b2
 	//            \-> b1a

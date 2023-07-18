@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -113,7 +113,7 @@ func (tc *testChain) Best() (int64, *chainhash.Hash) {
 }
 
 // IsTreasuryAgendaActive returns whether or not the treasury agenda is active.
-func (tc *testChain) IsTreasuryAgendaActive(hash *chainhash.Hash) (bool, error) {
+func (tc *testChain) IsTreasuryAgendaActive(_ *chainhash.Hash) (bool, error) {
 	return tc.treasuryActive, nil
 }
 

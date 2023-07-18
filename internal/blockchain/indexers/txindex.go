@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -371,7 +371,7 @@ func (idx *TxIndex) Init(ctx context.Context, chainParams *chaincfg.Params) erro
 		// below.
 		var highestKnown, nextUnknown uint32
 		testBlockID := uint32(1)
-		increment := uint32(100000)
+		const increment = uint32(100000)
 		for {
 			_, err := dbFetchBlockHashByID(dbTx, testBlockID)
 			if err != nil {

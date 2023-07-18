@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -603,7 +603,7 @@ func maybeNotifySubscribers(ctx context.Context, indexer Indexer) error {
 	bestHeight, bestHash := indexer.Queryer().Best()
 	tipHeight, tipHash, err := indexer.Tip()
 	if err != nil {
-		return fmt.Errorf("%s: unable to fetch index tip: %v",
+		return fmt.Errorf("%s: unable to fetch index tip: %w",
 			indexer.Name(), err)
 	}
 
