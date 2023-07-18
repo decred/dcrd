@@ -989,6 +989,7 @@ of the best block.
 |
 <code>(json object)</code>
 : <code>hash</code>: <code>(string)</code> the hash of the block (same as provided).
+: <code>powhash</code>: <code>(string)</code> the Proof-of-Work hash of the block (same as hash prior to DCP0011 activation).
 : <code>confirmations</code>: <code>(numeric)</code> the number of confirmations.
 : <code>size</code>: <code>(numeric)</code> the size of the block.
 : <code>height</code>: <code>(numeric)</code> the height of the block in the block chain.
@@ -1015,7 +1016,7 @@ of the best block.
 : <code>previousblockhash</code>: <code>(string)</code> the hash of the previous block.
 : <code>nextblockhash</code>: <code>(string)</code> the hash of the next block (only if there is one).
 
-<code>{"hash": "blockhash", "confirmations": n, "size": n, "height": n, "version": n, "merkleroot": "hash", "stakeroot": "hash", "tx": ["transactionhash", ...], "stx": ["transactionhash", ...], "time": n, "nonce": n, "votebits": n, "finalstate": "state", "voters": n, "freshstake": n, "revocations": n, "poolsize": n, "bits": n, "sbits": n.nn, "difficulty": n.nn, "chainwork": "workhex", "extradata": "data", "stakeversion": n, previousblockhash": "hash", "nextblockhash": "hash"}</code>
+<code>{"hash": "blockhash", "powhash": "hash", "confirmations": n, "size": n, "height": n, "version": n, "merkleroot": "hash", "stakeroot": "hash", "tx": ["transactionhash", ...], "stx": ["transactionhash", ...], "time": n, "nonce": n, "votebits": n, "finalstate": "state", "voters": n, "freshstake": n, "revocations": n, "poolsize": n, "bits": n, "sbits": n.nn, "difficulty": n.nn, "chainwork": "workhex", "extradata": "data", "stakeversion": n, previousblockhash": "hash", "nextblockhash": "hash"}</code>
 |-
 !Example Return (verbose=false)
 |
@@ -1033,7 +1034,7 @@ of the best block.
 : <code>0000000000000000ffffffff0800002f646372642f00"</code>
 |-
 !Example Return (verbose=true, verbosetx=false)
-|<code>"hash": "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba", "confirmations": 283285,"size": 382, "height": 2, "version": 1, "merkleroot": "c867d085c96604812854399bf6df63d35d857484fedfd147759ed94c3cdeca35", "stakeroot": "000000000000000000000000000000000000000000000000000000000000000", tx": ["ba8d2fcb5c705a1e5cbeda0db9dd30a521e360efd3aef75e862b2b69e0a673af", ...], "time": 1454954624, "nonce": 837992634, "votebits": 1, "finalstate": "000000000000", "voters": 0, "freshstake": 0, "revocations": 0, "poolsize": 0, "bits": "1d00ffff", "sbits": 2, "difficulty": 32767.74999809, "chainwork": "00000000000000000000000000000000000000000000000000018000c0006000", "extradata": "c84e3a6b6ad536d3010000000000000000000000000000000000000000000000", "stakeversion": 0, "previousblockhash": "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9", "nextblockhash": "00000000000108ac3e3f51a0f4424dd757a3b0485da0ec96592f637f27bd1cf5"}</code>
+|<code>"hash": "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba", "powhash": "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba", "confirmations": 283285,"size": 382, "height": 2, "version": 1, "merkleroot": "c867d085c96604812854399bf6df63d35d857484fedfd147759ed94c3cdeca35", "stakeroot": "000000000000000000000000000000000000000000000000000000000000000", tx": ["ba8d2fcb5c705a1e5cbeda0db9dd30a521e360efd3aef75e862b2b69e0a673af", ...], "time": 1454954624, "nonce": 837992634, "votebits": 1, "finalstate": "000000000000", "voters": 0, "freshstake": 0, "revocations": 0, "poolsize": 0, "bits": "1d00ffff", "sbits": 2, "difficulty": 32767.74999809, "chainwork": "00000000000000000000000000000000000000000000000000018000c0006000", "extradata": "c84e3a6b6ad536d3010000000000000000000000000000000000000000000000", "stakeversion": 0, "previousblockhash": "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9", "nextblockhash": "00000000000108ac3e3f51a0f4424dd757a3b0485da0ec96592f637f27bd1cf5"}</code>
 |}
 
 ----
@@ -1136,6 +1137,7 @@ of the best block.
 !Returns (verbose=true)
 |<code>(json object)</code>
 : <code>hash</code>: <code>(string)</code> the hash of the block (same as provided).
+: <code>powhash</code>: <code>(string)</code> the Proof-of-Work hash of the block (same as hash prior to DCP0011 activation).
 : <code>confirmations</code>: <code>(numeric)</code> the number of confirmations.
 : <code>version</code>: <code>(numeric)</code> the block version.
 : <code>merkleroot</code>: <code>(string)</code> root hash of the merkle tree.
@@ -1160,7 +1162,7 @@ of the best block.
 : <code>previousblockhash</code>: <code>(string)</code> the hash of the previous block.
 : <code>nextblockhash</code>: <code>(string)</code> the hash of the next block (only if there is one).
 
-<code>{"hash": "blockhash", "confirmations": n, "version": n, "merkleroot": "hash", "stakeroot": "hash", "votebits": n, "finalstate": "state", "voters": n, "freshstake": n, "revocations": n, "poolsize": n, "bits": n, "sbits": n.nn, "height": n, "size": n, "time": n, "nonce": n, "extradata": "data", "stakeversion": n, "difficulty": n.nn, "chainwork": "workhex", "previousblockhash": "hash", "nextblockhash": "hash"}</code>
+<code>{"hash": "blockhash", "powhash": "hash", "confirmations": n, "version": n, "merkleroot": "hash", "stakeroot": "hash", "votebits": n, "finalstate": "state", "voters": n, "freshstake": n, "revocations": n, "poolsize": n, "bits": n, "sbits": n.nn, "height": n, "size": n, "time": n, "nonce": n, "extradata": "data", "stakeversion": n, "difficulty": n.nn, "chainwork": "workhex", "previousblockhash": "hash", "nextblockhash": "hash"}</code>
 |-
 !Example Return (verbose=false)
 |
@@ -1172,7 +1174,7 @@ of the best block.
 : <code>360000000024680140d1ec18000000000000000000000000000000000000000000000000"</code>
 |-
 !Example Return (verbose=true)
-|<code>{"hash": "00000000000004289d9a7b0f7a332fb60a1c221faae89a107ce3ab93eead2f93", "confirmations": 183291, "version": 1, "merkleroot": "2549a4ef697c4a5e067b752bc06a32e74e56e6eddc7a6cb3e299f072469d6b26", "stakeroot":"9f40e23afeb9645f3762170a4469c812f717c71aea543ed073af02968ecc5c82", "votebits": 1, "finalstate": "8b736885bab7", "voters": 5, "freshstake": 0, "revocations": 0, "poolsize": 42567, "bits": "1a1194b4", "sbits": 86.73331302, "height": 100000, "size": 3168, "time": 1484890112, "nonce": 59487578, "stakeversion": 0, "difficulty": 954273.50809769, "chainwork": "00000000000000000000000000000000000000000000001060ad4432c4d6eff1", "previousblockhash": "00000000000000dab92a8a0c0e706eb74115f0f373669c01ffb4882f9555f494",  "nextblockhash": "0000000000000578b08f22fd2bdf5f7fe5b0af1bb4928de5053a3f906b3c8f6b"}</code>
+|<code>{"hash": "00000000000004289d9a7b0f7a332fb60a1c221faae89a107ce3ab93eead2f93", "powhash": "00000000000004289d9a7b0f7a332fb60a1c221faae89a107ce3ab93eead2f93", "confirmations": 183291, "version": 1, "merkleroot": "2549a4ef697c4a5e067b752bc06a32e74e56e6eddc7a6cb3e299f072469d6b26", "stakeroot":"9f40e23afeb9645f3762170a4469c812f717c71aea543ed073af02968ecc5c82", "votebits": 1, "finalstate": "8b736885bab7", "voters": 5, "freshstake": 0, "revocations": 0, "poolsize": 42567, "bits": "1a1194b4", "sbits": 86.73331302, "height": 100000, "size": 3168, "time": 1484890112, "nonce": 59487578, "stakeversion": 0, "difficulty": 954273.50809769, "chainwork": "00000000000000000000000000000000000000000000001060ad4432c4d6eff1", "previousblockhash": "00000000000000dab92a8a0c0e706eb74115f0f373669c01ffb4882f9555f494",  "nextblockhash": "0000000000000578b08f22fd2bdf5f7fe5b0af1bb4928de5053a3f906b3c8f6b"}</code>
 |}
 
 ----
