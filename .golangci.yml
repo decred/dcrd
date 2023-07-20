@@ -19,6 +19,7 @@ linters:
     - grouper
     - ineffassign
     - misspell
+    - nilerr
     - nosprintfhostport
     - reassign
     - rowserrcheck

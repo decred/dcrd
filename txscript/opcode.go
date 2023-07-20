@@ -2483,19 +2483,19 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)
-		return nil
+		return nil // nolint:nilerr
 	}
 
 	pubKey, err := secp256k1.ParsePubKey(pkBytes)
 	if err != nil {
 		vm.dstack.PushBool(false)
-		return nil
+		return nil // nolint:nilerr
 	}
 
 	signature, err := ecdsa.ParseDERSignature(sigBytes)
 	if err != nil {
 		vm.dstack.PushBool(false)
-		return nil
+		return nil // nolint:nilerr
 	}
 
 	var valid bool
@@ -2867,7 +2867,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)
-		return nil
+		return nil // nolint:nilerr
 	}
 
 	// Get the public key from bytes.
@@ -2876,12 +2876,12 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 		pubKeyEd, err := edwards.ParsePubKey(pkBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
-			return nil
+			return nil // nolint:nilerr
 		}
 		sigEd, err := edwards.ParseSignature(sigBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
-			return nil
+			return nil // nolint:nilerr
 		}
 		ok := edwards.Verify(pubKeyEd, hash, sigEd.GetR(), sigEd.GetS())
 		vm.dstack.PushBool(ok)
@@ -2890,12 +2890,12 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 		pubKeySec, err := schnorr.ParsePubKey(pkBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
-			return nil
+			return nil // nolint:nilerr
 		}
 		sigSec, err := schnorr.ParseSignature(sigBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
-			return nil
+			return nil // nolint:nilerr
 		}
 		ok := sigSec.Verify(hash, pubKeySec)
 		vm.dstack.PushBool(ok)

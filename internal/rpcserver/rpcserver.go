@@ -3957,7 +3957,7 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	if _, err := s.cfg.Chain.HeaderByHash(prevBlkHash); err != nil {
 		log.Infof("Block submitted via getwork rejected: orphan building on "+
 			"parent %v", prevBlkHash)
-		return false, nil
+		return false, nil // nolint: nilerr
 	}
 
 	// Choose the proof of work mining algorithm based on the result of the vote
@@ -4892,7 +4892,7 @@ func handleValidateAddress(_ context.Context, s *Server, cmd interface{}) (inter
 	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
 	if err != nil {
 		// Return the default value (false) for IsValid.
-		return result, nil
+		return result, nil // nolint: nilerr
 	}
 
 	result.Address = addr.String()
@@ -4989,7 +4989,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 	pk, wasCompressed, err := ecdsa.RecoverCompact(sig, expectedMessageHash)
 	if err != nil {
 		// Treat errors in RecoverCompact as an invalid signature.
-		return false, nil
+		return false, nil // nolint: nilerr
 	}
 
 	// Reconstruct the pubkey hash.
@@ -5002,7 +5002,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 	address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash, params)
 	if err != nil {
 		// Treat error in reconstruction as an invalid signature.
-		return false, nil
+		return false, nil // nolint: nilerr
 	}
 
 	// Return boolean if addresses match.
