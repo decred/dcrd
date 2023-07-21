@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 display_usage() {
 	echo -e "Usage: $0 PATH_TO_REPOSITORY_ROOT\n"
