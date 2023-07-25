@@ -654,7 +654,7 @@ func (m *SyncManager) handleDonePeerMsg(p *peerpkg.Peer) {
 	// by the disconnected peer if the data was announced by another peer.
 	// Remove the data from the manager's requested data maps if no other
 	// peers have announced the data.
-	requestQueues := make(map[*peerpkg.Peer][]*wire.InvVect)
+	requestQueues := make(map[*peerpkg.Peer][]wire.InvVect)
 	var inv wire.InvVect
 	inv.Type = wire.InvTypeTx
 TxHashes:
@@ -664,8 +664,7 @@ TxHashes:
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			inv := inv
-			invs := append(requestQueues[pp], &inv)
+			invs := append(requestQueues[pp], inv)
 			requestQueues[pp] = invs
 			mgrPeer.requestedTxns[txHash] = struct{}{}
 			continue TxHashes
@@ -681,8 +680,7 @@ BlockHashes:
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			inv := inv
-			invs := append(requestQueues[pp], &inv)
+			invs := append(requestQueues[pp], inv)
 			requestQueues[pp] = invs
 			mgrPeer.requestedBlocks[blockHash] = struct{}{}
 			continue BlockHashes
@@ -693,8 +691,13 @@ BlockHashes:
 	for pp, requestQueue := range requestQueues {
 		var numRequested int32
 		gdmsg := wire.NewMsgGetData()
-		for _, iv := range requestQueue {
-			gdmsg.AddInvVect(iv)
+		for i := range requestQueue {
+			// Note the copy is intentional here to avoid keeping a reference
+			// into the request queue map from the message queue since that
+			// reference could potentially prevent the map from being garbage
+			// collected for an extended period of time.
+			ivCopy := requestQueue[i]
+			gdmsg.AddInvVect(&ivCopy)
 			numRequested++
 			if numRequested == wire.MaxInvPerMsg {
 				// Send full getdata message and reset.

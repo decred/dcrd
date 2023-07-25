@@ -52,10 +52,10 @@ func TestUsageFlagStringer(t *testing.T) {
 
 	// Detect additional usage flags that don't have the stringer added.
 	numUsageFlags := 0
-	highestUsageFlagBit := highestUsageFlagBit
-	for highestUsageFlagBit > 1 {
+	highestBit := highestUsageFlagBit
+	for highestBit > 1 {
 		numUsageFlags++
-		highestUsageFlagBit >>= 1
+		highestBit >>= 1
 	}
 	if len(tests)-3 != numUsageFlags {
 		t.Errorf("It appears a usage flag was added without adding " +

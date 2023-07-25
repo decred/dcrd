@@ -1040,9 +1040,10 @@ func (g *BlkTmplGenerator) addAutoRevocationsToQueue(winningTickets map[chainhas
 
 	// Create revocation transactions for all tickets that will become missed
 	// or expired as of this block.
-	for _, ticketHash := range revokeTickets {
+	for i := range revokeTickets {
 		// Create the revocation transaction.
-		txDesc, err := g.createRevocationFromTicket(&ticketHash, blockUtxos,
+		ticketHash := &revokeTickets[i]
+		txDesc, err := g.createRevocationFromTicket(ticketHash, blockUtxos,
 			prevHeaderBytes, isTreasuryEnabled)
 		if err != nil {
 			return err

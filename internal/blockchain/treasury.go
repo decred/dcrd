@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -863,13 +863,14 @@ func (b *BlockChain) checkTSpendExists(prevNode *blockNode, tspend chainhash.Has
 	}
 
 	// Do fork detection on all blocks.
-	for _, v := range blocks {
+	for i := range blocks {
 		// Lookup blockNode.
-		node := b.index.LookupNode(&v)
+		blockHash := &blocks[i]
+		node := b.index.LookupNode(blockHash)
 		if node == nil {
 			// This should not happen.
-			trsyLog.Errorf("checkTSpendExists: block not found %v tspend %v", v,
-				tspend)
+			trsyLog.Errorf("checkTSpendExists: block not found %v tspend %v",
+				blockHash, tspend)
 			continue
 		}
 

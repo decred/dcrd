@@ -99,8 +99,8 @@ func TestGetSigOpCount(t *testing.T) {
 		wantTreasuryCount: 0,
 	}}
 
-	for _, tc := range testCases {
-		tc := tc
+	for i := range testCases {
+		tc := &testCases[i]
 		t.Run(tc.name, func(t *testing.T) {
 			script := mustParseShortFormV0(tc.script)
 			gotCount := GetSigOpCount(script, false)

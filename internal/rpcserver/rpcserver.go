@@ -3319,14 +3319,15 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 			if !checkingMainChain {
 				continue
 			}
-			for _, block := range blocks {
-				if !chain.MainChainHasBlock(&block) {
+			for i := range blocks {
+				blockHash := &blocks[i]
+				if !chain.MainChainHasBlock(blockHash) {
 					continue
 				}
 
 				// Fetch the header to discover this block's
 				// height.
-				hdr, err := chain.HeaderByHash(&block)
+				hdr, err := chain.HeaderByHash(blockHash)
 				if err != nil {
 					// Shouldn't happen.
 					context := "block without associated header"

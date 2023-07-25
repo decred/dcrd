@@ -7990,8 +7990,8 @@ func TestHandleHelp(t *testing.T) {
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
-	for _, test := range tests {
-		test := test // capture range variable
+	for i := range tests {
+		test := &tests[i]
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
