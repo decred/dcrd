@@ -1187,7 +1187,8 @@ func newHTTPClient(config *ConnConfig) (*http.Client, error) {
 			pool := x509.NewCertPool()
 			pool.AppendCertsFromPEM(config.Certificates)
 			tlsConfig = &tls.Config{
-				RootCAs: pool,
+				RootCAs:    pool,
+				MinVersion: tls.VersionTLS12,
 			}
 		}
 	}
