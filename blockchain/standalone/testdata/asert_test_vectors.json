@@ -1502,6 +1502,21 @@
       ]
     },
     {
+      "description": "mainnet: blocks with 1s decreasing timestamps",
+      "params": "mainnet",
+      "startDiffBits": 453027238,
+      "startHeight": 0,
+      "startTime": 300,
+      "tests": [
+        {"height": 1, "timestamp": 299, "expectedDiffBits": 453027034},
+        {"height": 2, "timestamp": 298, "expectedDiffBits": 453026831},
+        {"height": 3, "timestamp": 297, "expectedDiffBits": 453026629},
+        {"height": 4, "timestamp": 296, "expectedDiffBits": 453026428},
+        {"height": 5, "timestamp": 295, "expectedDiffBits": 453026228},
+        {"height": 6, "timestamp": 294, "expectedDiffBits": 453026029}
+      ]
+    },
+    {
       "description": "testnet: steady 120s blocks at proof of work limit",
       "params": "testnet",
       "startDiffBits": 503382015,
