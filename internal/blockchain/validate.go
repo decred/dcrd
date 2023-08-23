@@ -703,7 +703,7 @@ func standaloneToChainRuleError(err error) error {
 //     difficulty is not performed.
 func checkProofOfWorkSanity(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
 	// Only ensure the target difficulty bits are in the valid range when the
-	// the flag to avoid proof of work checks is set.
+	// flag to avoid proof of work checks is set.
 	if flags&BFNoPoWCheck == BFNoPoWCheck {
 		err := standalone.CheckProofOfWorkRange(header.Bits, powLimit)
 		return standaloneToChainRuleError(err)

@@ -994,7 +994,7 @@ func (m *SyncManager) guessHeaderSyncProgress(header *wire.BlockHeader) float64 
 }
 
 // headerSyncProgress returns a percentage that is a guess of the progress of
-// of the header sync process.
+// the header sync process.
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) headerSyncProgress() float64 {

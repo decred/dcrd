@@ -431,7 +431,7 @@ func MainNetParams() *Params {
 			10: {{
 				Vote: Vote{
 					Id:          VoteIDBlake3Pow,
-					Description: "Change proof of work hashing algorithm to BLAKE3 as defined in in DCP0011",
+					Description: "Change proof of work hashing algorithm to BLAKE3 as defined in DCP0011",
 					Mask:        0x0006, // Bits 1 and 2
 					Choices: []Choice{{
 						Id:          "abstain",

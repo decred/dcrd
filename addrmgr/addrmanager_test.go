@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -57,7 +57,7 @@ func TestStartStop(t *testing.T) {
 		t.Fatalf("address manager failed to stop: %v", err)
 	}
 
-	// Verify that the the peers file has been written to.
+	// Verify that the peers file has been written to.
 	if _, err := os.Stat(peersFile); err != nil {
 		t.Fatalf("peers file does not exist: %s", peersFile)
 	}

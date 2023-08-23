@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -3400,8 +3400,8 @@ func TestUint256BitLen(t *testing.T) {
 }
 
 // TestUint256Text ensures the converting uint256s to the supported output bases
-// via the Text method works as intended that that it also handles nil pointers
-// as intended.
+// via the Text method works as intended that it also handles nil pointers as
+// intended.
 func TestUint256Text(t *testing.T) {
 	t.Parallel()
 

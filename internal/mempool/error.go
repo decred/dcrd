@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -25,7 +25,7 @@ const (
 	// prevailing orphan policy.
 	ErrOrphanPolicyViolation = ErrorKind("ErrOrphanPolicyViolation")
 
-	// ErrMempoolDoubleSpend indicates a transaction that attempts to to spend
+	// ErrMempoolDoubleSpend indicates a transaction that attempts to spend
 	// coins already spent by other transactions in the pool.
 	ErrMempoolDoubleSpend = ErrorKind("ErrMempoolDoubleSpend")
 

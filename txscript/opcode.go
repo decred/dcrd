@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1738,7 +1738,7 @@ func opcodeNegate(op *opcode, data []byte, vm *Engine) error {
 }
 
 // opcodeAbs treats the top item on the data stack as an integer and replaces it
-// it with its absolute value.
+// with its absolute value.
 //
 // Stack transformation: [... x1 x2] -> [... x1 abs(x2)]
 func opcodeAbs(op *opcode, data []byte, vm *Engine) error {

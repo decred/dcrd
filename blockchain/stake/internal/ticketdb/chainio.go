@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,32 +40,32 @@ const (
 // the height of the best chain on start up.
 //
 // There are 5 buckets from the database reserved for tickets. These are:
-// 1. Live
+// 1. Live:
 //     Live ticket bucket, for tickets currently in the lottery
 //
 //     k: ticket hash
 //     v: height
 //
-// 2. Missed
+// 2. Missed:
 //     Missed tickets bucket, for all tickets that are missed.
 //
 //     k: ticket hash
 //     v: height
 //
-// 3. Revoked
+// 3. Revoked:
 //     Revoked tickets bucket, for all tickets that are Revoked.
 //
 //     k: ticket hash
 //     v: height
 //
-// 4. BlockUndo
+// 4. BlockUndo:
 //     Block removal data, for reverting the first 3 database buckets to
 //     a previous state.
 //
 //     k: height
 //     v: serialized undo ticket data
 //
-// 5. TicketsToAdd
+// 5. TicketsToAdd:
 //     Tickets to add bucket, which tells which tickets will be maturing and
 //     entering the (1) in the event that a block at that height is added.
 //

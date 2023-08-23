@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -253,8 +253,8 @@ func (r *FutureCreateRawSStxResult) Receive() (*wire.MsgTx, error) {
 }
 
 // SStxCommitOut represents the output to an SStx transaction. Specifically a
-// a commitment address and amount, and a change address and amount. Same
-// name as the JSON lib, but different internal structures.
+// commitment address and amount, and a change address and amount. Same name as
+// the JSON lib, but different internal structures.
 type SStxCommitOut struct {
 	Addr       stdaddr.Address
 	CommitAmt  dcrutil.Amount

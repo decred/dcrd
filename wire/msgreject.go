@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,9 +55,8 @@ func (code RejectCode) String() string {
 // Deprecated: This message is no longer valid as of protocol version
 // RemoveRejectVersion.
 type MsgReject struct {
-	// Cmd is the command for the message which was rejected such as
-	// as CmdBlock or CmdTx.  This can be obtained from the Command function
-	// of a Message.
+	// Cmd is the command for the message which was rejected such as CmdBlock or
+	// CmdTx.  This can be obtained from the Command function of a Message.
 	Cmd string
 
 	// RejectCode is a code indicating why the command was rejected.  It

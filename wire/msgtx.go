@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -333,7 +333,7 @@ type TxOut struct {
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
-// the transaction output.
+// transaction output.
 func (t *TxOut) SerializeSize() int {
 	// Value 8 bytes + Version 2 bytes + serialized varint size for
 	// the length of PkScript + PkScript bytes.
@@ -1001,7 +1001,7 @@ func (msg *MsgTx) BytesWitness() ([]byte, error) {
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
-// the transaction.
+// transaction.
 func (msg *MsgTx) SerializeSize() int {
 	// Unknown type return 0.
 	n := 0

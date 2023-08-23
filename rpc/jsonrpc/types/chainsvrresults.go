@@ -523,7 +523,6 @@ type FeeInfoWindow struct {
 }
 
 // TicketFeeInfoResult models the data returned from the ticketfeeinfo command.
-// command.
 type TicketFeeInfoResult struct {
 	FeeInfoMempool FeeInfoMempool  `json:"feeinfomempool"`
 	FeeInfoBlocks  []FeeInfoBlock  `json:"feeinfoblocks"`
@@ -531,7 +530,6 @@ type TicketFeeInfoResult struct {
 }
 
 // TxFeeInfoResult models the data returned from the ticketfeeinfo command.
-// command.
 type TxFeeInfoResult struct {
 	FeeInfoMempool FeeInfoMempool `json:"feeinfomempool"`
 	FeeInfoBlocks  []FeeInfoBlock `json:"feeinfoblocks"`

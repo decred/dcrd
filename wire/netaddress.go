@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -136,9 +136,9 @@ func readNetAddress(r io.Reader, pver uint32, na *NetAddress, ts bool) error {
 // version and whether or not the timestamp is included per ts.  Some messages
 // like version do not include the timestamp.
 func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
-	// NOTE: The Decred protocol uses a uint32 for the timestamp so it will
-	// stop working somewhere around 2106.  Also timestamp wasn't added until
-	// until protocol version >= NetAddressTimeVersion.
+	// NOTE: The Decred protocol uses a uint32 for the timestamp so it will stop
+	// working somewhere around 2106.  Also timestamp wasn't added until
+	// protocol version >= NetAddressTimeVersion.
 	if ts {
 		err := writeElement(w, uint32(na.Timestamp.Unix()))
 		if err != nil {

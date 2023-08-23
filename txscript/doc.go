@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -29,7 +29,7 @@ what conditions must be met in order to spend decred.
 
 # Errors
 
-Errors returned by this package are of type txscript.ErrorKind wrapped by
+The errors returned by this package are of type txscript.ErrorKind wrapped by
 txscript.Error which has full support for the standard library errors.Is and
 errors.As functions.  This allows the caller to programmatically determine the
 specific error while still providing rich error messages with contextual

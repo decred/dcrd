@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,7 +12,7 @@ import (
 
 var (
 	// rfc1918Nets specifies the IPv4 private address blocks as defined by
-	// by RFC1918 (10.0.0.0/8, 172.16.0.0/12, and 192.168.0.0/16).
+	// RFC1918 (10.0.0.0/8, 172.16.0.0/12, and 192.168.0.0/16).
 	rfc1918Nets = []net.IPNet{
 		ipNet("10.0.0.0", 8, 32),
 		ipNet("172.16.0.0", 12, 32),

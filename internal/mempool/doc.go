@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -75,13 +75,13 @@ be an exhaustive list.
 
 # Errors
 
-Errors returned by this package are either the raw errors provided by underlying
-calls or of type mempool.RuleError.  Since there are two classes of rules
-(mempool acceptance rules and blockchain (consensus) acceptance rules), the
-mempool.RuleError type contains a single Err field which will, in turn, either
-be a mempool.TxRuleError or a blockchain.RuleError.  The first indicates a
-violation of mempool acceptance rules while the latter indicates a violation of
-consensus acceptance rules.  This allows the caller to easily differentiate
+The errors returned by this package are either the raw errors provided by
+underlying calls or of type mempool.RuleError.  Since there are two classes of
+rules (mempool acceptance rules and blockchain (consensus) acceptance rules),
+the mempool.RuleError type contains a single Err field which will, in turn,
+either be a mempool.TxRuleError or a blockchain.RuleError.  The first indicates
+a violation of mempool acceptance rules while the latter indicates a violation
+of consensus acceptance rules.  This allows the caller to easily differentiate
 between unexpected errors, such as database errors, versus errors due to rule
 violations through type assertions.  In addition, callers can programmatically
 determine the specific rule violation by type asserting the Err field to one of

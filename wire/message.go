@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -292,8 +292,8 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 
 // WriteMessage writes a Decred Message to w including the necessary header
 // information.  This function is the same as WriteMessageN except it doesn't
-// doesn't return the number of bytes written.  This function is mainly provided
-// for backwards compatibility with the original API, but it's also useful for
+// return the number of bytes written.  This function is mainly provided for
+// backwards compatibility with the original API, but it's also useful for
 // callers that don't care about byte counts.
 func WriteMessage(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) error {
 	_, err := WriteMessageN(w, msg, pver, dcrnet)

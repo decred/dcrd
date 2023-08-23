@@ -551,7 +551,7 @@ type workState struct {
 	// prevBestHash houses the previous best known chain tip.
 	//
 	// waitForUpdatedTemplate determines whether or not a getwork invocation
-	// should should block until a new template is received from the background
+	// should block until a new template is received from the background
 	// template generator.
 	//
 	// templatePool houses unique block templates that have been returned to

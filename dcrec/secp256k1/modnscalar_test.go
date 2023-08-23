@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1259,10 +1259,9 @@ func TestModNScalarIsOverHalfOrder(t *testing.T) {
 	}
 }
 
-// TestModNScalarIsOverHalfOrderRandom ensures ensures that scalars report
-// whether or not they exceeed the half order for random values works as
-// expected by also performing the same operation with big ints and comparing
-// the results.
+// TestModNScalarIsOverHalfOrderRandom ensures that scalars report whether or
+// not they exceeed the half order for random values works as expected by also
+// performing the same operation with big ints and comparing the results.
 func TestModNScalarIsOverHalfOrderRandom(t *testing.T) {
 	// Use a unique random seed each test instance and log it if the tests fail.
 	seed := time.Now().Unix()

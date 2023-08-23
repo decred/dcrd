@@ -2366,7 +2366,7 @@ func (s *server) AddPeer(sp *serverPeer) {
 	}
 }
 
-// DonePeer removes a disconnected peer from the the server.
+// DonePeer removes a disconnected peer from the server.
 func (s *server) DonePeer(sp *serverPeer) {
 	select {
 	case <-s.quit:

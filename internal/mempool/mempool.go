@@ -177,8 +177,8 @@ type Policy struct {
 	MaxOrphanTxs int
 
 	// MaxOrphanTxSize is the maximum size allowed for orphan transactions.
-	// This helps prevent memory exhaustion attacks from sending a lot of
-	// of big orphans.
+	// This helps prevent memory exhaustion attacks from sending a lot of big
+	// orphans.
 	MaxOrphanTxSize int
 
 	// MaxSigOpsPerTx is the maximum number of signature operations

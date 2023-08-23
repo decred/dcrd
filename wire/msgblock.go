@@ -311,7 +311,7 @@ func (msg *MsgBlock) Bytes() ([]byte, error) {
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
-// the block.
+// block.
 func (msg *MsgBlock) SerializeSize() int {
 	// Check to make sure that all transactions have the correct
 	// type and version to be included in a block.

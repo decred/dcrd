@@ -4674,9 +4674,9 @@ func serializeHeaderCommitmentsV1(commitments []chainhash.Hash) []byte {
 //
 // The database is guaranteed to have the header commitments for all blocks
 // after the point that header commitments activated and also have both the
-// block data data and associated filter data available.  In practice, that
-// includes all blocks that are part of the main chain as well as any side chain
-// blocks that were fully connected at some point.
+// block data and associated filter data available.  In practice, that includes
+// all blocks that are part of the main chain as well as any side chain blocks
+// that were fully connected at some point.
 func initializeHeaderCmts(ctx context.Context, db database.DB, params *chaincfg.Params) error {
 	log.Info("Storing header commitments.  This may take a while...")
 	start := time.Now()

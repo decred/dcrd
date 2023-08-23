@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -61,11 +61,10 @@ func (e ErrorKind) Error() string {
 	return string(e)
 }
 
-// Error identifies a mining rule rule violation. It has full support for
-// errors.Is and errors.As, so the caller can ascertain the specific reason
-// for the error by checking the underlying error. It is used to indicate
-// that processing of a block or transaction failed due to one of the many
-// validation rules.
+// Error identifies a mining rule violation. It has full support for errors.Is
+// and errors.As, so the caller can ascertain the specific reason for the error
+// by checking the underlying error. It is used to indicate  that processing of
+// a block or transaction failed due to one of the many validation rules.
 type Error struct {
 	Err         error
 	Description string

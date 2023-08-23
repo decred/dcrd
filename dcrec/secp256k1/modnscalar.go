@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -364,8 +364,8 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 }
 
 // PutBytesUnchecked unpacks the scalar to a 32-byte big-endian value directly
-// into the passed byte slice in constant time.  The target slice must must have
-// at least 32 bytes available or it will panic.
+// into the passed byte slice in constant time.  The target slice must have at
+// least 32 bytes available or it will panic.
 //
 // There is a similar function, PutBytes, which unpacks the scalar into a
 // 32-byte array directly.  This version is provided since it can be useful to

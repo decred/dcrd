@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -532,7 +532,7 @@ func (c *Client) sendMessage(marshalledJSON []byte) {
 
 // reregisterNtfns creates and sends commands needed to re-establish the current
 // notification state associated with the client.  It should only be called on
-// on reconnect by the resendRequests function.
+// reconnect by the resendRequests function.
 func (c *Client) reregisterNtfns(ctx context.Context) error {
 	// Nothing to do if the caller is not interested in notifications.
 	if c.ntfnHandlers == nil {

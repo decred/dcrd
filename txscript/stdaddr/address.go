@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -311,7 +311,7 @@ func NewAddressPubKeyHashEcdsaSecp256k1(scriptVersion uint16, pkHash []byte,
 	return nil, makeError(ErrUnsupportedScriptVersion, str)
 }
 
-// NewAddressPubKeyHashEd25519 returns an address that represents a a payment
+// NewAddressPubKeyHashEd25519 returns an address that represents a payment
 // destination which imposes an encumbrance that requires an Ed25519 public key
 // that hashes to the provided public key hash along with a valid Ed25519
 // signature for that public key.

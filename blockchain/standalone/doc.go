@@ -54,10 +54,10 @@ The provided functions fall into the following categories:
 
 # Errors
 
-Errors returned by this package are of type standalone.RuleError.  This allows
-the caller to differentiate between errors further up the call stack through
-type assertions.  In addition, callers can programmatically determine the
-specific rule violation by examining the ErrorCode field of the type asserted
-standalone.RuleError.
+The errors returned by this package are of type standalone.RuleError.  This
+allows the caller to differentiate between errors further up the call stack
+through type assertions.  In addition, callers can programmatically determine
+the specific rule violation by examining the ErrorCode field of the type
+asserted standalone.RuleError.
 */
 package standalone

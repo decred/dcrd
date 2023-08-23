@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -722,7 +722,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Hash160() *[ripemd160.Size]byte {
 	return &addr.hash
 }
 
-// AddressPubKeyHashEd25519V0 specifies an address that represents a a payment
+// AddressPubKeyHashEd25519V0 specifies an address that represents a payment
 // destination which imposes an encumbrance that requires an Ed25519 public key
 // that hashes to the given public key hash along with a valid Ed25519 signature
 // for that public key.
@@ -738,7 +738,7 @@ type AddressPubKeyHashEd25519V0 struct {
 var _ Address = (*AddressPubKeyHashEd25519V0)(nil)
 var _ Hash160er = (*AddressPubKeyHashEd25519V0)(nil)
 
-// NewAddressPubKeyHashEd25519V0 returns an address that represents a a payment
+// NewAddressPubKeyHashEd25519V0 returns an address that represents a payment
 // destination which imposes an encumbrance that requires an Ed25519 public key
 // that hashes to the provided public key hash along with a valid Ed25519
 // signature for that public key using version 0 scripts.

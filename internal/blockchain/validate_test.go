@@ -732,7 +732,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.ExpectTip("b3a") // Ensure chain tip didn't change.
 
 	// Create a block template that builds on the current tip and ensure it
-	// it is still accepted after the forced reorg.
+	// is still accepted after the forced reorg.
 	//
 	//   ... -> b2(1) -> b3a(2)
 	//                         \-> b4ct(3)

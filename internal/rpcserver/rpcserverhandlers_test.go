@@ -244,8 +244,8 @@ func (c *testRPCChain) ChainTips() []blockchain.ChainTipInfo {
 	return c.chainTips
 }
 
-// ChainWork returns returns a mocked total work up to and including the block
-// of the provided block hash.
+// ChainWork returns a mocked total work up to and including the block of the
+// provided block hash.
 func (c *testRPCChain) ChainWork(hash *chainhash.Hash) (uint256.Uint256, error) {
 	return c.chainWork, c.chainWorkErr
 }

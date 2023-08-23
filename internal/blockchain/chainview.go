@@ -287,7 +287,7 @@ func (c *chainView) Next(node *blockNode) *blockNode {
 }
 
 // findFork returns the final common block between the provided node and the
-// the chain view.  It will return nil if there is no common block.  This only
+// chain view.  It will return nil if there is no common block.  This only
 // differs from the exported version in that it is up to the caller to ensure
 // the lock is held.
 //

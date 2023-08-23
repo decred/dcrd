@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -142,9 +142,9 @@ from a remote peer is:
 
 # Errors
 
-Errors returned by this package are either the raw errors provided by underlying
-calls to read/write from streams such as io.EOF, io.ErrUnexpectedEOF, and
-io.ErrShortWrite, or of type wire.MessageError.  This allows the caller to
+The errors returned by this package are either the raw errors provided by
+underlying calls to read/write from streams such as io.EOF, io.ErrUnexpectedEOF,
+and io.ErrShortWrite, or of type wire.MessageError.  This allows the caller to
 differentiate between general IO errors and malformed messages through type
 assertions.
 

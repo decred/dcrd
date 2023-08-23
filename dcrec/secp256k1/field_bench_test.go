@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,7 +40,7 @@ func BenchmarkFieldSqrt(b *testing.B) {
 	}
 }
 
-// BenchmarkBigSqrt benchmarks calculating the square root of an an unsigned
+// BenchmarkBigSqrt benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
 func BenchmarkBigSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.

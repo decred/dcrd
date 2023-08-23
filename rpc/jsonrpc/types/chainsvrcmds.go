@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -70,7 +70,7 @@ type SStxInput struct {
 }
 
 // SStxCommitOut represents the output to an SStx transaction. Specifically a
-// a commitment address and amount, and a change address and amount.
+// commitment address and amount, and a change address and amount.
 type SStxCommitOut struct {
 	Addr       string `json:"addr"`
 	CommitAmt  int64  `json:"commitamt"`

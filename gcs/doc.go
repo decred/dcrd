@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -27,11 +27,11 @@ are parameterized by the following:
 
 # Errors
 
-Errors returned by this package are of type gcs.Error.  This allows the caller
-to programmatically determine the specific error by examining the ErrorKind
-field of the type asserted gcs.Error while still providing rich error messages
-with contextual information.  See ErrorKind in the package documentation
-for a full list.
+The errors returned by this package are of type gcs.Error.  This allows the
+caller to programmatically determine the specific error by examining the
+ErrorKind field of the type asserted gcs.Error while still providing rich error
+messages with contextual information.  See ErrorKind in the package
+documentation for a full list.
 
 # GCS use in Decred
 
