@@ -480,7 +480,7 @@ func recoverIndex(ctx context.Context, idx Indexer) error {
 		hash = &block.MsgBlock().Header.PrevBlock
 		height--
 
-		progressLogger.LogBlockHeight(block.MsgBlock(), parent.MsgBlock())
+		progressLogger.LogBlockHeight(block.MsgBlock())
 	}
 
 	log.Infof("%s: index recovered to tip %d (%s)", idx.Name(),

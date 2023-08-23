@@ -326,7 +326,7 @@ func (s *IndexSubscriber) CatchUp(ctx context.Context, _ database.DB, queryer Ch
 
 		cachedParent = child
 
-		progressLogger.LogBlockHeight(child.MsgBlock(), parent.MsgBlock())
+		progressLogger.LogBlockHeight(child.MsgBlock())
 	}
 
 	log.Infof("Caught up to height %d", bestHeight)
