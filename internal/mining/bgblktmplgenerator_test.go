@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -108,7 +108,6 @@ func TestWaitGroup(t *testing.T) {
 					t.Fatalf("Wait() should've returned")
 				}
 			}
-
 		},
 	}, {
 		name: "Wait() after Add(0) returns immediately",
@@ -137,7 +136,6 @@ func TestWaitGroup(t *testing.T) {
 			if !waitReturned(c) {
 				t.Fatalf("Second usage of Wait() after Done() should return")
 			}
-
 		},
 	}, {
 		name: "negative Add() panics",

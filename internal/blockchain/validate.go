@@ -2223,7 +2223,6 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				str := fmt.Sprintf("block contains unfinalized stake "+
 					"transaction %v", stx.Hash())
 				return ruleError(ErrUnfinalizedTx, str)
-
 			}
 		}
 
@@ -3882,7 +3881,6 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 					subsidyTax)
 				return ruleError(ErrBadTreasurybaseAmountIn, errStr)
 			}
-
 		}
 
 		if len(txs) == 0 &&

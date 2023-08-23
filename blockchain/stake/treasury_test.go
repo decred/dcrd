@@ -1044,7 +1044,6 @@ func TestTSpendGenerated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("checkTSpend: %v", err)
 	}
-
 }
 
 func TestTSpendErrors(t *testing.T) {

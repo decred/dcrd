@@ -1172,7 +1172,6 @@ func TestExplicitVerUpgradesSemantics(t *testing.T) {
 		regSpendTx = g.CreateSpendTx(&regSpend, lowFee)
 		regSpendTx.TxIn[0].SignatureScript = nil
 		b.AddTransaction(regSpendTx)
-
 	})
 	g.AcceptTipBlock()
 
