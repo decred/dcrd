@@ -3609,7 +3609,7 @@ func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64,
 // getStakeBaseAmounts calculates the total amount given as subsidy from the
 // collective stakebase transactions (votes) within a block.  This function
 // skips a ton of checks already performed by CheckTransactionInputs.
-func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool) (int64, error) {
+func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
@@ -3812,7 +3812,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 	// mining the block.  It is safe to ignore overflow and out of range
 	// errors here because those error conditions would have already been
 	// caught by the transaction sanity checks.
-	if !stakeTree { //TxTreeRegular
+	if !stakeTree { // TxTreeRegular
 		// Apply penalty to fees if we're at stake validation height.
 		if node.height >= b.chainParams.StakeValidationHeight {
 			totalFees *= int64(node.voters)
@@ -3900,8 +3900,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			return err
 		}
 
-		totalAtomOutStake, err := getStakeBaseAmounts(txs, view,
-			isTreasuryEnabled)
+		totalAtomOutStake, err := getStakeBaseAmounts(txs, view)
 		if err != nil {
 			return err
 		}
