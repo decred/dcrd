@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -463,6 +463,8 @@ func TestTicketDBLongChain(t *testing.T) {
 	// A longer, more strenuous test is given below. Uncomment to execute it.
 	// ----------------------------------------------------------------------------
 
+	// nolint: dupword
+	//
 	/*
 		// Create a new database to store the accepted stake node data into.
 		dbName := "ffldb_staketest"

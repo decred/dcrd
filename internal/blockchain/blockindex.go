@@ -632,6 +632,8 @@ func (bi *blockIndex) HaveBlock(hash *chainhash.Hash) bool {
 // shortBlockKey generates a short identifier from a standard block hash for use
 // as a key in the block index.
 func shortBlockKey(hash *chainhash.Hash) uint32 {
+	// nolint: dupword
+	//
 	// Use the first bytes of the hash directly since it is the result of a hash
 	// function that produces a uniformly-random distribution.
 	//

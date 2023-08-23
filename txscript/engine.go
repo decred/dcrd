@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -190,6 +190,8 @@ type Engine struct {
 	//
 	// condDisableDepth is the nesting depth that caused conditional branch
 	// execution to be disabled, or the value `noCondDisableDepth`.
+	//
+	// nolint: dupword
 	condNestDepth    int32
 	condDisableDepth int32
 }

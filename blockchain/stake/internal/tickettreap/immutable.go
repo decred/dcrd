@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -212,6 +212,8 @@ func (t *Immutable) Put(key Key, value *Value) *Immutable {
 		// Perform a right rotation if the node is on the left side or
 		// a left rotation if the node is on the right side.
 		if parent.left == node {
+			// nolint: dupword
+			//
 			// just to help visualise right-rotation...
 			//        p               n
 			//       / \       ->    / \

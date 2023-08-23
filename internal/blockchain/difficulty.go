@@ -733,6 +733,8 @@ func calcNextStakeDiffV2(params *chaincfg.Params, nextHeight, curDiff, prevPoolS
 	ticketPoolSize := int64(params.TicketPoolSize)
 	ticketMaturity := int64(params.TicketMaturity)
 
+	// nolint: dupword
+	//
 	// Calculate the difficulty by multiplying the old stake difficulty
 	// with two ratios that represent a force to counteract the relative
 	// change in the pool size (Fc) and a restorative force to push the pool

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -696,7 +696,7 @@ var scriptV0Tests = func() []scriptTest {
 		wantType: STNonStandard,
 	}, {
 		name:     "almost v0 treasury add -- two TADD",
-		script:   p("TADD TADD"),
+		script:   p("TADD TADD"), // nolint: dupword
 		wantType: STNonStandard,
 	}, {
 		// ---------------------------------------------------------------------

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -91,6 +91,8 @@ var (
 		0x2c, // No OP_TSPEND
 	}
 
+	// nolint: dupword
+	//
 	// OP_DATA_64 <signature> <pikey> OP_TSPEND OP_TSPEND
 	tspendTwoTSpend = []byte{
 		0x40, // OP_DATA_64 valid signature

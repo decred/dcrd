@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2023 The Decred developers
 // Originally written in 2011-2012 by Dmitry Chestnykh.
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -79,6 +79,7 @@ var vectors256 = []blakeVector{
 	},
 }
 
+// nolint: dupword
 var vectors224 = []blakeVector{
 	{"c8e92d7088ef87c1530aee2ad44dc720cc10589cc2ec58f95a15e51b",
 		"The quick brown fox jumps over the lazy dog"},

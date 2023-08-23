@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 The Decred developers
+// Copyright (c) 2019-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -66,6 +66,7 @@ func TestGenerateInclusionProof(t *testing.T) {
 			"b92bb84b19e850458f4eabc098e2990f3931e8b88e9a72a41162e9ae4e2a371a",
 		},
 	}, {
+		// nolint: dupword
 		name: "22 leaves, leaf index 17 (right, left, left, left, right)",
 		leaves: []string{
 			"46670d055dae85e8f9eceb5d30b1433c7232d3b09068fbde4741db3714dafdb7",
@@ -100,6 +101,7 @@ func TestGenerateInclusionProof(t *testing.T) {
 			"730ec07e8a5bde0d66aef48e59ccd3588ca7daf50428ef2584827542a6d3f50a",
 		},
 	}, {
+		// nolint: dupword
 		name: "22 leaves, leaf index 8 (left, left, left, right, left)",
 		leaves: []string{
 			"46670d055dae85e8f9eceb5d30b1433c7232d3b09068fbde4741db3714dafdb7",
@@ -285,6 +287,7 @@ func TestVerifyInclusionProof(t *testing.T) {
 		},
 		want: false,
 	}, {
+		// nolint: dupword
 		name:      "22 leaves, leaf index 17 (right, left, left, left, right)",
 		root:      "4aa7bcd77d51f6f4db4983e731b5e08b3ea724c5cb99d3debd3d75fd67e7c72b",
 		leaf:      "472c27828b8ecd51f038a676aa9dc2e8d144cc292885e342a37852ec6d0d78a7",
@@ -298,6 +301,7 @@ func TestVerifyInclusionProof(t *testing.T) {
 		},
 		want: true,
 	}, {
+		// nolint: dupword
 		name:      "22 leaves, leaf index 8 (left, left, left, right, left)",
 		root:      "4aa7bcd77d51f6f4db4983e731b5e08b3ea724c5cb99d3debd3d75fd67e7c72b",
 		leaf:      "25f65b3814c55de20576d35fc68ecc202bf058352746c9e2347f7e59f5a2c677",

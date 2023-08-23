@@ -267,6 +267,8 @@ func CalcASERTDiff(startDiffBits uint32, powLimit *big.Int, targetSecsPerBlock,
 		panicf("provided height delta %d is negative", heightDelta)
 	}
 
+	// nolint: dupword
+	//
 	// Calculate the target difficulty by multiplying the provided starting
 	// target difficulty by an exponential scaling factor that is determined
 	// based on how far ahead or behind the ideal schedule the given time delta

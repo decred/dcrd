@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -275,6 +275,8 @@ type MultiSigDetailsV0 struct {
 // an allocation that the caller might wish to avoid.  The PubKeys member of the
 // returned details struct will be nil when the flag is false.
 func ExtractMultiSigScriptDetailsV0(script []byte, extractPubKeys bool) MultiSigDetailsV0 {
+	// nolint: dupword
+	//
 	// A multi-signature script is of the form:
 	//  REQ_SIGS PUBKEY PUBKEY PUBKEY ... NUM_PUBKEYS OP_CHECKMULTISIG
 

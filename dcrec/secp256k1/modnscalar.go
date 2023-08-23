@@ -46,6 +46,8 @@ const (
 	//
 	// The group order of the curve per [SECG] is:
 	// 0xffffffff ffffffff ffffffff fffffffe baaedce6 af48a03b bfd25e8c d0364141
+	//
+	// nolint: dupword
 	orderWordZero  uint32 = 0xd0364141
 	orderWordOne   uint32 = 0xbfd25e8c
 	orderWordTwo   uint32 = 0xaf48a03b
@@ -76,6 +78,8 @@ const (
 	//
 	// The half order of the secp256k1 curve group is:
 	// 0x7fffffff ffffffff ffffffff ffffffff 5d576e73 57a4501d dfe92f46 681b20a0
+	//
+	// nolint: dupword
 	halfOrderWordZero  uint32 = 0x681b20a0
 	halfOrderWordOne   uint32 = 0xdfe92f46
 	halfOrderWordTwo   uint32 = 0x57a4501d

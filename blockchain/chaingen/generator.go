@@ -1221,6 +1221,8 @@ func calcASERTDiff(startDiffBits uint32, powLimit *big.Int, targetSecsPerBlock,
 		panic(fmt.Sprintf("provided height delta %d is negative", heightDelta))
 	}
 
+	// nolint: dupword
+	//
 	// Calculate the target difficulty by multiplying the provided starting
 	// target difficulty by an exponential scaling factor that is determined
 	// based on how far ahead or behind the ideal schedule the given time delta
@@ -1499,6 +1501,8 @@ func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 	votesPerBlock := int64(g.params.TicketsPerBlock)
 	ticketPoolSize := int64(g.params.TicketPoolSize)
 
+	// nolint: dupword
+	//
 	// Calculate the difficulty by multiplying the old stake difficulty
 	// with two ratios that represent a force to counteract the relative
 	// change in the pool size (Fc) and a restorative force to push the pool
