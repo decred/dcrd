@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -222,8 +222,8 @@ func (m MessageError) Error() string {
 }
 
 // messageError creates an Error given a set of arguments.
-func messageError(Func string, c ErrorCode, desc string) *MessageError {
-	return &MessageError{Func: Func, ErrorCode: c, Description: desc}
+func messageError(funcName string, c ErrorCode, desc string) *MessageError {
+	return &MessageError{Func: funcName, ErrorCode: c, Description: desc}
 }
 
 // Is implements the interface to work with the standard library's errors.Is.

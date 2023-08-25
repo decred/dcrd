@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -48,14 +48,14 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 		}
 		sig, err := priv.Sign(hash)
 		if err != nil {
-			return nil, fmt.Errorf("cannot sign tx input: %s", err)
+			return nil, fmt.Errorf("cannot sign tx input: %w", err)
 		}
 		sigBytes = sig.Serialize()
 	case dcrec.STSchnorrSecp256k1:
 		priv := secp256k1.PrivKeyFromBytes(key)
 		sig, err := schnorr.Sign(priv, hash)
 		if err != nil {
-			return nil, fmt.Errorf("cannot sign tx input: %s", err)
+			return nil, fmt.Errorf("cannot sign tx input: %w", err)
 		}
 		sigBytes = sig.Serialize()
 	default:
@@ -645,7 +645,7 @@ func TSpendSignatureScript(msgTx *wire.MsgTx, privKey []byte) ([]byte, error) {
 	priv := secp256k1.PrivKeyFromBytes(privKey)
 	sig, err := schnorr.Sign(priv, hash)
 	if err != nil {
-		return nil, fmt.Errorf("cannot sign tx input: %s", err)
+		return nil, fmt.Errorf("cannot sign tx input: %w", err)
 	}
 	sigBytes := sig.Serialize()
 	pkBytes := priv.PubKey().SerializeCompressed()

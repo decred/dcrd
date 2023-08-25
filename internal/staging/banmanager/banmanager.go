@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -119,7 +119,7 @@ func (bm *BanManager) AddPeer(p *peer.Peer) error {
 	host, _, err := net.SplitHostPort(p.Addr())
 	if err != nil {
 		p.Disconnect()
-		return fmt.Errorf("cannot split hostport %v", err)
+		return fmt.Errorf("cannot split hostport %w", err)
 	}
 
 	bm.mtx.Lock()

@@ -1,5 +1,5 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -62,7 +62,7 @@ func VerifyMessage(address string, signature string, message string, params Addr
 	// Decode base64 signature.
 	sig, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return fmt.Errorf("malformed base64 encoding: %v", err)
+		return fmt.Errorf("malformed base64 encoding: %w", err)
 	}
 
 	// Validate the signature - this just shows that it was valid for any pubkey

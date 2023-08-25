@@ -759,7 +759,7 @@ func (c *Client) handleSendPostMessage(details *sendPostDetails) {
 	respBytes, err := io.ReadAll(httpResponse.Body)
 	httpResponse.Body.Close()
 	if err != nil {
-		err = fmt.Errorf("error reading json reply: %v", err)
+		err = fmt.Errorf("error reading json reply: %w", err)
 		jReq.responseChan <- &response{err: err}
 		return
 	}

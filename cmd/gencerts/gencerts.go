@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -206,7 +206,7 @@ func randomX509SerialNumber() (*big.Int, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %s", err)
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 	return serialNumber, nil
 }
@@ -277,7 +277,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 	buf := new(bytes.Buffer)
 	err = pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode certificate: %v", err)
+		return nil, fmt.Errorf("failed to encode certificate: %w", err)
 	}
 	pemBlock := buf.Bytes()
 
@@ -317,7 +317,7 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 	buf := new(bytes.Buffer)
 	err = pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode certificate: %v", err)
+		return nil, fmt.Errorf("failed to encode certificate: %w", err)
 	}
 	pemBlock := buf.Bytes()
 
@@ -336,12 +336,12 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 func marshalPrivateKey(key interface{}) ([]byte, error) {
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal private key: %v", err)
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
 	buf := new(bytes.Buffer)
 	err = pem.Encode(buf, &pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode private key: %v", err)
+		return nil, fmt.Errorf("failed to encode private key: %w", err)
 	}
 	return buf.Bytes(), nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -73,14 +73,14 @@ func TestConvertLdbErr(t *testing.T) {
 		gotErr := convertLdbErr(test.ldbErr, test.desc)
 
 		// Validate the error kind.
-		if gotErr.Err != test.want {
+		if !errors.Is(gotErr.Err, test.want) {
 			t.Errorf("%q: mismatched error kind:\nwant: %v\n got: %v\n",
 				test.name, test.want, gotErr.Err)
 			continue
 		}
 
-		wantDesc := fmt.Sprintf("%s: %v", test.desc, test.ldbErr)
 		// Validate the error description.
+		wantDesc := fmt.Sprintf("%s: %v", test.desc, test.ldbErr)
 		if gotErr.Description != wantDesc {
 			t.Errorf("%q: mismatched error description:\nwant: %v\n got: %v\n",
 				test.name, wantDesc, gotErr.Description)
@@ -88,7 +88,7 @@ func TestConvertLdbErr(t *testing.T) {
 		}
 
 		// Validate the raw error.
-		if gotErr.RawErr != test.ldbErr {
+		if !errors.Is(gotErr.RawErr, test.ldbErr) {
 			t.Errorf("%q: mismatched raw error:\nwant: %v\n got: %v\n",
 				test.name, test.ldbErr, gotErr.RawErr)
 			continue

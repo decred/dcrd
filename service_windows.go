@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -183,13 +183,13 @@ func startService() error {
 
 	service, err := serviceManager.OpenService(svcName)
 	if err != nil {
-		return fmt.Errorf("could not access service: %v", err)
+		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer service.Close()
 
 	err = service.Start(os.Args...)
 	if err != nil {
-		return fmt.Errorf("could not start service: %v", err)
+		return fmt.Errorf("could not start service: %w", err)
 	}
 
 	return nil
@@ -208,13 +208,13 @@ func controlService(c svc.Cmd, to svc.State) error {
 
 	service, err := serviceManager.OpenService(svcName)
 	if err != nil {
-		return fmt.Errorf("could not access service: %v", err)
+		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer service.Close()
 
 	status, err := service.Control(c)
 	if err != nil {
-		return fmt.Errorf("could not send control=%d: %v", c, err)
+		return fmt.Errorf("could not send control=%d: %w", c, err)
 	}
 
 	// Send the control message.
@@ -227,8 +227,7 @@ func controlService(c svc.Cmd, to svc.State) error {
 		time.Sleep(300 * time.Millisecond)
 		status, err = service.Query()
 		if err != nil {
-			return fmt.Errorf("could not retrieve service "+
-				"status: %v", err)
+			return fmt.Errorf("could not retrieve service status: %w", err)
 		}
 	}
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -45,7 +45,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate serial number: %s", err)
+		return nil, nil, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	host, err := os.Hostname()
@@ -120,24 +120,24 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template,
 		&template, &priv.PublicKey, priv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create certificate: %v", err)
+		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)
 	}
 
 	certBuf := &bytes.Buffer{}
 	err = pem.Encode(certBuf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to encode certificate: %v", err)
+		return nil, nil, fmt.Errorf("failed to encode certificate: %w", err)
 	}
 
 	keybytes, err := x509.MarshalECPrivateKey(priv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal private key: %v", err)
+		return nil, nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
 
 	keyBuf := &bytes.Buffer{}
 	err = pem.Encode(keyBuf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keybytes})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to encode private key: %v", err)
+		return nil, nil, fmt.Errorf("failed to encode private key: %w", err)
 	}
 
 	return certBuf.Bytes(), keyBuf.Bytes(), nil

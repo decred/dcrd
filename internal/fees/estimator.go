@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -228,13 +228,13 @@ func NewEstimator(cfg *EstimatorConfig) (*Estimator, error) {
 	if cfg.DatabaseFile != "" {
 		db, err := leveldb.OpenFile(cfg.DatabaseFile, nil)
 		if err != nil {
-			return nil, fmt.Errorf("error opening estimator database: %v", err)
+			return nil, fmt.Errorf("error opening estimator database: %w", err)
 		}
 		res.db = db
 
 		err = res.loadFromDatabase(cfg.ReplaceBucketsOnLoad)
 		if err != nil {
-			return nil, fmt.Errorf("error loading estimator data from db: %v",
+			return nil, fmt.Errorf("error loading estimator data from db: %w",
 				err)
 		}
 	}
@@ -307,7 +307,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 
 	version, err := stats.db.Get(dbKeyVersion, nil)
 	if err != nil && !errors.Is(err, leveldb.ErrNotFound) {
-		return fmt.Errorf("error reading version from db: %v", err)
+		return fmt.Errorf("error reading version from db: %w", err)
 	}
 	if len(version) < 1 {
 		// No data in the file. Fill with the current config.
@@ -326,19 +326,19 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 
 		err := binary.Write(b, dbByteOrder, stats.bucketFeeBounds)
 		if err != nil {
-			return fmt.Errorf("error writing bucket fees to db: %v", err)
+			return fmt.Errorf("error writing bucket fees to db: %w", err)
 		}
 		batch.Put(dbKeyBucketFees, b.Bytes())
 
 		err = stats.db.Write(batch, nil)
 		if err != nil {
-			return fmt.Errorf("error writing initial estimator db file: %v",
+			return fmt.Errorf("error writing initial estimator db file: %w",
 				err)
 		}
 
 		err = stats.updateDatabase()
 		if err != nil {
-			return fmt.Errorf("error adding initial estimator data to db: %v",
+			return fmt.Errorf("error adding initial estimator data to db: %w",
 				err)
 		}
 
@@ -354,7 +354,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 	maxConfirmsBytes, err := stats.db.Get(dbKeyMaxConfirms, nil)
 	if err != nil {
 		return fmt.Errorf("error reading max confirmation range from db file: "+
-			"%v", err)
+			"%w", err)
 	}
 	if len(maxConfirmsBytes) != 4 {
 		return errors.New("wrong number of bytes in stored maxConfirms")
@@ -367,7 +367,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 
 	feesBytes, err := stats.db.Get(dbKeyBucketFees, nil)
 	if err != nil {
-		return fmt.Errorf("error reading fee bounds from db file: %v", err)
+		return fmt.Errorf("error reading fee bounds from db file: %w", err)
 	}
 	if feesBytes == nil {
 		return errors.New("fee bounds not found in database file")
@@ -381,7 +381,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 	err = binary.Read(bytes.NewReader(feesBytes), dbByteOrder,
 		&fileBucketFees)
 	if err != nil {
-		return fmt.Errorf("error decoding file bucket fees: %v", err)
+		return fmt.Errorf("error decoding file bucket fees: %w", err)
 	}
 
 	if !replaceBuckets {
@@ -450,7 +450,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 	}
 	err = iter.Error()
 	if err != nil {
-		return fmt.Errorf("error on bucket iterator: %v", err)
+		return fmt.Errorf("error on bucket iterator: %w", err)
 	}
 
 	stats.bucketFeeBounds = fileBucketFees
@@ -502,8 +502,7 @@ func (stats *Estimator) updateDatabase() error {
 
 	err := stats.db.Write(batch, nil)
 	if err != nil {
-		return fmt.Errorf("error writing update to estimator db file: %v",
-			err)
+		return fmt.Errorf("error writing update to estimator db file: %w", err)
 	}
 
 	return nil

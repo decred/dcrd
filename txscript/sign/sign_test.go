@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -103,14 +103,12 @@ func checkScripts(msg string, tx *wire.MsgTx, idx int, sigScript, pkScript []byt
 	var scriptFlags txscript.ScriptFlags
 	vm, err := txscript.NewEngine(pkScript, tx, idx, scriptFlags, 0, nil)
 	if err != nil {
-		return fmt.Errorf("failed to make script engine for %s: %v",
-			msg, err)
+		return fmt.Errorf("failed to make script engine for %s: %w", msg, err)
 	}
 
 	err = vm.Execute()
 	if err != nil {
-		return fmt.Errorf("invalid script signature for %s: %v", msg,
-			err)
+		return fmt.Errorf("invalid script signature for %s: %w", msg, err)
 	}
 
 	return nil
@@ -123,7 +121,7 @@ func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	sigScript, err := SignTxOutput(testingParams, tx, idx, pkScript,
 		hashType, kdb, sdb, nil, isTreasuryEnabled)
 	if err != nil {
-		return fmt.Errorf("failed to sign output %s: %v", msg, err)
+		return fmt.Errorf("failed to sign output %s: %w", msg, err)
 	}
 
 	return checkScripts(msg, tx, idx, sigScript, pkScript)
@@ -140,7 +138,7 @@ func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	sigScript, err := SignTxOutput(testingParams, tx,
 		idx, pkScript, hashType, kdb, sdb, nil, isTreasuryEnabled)
 	if err != nil {
-		return fmt.Errorf("failed to sign output %s: %v", msg, err)
+		return fmt.Errorf("failed to sign output %s: %w", msg, err)
 	}
 
 	// Be sure to reset the value in when we're done creating the

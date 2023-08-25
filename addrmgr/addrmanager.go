@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -531,7 +531,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	}
 	r, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("%s error opening file: %v", filePath, err)
+		return fmt.Errorf("%s error opening file: %w", filePath, err)
 	}
 	defer r.Close()
 
@@ -539,7 +539,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&sam)
 	if err != nil {
-		return fmt.Errorf("error reading %s: %v", filePath, err)
+		return fmt.Errorf("error reading %s: %w", filePath, err)
 	}
 
 	if sam.Version != serialisationVersion {
@@ -551,13 +551,13 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	for _, v := range sam.Addresses {
 		netAddr, err := a.newAddressFromString(v.Addr)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Addr, err)
+			return fmt.Errorf("failed to deserialize netaddress %s: %w", v.Addr,
+				err)
 		}
 		srcAddr, err := a.newAddressFromString(v.Src)
 		if err != nil {
-			return fmt.Errorf("failed to deserialize netaddress "+
-				"%s: %v", v.Src, err)
+			return fmt.Errorf("failed to deserialize netaddress %s: %w", v.Src,
+				err)
 		}
 
 		ka := &KnownAddress{
