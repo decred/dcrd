@@ -1,5 +1,5 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -38,6 +38,7 @@ func TestWIF(t *testing.T) {
 		if (err == nil) != (target == nil) {
 			return false
 		}
+		// nolint: errorlint
 		return err == target || (err != nil && err.Error() == target.Error())
 	}
 

@@ -189,6 +189,7 @@ func (e ErrorCode) Error() string {
 // - The target is a *MessageError and the error codes match
 // - The target is an ErrorCode and it the error codes match
 func (e ErrorCode) Is(target error) bool {
+	// nolint: errorlint
 	switch target := target.(type) {
 	case *MessageError:
 		return e == target.ErrorCode
@@ -232,6 +233,7 @@ func messageError(funcName string, c ErrorCode, desc string) *MessageError {
 // - The target is a *MessageError and the error codes match
 // - The target is an ErrorCode and it the error codes match
 func (m *MessageError) Is(target error) bool {
+	// nolint: errorlint
 	switch target := target.(type) {
 	case *MessageError:
 		return m.ErrorCode == target.ErrorCode
