@@ -399,12 +399,13 @@ var rpcLimited = map[string]struct{}{
 	"version":              {},
 }
 
-// rpcInternalError is a convenience function to convert an internal error to
-// an RPC error with the appropriate code set.  It also logs the error to the
-// RPC server subsystem since internal errors really should not occur.  The
-// context parameter is only used in the log message and may be empty if it's
-// not needed.
-func rpcInternalError(errStr, context string) *dcrjson.RPCError {
+// rpcInternalErr is a convenience function to convert an internal error to an
+// RPC error with the appropriate code set.  It also logs the error to the RPC
+// server subsystem since internal errors really should not occur.  The context
+// parameter is only used in the log message and may be empty if it's not
+// needed.
+func rpcInternalErr(err error, context string) *dcrjson.RPCError {
+	errStr := err.Error()
 	logStr := errStr
 	if context != "" {
 		logStr = context + ": " + errStr
@@ -698,7 +699,7 @@ func (s *Server) messageToHex(msg wire.Message) (string, error) {
 	var buf bytes.Buffer
 	if err := msg.BtcEncode(&buf, s.cfg.MaxProtocolVersion); err != nil {
 		context := fmt.Sprintf("Failed to encode msg of type %T", msg)
-		return "", rpcInternalError(err.Error(), context)
+		return "", rpcInternalErr(err, context)
 	}
 
 	return hex.EncodeToString(buf.Bytes()), nil
@@ -766,8 +767,7 @@ func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 	for encodedAddr, amount := range c.Amounts {
 		atoms, err := dcrutil.NewAmount(amount)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"New amount")
+			return nil, rpcInternalErr(err, "New amount")
 		}
 
 		// Ensure amount is in the valid range for monetary amounts.
@@ -906,8 +906,7 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 	_, amountsCommitted, err := stake.SStxNullOutputAmounts(inputAmts,
 		changeAmts, amtTicket)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Invalid SSTx output amounts")
+		return nil, rpcInternalErr(err, "Invalid SSTx output amounts")
 	}
 
 	for i, cout := range c.COuts {
@@ -963,8 +962,7 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 
 	// Make sure we generated a valid SStx.
 	if err := stake.CheckSStx(mtx); err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Invalid SStx")
+		return nil, rpcInternalErr(err, "Invalid SStx")
 	}
 
 	// Return the serialized and hex-encoded transaction.
@@ -1020,7 +1018,8 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	// outputs.
 	minimalOutputs := ticketUtxo.TicketMinimalOutputs()
 	if minimalOutputs == nil {
-		return nil, rpcInternalError("Missing ticket minimal outputs", "")
+		err := errors.New("missing ticket minimal outputs")
+		return nil, rpcInternalErr(err, "")
 	}
 
 	// The input amount must be the ticket submission amount.
@@ -1071,7 +1070,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	prevHeaderBytes, err := prevHeader.Bytes()
 	if err != nil {
 		str := fmt.Sprintf("Failed to serialize header for block %v", prevBlkHash)
-		return nil, rpcInternalError(err.Error(), str)
+		return nil, rpcInternalErr(err, str)
 	}
 
 	mtx, err := stake.CreateRevocationFromTicket(txHash, minimalOutputs, feeAmt,
@@ -1084,7 +1083,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	// Check to make sure our SSRtx was created correctly.
 	err = stake.CheckSSRtx(mtx)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Invalid SSRtx")
+		return nil, rpcInternalErr(err, "Invalid SSRtx")
 	}
 
 	// Return the serialized and hex-encoded transaction.
@@ -1409,8 +1408,8 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	p2sh, err := stdaddr.NewAddressScriptHash(scriptVersion, script,
 		s.cfg.ChainParams)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Failed to convert script to pay-to-script-hash")
+		const context = "Failed to convert script to pay-to-script-hash"
+		return nil, rpcInternalErr(err, context)
 	}
 
 	// Generate and return the reply.
@@ -1452,7 +1451,7 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 
 	fee, err := s.cfg.FeeEstimator.EstimateFee(int32(c.Confirmations))
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not estimate fee")
+		return nil, rpcInternalErr(err, "Could not estimate fee")
 	}
 
 	return &types.EstimateSmartFeeResult{
@@ -1470,15 +1469,15 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	best := chain.BestSnapshot()
 	min, err := chain.EstimateNextStakeDifficulty(&best.Hash, 0, false)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not "+
-			"estimate next minimum stake difficulty")
+		const context = "Could not estimate next minimum stake difficulty"
+		return nil, rpcInternalErr(err, context)
 	}
 
 	// Maximum possible stake difficulty.
 	max, err := chain.EstimateNextStakeDifficulty(&best.Hash, 0, true)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not "+
-			"estimate next maximum stake difficulty")
+		const context = "Could not estimate next maximum stake difficulty"
+		return nil, rpcInternalErr(err, context)
 	}
 
 	// The expected stake difficulty. Average the number of fresh stake
@@ -1494,8 +1493,8 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	for i := lastAdjustment; i <= bestHeight; i++ {
 		bh, err := chain.HeaderByHeight(i)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(), "Could not "+
-				"estimate next stake difficulty")
+			const context = "Could not estimate next stake difficulty"
+			return nil, rpcInternalErr(err, context)
 		}
 		totalTickets += int(bh.FreshStake)
 	}
@@ -1506,8 +1505,8 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	expected, err := chain.EstimateNextStakeDifficulty(&best.Hash,
 		expectedTickets, false)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not "+
-			"estimate next stake difficulty")
+		const context = "Could not estimate next stake difficulty"
+		return nil, rpcInternalErr(err, context)
 	}
 
 	// User-specified stake difficulty, if they asked for one.
@@ -1516,8 +1515,9 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 		userEst, err := chain.EstimateNextStakeDifficulty(&best.Hash,
 			int64(*c.Tickets), false)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(), "Could not "+
-				"estimate next user specified stake difficulty")
+			const context = "Could not estimate next user specified stake " +
+				"difficulty"
+			return nil, rpcInternalErr(err, context)
 		}
 		userEstFlt := dcrutil.Amount(userEst).ToCoin()
 		userEstFltPtr = &userEstFlt
@@ -1534,8 +1534,8 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 // handleExistsAddress implements the existsaddress command.
 func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.ExistsAddresser == nil {
-		return nil, rpcInternalError("Exists address index disabled",
-			"Configuration")
+		err := errors.New("exists address index disabled")
+		return nil, rpcInternalErr(err, "Configuration")
 	}
 
 	c := cmd.(*types.ExistsAddressCmd)
@@ -1552,7 +1552,7 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 	existsAddrIndex := s.cfg.ExistsAddresser
 	tHeight, tHash, err := existsAddrIndex.Tip()
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Tip")
+		return nil, rpcInternalErr(err, "Exists address index tip")
 	}
 
 	chain := s.cfg.Chain
@@ -1560,16 +1560,16 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 	// Return an out-of-sync error if index is lagging a
 	// maximum reorg depth (6) blocks or more from the chain tip.
 	if chain.BestSnapshot().Height > (tHeight + 5) {
-		msg := fmt.Sprintf("%s: index not synced", existsAddrIndex.Name())
-		return nil, rpcInternalError(msg, "Sync")
+		err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
+		return nil, rpcInternalErr(err, "Sync")
 	}
 
 sync:
 	for !chain.BestSnapshot().Hash.IsEqual(tHash) {
 		select {
 		case <-time.After(syncWait):
-			msg := fmt.Sprintf("%s: index not synced", existsAddrIndex.Name())
-			return nil, rpcInternalError(msg, "Sync")
+			err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
+			return nil, rpcInternalErr(err, "Sync")
 		case <-existsAddrIndex.WaitForSync():
 			break sync
 		}
@@ -1589,8 +1589,8 @@ sync:
 // This will come with a major RPC version bump.
 func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.ExistsAddresser == nil {
-		return nil, rpcInternalError("Exists address index disabled",
-			"Configuration")
+		err := errors.New("exists address index disabled")
+		return nil, rpcInternalErr(err, "Configuration")
 	}
 
 	c := cmd.(*types.ExistsAddressesCmd)
@@ -1609,7 +1609,7 @@ func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (inter
 	existsAddrIndex := s.cfg.ExistsAddresser
 	tHeight, tHash, err := existsAddrIndex.Tip()
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Tip")
+		return nil, rpcInternalErr(err, "Tip")
 	}
 
 	chain := s.cfg.Chain
@@ -1617,16 +1617,16 @@ func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (inter
 	// Return an out-of-sync error if index is lagging a
 	// maximum reorg depth (6) blocks or more from the chain tip.
 	if chain.BestSnapshot().Height > (tHeight + 5) {
-		msg := fmt.Sprintf("%s: index not synced", existsAddrIndex.Name())
-		return nil, rpcInternalError(msg, "Sync")
+		err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
+		return nil, rpcInternalErr(err, "Sync")
 	}
 
 sync:
 	for !chain.BestSnapshot().Hash.IsEqual(tHash) {
 		select {
 		case <-time.After(syncWait):
-			msg := fmt.Sprintf("%s: index not synced", existsAddrIndex.Name())
-			return nil, rpcInternalError(msg, "Sync")
+			err := fmt.Errorf("%s: index not synced", existsAddrIndex.Name())
+			return nil, rpcInternalErr(err, "Sync")
 		case <-existsAddrIndex.WaitForSync():
 			break sync
 		}
@@ -1733,9 +1733,8 @@ func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (inte
 
 	exists := s.cfg.TxMempooler.HaveTransactions(hashes)
 	if len(exists) != len(hashes) {
-		return nil, rpcInternalError(fmt.Sprintf("got %v, want %v",
-			len(exists), len(hashes)),
-			"Invalid mempool Tx ticket count")
+		err := fmt.Errorf("got %v, want %v", len(exists), len(hashes))
+		return nil, rpcInternalErr(err, "Invalid mempool Tx ticket count")
 	}
 
 	// Convert the slice of bools into a compacted set of bit flags.
@@ -1754,8 +1753,8 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 	// Respond with an error if there are no addresses to pay the
 	// created blocks to.
 	if len(s.cfg.MiningAddrs) == 0 {
-		return nil, rpcInternalError("No payment addresses specified "+
-			"via --miningaddr", "Configuration")
+		err := errors.New("no payment addresses specified via --miningaddr")
+		return nil, rpcInternalErr(err, "Configuration")
 	}
 
 	// Respond with an error if there's virtually 0 chance of CPU-mining a block.
@@ -1773,15 +1772,15 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 
 	// Respond with an error when no blocks are requested.
 	if c.NumBlocks == 0 {
-		return nil, rpcInternalError("Invalid number of blocks",
-			"Configuration")
+		err := errors.New("invalid number of blocks")
+		return nil, rpcInternalErr(err, "Configuration")
 	}
 
 	// Mine the correct number of blocks, assigning the hex representation of
 	// the hash of each one to its place in the reply.
 	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(ctx, c.NumBlocks)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not generate blocks")
+		return nil, rpcInternalErr(err, "Could not generate blocks")
 	}
 	reply := make([]string, 0, len(blockHashes))
 	for _, hash := range blockHashes {
@@ -1806,7 +1805,8 @@ func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (inte
 			}
 		}
 		if !found {
-			return nil, rpcInternalError("Node not found", "")
+			err := errors.New("node not found")
+			return nil, rpcInternalErr(err, "")
 		}
 	}
 
@@ -1932,8 +1932,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 	if c.Verbose != nil && !*c.Verbose {
 		blkBytes, err := blk.Bytes()
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not serialize block")
+			return nil, rpcInternalErr(err, "Could not serialize block")
 		}
 
 		return hex.EncodeToString(blkBytes), nil
@@ -1941,7 +1940,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 	chainWork, err := chain.ChainWork(hash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Failed to retrieve work")
+		return nil, rpcInternalErr(err, "Failed to retrieve work")
 	}
 
 	best := chain.BestSnapshot()
@@ -1954,8 +1953,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		if int64(blockHeader.Height) < best.Height {
 			nextHash, err := chain.BlockHashByHeight(int64(blockHeader.Height + 1))
 			if err != nil {
-				context := "No next block"
-				return nil, rpcInternalError(err.Error(), context)
+				return nil, rpcInternalErr(err, "No next block")
 			}
 			nextHashString = nextHash.String()
 		}
@@ -1966,7 +1964,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 	medianTime, err := chain.MedianTimeByHash(hash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
+		return nil, rpcInternalErr(err, "Unable to retrieve median block time")
 	}
 
 	isBlake3PowActive, err := s.isBlake3PowAgendaActive(&blockHeader.PrevBlock)
@@ -2040,8 +2038,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				int64(blockHeader.Height), confirmations,
 				isTreasuryEnabled)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					"Could not create transaction")
+				return nil, rpcInternalErr(err, "Could not create transaction")
 			}
 			rawTxns[i] = *rawTxn
 		}
@@ -2056,8 +2053,8 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 				int64(blockHeader.Height), confirmations,
 				isTreasuryEnabled)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					"Could not create stake transaction")
+				const context = "Could not create stake transaction"
+				return nil, rpcInternalErr(err, context)
 			}
 			rawSTxns[i] = *rawSTxn
 		}
@@ -2096,7 +2093,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 	// Fetch the current chain work using the best block hash.
 	chainWork, err := chain.ChainWork(&best.Hash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Could not fetch chain work.")
+		return nil, rpcInternalErr(err, "Could not fetch chain work")
 	}
 
 	// Estimate the verification progress of the node.
@@ -2113,8 +2110,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 	if best.PrevHash != zeroHash {
 		maxBlockSize, err = chain.MaxBlockSize(&best.PrevHash)
 		if err != nil {
-			context := "Could not fetch max block size"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Could not fetch max block size")
 		}
 	}
 
@@ -2140,17 +2136,17 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 			state, err := chain.NextThresholdState(&best.PrevHash,
 				agenda.Vote.Id)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					fmt.Sprintf("Could not fetch threshold state "+
-						"for agenda with id (%v).", agenda.Vote.Id))
+				context := fmt.Sprintf("Could not fetch threshold state for "+
+					"agenda with id (%v)", agenda.Vote.Id)
+				return nil, rpcInternalErr(err, context)
 			}
 
 			stateChangedHeight, err := chain.StateLastChangedHeight(
 				&best.Hash, agenda.Vote.Id)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					fmt.Sprintf("Could not fetch state last changed "+
-						"height for agenda with id (%v).", agenda.Vote.Id))
+				context := fmt.Sprintf("Could not fetch state last changed "+
+					"height for agenda with id (%v)", agenda.Vote.Id)
+				return nil, rpcInternalErr(err, context)
 			}
 
 			aInfo.Since = stateChangedHeight
@@ -2224,8 +2220,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 		var headerBuf bytes.Buffer
 		err := blockHeader.Serialize(&headerBuf)
 		if err != nil {
-			context := "Failed to serialize block header"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to serialize block header")
 		}
 		return hex.EncodeToString(headerBuf.Bytes()), nil
 	}
@@ -2234,7 +2229,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 
 	chainWork, err := chain.ChainWork(hash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Failed to retrieve work")
+		return nil, rpcInternalErr(err, "Failed to retrieve work")
 	}
 
 	best := chain.BestSnapshot()
@@ -2247,8 +2242,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 		if height < best.Height {
 			nextHash, err := chain.BlockHashByHeight(height + 1)
 			if err != nil {
-				context := "No next block"
-				return nil, rpcInternalError(err.Error(), context)
+				return nil, rpcInternalErr(err, "No next block")
 			}
 			nextHashString = nextHash.String()
 		}
@@ -2257,7 +2251,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 
 	medianTime, err := chain.MedianTimeByHash(hash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
+		return nil, rpcInternalErr(err, "Unable to retrieve median block time")
 	}
 
 	isBlake3PowActive, err := s.isBlake3PowAgendaActive(&blockHeader.PrevBlock)
@@ -2318,7 +2312,7 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 		if err != nil {
 			context := fmt.Sprintf("Failed to retrieve header for height %d",
 				height)
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, context)
 		}
 		prevBlkHash = header.PrevBlock
 	}
@@ -2444,8 +2438,7 @@ func handleGetHeaders(_ context.Context, s *Server, cmd interface{}) (interface{
 	for i, h := range headers {
 		err := h.Serialize(&buf)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Failed to serialize block header")
+			return nil, rpcInternalErr(err, "Failed to serialize block header")
 		}
 		hexBlockHeaders[i] = hex.EncodeToString(buf.Bytes())
 		buf.Reset()
@@ -2471,7 +2464,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 		}
 
 		context := fmt.Sprintf("Failed to load filter for block %s", hash)
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, context)
 	}
 
 	var proofHashes []string
@@ -2541,9 +2534,9 @@ func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interfa
 	}
 	networkHashesPerSec, ok := networkHashesPerSecIface.(int64)
 	if !ok {
-		return nil, rpcInternalError("invalid network hashes per sec",
-			fmt.Sprintf("Invalid type: %q",
-				networkHashesPerSecIface))
+		err := errors.New("invalid network hashes per sec")
+		context := fmt.Sprintf("Invalid type: %q", networkHashesPerSecIface)
+		return nil, rpcInternalErr(err, context)
 	}
 
 	best := s.cfg.Chain.BestSnapshot()
@@ -2621,15 +2614,13 @@ func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (inte
 	for curHeight := startHeight; curHeight <= endHeight; curHeight++ {
 		hash, err := chain.BlockHashByHeight(curHeight)
 		if err != nil {
-			context := "Failed to fetch block hash"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to fetch block hash")
 		}
 
 		// Fetch the header from chain.
 		header, err := chain.HeaderByHash(hash)
 		if err != nil {
-			context := "Failed to fetch block header"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to fetch block header")
 		}
 
 		if curHeight == startHeight {
@@ -2839,15 +2830,15 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	tx, err := s.cfg.TxMempooler.FetchTransaction(txHash)
 	if err != nil {
 		if txIndex == nil {
-			return nil, rpcInternalError("The transaction index "+
-				"must be enabled to query the blockchain "+
-				"(specify --txindex)", "Configuration")
+			err := errors.New("the transaction index must be enabled to " +
+				"query the blockchain (specify --txindex)")
+			return nil, rpcInternalErr(err, "Configuration")
 		}
 
 		// Ensure the tx index is synced.
 		tHeight, tHash, err := txIndex.Tip()
 		if err != nil {
-			return nil, rpcInternalError(err.Error(), "Tip")
+			return nil, rpcInternalErr(err, "Tip")
 		}
 
 		chain := s.cfg.Chain
@@ -2855,16 +2846,16 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		// Return an out-of-sync error if index is lagging a
 		// maximum reorg depth (6) blocks or more from the chain tip.
 		if chain.BestSnapshot().Height > (tHeight + 5) {
-			msg := fmt.Sprintf("%s: index not synced", txIndex.Name())
-			return nil, rpcInternalError(msg, "Sync")
+			err := fmt.Errorf("%s: index not synced", txIndex.Name())
+			return nil, rpcInternalErr(err, "Sync")
 		}
 
 	sync:
 		for !chain.BestSnapshot().Hash.IsEqual(tHash) {
 			select {
 			case <-time.After(syncWait):
-				msg := fmt.Sprintf("%s: index not synced", txIndex.Name())
-				return nil, rpcInternalError(msg, "Sync")
+				err := fmt.Errorf("%s: index not synced", txIndex.Name())
+				return nil, rpcInternalErr(err, "Sync")
 			case <-txIndex.WaitForSync():
 				break sync
 			}
@@ -2873,8 +2864,8 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		// Look up the location of the transaction.
 		idxEntry, err := txIndex.Entry(txHash)
 		if err != nil {
-			context := "Failed to retrieve transaction location"
-			return nil, rpcInternalError(err.Error(), context)
+			const context = "Failed to retrieve transaction location"
+			return nil, rpcInternalErr(err, context)
 		}
 		if idxEntry == nil {
 			return nil, rpcNoTxInfoError(txHash)
@@ -2903,8 +2894,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		blkHash = blockRegion.Hash
 		blkHeight, err = chain.BlockHeightByHash(blkHash)
 		if err != nil {
-			context := "Failed to retrieve block height"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to retrieve block height")
 		}
 		blkIndex = idxEntry.BlockIndex
 
@@ -2912,8 +2902,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		var msgTx wire.MsgTx
 		err = msgTx.Deserialize(bytes.NewReader(txBytes))
 		if err != nil {
-			context := "Failed to deserialize transaction"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to deserialize transaction")
 		}
 		mtx = &msgTx
 	} else {
@@ -2946,8 +2935,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 		// Fetch the header from chain.
 		header, err := chain.HeaderByHash(blkHash)
 		if err != nil {
-			context := "Failed to fetch block header"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to fetch block header")
 		}
 
 		blkHeader = &header
@@ -2966,7 +2954,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	// mempool.
 	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Treasury Status")
+		return nil, rpcInternalErr(err, "Treasury Status")
 	}
 
 	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
@@ -3058,7 +3046,7 @@ func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd interface{}) (i
 		if err != nil {
 			context := fmt.Sprintf("Failed to get stake versions starting "+
 				"from hash %v", hash)
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, context)
 		}
 
 		posVersions := make(map[int]int)
@@ -3087,7 +3075,7 @@ func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd interface{}) (i
 		if err != nil {
 			context := fmt.Sprintf("Failed to get block hash for height %d",
 				startHeight-1)
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, context)
 		}
 	}
 
@@ -3109,8 +3097,7 @@ func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (inte
 
 	sv, err := s.cfg.Chain.GetStakeVersions(hash, c.Count)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not obtain stake versions")
+		return nil, rpcInternalErr(err, "Could not obtain stake versions")
 	}
 
 	result := types.GetStakeVersionsResult{
@@ -3140,8 +3127,7 @@ func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (inte
 func handleGetTicketPoolValue(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	amt, err := s.cfg.Chain.TicketPoolValue()
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not obtain ticket pool value")
+		return nil, rpcInternalErr(err, "Could not obtain ticket pool value")
 	}
 
 	return amt.ToCoin(), nil
@@ -3180,8 +3166,7 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 			}
 		}
 
-		context := "Failed to obtain treasury balance"
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, "Failed to obtain treasury balance")
 	}
 
 	tbr := types.GetTreasuryBalanceResult{
@@ -3274,8 +3259,8 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 			fullBlock, err := chain.BlockByHash(&blocks[0])
 			if err != nil {
 				// Shouldn't happen unless tspend db is hosed.
-				context := "block containing mined tspend not found"
-				return nil, rpcInternalError(err.Error(), context)
+				const context = "Block containing mined treasury spend not found"
+				return nil, rpcInternalErr(err, context)
 			}
 
 			// TSpends live in the stake tree.
@@ -3291,8 +3276,9 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 				// Shouldn't happen unless tspend db is hosed
 				// or the assumption about tspends living in
 				// the stake tree is wrong.
-				context := "block did not contain tspend tx in stake tree"
-				return nil, rpcInternalError(err.Error(), context)
+				const context = "Block did not contain treasury spend tx in " +
+					"stake tree"
+				return nil, rpcInternalErr(err, context)
 			}
 
 			// If we're meant to tally main chain votes, figure out
@@ -3318,8 +3304,8 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 				hdr, err := chain.HeaderByHash(blockHash)
 				if err != nil {
 					// Shouldn't happen.
-					context := "block without associated header"
-					return nil, rpcInternalError(err.Error(), context)
+					const context = "Block without associated header"
+					return nil, rpcInternalErr(err, context)
 				}
 
 				// Given this tspend was mined in the main
@@ -3344,8 +3330,8 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 			var err error
 			tspends[i], err = mempool.FetchTransaction(&h)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					"could not fetch tspend from mempool")
+				const context = "Could not fetch treasury spend from mempool"
+				return nil, rpcInternalErr(err, context)
 			}
 		}
 	}
@@ -3359,10 +3345,10 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 		// functions will behave properly.
 		expiry := tx.MsgTx().Expiry
 		if !standalone.IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-			errStr := fmt.Sprintf("tspend %s has incorrect expiry %d", tx.Hash(),
-				expiry)
-			context := "tspend without correct expiry"
-			return nil, rpcInternalError(errStr, context)
+			err := fmt.Errorf("treasury spend %s has incorrect expiry %d",
+				tx.Hash(), expiry)
+			const context = "Treasury spend without correct expiry"
+			return nil, rpcInternalErr(err, context)
 		}
 
 		// We only count votes for tspends that are inside their voting
@@ -3387,8 +3373,8 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 					return nil, rpcBlockNotFoundError(block)
 				}
 
-				context := "failed to obtain tspend votes"
-				return nil, rpcInternalError(err.Error(), context)
+				const context = "Failed to obtain treasury spend votes"
+				return nil, rpcInternalErr(err, context)
 			}
 		}
 
@@ -3429,7 +3415,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 			return nil, rpcInvalidError("%d: unrecognized vote version",
 				c.Version)
 		}
-		return nil, rpcInternalError(err.Error(), "could not obtain vote info")
+		return nil, rpcInternalErr(err, "Could not obtain vote info")
 	}
 
 	// Assemble JSON result.
@@ -3445,8 +3431,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 	// We don't fail, we try to return the totals for this version.
 	result.TotalVotes, err = chain.CountVoteVersion(c.Version)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"could not count voter versions")
+		return nil, rpcInternalErr(err, "Could not count voter versions")
 	}
 
 	result.Agendas = make([]types.Agenda, 0, len(vi.Agendas))
@@ -3454,8 +3439,8 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 		// Obtain status of agenda.
 		state, err := chain.NextThresholdState(&snapshot.Hash, agenda.Vote.Id)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"could not fetch next threshold state")
+			const context = "Could not fetch next threshold state"
+			return nil, rpcInternalErr(err, context)
 		}
 
 		a := types.Agenda{
@@ -3487,8 +3472,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 
 		counts, err := s.cfg.Chain.GetVoteCounts(c.Version, agenda.Vote.Id)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"could not obtain vote count")
+			return nil, rpcInternalErr(err, "Could not obtain vote count")
 		}
 
 		// Calculate quorum.
@@ -3591,9 +3575,9 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 		txOut := mtx.TxOut[c.Vout]
 		if txOut == nil {
-			errStr := fmt.Sprintf("Output index: %d for txid: %s "+
-				"does not exist", c.Vout, txHash)
-			return nil, rpcInternalError(errStr, "")
+			err := fmt.Errorf("output index: %d for txid: %s does not exist",
+				c.Vout, txHash)
+			return nil, rpcInternalErr(err, "")
 		}
 
 		// The transaction output in question is from the mempool, so determine
@@ -3614,8 +3598,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		outpoint := wire.OutPoint{Hash: *txHash, Index: c.Vout, Tree: c.Tree}
 		entry, err := chain.FetchUtxoEntry(outpoint)
 		if err != nil {
-			context := "Failed to retrieve utxo entry"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to retrieve utxo entry")
 		}
 
 		// To match the behavior of the reference client, return nil
@@ -3745,8 +3728,7 @@ func serializeGetWorkData(header *wire.BlockHeader, isBlake3PowActive bool) ([]b
 	buf := bytes.NewBuffer(data)
 	err := header.Serialize(buf)
 	if err != nil {
-		context := "Failed to serialize data"
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, "Failed to serialize data")
 	}
 
 	// Expand the data slice to include the full data buffer and apply internal
@@ -3829,8 +3811,8 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
 		var err error
 		template, err = bt.CurrentTemplate()
 		if err != nil {
-			context := "Unable to retrieve work due to invalid template"
-			return nil, rpcInternalError(err.Error(), context)
+			const context = "Unable to retrieve work due to invalid template"
+			return nil, rpcInternalErr(err, context)
 		}
 		if template == nil {
 			return nil, rpcMiscError("no work is available during a chain " +
@@ -3970,8 +3952,8 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 		// return that error as an internal error.
 		var rErr standalone.RuleError
 		if !errors.As(err, &rErr) {
-			context := "Unexpected error while checking proof of work"
-			return false, rpcInternalError(err.Error(), context)
+			const context = "Unexpected error while checking proof of work"
+			return false, rpcInternalErr(err, context)
 		}
 
 		log.Errorf("Block submitted via getwork does not meet the "+
@@ -4008,8 +3990,8 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 		// so return that error as an internal error.
 		var rErr blockchain.RuleError
 		if !errors.As(err, &rErr) {
-			context := "Unexpected error while processing block"
-			return false, rpcInternalError(err.Error(), context)
+			const context = "Unexpected error while processing block"
+			return false, rpcInternalErr(err, context)
 		}
 
 		log.Infof("Block submitted via getwork rejected: %v", err)
@@ -4038,8 +4020,8 @@ func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}
 	// Respond with an error if there are no addresses to pay the created
 	// blocks to.
 	if len(s.cfg.MiningAddrs) == 0 {
-		return nil, rpcInternalError("No payment addresses specified "+
-			"via --miningaddr", "Configuration")
+		err := errors.New("no payment addresses specified via --miningaddr")
+		return nil, rpcInternalErr(err, "Configuration")
 	}
 
 	// Return an error if there are no peers connected since there is no way to
@@ -4101,8 +4083,7 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 	if method == "" {
 		usage, err := s.helpCacher.RPCUsage(false)
 		if err != nil {
-			context := "Failed to generate RPC usage"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to generate RPC usage")
 		}
 		return usage, nil
 	}
@@ -4118,8 +4099,7 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 	// Get the help for the command.
 	help, err := s.helpCacher.RPCMethodHelp(method)
 	if err != nil {
-		context := "Failed to generate help"
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, "Failed to generate help")
 	}
 	return help, nil
 }
@@ -4147,7 +4127,7 @@ func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (inter
 		}
 
 		context := fmt.Sprintf("Failed to invalidate block %s", hash)
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, context)
 	}
 
 	return nil, nil
@@ -4157,8 +4137,7 @@ func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (inter
 func handleLiveTickets(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	lt, err := s.cfg.Chain.LiveTickets()
 	if err != nil {
-		return nil, rpcInternalError("Could not get live tickets "+
-			err.Error(), "")
+		return nil, rpcInternalErr(err, "Could not get live tickets")
 	}
 
 	ltString := make([]string, len(lt))
@@ -4174,8 +4153,8 @@ func handlePing(_ context.Context, s *Server, _ interface{}) (interface{}, error
 	// Ask server to ping \o_
 	nonce, err := wire.RandomUint64()
 	if err != nil {
-		return nil, rpcInternalError("Not sending ping - failed to "+
-			"generate nonce: "+err.Error(), "")
+		const context = "Not sending ping - failed to generate nonce"
+		return nil, rpcInternalErr(err, context)
 	}
 	s.cfg.ConnMgr.BroadcastMessage(wire.NewMsgPing(nonce))
 
@@ -4228,7 +4207,7 @@ func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (inter
 
 		// Fall back to an internal error.
 		context := fmt.Sprintf("Error while reconsidering block %s", hash)
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, context)
 	}
 
 	return nil, nil
@@ -4238,7 +4217,8 @@ func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (inter
 func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	bt := s.cfg.BlockTemplater
 	if bt == nil {
-		return nil, rpcInternalError("Node is not configured for mining", "")
+		err := errors.New("node is not configured for mining")
+		return nil, rpcInternalErr(err, "")
 	}
 	bt.ForceRegen()
 	return nil, nil
@@ -4350,8 +4330,8 @@ func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface
 		// Respond with an error if there are no addresses to pay the
 		// created blocks to.
 		if len(s.cfg.MiningAddrs) == 0 {
-			return nil, rpcInternalError("No payment addresses "+
-				"specified via --miningaddr", "Configuration")
+			err := errors.New("no payment addresses specified via --miningaddr")
+			return nil, rpcInternalErr(err, "Configuration")
 		}
 
 		s.cfg.CPUMiner.SetNumWorkers(int32(genProcLimit))
@@ -4379,12 +4359,12 @@ func handleSubmitBlock(_ context.Context, s *Server, cmd interface{}) (interface
 	}
 	serializedBlock, err := hex.DecodeString(hexStr)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Block decode")
+		return nil, rpcInternalErr(err, "Block decode")
 	}
 
 	block, err := dcrutil.NewBlockFromBytes(serializedBlock)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Block decode")
+		return nil, rpcInternalErr(err, "Block decode")
 	}
 
 	err = s.cfg.SyncMgr.SubmitBlock(block)
@@ -4636,8 +4616,8 @@ func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interfa
 		for i := start; i > end; i-- {
 			feeInfo, err := ticketFeeInfoForBlock(s, i, stake.TxTypeSStx)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					"Could not obtain ticket fee info")
+				const context = "Could not obtain ticket fee info"
+				return nil, rpcInternalErr(err, context)
 			}
 			feeInfoBlocks = append(feeInfoBlocks, *feeInfo)
 		}
@@ -4658,8 +4638,7 @@ func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interfa
 		feeInfo, err := ticketFeeInfoForRange(s, lastChange, bestHeight+1,
 			stake.TxTypeSStx)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not obtain ticket fee info")
+			return nil, rpcInternalErr(err, "Could not obtain ticket fee info")
 		}
 		feeInfoWindows = append(feeInfoWindows, *feeInfo)
 
@@ -4680,8 +4659,8 @@ func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interfa
 				feeInfo, err := ticketFeeInfoForRange(s, i-winLen, i,
 					stake.TxTypeSStx)
 				if err != nil {
-					return nil, rpcInternalError(err.Error(),
-						"Could not obtain ticket fee info")
+					const context = "Could not obtain ticket fee info"
+					return nil, rpcInternalErr(err, context)
 				}
 				feeInfoWindows = append(feeInfoWindows, *feeInfo)
 			}
@@ -4715,7 +4694,7 @@ func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (int
 	chain := s.cfg.Chain
 	tickets, err := chain.TicketsWithAddress(stakeAddr)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
+		return nil, rpcInternalErr(err, "Could not obtain tickets")
 	}
 
 	ticketStrings := make([]string, len(tickets))
@@ -4774,8 +4753,7 @@ func handleTicketVWAP(_ context.Context, s *Server, cmd interface{}) (interface{
 	for i := start; i <= end; i++ {
 		blockHeader, err := s.cfg.Chain.HeaderByHeight(int64(i))
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not obtain header")
+			return nil, rpcInternalErr(err, "Could not obtain header")
 		}
 
 		ticketNum += int64(blockHeader.FreshStake)
@@ -4812,8 +4790,8 @@ func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}
 			feeInfo, err := ticketFeeInfoForBlock(s, i,
 				stake.TxTypeRegular)
 			if err != nil {
-				return nil, rpcInternalError(err.Error(),
-					"Could not obtain ticket fee info")
+				const context = "Could not obtain ticket fee info"
+				return nil, rpcInternalErr(err, context)
 			}
 			feeInfoBlocks = append(feeInfoBlocks, *feeInfo)
 		}
@@ -4854,8 +4832,7 @@ func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}
 	feeInfo, err := ticketFeeInfoForRange(s, int64(start), int64(end+1),
 		stake.TxTypeRegular)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not obtain ticket fee info")
+		return nil, rpcInternalErr(err, "Could not obtain ticket fee info")
 	}
 
 	feeInfoRange = types.FeeInfoRange{
@@ -5051,7 +5028,7 @@ func (s *Server) isTreasuryAgendaActive(prevBlkHash *chainhash.Hash) (bool, erro
 	if err != nil {
 		context := fmt.Sprintf("Could not obtain treasury agenda status for "+
 			"block %s", prevBlkHash)
-		return false, rpcInternalError(err.Error(), context)
+		return false, rpcInternalErr(err, context)
 	}
 	return isTreasuryEnabled, nil
 }
@@ -5064,7 +5041,7 @@ func (s *Server) isAutoRevocationsAgendaActive(prevBlkHash *chainhash.Hash) (boo
 	if err != nil {
 		context := fmt.Sprintf("Could not obtain automatic ticket revocations "+
 			"agenda status for block %s", prevBlkHash)
-		return false, rpcInternalError(err.Error(), context)
+		return false, rpcInternalErr(err, context)
 	}
 	return isAutoRevocationsEnabled, nil
 }
@@ -5077,7 +5054,7 @@ func (s *Server) isSubsidySplitAgendaActive(prevBlkHash *chainhash.Hash) (bool, 
 	if err != nil {
 		context := fmt.Sprintf("Could not obtain modified subsidy split "+
 			"agenda status for block %s", prevBlkHash)
-		return false, rpcInternalError(err.Error(), context)
+		return false, rpcInternalErr(err, context)
 	}
 	return isSubsidySplitEnabled, nil
 }
@@ -5091,7 +5068,7 @@ func (s *Server) isBlake3PowAgendaActive(prevBlkHash *chainhash.Hash) (bool, err
 	if err != nil {
 		context := fmt.Sprintf("Could not obtain blake3 proof of work "+
 			"agenda status for block %s", prevBlkHash)
-		return false, rpcInternalError(err.Error(), context)
+		return false, rpcInternalErr(err, context)
 	}
 	return isActive, nil
 }
@@ -5104,7 +5081,7 @@ func (s *Server) isSubsidySplitR2AgendaActive(prevBlkHash *chainhash.Hash) (bool
 	if err != nil {
 		context := fmt.Sprintf("Could not obtain modified subsidy split "+
 			"round 2 agenda status for block %s", prevBlkHash)
-		return false, rpcInternalError(err.Error(), context)
+		return false, rpcInternalErr(err, context)
 	}
 	return isActive, nil
 }
@@ -5415,7 +5392,7 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 func createMarshalledReply(rpcVersion string, id interface{}, result interface{}, replyErr error) ([]byte, error) {
 	var jsonErr *dcrjson.RPCError
 	if replyErr != nil && !errors.As(replyErr, &jsonErr) {
-		jsonErr = rpcInternalError(replyErr.Error(), "")
+		jsonErr = rpcInternalErr(replyErr, "")
 	}
 
 	return dcrjson.MarshalResponse(rpcVersion, id, result, jsonErr)

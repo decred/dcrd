@@ -1990,8 +1990,7 @@ func handleWebsocketHelp(_ context.Context, wsc *wsClient, icmd interface{}) (in
 	if method == "" {
 		usage, err := wsc.rpcServer.helpCacher.RPCUsage(true)
 		if err != nil {
-			context := "Failed to generate RPC usage"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalErr(err, "Failed to generate RPC usage")
 		}
 		return usage, nil
 	}
@@ -2013,8 +2012,7 @@ func handleWebsocketHelp(_ context.Context, wsc *wsClient, icmd interface{}) (in
 	// Get the help for the command.
 	help, err := wsc.rpcServer.helpCacher.RPCMethodHelp(method)
 	if err != nil {
-		context := "Failed to generate help"
-		return nil, rpcInternalError(err.Error(), context)
+		return nil, rpcInternalErr(err, "Failed to generate help")
 	}
 	return help, nil
 }
