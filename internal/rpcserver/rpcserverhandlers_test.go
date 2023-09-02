@@ -4567,11 +4567,9 @@ func TestHandleGetNetworkHashPS(t *testing.T) {
 	networkHashPSResult := int64(2014899978133500709)
 
 	testRPCServerHandler(t, []rpcTest{{
-		name:    "handleGetNetworkHashPS: ok",
-		handler: handleGetNetworkHashPS,
-		cmd: &types.GetNetworkHashPSCmd{
-			Blocks: dcrjson.Int(0),
-		},
+		name:      "handleGetNetworkHashPS: ok",
+		handler:   handleGetNetworkHashPS,
+		cmd:       &types.GetNetworkHashPSCmd{},
 		mockChain: mc(),
 		result:    networkHashPSResult,
 	}, {

@@ -512,7 +512,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetNetworkHashPSCmd help.
 	"getnetworkhashps--synopsis": "Returns the estimated network hashes per second for the block heights provided by the parameters.",
-	"getnetworkhashps-blocks":    "The number of blocks, or -1 for blocks since last difficulty change",
+	"getnetworkhashps-blocks":    "The number of blocks or -1 for the default number of blocks",
 	"getnetworkhashps-height":    "Perform estimate ending with this height or -1 for current best chain block height",
 	"getnetworkhashps--result0":  "Estimated hashes per second",
 
