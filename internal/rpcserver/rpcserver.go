@@ -2599,27 +2599,15 @@ func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (inte
 		endHeight = best.Height
 	}
 
-	// Calculate the number of blocks per retarget interval based on the
-	// chain parameters.
-	params := s.cfg.ChainParams
-	blocksPerRetarget := int64(params.TargetTimespan / params.TargetTimePerBlock)
-
-	// Calculate the starting block height based on the passed number of
-	// blocks.  When the passed value is negative, use the last block the
-	// difficulty changed as the starting height.  Also make sure the
+	// Calculate the starting block height based on the passed number of blocks.
+	// When the passed value is negative, use the default.  Also, make sure the
 	// starting height is not before the beginning of the chain.
-
 	numBlocks := int64(120)
-	if c.Blocks != nil {
+	if c.Blocks != nil && *c.Blocks >= 0 {
 		numBlocks = int64(*c.Blocks)
 	}
 
-	var startHeight int64
-	if numBlocks <= 0 {
-		startHeight = endHeight - ((endHeight % blocksPerRetarget) + 1)
-	} else {
-		startHeight = endHeight - numBlocks
-	}
+	startHeight := endHeight - numBlocks
 	if startHeight < 0 {
 		startHeight = 0
 	}
