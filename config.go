@@ -472,7 +472,7 @@ func createDefaultConfigFile(destPath string, authType string) error {
 		return err
 	}
 
-	cfg := sampleconfig.FileContents()
+	cfg := sampleconfig.Dcrd()
 
 	// Set a randomized rpcuser and rpcpass if the authorization type is basic.
 	if authType == authTypeBasic {
