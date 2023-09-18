@@ -16,6 +16,7 @@ import (
 	"runtime/debug"
 	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/blockchain/indexers"
@@ -109,12 +110,16 @@ func dcrdMain() error {
 	if cfg.Profile != "" {
 		go func() {
 			listenAddr := cfg.Profile
-			dcrdLog.Infof("Creating profiling server "+
-				"listening on %s", listenAddr)
+			dcrdLog.Infof("Creating profiling server listening on %s",
+				listenAddr)
 			profileRedirect := http.RedirectHandler("/debug/pprof",
 				http.StatusSeeOther)
 			http.Handle("/", profileRedirect)
-			err := http.ListenAndServe(listenAddr, nil)
+			server := &http.Server{
+				Addr:              listenAddr,
+				ReadHeaderTimeout: time.Second * 3,
+			}
+			err := server.ListenAndServe()
 			if err != nil {
 				fatalf(err.Error())
 			}
