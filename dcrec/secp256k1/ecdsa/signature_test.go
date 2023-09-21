@@ -639,7 +639,7 @@ func TestSignAndVerifyRandom(t *testing.T) {
 		randByte = rng.Intn(len(badHash))
 		randBit = rng.Intn(7)
 		badHash[randByte] ^= 1 << randBit
-		if sig.Verify(badHash[:], pubKey) {
+		if sig.Verify(badHash, pubKey) {
 			t.Fatalf("verified signature for bad hash\nsig: %x\nhash: %x\n"+
 				"pubkey: %x", sig.Serialize(), badHash,
 				pubKey.SerializeCompressed())
@@ -676,7 +676,7 @@ func TestSignFailures(t *testing.T) {
 		nonce := hexToModNScalar(test.nonce)
 
 		// Ensure the signing is NOT successful.
-		sig, _, success := sign(privKey, nonce, hash[:])
+		sig, _, success := sign(privKey, nonce, hash)
 		if success {
 			t.Errorf("%s: unexpected success -- got sig %x", test.name,
 				sig.Serialize())
@@ -1061,7 +1061,7 @@ func TestSignAndRecoverCompactRandom(t *testing.T) {
 			randByte = rng.Intn(len(badHash))
 			randBit = rng.Intn(7)
 			badHash[randByte] ^= 1 << randBit
-			badPubKey, _, err = RecoverCompact(gotSig, badHash[:])
+			badPubKey, _, err = RecoverCompact(gotSig, badHash)
 			if err == nil && badPubKey.IsEqual(wantPubKey) {
 				t.Fatalf("recovered public key for bad hash: %x\nsig: %x\n"+
 					"private key: %x", badHash, gotSig, privKey.Serialize())
