@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -546,6 +546,20 @@ func TestSignAndVerify(t *testing.T) {
 			t.Errorf("%s: unexpected recovery code -- got %x, want %x",
 				test.name, recoveryCode, test.wantCode)
 			continue
+		}
+
+		// Ensure the R method returns the expected value.
+		gotSigR := gotSig.R()
+		if !gotSigR.Equals(wantSigR) {
+			t.Errorf("%s: unexpected R component -- got %064x, want %064x",
+				test.name, gotSigR.Bytes(), wantSigR.Bytes())
+		}
+
+		// Ensure the S method returns the expected value.
+		gotSigS := gotSig.S()
+		if !gotSigS.Equals(wantSigS) {
+			t.Errorf("%s: unexpected S component -- got %064x, want %064x",
+				test.name, gotSigS.Bytes(), wantSigS.Bytes())
 		}
 
 		// Ensure the produced signature verifies.
