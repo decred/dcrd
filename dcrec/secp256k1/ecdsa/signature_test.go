@@ -963,6 +963,17 @@ func TestRecoverCompactErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		err:  ErrSigOverflowsPrime,
 	}, {
+		// Signature invented since finding a private key needed to create a
+		// valid signature with an r value that is > group order prior to the
+		// modular reduction is not possible without breaking the underlying
+		// crypto.
+		name: "R > group order with overflow bit",
+		sig: "21" +
+			"000000000000000000000000000000014551231950b75fc4402da1722fc9baed" +
+			"44b9bc4620afa158b7efdfea5234ff2d5f2f78b42886f02cf581827ee55318ea",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		err:  ErrPointNotOnCurve,
+	}, {
 		// Signature created from private key 0x01, blake256(0x0102030407) over
 		// the secp256r1 curve (note the r1 instead of k1).
 		name: "pubkey not on the curve, signature valid for secp256r1 instead",
