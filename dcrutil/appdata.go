@@ -7,7 +7,6 @@ package dcrutil
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -31,11 +30,7 @@ func appDataDir(goos, appName string, roaming bool) string {
 	appNameLower := string(unicode.ToLower(rune(appName[0]))) + appName[1:]
 
 	// Get the OS specific home directory via the Go standard lib.
-	var homeDir string
-	usr, err := user.Current()
-	if err == nil {
-		homeDir = usr.HomeDir
-	}
+	homeDir, err := os.UserHomeDir()
 
 	// Fall back to standard HOME environment variable that works
 	// for most POSIX OSes if the directory from the Go standard
