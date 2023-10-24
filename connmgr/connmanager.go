@@ -719,22 +719,16 @@ func (cm *ConnManager) Run(ctx context.Context) {
 		}
 	}
 
-	// Shutdown the connection manager when the context is canceled.
-	cm.wg.Add(1)
-	go func(ctx context.Context, listeners []net.Listener) {
-		<-ctx.Done()
-		close(cm.quit)
-
-		// Stop all the listeners on shutdown.  There will not be any
-		// listeners if listening is disabled.
-		for _, listener := range listeners {
-			// Ignore the error since this is shutdown and there is no way
-			// to recover anyways.
-			_ = listener.Close()
-		}
-
-		cm.wg.Done()
-	}(ctx, listeners)
+	// Stop all the listeners and shutdown the connection manager when the
+	// context is cancelled.  There will not be any listeners if listening is
+	// disabled.
+	<-ctx.Done()
+	close(cm.quit)
+	for _, listener := range listeners {
+		// Ignore the error since this is shutdown and there is no way
+		// to recover anyways.
+		_ = listener.Close()
+	}
 
 	cm.wg.Wait()
 	log.Trace("Connection manager stopped")

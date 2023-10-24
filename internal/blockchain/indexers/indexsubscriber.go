@@ -367,22 +367,7 @@ func (s *IndexSubscriber) handleIndexUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			close(s.quit)
-
-			// Stop all updates to subscribed indexes and terminate their
-			// processes.
-			s.mtx.Lock()
-			for _, sub := range s.subscriptions {
-				err := sub.stop()
-				if err != nil {
-					log.Error("unable to stop index subscription: %v", err)
-				}
-			}
-			s.mtx.Unlock()
-
-			s.cancel()
 			s.wg.Done()
-
 			return
 
 		case ntfn := <-s.c:
@@ -412,7 +397,20 @@ func (s *IndexSubscriber) Run(ctx context.Context) {
 	s.wg.Add(2)
 	go s.handleIndexUpdates(ctx)
 	go s.handleSyncSubscribers(ctx)
-	s.wg.Wait()
 
-	log.Infof("Index subscriber shutting down")
+	// Stop all the subscriptions and shutdown the subscriber when the context
+	// is cancelled.
+	<-ctx.Done()
+	close(s.quit)
+	s.mtx.Lock()
+	for _, sub := range s.subscriptions {
+		err := sub.stop()
+		if err != nil {
+			log.Errorf("unable to stop index subscription: %v", err)
+		}
+	}
+	s.mtx.Unlock()
+	s.cancel()
+	s.wg.Wait()
+	log.Tracef("Index subscriber stopped")
 }

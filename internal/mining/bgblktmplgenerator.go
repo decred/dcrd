@@ -1515,15 +1515,14 @@ func (g *BgBlkTmplGenerator) initialStartupHandler(ctx context.Context) {
 // necessary for it to function properly and blocks until the provided context
 // is cancelled.
 func (g *BgBlkTmplGenerator) Run(ctx context.Context) {
-	g.wg.Add(5)
+	g.wg.Add(4)
 	go g.regenQueueHandler(ctx)
 	go g.regenHandler(ctx)
 	go g.notifySubscribersHandler(ctx)
 	go g.initialStartupHandler(ctx)
-	go func() {
-		<-ctx.Done()
-		close(g.quit)
-		g.wg.Done()
-	}()
+
+	// Shutdown the generator when the context is cancelled.
+	<-ctx.Done()
+	close(g.quit)
 	g.wg.Wait()
 }

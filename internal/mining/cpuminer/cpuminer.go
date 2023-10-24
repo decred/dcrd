@@ -617,15 +617,13 @@ out:
 func (m *CPUMiner) Run(ctx context.Context) {
 	log.Trace("Starting CPU miner in idle state")
 
-	m.wg.Add(3)
+	m.wg.Add(2)
 	go m.speedMonitor(ctx)
 	go m.miningWorkerController(ctx)
-	go func(ctx context.Context) {
-		<-ctx.Done()
-		close(m.quit)
-		m.wg.Done()
-	}(ctx)
 
+	// Shutdown the miner when the context is cancelled.
+	<-ctx.Done()
+	close(m.quit)
 	m.wg.Wait()
 	log.Trace("CPU miner stopped")
 }

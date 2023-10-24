@@ -1204,14 +1204,13 @@ func (m *wsNotificationManager) RemoveClient(wsc *wsClient) {
 // websocket client notifications.  It blocks until the provided context is
 // cancelled.
 func (m *wsNotificationManager) Run(ctx context.Context) {
-	m.wg.Add(3)
+	m.wg.Add(2)
 	go m.queueHandler(ctx)
 	go m.notificationHandler(ctx)
-	go func(ctx context.Context) {
-		<-ctx.Done()
-		close(m.quit)
-		m.wg.Done()
-	}(ctx)
+
+	// Shutdown the notification manager when the context is cancelled.
+	<-ctx.Done()
+	close(m.quit)
 	m.wg.Wait()
 }
 
@@ -1929,18 +1928,14 @@ func (c *wsClient) Run(ctx context.Context) {
 	// Forcibly disconnect the websocket client when the context is cancelled
 	// which also closes the quit channel and thus ensures all of the above
 	// goroutines are shutdown.
-	c.wg.Add(1)
-	go func(ctx context.Context) {
-		// Select across the quit channel as well since the context is not
-		// cancelled when the connection is closed due to websocket connection
-		// hijacking.
-		select {
-		case <-ctx.Done():
-			c.Disconnect()
-		case <-c.quit:
-		}
-		c.wg.Done()
-	}(ctx)
+	//
+	// Select across the quit channel as well since the context is not cancelled
+	// when the connection is closed due to websocket connection hijacking.
+	select {
+	case <-ctx.Done():
+		c.Disconnect()
+	case <-c.quit:
+	}
 
 	c.wg.Wait()
 }

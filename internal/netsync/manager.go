@@ -1796,13 +1796,8 @@ func (m *SyncManager) Run(ctx context.Context) {
 	go m.eventHandler(ctx)
 
 	// Shutdown the sync manager when the context is cancelled.
-	m.wg.Add(1)
-	go func(ctx context.Context) {
-		<-ctx.Done()
-		close(m.quit)
-		m.wg.Done()
-	}(ctx)
-
+	<-ctx.Done()
+	close(m.quit)
 	m.wg.Wait()
 	log.Trace("Sync manager stopped")
 }
