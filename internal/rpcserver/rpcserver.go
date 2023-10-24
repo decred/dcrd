@@ -5014,7 +5014,6 @@ type Server struct {
 	ntfnMgr                NtfnManager
 	statusLines            map[int]string
 	statusLock             sync.RWMutex
-	wg                     sync.WaitGroup
 	workState              *workState
 	helpCacher             RPCHelpCacher
 	requestProcessShutdown chan struct{}
@@ -5139,21 +5138,6 @@ func (s *Server) writeHTTPResponseHeaders(req *http.Request, headers http.Header
 
 	_, err = io.WriteString(w, "\r\n")
 	return err
-}
-
-// shutdown terminates the processes of the rpc server.
-func (s *Server) shutdown() error {
-	log.Warnf("RPC server shutting down")
-	for _, listener := range s.cfg.Listeners {
-		err := listener.Close()
-		if err != nil {
-			log.Errorf("Problem shutting down rpc: %v", err)
-			return err
-		}
-	}
-	s.wg.Wait()
-	log.Infof("RPC server shutdown complete")
-	return nil
 }
 
 // RequestedProcessShutdown returns a channel that is sent to when an
@@ -5831,20 +5815,21 @@ func (s *Server) route(ctx context.Context) *http.Server {
 func (s *Server) Run(ctx context.Context) {
 	log.Trace("Starting RPC server")
 	server := s.route(ctx)
+	var wg sync.WaitGroup
 	for _, listener := range s.cfg.Listeners {
-		s.wg.Add(1)
+		wg.Add(1)
 		go func(listener net.Listener) {
 			log.Infof("RPC server listening on %s", listener.Addr())
 			server.Serve(listener)
 			log.Tracef("RPC listener done for %s", listener.Addr())
-			s.wg.Done()
+			wg.Done()
 		}(listener)
 	}
 
 	// Subscribe for async work notifications when background template
 	// generation is enabled.
 	if len(s.cfg.MiningAddrs) > 0 && s.cfg.BlockTemplater != nil {
-		s.wg.Add(1)
+		wg.Add(1)
 		go func(s *Server, ctx context.Context) {
 			templateSub := s.cfg.BlockTemplater.Subscribe()
 			defer templateSub.Stop()
@@ -5855,19 +5840,30 @@ func (s *Server) Run(ctx context.Context) {
 					s.ntfnMgr.NotifyWork(templateNtfn)
 
 				case <-ctx.Done():
-					s.wg.Done()
+					wg.Done()
 					return
 				}
 			}
 		}(s, ctx)
 	}
 
+	// Run the notification manager and wait for it to terminate.
 	s.ntfnMgr.Run(ctx)
-	err := s.shutdown()
-	if err != nil {
-		log.Error(err)
-		return
+
+	// Close all listeners and wait for all goroutines to terminate.
+	log.Warnf("RPC server shutting down")
+	var hasCloseErr bool
+	for _, listener := range s.cfg.Listeners {
+		err := listener.Close()
+		if err != nil {
+			log.Errorf("Failed to close listener %s: %v", listener.Addr(), err)
+			hasCloseErr = true
+		}
 	}
+	if !hasCloseErr {
+		wg.Wait()
+	}
+	log.Info("RPC server shutdown complete")
 }
 
 // Config is a descriptor containing the RPC server configuration.

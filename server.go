@@ -496,7 +496,6 @@ type server struct {
 	query                chan interface{}
 	relayInv             chan relayMsg
 	broadcast            chan broadcastMsg
-	wg                   sync.WaitGroup
 	nat                  *upnpNAT
 	db                   database.DB
 	timeSource           blockchain.MedianTimeSource
@@ -2354,7 +2353,6 @@ out:
 	}
 
 	s.addrManager.Stop()
-	s.wg.Done()
 	srvrLog.Tracef("Peer handler done")
 }
 
@@ -2980,7 +2978,6 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 
 		case <-ctx.Done():
 			timer.Stop()
-			s.wg.Done()
 			return
 		}
 	}
@@ -3031,56 +3028,65 @@ func (s *server) Run(ctx context.Context) {
 	srvrLog.Trace("Starting server")
 
 	// Start the peer handler which in turn starts the address manager.
-	s.wg.Add(1)
-	go s.peerHandler(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		s.peerHandler(ctx)
+		wg.Done()
+	}()
 
 	// Start the sync manager.
-	s.wg.Add(1)
-	go func(ctx context.Context, s *server) {
+	wg.Add(1)
+	go func() {
 		s.syncManager.Run(ctx)
-		s.wg.Done()
-	}(ctx, s)
+		wg.Done()
+	}()
 
 	// Query the seeders and start the connection manager.
-	s.wg.Add(1)
-	go func(ctx context.Context, s *server) {
+	wg.Add(1)
+	go func() {
 		if !cfg.DisableSeeders {
 			s.querySeeders(ctx)
 		}
 		s.connManager.Run(ctx)
-		s.wg.Done()
-	}(ctx, s)
+		wg.Done()
+	}()
 
 	if s.nat != nil {
-		s.wg.Add(1)
-		go s.upnpUpdateThread(ctx)
+		wg.Add(1)
+		go func() {
+			s.upnpUpdateThread(ctx)
+			wg.Done()
+		}()
 	}
 
 	if !cfg.DisableRPC {
-		// Start the rebroadcastHandler, which ensures user tx received by
-		// the RPC server are rebroadcast until being included in a block.
-		s.wg.Add(1)
-		go s.rebroadcastHandler(ctx)
-
-		s.wg.Add(1)
-		go func(ctx context.Context, s *server) {
+		// Start the RPC server and rebroadcast handler which ensures
+		// transactions submitted to the RPC server are rebroadcast until being
+		// included in a block.
+		wg.Add(2)
+		go func() {
+			s.rebroadcastHandler(ctx)
+			wg.Done()
+		}()
+		go func() {
 			s.rpcServer.Run(ctx)
-			s.wg.Done()
-		}(ctx, s)
+			wg.Done()
+		}()
 	}
 
 	// Start the background block template generator and CPU miner if the config
 	// provides a mining address.
 	if len(cfg.miningAddrs) > 0 {
-		s.wg.Add(2)
-		go func(ctx context.Context, s *server) {
+		wg.Add(2)
+		go func() {
 			s.bg.Run(ctx)
-			s.wg.Done()
-		}(ctx, s)
-		go func(ctx context.Context, s *server) {
+			wg.Done()
+		}()
+		go func() {
 			s.cpuMiner.Run(ctx)
-			s.wg.Done()
-		}(ctx, s)
+			wg.Done()
+		}()
 
 		// The CPU miner is started without any workers which means it is idle.
 		// Start mining by setting the default number of workers when requested.
@@ -3090,23 +3096,20 @@ func (s *server) Run(ctx context.Context) {
 	}
 
 	// Start the chain's index subscriber.
-	s.wg.Add(1)
-	go func(ctx context.Context, s *server) {
+	wg.Add(1)
+	go func() {
 		s.indexSubscriber.Run(ctx)
-		s.wg.Done()
-	}(ctx, s)
+		wg.Done()
+	}()
 
-	// Wait until the server is signalled to shutdown.
+	// Shutdown the server when the context is cancelled.
 	<-ctx.Done()
 	s.shutdown.Store(true)
 
 	srvrLog.Warnf("Server shutting down")
-
 	s.feeEstimator.Close()
-
 	s.chain.ShutdownUtxoCache()
-
-	s.wg.Wait()
+	wg.Wait()
 	srvrLog.Trace("Server stopped")
 }
 
@@ -3210,8 +3213,6 @@ out:
 	} else {
 		srvrLog.Debugf("successfully disestablished UPnP port mapping")
 	}
-
-	s.wg.Done()
 }
 
 // standardScriptVerifyFlags returns the script flags that should be used when

@@ -128,7 +128,6 @@ type IndexSubscriber struct {
 	mtx           sync.Mutex
 	ctx           context.Context
 	cancel        context.CancelFunc
-	wg            sync.WaitGroup
 	quit          chan struct{}
 }
 
@@ -345,7 +344,6 @@ func (s *IndexSubscriber) handleSyncSubscribers(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.wg.Done()
 			return
 
 		case <-ticker.C:
@@ -367,7 +365,6 @@ func (s *IndexSubscriber) handleIndexUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.wg.Done()
 			return
 
 		case ntfn := <-s.c:
@@ -394,9 +391,16 @@ func (s *IndexSubscriber) handleIndexUpdates(ctx context.Context) {
 //
 // This should be run as a goroutine.
 func (s *IndexSubscriber) Run(ctx context.Context) {
-	s.wg.Add(2)
-	go s.handleIndexUpdates(ctx)
-	go s.handleSyncSubscribers(ctx)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		s.handleIndexUpdates(ctx)
+		wg.Done()
+	}()
+	go func() {
+		s.handleSyncSubscribers(ctx)
+		wg.Done()
+	}()
 
 	// Stop all the subscriptions and shutdown the subscriber when the context
 	// is cancelled.
@@ -411,6 +415,6 @@ func (s *IndexSubscriber) Run(ctx context.Context) {
 	}
 	s.mtx.Unlock()
 	s.cancel()
-	s.wg.Wait()
+	wg.Wait()
 	log.Tracef("Index subscriber stopped")
 }

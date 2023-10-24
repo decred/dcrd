@@ -223,7 +223,6 @@ func (wg *waitGroup) Wait() {
 //   - Block direct access while generating new templates that will make the
 //     current template stale (e.g. new parent or new votes)
 type BgBlkTmplGenerator struct {
-	wg   sync.WaitGroup
 	quit chan struct{}
 
 	// These fields are provided by the caller when the generator is created and
@@ -484,7 +483,6 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 			g.subscriptionMtx.Unlock()
 
 		case <-ctx.Done():
-			g.wg.Done()
 			return
 		}
 	}
@@ -559,7 +557,6 @@ func (g *BgBlkTmplGenerator) regenQueueHandler(ctx context.Context) {
 			}
 
 		case <-ctx.Done():
-			g.wg.Done()
 			return
 		}
 	}
@@ -1402,7 +1399,6 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 			g.genTemplateAsync(ctx, TURNewParent)
 
 		case <-ctx.Done():
-			g.wg.Done()
 			return
 		}
 	}
@@ -1477,8 +1473,6 @@ func (g *BgBlkTmplGenerator) ForceRegen() {
 //
 // This must be run as a goroutine.
 func (g *BgBlkTmplGenerator) initialStartupHandler(ctx context.Context) {
-	defer g.wg.Done()
-
 	// Wait until the chain is synced when unsynced mining is not allowed.
 	if !g.cfg.AllowUnsyncedMining && !g.cfg.IsCurrent() {
 		ticker := time.NewTicker(time.Second)
@@ -1515,14 +1509,27 @@ func (g *BgBlkTmplGenerator) initialStartupHandler(ctx context.Context) {
 // necessary for it to function properly and blocks until the provided context
 // is cancelled.
 func (g *BgBlkTmplGenerator) Run(ctx context.Context) {
-	g.wg.Add(4)
-	go g.regenQueueHandler(ctx)
-	go g.regenHandler(ctx)
-	go g.notifySubscribersHandler(ctx)
-	go g.initialStartupHandler(ctx)
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		g.regenQueueHandler(ctx)
+		wg.Done()
+	}()
+	go func() {
+		g.regenHandler(ctx)
+		wg.Done()
+	}()
+	go func() {
+		g.notifySubscribersHandler(ctx)
+		wg.Done()
+	}()
+	go func() {
+		g.initialStartupHandler(ctx)
+		wg.Done()
+	}()
 
 	// Shutdown the generator when the context is cancelled.
 	<-ctx.Done()
 	close(g.quit)
-	g.wg.Wait()
+	wg.Wait()
 }

@@ -219,9 +219,7 @@ type ConnManager struct {
 	// with overall connection request count above.
 	assignIDMtx sync.Mutex
 
-	// The following fields are used for lifecycle management of the connection
-	// manager.
-	wg   sync.WaitGroup
+	// quit is used for lifecycle management of the connection manager.
 	quit chan struct{}
 
 	// cfg specifies the configuration of the connection manager and is set at
@@ -458,7 +456,6 @@ out:
 		}
 	}
 
-	cm.wg.Done()
 	log.Trace("Connection handler done")
 }
 
@@ -685,7 +682,6 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		go cm.cfg.OnAccept(conn)
 	}
 
-	cm.wg.Done()
 	log.Tracef("Listener handler done for %s", listener.Addr())
 }
 
@@ -696,8 +692,12 @@ func (cm *ConnManager) Run(ctx context.Context) {
 	log.Trace("Starting connection manager")
 
 	// Start the connection handler goroutine.
-	cm.wg.Add(1)
-	go cm.connHandler(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		cm.connHandler(ctx)
+		wg.Done()
+	}()
 
 	// Start all the listeners so long as the caller requested them and provided
 	// a callback to be invoked when connections are accepted.
@@ -706,8 +706,11 @@ func (cm *ConnManager) Run(ctx context.Context) {
 		listeners = cm.cfg.Listeners
 	}
 	for _, listener := range cm.cfg.Listeners {
-		cm.wg.Add(1)
-		go cm.listenHandler(ctx, listener)
+		wg.Add(1)
+		go func(listener net.Listener) {
+			cm.listenHandler(ctx, listener)
+			wg.Done()
+		}(listener)
 	}
 
 	// Start enough outbound connections to reach the target number when not
@@ -729,8 +732,7 @@ func (cm *ConnManager) Run(ctx context.Context) {
 		// to recover anyways.
 		_ = listener.Close()
 	}
-
-	cm.wg.Wait()
+	wg.Wait()
 	log.Trace("Connection manager stopped")
 }
 

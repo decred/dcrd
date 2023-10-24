@@ -264,9 +264,7 @@ func (state *headerSyncState) resetStallTimeout() {
 // SyncManager provides a concurrency safe sync manager for handling all
 // incoming blocks.
 type SyncManager struct {
-	// The following fields are used for lifecycle management of the sync
-	// manager.
-	wg   sync.WaitGroup
+	// quit is used for lifecycle management of the sync manager.
 	quit chan struct{}
 
 	// cfg specifies the configuration of the sync manager and is set at
@@ -1527,7 +1525,6 @@ out:
 		}
 	}
 
-	m.wg.Done()
 	log.Trace("Sync manager event handler done")
 }
 
@@ -1792,13 +1789,17 @@ func (m *SyncManager) Run(ctx context.Context) {
 	log.Trace("Starting sync manager")
 
 	// Start the event handler goroutine.
-	m.wg.Add(1)
-	go m.eventHandler(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		m.eventHandler(ctx)
+		wg.Done()
+	}()
 
 	// Shutdown the sync manager when the context is cancelled.
 	<-ctx.Done()
 	close(m.quit)
-	m.wg.Wait()
+	wg.Wait()
 	log.Trace("Sync manager stopped")
 }
 

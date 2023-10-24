@@ -127,8 +127,6 @@ type CPUMiner struct {
 	normalMining      bool
 	discreteMining    bool
 	submitBlockLock   sync.Mutex
-	wg                sync.WaitGroup
-	workerWg          sync.WaitGroup
 	updateNumWorkers  chan struct{}
 	queryHashesPerSec chan float64
 	speedStats        map[uint64]*speedStats
@@ -194,7 +192,6 @@ out:
 		}
 	}
 
-	m.wg.Done()
 	log.Trace("CPU miner speed monitor done")
 }
 
@@ -380,8 +377,6 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader,
 func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate,
 	speedStats *speedStats, isBlake3PowActive bool) {
 
-	defer m.workerWg.Done()
-
 	for {
 		if ctx.Err() != nil {
 			return
@@ -464,10 +459,12 @@ func (m *CPUMiner) solver(ctx context.Context, template *mining.BlockTemplate,
 // It must be run as a goroutine.
 func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 	log.Trace("Starting generate blocks worker")
-	defer func() {
-		m.workerWg.Done()
-		log.Trace("Generate blocks worker done")
-	}()
+	defer log.Trace("Generate blocks worker done")
+
+	// Separate waitgroup for solvers to ensure they are stopped prior to
+	// terminating the goroutine.
+	var solverWg sync.WaitGroup
+	defer solverWg.Wait()
 
 	// Subscribe for block template updates and ensure the subscription is
 	// stopped along with the worker.
@@ -488,7 +485,8 @@ func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 		case templateNtfn := <-templateSub.C():
 			// Clean up the map that tracks the number of blocks mined on a
 			// given parent whenever a template is received due to a new parent.
-			prevHash := templateNtfn.Template.Block.Header.PrevBlock
+			template := templateNtfn.Template
+			prevHash := template.Block.Header.PrevBlock
 			if m.cfg.PermitConnectionlessMining {
 				if templateNtfn.Reason == mining.TURNewParent {
 					m.Lock()
@@ -516,9 +514,11 @@ func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 
 			// Start another goroutine for the new template.
 			solverCtx, solverCancel = context.WithCancel(ctx)
-			m.workerWg.Add(1)
-			go m.solver(solverCtx, templateNtfn.Template, &speedStats,
-				isBlake3PowActive)
+			solverWg.Add(1)
+			go func() {
+				m.solver(solverCtx, template, &speedStats, isBlake3PowActive)
+				solverWg.Done()
+			}()
 
 		case <-ctx.Done():
 			// Ensure resources associated with the solver goroutine context are
@@ -541,6 +541,11 @@ func (m *CPUMiner) generateBlocks(ctx context.Context, workerID uint64) {
 //
 // It must be run as a goroutine.
 func (m *CPUMiner) miningWorkerController(ctx context.Context) {
+	// Separate waitgroup for workers to ensure they are stopped prior to
+	// terminating the goroutine.
+	var workerWg sync.WaitGroup
+	defer workerWg.Wait()
+
 	// launchWorker groups common code to launch a worker for subscribing for
 	// template updates and solving blocks.
 	type workerState struct {
@@ -554,8 +559,11 @@ func (m *CPUMiner) miningWorkerController(ctx context.Context) {
 			cancel: wCancel,
 		})
 
-		m.workerWg.Add(1)
-		go m.generateBlocks(wCtx, curWorkerID)
+		workerWg.Add(1)
+		go func() {
+			m.generateBlocks(wCtx, curWorkerID)
+			workerWg.Done()
+		}()
 		curWorkerID++
 	}
 
@@ -603,10 +611,6 @@ out:
 			break out
 		}
 	}
-
-	// Wait until all workers shut down.
-	m.workerWg.Wait()
-	m.wg.Done()
 }
 
 // Run starts the CPU miner with zero workers which means it will be idle. It
@@ -617,14 +621,21 @@ out:
 func (m *CPUMiner) Run(ctx context.Context) {
 	log.Trace("Starting CPU miner in idle state")
 
-	m.wg.Add(2)
-	go m.speedMonitor(ctx)
-	go m.miningWorkerController(ctx)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		m.speedMonitor(ctx)
+		wg.Done()
+	}()
+	go func() {
+		m.miningWorkerController(ctx)
+		wg.Done()
+	}()
 
 	// Shutdown the miner when the context is cancelled.
 	<-ctx.Done()
 	close(m.quit)
-	m.wg.Wait()
+	wg.Wait()
 	log.Trace("CPU miner stopped")
 }
 

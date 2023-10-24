@@ -153,9 +153,7 @@ type wsNotificationManager struct {
 	// Access channel for current number of connected clients.
 	numClients chan int
 
-	// The following fields are used for lifecycle management of the
-	// notification manager.
-	wg   sync.WaitGroup
+	// quit is used for lifecycle management of the notification manager.
 	quit chan struct{}
 }
 
@@ -172,7 +170,6 @@ func (m *wsNotificationManager) queueHandler(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			close(m.notificationMsgs)
-			m.wg.Done()
 			return
 
 		case n := <-m.queueNotification:
@@ -567,7 +564,6 @@ out:
 	for _, c := range clients {
 		c.Disconnect()
 	}
-	m.wg.Done()
 }
 
 // NumClients returns the number of clients actively being served.
@@ -1204,14 +1200,21 @@ func (m *wsNotificationManager) RemoveClient(wsc *wsClient) {
 // websocket client notifications.  It blocks until the provided context is
 // cancelled.
 func (m *wsNotificationManager) Run(ctx context.Context) {
-	m.wg.Add(2)
-	go m.queueHandler(ctx)
-	go m.notificationHandler(ctx)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		m.queueHandler(ctx)
+		wg.Done()
+	}()
+	go func() {
+		m.notificationHandler(ctx)
+		wg.Done()
+	}()
 
 	// Shutdown the notification manager when the context is cancelled.
 	<-ctx.Done()
 	close(m.quit)
-	m.wg.Wait()
+	wg.Wait()
 }
 
 // newWsNotificationManager returns a new notification manager ready for use.
@@ -1283,7 +1286,6 @@ type wsClient struct {
 	ntfnChan          chan []byte
 	sendChan          chan wsResponse
 	quit              chan struct{}
-	wg                sync.WaitGroup
 }
 
 // shouldLogReadError returns whether or not the passed error, which is expected
@@ -1720,7 +1722,6 @@ out:
 
 	// Ensure the connection is closed.
 	c.Disconnect()
-	c.wg.Done()
 	log.Tracef("Websocket client input handler done for %s", c.addr)
 }
 
@@ -1808,7 +1809,6 @@ out:
 		}
 	}
 
-	c.wg.Done()
 	log.Tracef("Websocket client notification queue handler done "+
 		"for %s", c.addr)
 }
@@ -1837,7 +1837,6 @@ out:
 		}
 	}
 
-	c.wg.Done()
 	log.Tracef("Websocket client output handler done for %s", c.addr)
 }
 
@@ -1920,10 +1919,20 @@ func (c *wsClient) Run(ctx context.Context) {
 	log.Tracef("Starting websocket client %s", c.addr)
 
 	// Start processing input and output.
-	c.wg.Add(3)
-	go c.inHandler(ctx)
-	go c.notificationQueueHandler()
-	go c.outHandler()
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		c.inHandler(ctx)
+		wg.Done()
+	}()
+	go func() {
+		c.notificationQueueHandler()
+		wg.Done()
+	}()
+	go func() {
+		c.outHandler()
+		wg.Done()
+	}()
 
 	// Forcibly disconnect the websocket client when the context is cancelled
 	// which also closes the quit channel and thus ensures all of the above
@@ -1937,7 +1946,7 @@ func (c *wsClient) Run(ctx context.Context) {
 	case <-c.quit:
 	}
 
-	c.wg.Wait()
+	wg.Wait()
 }
 
 // newWebsocketClient returns a new websocket client given the notification
