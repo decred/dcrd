@@ -535,6 +535,10 @@ type serverPeer struct {
 	banScore       connmgr.DynamicBanScore
 	quit           chan struct{}
 
+	// syncMgrPeer houses the network sync manager peer instance that wraps the
+	// underlying peer similar to the way this server peer itself wraps it.
+	syncMgrPeer *netsync.Peer
+
 	// addrsSent, getMiningStateSent and initState all track whether or not
 	// the peer has already sent the respective request.  It is used to
 	// prevent more than one response per connection.
@@ -544,10 +548,8 @@ type serverPeer struct {
 
 	// The following fields are used to synchronize the net sync manager and
 	// server.
-	syncNotifiedMtx sync.Mutex
-	syncNotified    bool
-	txProcessed     chan struct{}
-	blockProcessed  chan struct{}
+	txProcessed    chan struct{}
+	blockProcessed chan struct{}
 
 	// peerNa is network address of the peer connected to.
 	peerNa    *wire.NetAddress
@@ -947,7 +949,7 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 		}
 	}
 
-	err := sp.server.syncManager.RequestFromPeer(sp.Peer, blockHashes,
+	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
 		voteHashes, nil)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
@@ -1034,8 +1036,8 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 // OnInitState is invoked when a peer receives a initstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(_ *peer.Peer, msg *wire.MsgInitState) {
-	err := sp.server.syncManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
-		msg.VoteHashes, msg.TSpendHashes)
+	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
+		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}
@@ -1064,7 +1066,7 @@ func (sp *serverPeer) OnTx(_ *peer.Peer, msg *wire.MsgTx) {
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.syncManager.QueueTx(tx, sp.Peer, sp.txProcessed)
+	sp.server.syncManager.QueueTx(tx, sp.syncMgrPeer, sp.txProcessed)
 	<-sp.txProcessed
 }
 
@@ -1087,7 +1089,7 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	// depended on by at least the block acceptance test tool as the reference
 	// implementation processes blocks in the same thread and therefore blocks
 	// further messages until the network block has been fully processed.
-	sp.server.syncManager.QueueBlock(block, sp.Peer, sp.blockProcessed)
+	sp.server.syncManager.QueueBlock(block, sp.syncMgrPeer, sp.blockProcessed)
 	<-sp.blockProcessed
 }
 
@@ -1096,14 +1098,14 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 // accordingly.  We pass the message down to the net sync manager which will
 // call QueueMessage with any appropriate responses.
 func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
-	// Ban peers sending empty inventory requests.
+	// Ban peers sending empty inventory announcements.
 	if len(msg.InvList) == 0 {
 		sp.server.BanPeer(sp)
 		return
 	}
 
 	if !cfg.BlocksOnly {
-		sp.server.syncManager.QueueInv(msg, sp.Peer)
+		sp.server.syncManager.QueueInv(msg, sp.syncMgrPeer)
 		return
 	}
 
@@ -1122,13 +1124,13 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 		}
 	}
 
-	sp.server.syncManager.QueueInv(newInv, sp.Peer)
+	sp.server.syncManager.QueueInv(newInv, sp.syncMgrPeer)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.syncManager.QueueHeaders(msg, sp.Peer)
+	sp.server.syncManager.QueueHeaders(msg, sp.syncMgrPeer)
 }
 
 // handleGetData is invoked when a peer receives a getdata wire message and is
@@ -1483,7 +1485,7 @@ func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
 			return
 		}
 	}
-	sp.server.syncManager.QueueNotFound(msg, sp.Peer)
+	sp.server.syncManager.QueueNotFound(msg, sp.syncMgrPeer)
 }
 
 // randomUint16Number returns a random uint16 in a specified input range.  Note
@@ -2231,6 +2233,7 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 	sp := newServerPeer(s, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.AssociateConnection(conn)
 	go s.peerDoneHandler(sp)
 }
@@ -2248,6 +2251,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		return
 	}
 	sp.Peer = p
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.connReq = c
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
@@ -2260,14 +2264,8 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.DonePeer(sp)
 
-	// Notify the net sync manager the peer is gone if it was ever notified that
-	// the peer existed.
-	sp.syncNotifiedMtx.Lock()
-	syncNotified := sp.syncNotified
-	sp.syncNotifiedMtx.Unlock()
-	if syncNotified {
-		s.syncManager.PeerDisconnected(sp.Peer)
-	}
+	// Notify the net sync manager the peer is gone.
+	s.syncManager.PeerDisconnected(sp.syncMgrPeer)
 
 	if sp.VersionKnown() {
 		// Evict any remaining orphans that were sent by the peer.
@@ -2314,10 +2312,7 @@ out:
 			// Signal the net sync manager this peer is a new sync candidate
 			// unless it was disconnected above.
 			if p.Connected() {
-				s.syncManager.PeerConnected(p.Peer)
-				p.syncNotifiedMtx.Lock()
-				p.syncNotified = true
-				p.syncNotifiedMtx.Unlock()
+				s.syncManager.PeerConnected(p.syncMgrPeer)
 			}
 
 		// Disconnected peers.
