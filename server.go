@@ -2266,7 +2266,7 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	syncNotified := sp.syncNotified
 	sp.syncNotifiedMtx.Unlock()
 	if syncNotified {
-		s.syncManager.DonePeer(sp.Peer)
+		s.syncManager.PeerDisconnected(sp.Peer)
 	}
 
 	if sp.VersionKnown() {

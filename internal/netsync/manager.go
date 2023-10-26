@@ -126,8 +126,8 @@ type notFoundMsg struct {
 	peer     *peerpkg.Peer
 }
 
-// donePeerMsg signifies a newly disconnected peer to the event handler.
-type donePeerMsg struct {
+// peerDisconnectedMsg signifies a newly disconnected peer to the event handler.
+type peerDisconnectedMsg struct {
 	peer *peerpkg.Peer
 }
 
@@ -635,11 +635,11 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *peerpkg.
 	}
 }
 
-// handleDonePeerMsg deals with peers that have signalled they are done.  It
-// removes the peer as a candidate for syncing and in the case where it was
+// handlePeerDisconnectedMsg deals with peers that have signalled they are done.
+// It removes the peer as a candidate for syncing and in the case where it was
 // the current sync peer, attempts to select a new best peer to sync from.  It
 // is invoked from the syncHandler goroutine.
-func (m *SyncManager) handleDonePeerMsg(p *peerpkg.Peer) {
+func (m *SyncManager) handlePeerDisconnectedMsg(p *peerpkg.Peer) {
 	peer := lookupPeer(p, m.peers)
 	if peer == nil {
 		return
@@ -1464,8 +1464,8 @@ out:
 			case *notFoundMsg:
 				m.handleNotFoundMsg(msg)
 
-			case *donePeerMsg:
-				m.handleDonePeerMsg(msg.peer)
+			case *peerDisconnectedMsg:
+				m.handlePeerDisconnectedMsg(msg.peer)
 
 			case getSyncPeerMsg:
 				var peerID int32
@@ -1582,10 +1582,10 @@ func (m *SyncManager) QueueNotFound(notFound *wire.MsgNotFound, peer *peerpkg.Pe
 	}
 }
 
-// DonePeer informs the sync manager that a peer has disconnected.
-func (m *SyncManager) DonePeer(peer *peerpkg.Peer) {
+// PeerDisconnected informs the sync manager that a peer has disconnected.
+func (m *SyncManager) PeerDisconnected(peer *peerpkg.Peer) {
 	select {
-	case m.msgChan <- &donePeerMsg{peer: peer}:
+	case m.msgChan <- &peerDisconnectedMsg{peer: peer}:
 	case <-m.quit:
 	}
 }
