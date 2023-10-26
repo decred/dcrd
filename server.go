@@ -2314,7 +2314,7 @@ out:
 			// Signal the net sync manager this peer is a new sync candidate
 			// unless it was disconnected above.
 			if p.Connected() {
-				s.syncManager.NewPeer(p.Peer)
+				s.syncManager.PeerConnected(p.Peer)
 				p.syncNotifiedMtx.Lock()
 				p.syncNotified = true
 				p.syncNotifiedMtx.Unlock()

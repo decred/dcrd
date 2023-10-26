@@ -92,8 +92,8 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// newPeerMsg signifies a newly connected peer to the event handler.
-type newPeerMsg struct {
+// peerConnectedMsg signifies a newly connected peer to the event handler.
+type peerConnectedMsg struct {
 	peer *peerpkg.Peer
 }
 
@@ -602,10 +602,10 @@ func (m *SyncManager) isSyncCandidate(peer *peerpkg.Peer) bool {
 	return peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 }
 
-// handleNewPeerMsg deals with new peers that have signalled they may
+// handlePeerConnectedMsg deals with new peers that have signalled they may
 // be considered as a sync peer (they have already successfully negotiated).  It
 // also starts syncing if needed.  It is invoked from the syncHandler goroutine.
-func (m *SyncManager) handleNewPeerMsg(ctx context.Context, peer *peerpkg.Peer) {
+func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *peerpkg.Peer) {
 	select {
 	case <-ctx.Done():
 	default:
@@ -1438,8 +1438,8 @@ out:
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
-			case *newPeerMsg:
-				m.handleNewPeerMsg(ctx, msg.peer)
+			case *peerConnectedMsg:
+				m.handlePeerConnectedMsg(ctx, msg.peer)
 
 			case *txMsg:
 				m.handleTxMsg(msg)
@@ -1528,10 +1528,10 @@ out:
 	log.Trace("Sync manager event handler done")
 }
 
-// NewPeer informs the sync manager of a newly active peer.
-func (m *SyncManager) NewPeer(peer *peerpkg.Peer) {
+// PeerConnected informs the sync manager of a newly active peer.
+func (m *SyncManager) PeerConnected(peer *peerpkg.Peer) {
 	select {
-	case m.msgChan <- &newPeerMsg{peer: peer}:
+	case m.msgChan <- &peerConnectedMsg{peer: peer}:
 	case <-m.quit:
 	}
 }
