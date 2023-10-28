@@ -656,7 +656,7 @@ func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
 	}
 	known, err := sp.PushAddrMsg(addrs)
 	if err != nil {
-		peerLog.Errorf("Can't push address message to %s: %v", sp.Peer, err)
+		peerLog.Errorf("Can't push address message to %s: %v", sp, err)
 		sp.Disconnect()
 		return
 	}
@@ -739,7 +739,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Reject peers that have a protocol version that is too old.
 	if msg.ProtocolVersion < int32(wire.SendHeadersVersion) {
 		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
-			"the required version %d", sp.Peer, msg.ProtocolVersion,
+			"the required version %d", sp, msg.ProtocolVersion,
 			wire.SendHeadersVersion)
 		sp.Disconnect()
 		return
@@ -750,8 +750,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	if !isInbound && !hasServices(msg.Services, wantServices) {
 		missingServices := wantServices & ^msg.Services
 		srvrLog.Debugf("Rejecting peer %s with services %v due to not "+
-			"providing desired services %v", sp.Peer, msg.Services,
-			missingServices)
+			"providing desired services %v", sp, msg.Services, missingServices)
 		sp.Disconnect()
 		return
 	}
@@ -874,7 +873,7 @@ func (sp *serverPeer) pushMiningStateMsg(height uint32, blockHashes []chainhash.
 // mined on and pushes a miningstate wire message back to the requesting peer.
 func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState) {
 	if sp.getMiningStateSent {
-		peerLog.Tracef("Ignoring getminingstate from %v - already sent", sp.Peer)
+		peerLog.Tracef("Ignoring getminingstate from %v - already sent", sp)
 		return
 	}
 	sp.getMiningStateSent = true
@@ -961,7 +960,7 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 // It sends the available requested info to the remote peer.
 func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 	if sp.initStateSent {
-		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp.Peer)
+		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp)
 		return
 	}
 	sp.initStateSent = true
@@ -1264,8 +1263,7 @@ func (sp *serverPeer) OnGetHeaders(_ *peer.Peer, msg *wire.MsgGetHeaders) {
 	workSum, err := chain.ChainWork(&tipHash)
 	if err == nil && workSum.Lt(&sp.server.minKnownWork) {
 		srvrLog.Debugf("Sending empty headers to peer %s in response to "+
-			"getheaders due to local best known tip having too little work",
-			sp.Peer)
+			"getheaders due to local best known tip having too little work", sp)
 		sp.QueueMessage(&wire.MsgHeaders{}, nil)
 		return
 	}
@@ -1373,7 +1371,7 @@ func (sp *serverPeer) OnGetAddr(_ *peer.Peer, msg *wire.MsgGetAddr) {
 	// Only respond with addresses once per connection.  This helps reduce
 	// traffic and further reduces fingerprinting attacks.
 	if sp.addrsSent {
-		peerLog.Tracef("Ignoring getaddr from %v - already sent", sp.Peer)
+		peerLog.Tracef("Ignoring getaddr from %v - already sent", sp)
 		return
 	}
 	sp.addrsSent = true
