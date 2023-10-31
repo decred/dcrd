@@ -674,10 +674,22 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 			continue
 		}
 		if dataMsg == nil {
+			// Keep track of all items that were not found in order to send a
+			// consolidated messsage once the entire batch is processed.
+			//
+			// The error when adding the inventory vector is ignored because the
+			// only way it could fail would be by exceeding the max allowed
+			// number of items which is impossible given the getdata message is
+			// enforced to not exceed that same maximum limit.
 			if notFoundMsg == nil {
 				notFoundMsg = wire.NewMsgNotFound()
 			}
 			notFoundMsg.AddInvVect(iv)
+
+			// There is no need to wait for the semaphore below when there is
+			// not any data to send.
+			sp.numPendingGetDataItemReqs.Add(^uint32(0))
+			continue
 		}
 
 		// Limit the number of items that can be queued to prevent wasting a
