@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -27,6 +27,9 @@ const (
 )
 
 // MsgCFTypes is the cftypes message.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 type MsgCFTypes struct {
 	SupportedFilters []FilterType
 }
@@ -129,6 +132,9 @@ func (msg *MsgCFTypes) MaxPayloadLength(pver uint32) uint32 {
 
 // NewMsgCFTypes returns a new cftypes message that conforms to the Message
 // interface. See MsgCFTypes for details.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 func NewMsgCFTypes(filterTypes []FilterType) *MsgCFTypes {
 	return &MsgCFTypes{
 		SupportedFilters: filterTypes,

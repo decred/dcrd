@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,6 +28,9 @@ const (
 // response to a getcfheaders message (MsgGetCFHeaders). The maximum number of
 // committed filter headers per message is currently 2000. See MsgGetCFHeaders
 // for details on requesting the headers.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 type MsgCFHeaders struct {
 	StopHash     chainhash.Hash
 	FilterType   FilterType
@@ -174,6 +177,9 @@ func (msg *MsgCFHeaders) MaxPayloadLength(pver uint32) uint32 {
 
 // NewMsgCFHeaders returns a new cfheaders message that conforms to the Message
 // interface. See MsgCFHeaders for details.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 func NewMsgCFHeaders() *MsgCFHeaders {
 	return &MsgCFHeaders{
 		HeaderHashes: make([]*chainhash.Hash, 0, MaxCFHeadersPerMsg),

@@ -48,16 +48,36 @@ const (
 	CmdReject         = "reject"
 	CmdSendHeaders    = "sendheaders"
 	CmdFeeFilter      = "feefilter"
-	CmdGetCFilter     = "getcfilter"
-	CmdGetCFHeaders   = "getcfheaders"
-	CmdGetCFTypes     = "getcftypes"
-	CmdCFilter        = "cfilter"
-	CmdCFHeaders      = "cfheaders"
-	CmdCFTypes        = "cftypes"
 	CmdGetCFilterV2   = "getcfilterv2"
 	CmdCFilterV2      = "cfilterv2"
 	CmdGetInitState   = "getinitstate"
 	CmdInitState      = "initstate"
+)
+
+const (
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdGetCFilter = "getcfilter"
+
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdGetCFHeaders = "getcfheaders"
+
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdGetCFTypes = "getcftypes"
+
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdCFilter = "cfilter"
+
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdCFHeaders = "cfheaders"
+
+	// Deprecated: This command is no longer valid as of protocol version
+	// CFilterV2Version.
+	CmdCFTypes = "cftypes"
 )
 
 // Message is an interface that describes a Decred message.  A type that

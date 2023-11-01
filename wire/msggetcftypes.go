@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,6 +12,9 @@ import (
 )
 
 // MsgGetCFTypes is the getcftypes message.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 type MsgGetCFTypes struct{}
 
 // BtcDecode decodes the receiver from w using the wire protocol encoding.
@@ -55,6 +58,9 @@ func (msg *MsgGetCFTypes) MaxPayloadLength(pver uint32) uint32 {
 
 // NewMsgGetCFTypes returns a new getcftypes message that conforms to the
 // Message interface.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 func NewMsgGetCFTypes() *MsgGetCFTypes {
 	return &MsgGetCFTypes{}
 }

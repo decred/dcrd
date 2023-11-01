@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,9 @@ import (
 
 // MsgGetCFilter implements the Message interface and represents a getcfilter
 // message. It is used to request a committed filter for a block.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 type MsgGetCFilter struct {
 	BlockHash  chainhash.Hash
 	FilterType FilterType
@@ -70,6 +73,9 @@ func (msg *MsgGetCFilter) MaxPayloadLength(pver uint32) uint32 {
 // NewMsgGetCFilter returns a new getcfilter message that conforms to the
 // Message interface using the passed parameters and defaults for the remaining
 // fields.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 func NewMsgGetCFilter(blockHash *chainhash.Hash, filterType FilterType) *MsgGetCFilter {
 	return &MsgGetCFilter{
 		BlockHash:  *blockHash,

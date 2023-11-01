@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,6 +16,9 @@ import (
 // MsgGetCFHeaders is a message similar to MsgGetHeaders, but for committed
 // filter headers. It allows to set the FilterType field to get headers in the
 // chain of basic (0x00) or extended (0x01) headers.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 type MsgGetCFHeaders struct {
 	BlockLocatorHashes []*chainhash.Hash
 	HashStop           chainhash.Hash
@@ -133,6 +136,9 @@ func (msg *MsgGetCFHeaders) MaxPayloadLength(pver uint32) uint32 {
 // NewMsgGetCFHeaders returns a new getcfheader message that conforms to the
 // Message interface using the passed parameters and defaults for the remaining
 // fields.
+//
+// Deprecated: This message is no longer valid as of protocol version
+// CFilterV2Version.
 func NewMsgGetCFHeaders() *MsgGetCFHeaders {
 	return &MsgGetCFHeaders{
 		BlockLocatorHashes: make([]*chainhash.Hash, 0,
