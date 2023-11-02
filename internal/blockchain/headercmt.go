@@ -191,3 +191,105 @@ func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, *He
 	}
 	return filter, headerProof, nil
 }
+
+// LocateCFiltersV2 fetches all committed filters between startHash and endHash
+// (inclusive) and prepares a MsgCFiltersV2 response to return this batch
+// of CFilters to a remote peer.
+//
+// The start and end blocks must both exist and the start block must be an
+// ancestor to the end block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) LocateCFiltersV2(startHash, endHash *chainhash.Hash) (*wire.MsgCFiltersV2, error) {
+	// Sanity check.
+	b.chainLock.RLock()
+	startNode := b.index.LookupNode(startHash)
+	if startNode == nil {
+		b.chainLock.RUnlock()
+		return nil, unknownBlockError(startHash)
+	}
+	endNode := b.index.LookupNode(endHash)
+	if endNode == nil {
+		b.chainLock.RUnlock()
+		return nil, unknownBlockError(endHash)
+	}
+	if !startNode.IsAncestorOf(endNode) {
+		b.chainLock.RUnlock()
+		str := fmt.Sprintf("start block %s is not an ancestor of end block %s",
+			startHash, endHash)
+		return nil, contextError(ErrNotAnAncestor, str)
+	}
+
+	// Figure out size of the response.
+	nb := int(endNode.height - startNode.height + 1)
+	if nb > wire.MaxCFiltersV2PerBatch {
+		b.chainLock.RUnlock()
+		str := fmt.Sprintf("number of requested cfilters %d greater than max allowed %d",
+			nb, wire.MaxCFiltersV2PerBatch)
+		return nil, contextError(ErrRequestTooLarge, str)
+	}
+
+	// Allocate all internal messages in a single buffer to reduce memory
+	// allocation counts.
+	filters := make([]wire.MsgCFilterV2, nb)
+	proofLeaves := make([][]chainhash.Hash, nb)
+
+	// Fetch all relevant block hashes.
+	node := endNode
+	for i := nb - 1; i >= 0; i-- {
+		filters[i].BlockHash = node.hash
+		node = node.parent
+	}
+
+	// At this point all index operations have completed, so release the
+	// RLock.
+	b.chainLock.RUnlock()
+
+	// Prepare the response from DB.
+	err := b.db.View(func(dbTx database.Tx) error {
+		totalLen := 0
+		data := make([][]byte, nb)
+		for i := 0; i < nb; i++ {
+			hash := &filters[i].BlockHash
+			cfData := dbFetchRawGCSFilter(dbTx, hash)
+			if cfData == nil {
+				str := fmt.Sprintf("no filter available for block %s", hash)
+				return contextError(ErrNoFilter, str)
+			}
+
+			data[i] = cfData
+			totalLen += len(cfData)
+
+			var err error
+			proofLeaves[i], err = dbFetchHeaderCommitments(dbTx, hash)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Allocate a single backing buffer for all cfilter data and
+		// copy each individual db buffer into it.  This reduces
+		// memory allocation counts and fragmentation.
+		buffer := make([]byte, totalLen)
+		var j int
+		for i := 0; i < nb; i++ {
+			sz := len(data[i])
+			copy(buffer[j:], data[i])
+			filters[i].Data = buffer[j : j+sz : j+sz]
+			j += sz
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare the response.
+	const proofIndex = HeaderCmtFilterIndex
+	for i := 0; i < nb; i++ {
+		proofHashes := standalone.GenerateInclusionProof(proofLeaves[i], proofIndex)
+		filters[i].ProofHashes = proofHashes
+		filters[i].ProofIndex = proofIndex
+	}
+	return wire.NewMsgCFiltersV2(filters), nil
+}
