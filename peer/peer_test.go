@@ -411,6 +411,12 @@ func TestPeerListeners(t *testing.T) {
 			OnInitState: func(p *Peer, msg *wire.MsgInitState) {
 				ok <- msg
 			},
+			OnGetCFiltersV2: func(p *Peer, msg *wire.MsgGetCFsV2) {
+				ok <- msg
+			},
+			OnCFiltersV2: func(p *Peer, msg *wire.MsgCFiltersV2) {
+				ok <- msg
+			},
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
@@ -564,6 +570,14 @@ func TestPeerListeners(t *testing.T) {
 		{
 			"OnInitState",
 			wire.NewMsgInitState(),
+		},
+		{
+			"OnGetCFiltersV2",
+			wire.NewMsgGetCFsV2(&chainhash.Hash{}, &chainhash.Hash{}),
+		},
+		{
+			"OnCFiltersV2",
+			wire.NewMsgCFiltersV2([]wire.MsgCFilterV2{}),
 		},
 	}
 	t.Logf("Running %d tests", len(tests))
