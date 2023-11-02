@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 10
+	ProtocolVersion uint32 = 11
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -54,6 +54,10 @@ const (
 
 	// MixVersion is the protocol version which adds peer-to-peer mixing.
 	MixVersion uint32 = 10
+
+	// BatchedCFiltersV2Version is the protocol version which adds support
+	// for the batched getcfsv2 and cfiltersv2 messages.
+	BatchedCFiltersV2Version uint32 = 11
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

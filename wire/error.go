@@ -149,6 +149,10 @@ const (
 	// ErrTooManyPrevMixMsgs is returned when too many previous messages of
 	// a mix run are referenced by a message.
 	ErrTooManyPrevMixMsgs
+
+	// ErrTooManyCFilters is returned when the number of committed filters
+	// exceeds the maximum allowed in a batch.
+	ErrTooManyCFilters
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -188,6 +192,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMixPairReqScriptClassTooLong:  "ErrMixPairReqScriptClassTooLong",
 	ErrTooManyMixPairReqUTXOs:        "ErrTooManyMixPairReqUTXOs",
 	ErrTooManyPrevMixMsgs:            "ErrTooManyPrevMixMsgs",
+	ErrTooManyCFilters:               "ErrTooManyCFilters",
 }
 
 // String returns the ErrorCode as a human-readable name.
