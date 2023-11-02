@@ -74,7 +74,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.RemoveRejectVersion
+	maxProtocolVersion = wire.BatchedCFiltersV2Version
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
@@ -1522,6 +1522,16 @@ func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
 	sp.QueueMessage(filterMsg, nil)
 }
 
+// OnGetCFiltersV2 is invoked when a peer receives a getcfsv2 wire message.
+func (sp *serverPeer) OnGetCFiltersV2(_ *peer.Peer, msg *wire.MsgGetCFsV2) {
+	filtersMsg, err := sp.server.chain.LocateCFiltersV2(&msg.StartHash, &msg.EndHash)
+	if err != nil {
+		return
+	}
+
+	sp.QueueMessage(filtersMsg, nil)
+}
+
 // OnGetCFHeaders is invoked when a peer receives a getcfheader wire message.
 func (sp *serverPeer) OnGetCFHeaders(_ *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	// Disconnect and/or ban depending on the node cf services flag and
@@ -2308,6 +2318,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnGetHeaders:     sp.OnGetHeaders,
 			OnGetCFilter:     sp.OnGetCFilter,
 			OnGetCFilterV2:   sp.OnGetCFilterV2,
+			OnGetCFiltersV2:  sp.OnGetCFiltersV2,
 			OnGetCFHeaders:   sp.OnGetCFHeaders,
 			OnGetCFTypes:     sp.OnGetCFTypes,
 			OnGetAddr:        sp.OnGetAddr,
