@@ -54,6 +54,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrMixPairReqScriptClassTooLong, "ErrMixPairReqScriptClassTooLong"},
 		{ErrTooManyMixPairReqUTXOs, "ErrTooManyMixPairReqUTXOs"},
 		{ErrTooManyPrevMixMsgs, "ErrTooManyPrevMixMsgs"},
+		{ErrTooManyCFilters, "ErrTooManyCFilters"},
 
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}

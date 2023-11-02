@@ -60,6 +60,8 @@ const (
 	CmdMixDCNet        = "mixdcnet"
 	CmdMixConfirm      = "mixconfirm"
 	CmdMixSecrets      = "mixsecrets"
+	CmdGetCFiltersV2   = "getcfsv2"
+	CmdCFiltersV2      = "cfiltersv2"
 )
 
 const (
@@ -216,6 +218,12 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdMixSecrets:
 		msg = &MsgMixSecrets{}
+
+	case CmdGetCFiltersV2:
+		msg = &MsgGetCFsV2{}
+
+	case CmdCFiltersV2:
+		msg = &MsgCFiltersV2{}
 
 	default:
 		str := fmt.Sprintf("unhandled command [%s]", command)
