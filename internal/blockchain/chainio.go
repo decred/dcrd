@@ -851,6 +851,21 @@ func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV
 	return filter, nil
 }
 
+// dbFetchRawGCSFilter fetches the raw version 2 GCS filter for the passed
+// block, without decoding it from the db.
+//
+// WARNING: the returned slice is only valid for the duration of the database
+// transaction and MUST be copied to a new buffer if it is needed after the db
+// transaction ends.
+//
+// This function is meant for cases where the raw filter bytes will be used
+// without decoding into a gcs.FilterV2 value.  For a safer alternative, use
+// dbFetchGCSFilter.
+func dbFetchRawGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) []byte {
+	filterBucket := dbTx.Metadata().Bucket(gcsFilterBucketName)
+	return filterBucket.Get(blockHash[:])
+}
+
 // dbPutGCSFilter uses an existing database transaction to update the version 2
 // GCS filter for the given block hash using the provided filter.
 func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.FilterV2) error {
