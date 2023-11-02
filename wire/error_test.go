@@ -50,6 +50,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrTooManyInitStateTypes, "ErrTooManyInitStateTypes"},
 		{ErrInitStateTypeTooLong, "ErrInitStateTypeTooLong"},
 		{ErrTooManyTSpends, "ErrTooManyTSpends"},
+		{ErrTooManyCFilters, "ErrTooManyCFilters"},
 
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
