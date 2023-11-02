@@ -549,3 +549,46 @@ func MakeHeaderForFilter(filter *FilterV1, prevHeader *chainhash.Hash) chainhash
 	// The final filter hash is the blake256 of the hash computed above.
 	return chainhash.Hash(blake256.Sum256(filterTip[:]))
 }
+
+// MaxFilterV2Size returns the maximum filter size possible for the given filter
+// parameters.
+func MaxFilterV2Size(B uint8, M uint64, N uint32) uint64 {
+	// The maximum (i.e. worst) filter size for V2 filters happens when the
+	// following conditions are met:
+	//
+	// - Every one of the N data entries is unique.
+	// - Every one of the N data entries produces a unique value after
+	//   the siphash stage, ensuring no values are prematurely removed.
+	// - The quotient difference is maximized and produces the largest
+	//   possible number of one bits in unary coding for the set of unique
+	//   scripts.
+	//
+	// Given that the values are sorted prior being encoded with the
+	// Golomb/Rice coding, the largest possible quotient happens when the
+	// difference between two consecutive values is maximized.  And that
+	// happens when the last value has the highest possible value and the
+	// second-to-last has the least possible value.
+	//
+	// The highest possible value after the modulo reduction stage is
+	// N*M-1.  And the least possible value is zero.  In other words, the
+	// first N-1 siphashed entries are mapped, after modulo reduction, to
+	// the value 0 and the last entry is mapped to the value N*M-1.
+	//
+	// Thus the largest possible difference is N*M-1, with the max
+	// number of bits of the quotient readily determined by shifting right
+	// that amount by B.
+	n := uint64(N)
+	b := uint64(B)
+	largestDiff := n*M - 1
+	maxQuoBits := largestDiff >> b
+
+	// Finally, the maximum size of the filter is determined by assuming
+	// each one of the N entries takes one bit for the 0 in the quotient
+	// encoding and B bits for the remainder, one entry takes an additional
+	// maxQuoBits for the quotient encoding, N is encoded as a varint and
+	// any necessary padding is added.
+	nSerSize := uint64(wire.VarIntSerializeSize(n))
+	maxBits := n + n*b + maxQuoBits
+	maxBytes := (maxBits+7)/8 + nSerSize
+	return maxBytes
+}
