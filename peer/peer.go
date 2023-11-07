@@ -1256,10 +1256,18 @@ out:
 			break out
 		}
 		atomic.StoreInt64(&p.lastRecv, time.Now().Unix())
-		p.stallControl <- stallControlMsg{sccReceiveMessage, rmsg}
+		select {
+		case p.stallControl <- stallControlMsg{sccReceiveMessage, rmsg}:
+		case <-p.quit:
+			break out
+		}
 
 		// Handle each supported message type.
-		p.stallControl <- stallControlMsg{sccHandlerStart, rmsg}
+		select {
+		case p.stallControl <- stallControlMsg{sccHandlerStart, rmsg}:
+		case <-p.quit:
+			break out
+		}
 		switch msg := rmsg.(type) {
 		case *wire.MsgVersion:
 			// Limit to one version message per peer.
@@ -1432,7 +1440,11 @@ out:
 			log.Debugf("Received unhandled message of type %v "+
 				"from %v", rmsg.Command(), p)
 		}
-		p.stallControl <- stallControlMsg{sccHandlerDone, rmsg}
+		select {
+		case p.stallControl <- stallControlMsg{sccHandlerDone, rmsg}:
+		case <-p.quit:
+			break out
+		}
 	}
 
 	// Ensure connection is closed.
@@ -1609,7 +1621,11 @@ out:
 				p.statsMtx.Unlock()
 			}
 
-			p.stallControl <- stallControlMsg{sccSendMessage, msg.msg}
+			select {
+			case p.stallControl <- stallControlMsg{sccSendMessage, msg.msg}:
+			case <-p.quit:
+				break out
+			}
 			if err := p.writeMessage(msg.msg); err != nil {
 				p.Disconnect()
 				if p.shouldLogWriteError(err) {
