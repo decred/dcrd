@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -1688,6 +1689,23 @@ cleanup:
 //
 // This function is safe for concurrent access.
 func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
+	// Provide debug information when called with a nil message.  This
+	// provides a more useful stack trace to callers than hitting the
+	// panic in a long-lived peer goroutine that contains no information
+	// about what caller queued the nil message.
+	if msg == nil {
+		// The semantics of whether a non-nil doneChan should be sent
+		// to or not, and the unknown program state this might lead
+		// to, doesn't leave a reasonable option to recover from this.
+		if doneChan != nil {
+			panic("peer: queued nil message")
+		}
+
+		log.Warnf("Attempt to send nil message type %T\nStack: %s",
+			msg, debug.Stack())
+		return
+	}
+
 	// Avoid risk of deadlock if goroutine already exited.  The goroutine
 	// we will be sending to hangs around until it knows for a fact that
 	// it is marked as disconnected and *then* it drains the channels.
