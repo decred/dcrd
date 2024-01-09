@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/rpcclient/v8
 
-go 1.17
+go 1.19
 
 require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
