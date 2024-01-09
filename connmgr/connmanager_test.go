@@ -405,11 +405,11 @@ func TestNetworkFailure(t *testing.T) {
 	var closeOnce sync.Once
 	const targetOutbound = 5
 	const retryTimeout = time.Millisecond * 5
-	var dials uint32
+	var dials atomic.Uint32
 	reachedMaxFailedAttempts := make(chan struct{})
 	connMgrDone := make(chan struct{})
 	errDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		totalDials := atomic.AddUint32(&dials, 1)
+		totalDials := dials.Add(1)
 		if totalDials >= maxFailedAttempts {
 			closeOnce.Do(func() { close(reachedMaxFailedAttempts) })
 			<-connMgrDone
@@ -447,7 +447,7 @@ func TestNetworkFailure(t *testing.T) {
 	// Ensure the number of dial attempts does not exceed the max number of
 	// failed attempts plus the number of potential retries during the
 	// additional waiting period.
-	gotDials := atomic.LoadUint32(&dials)
+	gotDials := dials.Load()
 	wantMaxDials := uint32(maxFailedAttempts + targetOutbound)
 	if gotDials > wantMaxDials {
 		t.Fatalf("unexpected number of dials - got %v, want <= %v", gotDials,
@@ -468,11 +468,11 @@ func TestMultipleFailedConns(t *testing.T) {
 	}()
 
 	const targetFailed = 5
-	var dials uint32
+	var dials atomic.Uint32
 	var closeOnce sync.Once
 	hitTargetFailed := make(chan struct{})
 	errDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		totalDials := atomic.AddUint32(&dials, 1)
+		totalDials := dials.Add(1)
 		if totalDials >= targetFailed {
 			closeOnce.Do(func() { close(hitTargetFailed) })
 		}
