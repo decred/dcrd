@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/connmgr/v3
 
-go 1.17
+go 1.19
 
 require (
 	github.com/decred/dcrd/wire v1.6.0
