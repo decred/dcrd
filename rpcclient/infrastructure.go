@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -134,7 +134,7 @@ type jsonRequest struct {
 // the returned future will block until the result is available if it's not
 // already.
 type Client struct {
-	id uint64 // atomic, so must stay 64-bit aligned
+	id atomic.Uint64
 
 	// config holds the connection configuration associated with this
 	// client.
@@ -203,7 +203,7 @@ func (c *Client) String() string {
 // this function should be used to ensure the ID is unique amongst all requests
 // being made.
 func (c *Client) NextID() uint64 {
-	return atomic.AddUint64(&c.id, 1)
+	return c.id.Add(1)
 }
 
 // addRequest associates the passed jsonRequest with its id.  This allows the
