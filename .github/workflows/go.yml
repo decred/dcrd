@@ -28,7 +28,7 @@ jobs:
         run: |
           bash ./.github/stablilize_testdata_timestamps.sh "${{ github.workspace }}"
       - name: Install Linters
-        run: "go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2"
+        run: "go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.0"
       - name: Build
         run: go build ./...
       - name: Test
