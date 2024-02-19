@@ -961,11 +961,21 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		}
 	}
 
+	// Enforce the minimum protocol limit on outbound connections.
+	if !isInbound && msg.ProtocolVersion < int32(wire.RemoveRejectVersion) {
+		srvrLog.Debugf("Rejecting outbound peer %s with protocol version %d prior to "+
+			"the required version %d", sp, msg.ProtocolVersion,
+			wire.RemoveRejectVersion)
+		sp.Disconnect()
+		return
+	}
+
 	// Reject peers that have a protocol version that is too old.
-	if msg.ProtocolVersion < int32(wire.SendHeadersVersion) {
+	// This is the maximum protocol version negotiated by dcrwallet 1.8.0.
+	if msg.ProtocolVersion < int32(wire.InitStateVersion) {
 		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
 			"the required version %d", sp, msg.ProtocolVersion,
-			wire.SendHeadersVersion)
+			wire.InitStateVersion)
 		sp.Disconnect()
 		return
 	}
