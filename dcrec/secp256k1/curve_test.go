@@ -565,7 +565,7 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 
 		// Ensure the result matches the expected value in Jacobian coordinates.
 		var r JacobianPoint
-		ScalarBaseMultNonConst(k, &r)
+		scalarBaseMultNonConstFast(k, &r)
 		if !r.IsStrictlyEqual(&want) {
 			t.Errorf("%q: wrong result:\ngot: (%s, %s, %s)\nwant: (%s, %s, %s)",
 				test.name, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
@@ -573,6 +573,16 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 		}
 
 		// Ensure the result matches the expected value in affine coordinates.
+		r.ToAffine()
+		if !r.IsStrictlyEqual(&wantAffine) {
+			t.Errorf("%q: wrong affine result:\ngot: (%s, %s)\nwant: (%s, %s)",
+				test.name, r.X, r.Y, wantAffine.X, wantAffine.Y)
+			continue
+		}
+
+		// The slow fallback doesn't return identical Jacobian coordinates,
+		// but the affine coordinates should match.
+		scalarBaseMultNonConstSlow(k, &r)
 		r.ToAffine()
 		if !r.IsStrictlyEqual(&wantAffine) {
 			t.Errorf("%q: wrong affine result:\ngot: (%s, %s)\nwant: (%s, %s)",
@@ -827,7 +837,14 @@ func TestScalarMultJacobianRandom(t *testing.T) {
 
 	// Ensure the point calculated above matches the product of the scalars
 	// times the base point.
-	ScalarBaseMultNonConst(product, &result)
+	scalarBaseMultNonConstFast(product, &result)
+	if !isSamePoint(&chained, &result) {
+		t.Fatalf("unexpected result \ngot (%v, %v, %v)\n"+
+			"want (%v, %v, %v)", chained.X, chained.Y, chained.Z, result.X,
+			result.Y, result.Z)
+	}
+
+	scalarBaseMultNonConstSlow(product, &result)
 	if !isSamePoint(&chained, &result) {
 		t.Fatalf("unexpected result \ngot (%v, %v, %v)\n"+
 			"want (%v, %v, %v)", chained.X, chained.Y, chained.Z, result.X,
