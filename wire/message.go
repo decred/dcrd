@@ -52,6 +52,8 @@ const (
 	CmdCFilterV2      = "cfilterv2"
 	CmdGetInitState   = "getinitstate"
 	CmdInitState      = "initstate"
+	CmdGetCFiltersV2  = "getcfsv2"
+	CmdCFiltersV2     = "cfiltersv2"
 )
 
 const (
@@ -187,6 +189,12 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdInitState:
 		msg = &MsgInitState{}
+
+	case CmdGetCFiltersV2:
+		msg = &MsgGetCFiltersV2{}
+
+	case CmdCFiltersV2:
+		msg = &MsgCFiltersV2{}
 
 	default:
 		str := fmt.Sprintf("unhandled command [%s]", command)

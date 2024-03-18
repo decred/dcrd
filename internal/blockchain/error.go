@@ -589,6 +589,14 @@ const (
 	// ErrSerializeHeader indicates an attempt to serialize a block header failed.
 	ErrSerializeHeader = ErrorKind("ErrSerializeHeader")
 
+	// ErrNotAnAncestor indicates an attempt to fetch a chain of filters where
+	// the start hash is not an ancestor of the end hash.
+	ErrNotAnAncestor = ErrorKind("ErrNotAnAncestor")
+
+	// ErrRequestTooLarge indicates an attempt to request too much data
+	// in a batched request.
+	ErrRequestTooLarge = ErrorKind("ErrRequestTooLarge")
+
 	// ------------------------------------------
 	// Errors related to the UTXO backend.
 	// ------------------------------------------

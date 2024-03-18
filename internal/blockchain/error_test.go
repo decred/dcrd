@@ -150,6 +150,8 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrNoTreasuryBalance, "ErrNoTreasuryBalance"},
 		{ErrInvalidateGenesisBlock, "ErrInvalidateGenesisBlock"},
 		{ErrSerializeHeader, "ErrSerializeHeader"},
+		{ErrNotAnAncestor, "ErrNotAnAncestor"},
+		{ErrRequestTooLarge, "ErrRequestTooLarge"},
 		{ErrUtxoBackend, "ErrUtxoBackend"},
 		{ErrUtxoBackendCorruption, "ErrUtxoBackendCorruption"},
 		{ErrUtxoBackendNotOpen, "ErrUtxoBackendNotOpen"},
