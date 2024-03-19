@@ -346,7 +346,7 @@ func readElement(r io.Reader, element interface{}) error {
 		}
 		return nil
 
-	// sntrup4591651 ciphertext
+	// sntrup4591761 ciphertext
 	case *[1047]byte:
 		_, err := io.ReadFull(r, e[:])
 		if err != nil {
@@ -354,7 +354,7 @@ func readElement(r io.Reader, element interface{}) error {
 		}
 		return nil
 
-	// sntrup4591651 public key
+	// sntrup4591761 public key
 	case *[1218]byte:
 		_, err := io.ReadFull(r, e[:])
 		if err != nil {
