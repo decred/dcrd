@@ -1221,6 +1221,19 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 //
 // NOTE: The resulting point will be normalized.
 func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
+	scalarBaseMultNonConst(k, result)
+}
+
+// scalarBaseMultNonConstSlow computes k*G through ScalarMultNonConst.
+func scalarBaseMultNonConstSlow(k *ModNScalar, result *JacobianPoint) {
+	var G JacobianPoint
+	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &G)
+	ScalarMultNonConst(k, &G, result)
+}
+
+// scalarBaseMultNonConstFast computes k*G through the precomputed lookup
+// tables.
+func scalarBaseMultNonConstFast(k *ModNScalar, result *JacobianPoint) {
 	bytePoints := s256BytePoints()
 
 	// Start with the point at infinity.
