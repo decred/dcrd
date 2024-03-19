@@ -1224,11 +1224,17 @@ func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 	scalarBaseMultNonConst(k, result)
 }
 
-// scalarBaseMultNonConstSlow computes k*G through ScalarMultNonConst.
-func scalarBaseMultNonConstSlow(k *ModNScalar, result *JacobianPoint) {
+// jacobianG is the secp256k1 base point converted to Jacobian coordinates and
+// is defined here to avoid repeatedly converting it.
+var jacobianG = func() JacobianPoint {
 	var G JacobianPoint
 	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &G)
-	ScalarMultNonConst(k, &G, result)
+	return G
+}()
+
+// scalarBaseMultNonConstSlow computes k*G through ScalarMultNonConst.
+func scalarBaseMultNonConstSlow(k *ModNScalar, result *JacobianPoint) {
+	ScalarMultNonConst(k, &jacobianG, result)
 }
 
 // scalarBaseMultNonConstFast computes k*G through the precomputed lookup
