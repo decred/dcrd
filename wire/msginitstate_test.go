@@ -30,7 +30,7 @@ func TestInitState(t *testing.T) {
 	// Ensure max payload returns the expected value for latest protocol
 	// version. a var int and n * hashes for each of block, vote and tspend
 	// hashes.
-	wantPayload := uint32((1 + 32*8) + (1 + 32*40) + (1 + 32*7))
+	wantPayload := uint32((1 + 32*8) + (1 + 32*40) + (1 + 32*7) + (1 + 32*100))
 	maxPayload := msg.MaxPayloadLength(pver)
 	if maxPayload != wantPayload {
 		t.Errorf("MaxPayloadLength: wrong max payload length for "+
@@ -119,6 +119,7 @@ func TestInitStateWire(t *testing.T) {
 		0x00, // Varint for number of blocks
 		0x00, // Varint for number of votes
 		0x00, // Varint for number of tspends
+		0x00, // Varint for number of mixpairreqs
 	}
 
 	fakeBlock1, _ := chainhash.NewHashFromStr("4433221144332211443322114" +
@@ -137,6 +138,12 @@ func TestInitStateWire(t *testing.T) {
 		"999999999999999999991199999999999999919")
 	fakeTSpend3, _ := chainhash.NewHashFromStr("aaaaaaaaaaaa9200aaaaaa" +
 		"aaaaaaaaaaaaaaaaaaa9a9a9aaaaaaaaaaaaaaa")
+	fakeMixPairReq1, _ := chainhash.NewHashFromStr("bbbbbbbbbbbb9200bbbbbb" +
+		"bbbbbbbbbbbbbbbbbbb9b9b9bbbbbbbbbbbbbbb")
+	fakeMixPairReq2, _ := chainhash.NewHashFromStr("cccccccccccc9200cccccc" +
+		"ccccccccccccccccccc9c9c9ccccccccccccccc")
+	fakeMixPairReq3, _ := chainhash.NewHashFromStr("dddddddddddd9200dddddd" +
+		"ddddddddddddddddddd9d9d9ddddddddddddddd")
 
 	// MsgInitState message with multiple values for each hash.
 	multiData := NewMsgInitState()
@@ -148,6 +155,9 @@ func TestInitStateWire(t *testing.T) {
 	multiData.AddTSpendHash(fakeTSpend1)
 	multiData.AddTSpendHash(fakeTSpend2)
 	multiData.AddTSpendHash(fakeTSpend3)
+	multiData.AddMixPairReqHash(fakeMixPairReq1)
+	multiData.AddMixPairReqHash(fakeMixPairReq2)
+	multiData.AddMixPairReqHash(fakeMixPairReq3)
 
 	multiDataEncoded := []byte{
 		0x02,                                           // Varint for number of block hashes
@@ -185,6 +195,19 @@ func TestInitStateWire(t *testing.T) {
 		0x9a, 0x9a, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
 		0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a, 0x20,
 		0xa9, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a, 0x00,
+		0x03,                                           // Varint for number of mixpr hashes
+		0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x9b, // Fake mixpairreq 1
+		0x9b, 0x9b, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb,
+		0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x0b, 0x20,
+		0xb9, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x0b, 0x00,
+		0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x9c, // Fake mixpairreq 2
+		0x9c, 0x9c, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x0c, 0x20,
+		0xc9, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x0c, 0x00,
+		0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x9d, // Fake mixpairreq 3
+		0x9d, 0x9d, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd,
+		0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x0d, 0x20,
+		0xd9, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x0d, 0x00,
 	}
 
 	tests := []struct {
@@ -255,6 +278,12 @@ func TestInitStateWireErrors(t *testing.T) {
 		"999999999999999999991199999999999999919")
 	fakeTSpend3, _ := chainhash.NewHashFromStr("aaaaaaaaaaaa9200aaaaaa" +
 		"aaaaaaaaaaaaaaaaaaa9a9a9aaaaaaaaaaaaaaa")
+	fakeMixPairReq1, _ := chainhash.NewHashFromStr("bbbbbbbbbbbb9200bbbbbb" +
+		"bbbbbbbbbbbbbbbbbbb9b9b9bbbbbbbbbbbbbbb")
+	fakeMixPairReq2, _ := chainhash.NewHashFromStr("cccccccccccc9200cccccc" +
+		"ccccccccccccccccccc9c9c9ccccccccccccccc")
+	fakeMixPairReq3, _ := chainhash.NewHashFromStr("dddddddddddd9200dddddd" +
+		"ddddddddddddddddddd9d9d9ddddddddddddddd")
 
 	// MsgInitState message with multiple values for each hash.
 	baseMsg := NewMsgInitState()
@@ -266,6 +295,9 @@ func TestInitStateWireErrors(t *testing.T) {
 	baseMsg.AddTSpendHash(fakeTSpend1)
 	baseMsg.AddTSpendHash(fakeTSpend2)
 	baseMsg.AddTSpendHash(fakeTSpend3)
+	baseMsg.AddMixPairReqHash(fakeMixPairReq1)
+	baseMsg.AddMixPairReqHash(fakeMixPairReq2)
+	baseMsg.AddMixPairReqHash(fakeMixPairReq3)
 
 	baseMsgEncoded := []byte{
 		0x02,                                           // Varint for number of block hashes
@@ -303,6 +335,19 @@ func TestInitStateWireErrors(t *testing.T) {
 		0x9a, 0x9a, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
 		0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a, 0x20,
 		0xa9, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a, 0x00,
+		0x03,                                           // Varint for number of mixpairreq hashes
+		0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x9b, // Fake mixpairreq 1
+		0x9b, 0x9b, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb,
+		0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x0b, 0x20,
+		0xb9, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0x0b, 0x00,
+		0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x9c, // Fake mixpairreq 2
+		0x9c, 0x9c, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x0c, 0x20,
+		0xc9, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x0c, 0x00,
+		0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x9d, // Fake mixpairreq 3
+		0x9d, 0x9d, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd,
+		0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x0d, 0x20,
+		0xd9, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0x0d, 0x00,
 	}
 
 	// Message that forces an error by having more than the max allowed

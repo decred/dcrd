@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2023 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,6 +23,7 @@ func TestInvTypeStringer(t *testing.T) {
 		{InvTypeError, "ERROR"},
 		{InvTypeTx, "MSG_TX"},
 		{InvTypeBlock, "MSG_BLOCK"},
+		{InvTypeMix, "MSG_MIX"},
 		{0xffffffff, "Unknown InvType (4294967295)"},
 	}
 
