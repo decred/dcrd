@@ -53,7 +53,7 @@ func BenchmarkAddNonConstNotZOne(b *testing.B) {
 }
 
 // BenchmarkScalarBaseMultNonConst benchmarks multiplying a scalar by the base
-// point of the curve.
+// point of the curve using whichever variant is active.
 func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 
@@ -62,6 +62,32 @@ func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
 		ScalarBaseMultNonConst(k, &result)
+	}
+}
+
+// BenchmarkScalarBaseMultNonConstFast benchmarks multiplying a scalar by the
+// base point of the curve using the fast variant.
+func BenchmarkScalarBaseMultNonConstFast(b *testing.B) {
+	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	var result JacobianPoint
+	for i := 0; i < b.N; i++ {
+		scalarBaseMultNonConstFast(k, &result)
+	}
+}
+
+// BenchmarkScalarBaseMultNonConstSlow benchmarks multiplying a scalar by the
+// base point of the curve using the resource-constrained slow variant.
+func BenchmarkScalarBaseMultNonConstSlow(b *testing.B) {
+	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	var result JacobianPoint
+	for i := 0; i < b.N; i++ {
+		scalarBaseMultNonConstSlow(k, &result)
 	}
 }
 
