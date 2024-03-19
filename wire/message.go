@@ -52,6 +52,13 @@ const (
 	CmdCFilterV2      = "cfilterv2"
 	CmdGetInitState   = "getinitstate"
 	CmdInitState      = "initstate"
+	CmdMixPairReq     = "mixpairreq"
+	CmdMixKeyExchange = "mixkeyxchg"
+	CmdMixCiphertexts = "mixcphrtxt"
+	CmdMixSlotReserve = "mixslotres"
+	CmdMixDCNet       = "mixdcnet"
+	CmdMixConfirm     = "mixconfirm"
+	CmdMixSecrets     = "mixsecrets"
 )
 
 const (
@@ -187,6 +194,27 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdInitState:
 		msg = &MsgInitState{}
+
+	case CmdMixPairReq:
+		msg = &MsgMixPairReq{}
+
+	case CmdMixKeyExchange:
+		msg = &MsgMixKeyExchange{}
+
+	case CmdMixCiphertexts:
+		msg = &MsgMixCiphertexts{}
+
+	case CmdMixSlotReserve:
+		msg = &MsgMixSlotReserve{}
+
+	case CmdMixDCNet:
+		msg = &MsgMixDCNet{}
+
+	case CmdMixConfirm:
+		msg = &MsgMixConfirm{}
+
+	case CmdMixSecrets:
+		msg = &MsgMixSecrets{}
 
 	default:
 		str := fmt.Sprintf("unhandled command [%s]", command)

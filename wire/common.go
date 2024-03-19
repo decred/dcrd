@@ -308,6 +308,14 @@ func readElement(r io.Reader, element interface{}) error {
 		}
 		return nil
 
+	// Mixed message
+	case *[MixMsgSize]byte:
+		_, err := io.ReadFull(r, e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
 	case *[32]byte:
 		_, err := io.ReadFull(r, e[:])
 		if err != nil {
@@ -316,6 +324,38 @@ func readElement(r io.Reader, element interface{}) error {
 		return nil
 
 	case *chainhash.Hash:
+		_, err := io.ReadFull(r, e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// Mix identity
+	case *[33]byte:
+		_, err := io.ReadFull(r, e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// Mix signature
+	case *[64]byte:
+		_, err := io.ReadFull(r, e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// sntrup4591651 ciphertext
+	case *[1047]byte:
+		_, err := io.ReadFull(r, e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// sntrup4591651 public key
+	case *[1218]byte:
 		_, err := io.ReadFull(r, e[:])
 		if err != nil {
 			return err
@@ -377,6 +417,20 @@ func writeElement(w io.Writer, element interface{}) error {
 	// Attempt to write the element based on the concrete type via fast
 	// type assertions first.
 	switch e := element.(type) {
+	case uint8:
+		err := binarySerializer.PutUint8(w, e)
+		if err != nil {
+			return err
+		}
+		return nil
+
+	case uint16:
+		err := binarySerializer.PutUint16(w, littleEndian, e)
+		if err != nil {
+			return err
+		}
+		return nil
+
 	case int32:
 		err := binarySerializer.PutUint32(w, littleEndian, uint32(e))
 		if err != nil {
@@ -441,7 +495,54 @@ func writeElement(w io.Writer, element interface{}) error {
 		}
 		return nil
 
+	// Mixed message
+	case *[MixMsgSize]byte:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	case *[32]byte:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
 	case *chainhash.Hash:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// Mix identity
+	case *[33]byte:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// Mix signature
+	case *[64]byte:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// sntrup4591761 ciphertext
+	case *[1047]byte:
+		_, err := w.Write(e[:])
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// sntrup4591761 public key
+	case *[1218]byte:
 		_, err := w.Write(e[:])
 		if err != nil {
 			return err

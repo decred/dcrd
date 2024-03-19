@@ -907,3 +907,59 @@ func TestRandomUint64Errors(t *testing.T) {
 		t.Errorf("Nonce is not 0 [%v]", nonce)
 	}
 }
+
+// repeat returns the byte slice containing count elements of the byte b.
+func repeat(b byte, count int) []byte {
+	s := make([]byte, count)
+	for i := range s {
+		s[i] = b
+	}
+	return s
+}
+
+// rhash returns a chainhash.Hash with all bytes set to b.
+func rhash(b byte) chainhash.Hash {
+	var h chainhash.Hash
+	for i := range h {
+		h[i] = b
+	}
+	return h
+}
+
+// varBytesLen returns the size required to encode l bytes as a varint
+// followed by the bytes themselves.
+func varBytesLen(l uint32) uint32 {
+	return uint32(VarIntSerializeSize(uint64(l))) + l
+}
+
+// expectedSerializationCompare compares serialized bytes to the expected
+// sequence of bytes.  When got and expected are not equal, the test t will be
+// errored with descriptive messages of how the two encodings are different.
+// Returns true if the serialization are equal, and false if the test
+// errors.
+func expectedSerializationEqual(t *testing.T, got, expected []byte) bool {
+	if bytes.Equal(got, expected) {
+		return true
+	}
+
+	t.Errorf("encoded message differs from expected serialization")
+	minLen := len(expected)
+	if len(got) < minLen {
+		minLen = len(got)
+	}
+	for i := 0; i < minLen; i++ {
+		if b := got[i]; b != expected[i] {
+			t.Errorf("message differs at index %d (got 0x%x, expected 0x%x)",
+				i, b, expected[i])
+		}
+	}
+	if len(got) > len(expected) {
+		t.Errorf("serialized message contains extra bytes [%x]",
+			got[len(expected):])
+	}
+	if len(expected) > len(got) {
+		t.Errorf("serialization prematurely ends at index %d, missing bytes [%x]",
+			len(got), expected[len(got):])
+	}
+	return false
+}
