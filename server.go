@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"math"
 	"net"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/container/apbf"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
@@ -45,6 +47,8 @@ import (
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/math/uint256"
+	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
@@ -74,7 +78,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.RemoveRejectVersion
+	maxProtocolVersion = wire.MixVersion
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
@@ -512,6 +516,7 @@ type server struct {
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
 	cpuMiner             *cpuminer.CPUMiner
+	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
 	newPeers             chan *serverPeer
 	donePeers            chan *serverPeer
@@ -571,8 +576,9 @@ type serverPeer struct {
 
 	// The following fields are used to synchronize the net sync manager and
 	// server.
-	txProcessed    chan struct{}
-	blockProcessed chan struct{}
+	txProcessed     chan struct{}
+	blockProcessed  chan struct{}
+	mixMsgProcessed chan struct{}
 
 	// peerNa is network address of the peer connected to.
 	peerNa    *wire.NetAddress
@@ -592,19 +598,27 @@ type serverPeer struct {
 	// data item requests that still need to be served.
 	getDataQueue              chan []*wire.InvVect
 	numPendingGetDataItemReqs atomic.Uint32
+
+	// blake256Hasher is the hash.Hash object that is reused by the
+	// message listener callbacks (the serverPeer's On* methods) to hash
+	// mixing messages.  It does not require locking, as the message
+	// listeners are executed serially.
+	blake256Hasher hash.Hash
 }
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
 // the caller.
 func newServerPeer(s *server, isPersistent bool) *serverPeer {
 	return &serverPeer{
-		server:         s,
-		persistent:     isPersistent,
-		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
-		quit:           make(chan struct{}),
-		txProcessed:    make(chan struct{}, 1),
-		blockProcessed: make(chan struct{}, 1),
-		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
+		server:          s,
+		persistent:      isPersistent,
+		knownAddresses:  apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
+		quit:            make(chan struct{}),
+		txProcessed:     make(chan struct{}, 1),
+		blockProcessed:  make(chan struct{}, 1),
+		mixMsgProcessed: make(chan struct{}, 1),
+		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
+		blake256Hasher:  blake256.New(),
 	}
 }
 
@@ -667,6 +681,16 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 			// getblocks message.
 			continueHash := sp.continueHash.Load()
 			sendInv = continueHash != nil && *continueHash == *blockHash
+
+		case wire.InvTypeMix:
+			mixHash := &iv.Hash
+			msg, err := sp.server.mixMsgPool.Message(mixHash)
+			if err != nil {
+				peerLog.Tracef("Unable to fetch requested mix message %v: %v",
+					mixHash, err)
+				break
+			}
+			dataMsg = msg
 
 		default:
 			peerLog.Warnf("Unknown type '%d' in inventory request from %s",
@@ -1209,6 +1233,7 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 
 	// Response data.
 	var blockHashes, voteHashes, tspendHashes []chainhash.Hash
+	var mixPRHashes []chainhash.Hash
 
 	// Map from the types slice into a map for easier checking.
 	types := make(map[string]struct{}, len(msg.Types))
@@ -1218,6 +1243,7 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 	_, wantBlocks := types[wire.InitStateHeadBlocks]
 	_, wantVotes := types[wire.InitStateHeadBlockVotes]
 	_, wantTSpends := types[wire.InitStateTSpends]
+	_, wantMixPRs := types[wire.InitStateMixPairReqs]
 
 	// Fetch head block hashes if we need to send either them or their
 	// votes.
@@ -1253,6 +1279,12 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 		tspendHashes = mp.TSpendHashes()
 	}
 
+	// Construct mixprs to send.
+	if wantMixPRs {
+		mixpool := sp.server.mixMsgPool
+		mixPRHashes = mixpool.MixPRHashes()
+	}
+
 	// Clear out block hashes to be sent if they weren't requested.
 	if !wantBlocks {
 		blockHashes = nil
@@ -1264,6 +1296,7 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 		peerLog.Warnf("Unexpected error while building initstate msg: %v", err)
 		return
 	}
+	initMsg.MixPairReqHashes = mixPRHashes
 	sp.QueueMessage(initMsg, nil)
 }
 
@@ -1347,6 +1380,12 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	for _, invVect := range msg.InvList {
 		if invVect.Type == wire.InvTypeTx {
 			peerLog.Infof("Peer %v is announcing transactions -- disconnecting",
+				sp)
+			sp.Disconnect()
+			return
+		}
+		if invVect.Type == wire.InvTypeMix {
+			peerLog.Infof("Peer %v is announcing mix messages -- disconnecting",
 				sp)
 			sp.Disconnect()
 			return
@@ -1638,6 +1677,65 @@ func (sp *serverPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 	sp.server.addrManager.AddAddresses(addrList, remoteAddr)
 }
 
+// onMixMessage is the generic handler for all mix messages handler callbacks.
+func (sp *serverPeer) onMixMessage(msg mixing.Message) {
+	if cfg.BlocksOnly {
+		peerLog.Tracef("Ignoring mix message %v from %v - blocksonly "+
+			"enabled", msg.Hash(), sp)
+		return
+	}
+
+	// TODO - add ban score increases
+
+	// Calculate the message hash, so it can be added to known inventory
+	// and used by the sync manager.
+	msg.WriteHash(sp.blake256Hasher)
+	hash := msg.Hash()
+
+	// Add the message to the known inventory for the peer.
+	iv := wire.NewInvVect(wire.InvTypeMix, &hash)
+	sp.AddKnownInventory(iv)
+
+	// Queue the message to be handled by the net sync manager
+	sp.server.syncManager.QueueMixMsg(msg, sp.syncMgrPeer, sp.mixMsgProcessed)
+	<-sp.mixMsgProcessed
+}
+
+// OnMixPR submits a received mixing pair request message to the mixpool.
+func (sp *serverPeer) OnMixPR(_ *peer.Peer, msg *wire.MsgMixPairReq) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixK submits a received mixing key exchange message to the mixpool.
+func (sp *serverPeer) OnMixKE(_ *peer.Peer, msg *wire.MsgMixKeyExchange) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixCT submits a received mixing ciphertext exchange message to the mixpool.
+func (sp *serverPeer) OnMixCT(_ *peer.Peer, msg *wire.MsgMixCiphertexts) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixSR submits a received mixing slot reservation message to the mixpool.
+func (sp *serverPeer) OnMixSR(_ *peer.Peer, msg *wire.MsgMixSlotReserve) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixDC submits a received mixing XOR DC-net message to the mixpool.
+func (sp *serverPeer) OnMixDC(_ *peer.Peer, msg *wire.MsgMixDCNet) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixCM submits a received mixing confirmation message to the mixpool.
+func (sp *serverPeer) OnMixCM(_ *peer.Peer, msg *wire.MsgMixConfirm) {
+	sp.onMixMessage(msg)
+}
+
+// OnMixRS submits a received mixing reveal secrets message to the mixpool.
+func (sp *serverPeer) OnMixRS(_ *peer.Peer, msg *wire.MsgMixSecrets) {
+	sp.onMixMessage(msg)
+}
+
 // OnRead is invoked when a peer receives a message and it is used to update
 // the bytes received by the server.
 func (sp *serverPeer) OnRead(_ *peer.Peer, bytesRead int, msg wire.Message, err error) {
@@ -1777,6 +1875,16 @@ func (s *server) relayTransactions(txns []*dcrutil.Tx) {
 	}
 }
 
+// relayMixMessages generates and relays inventory vectors for all of the
+// passed mixing messages to all connected peers.
+func (s *server) relayMixMessages(msgs []mixing.Message) {
+	for _, m := range msgs {
+		hash := m.Hash()
+		iv := wire.NewInvVect(wire.InvTypeMix, &hash)
+		s.RelayInventory(iv, m, false)
+	}
+}
+
 // AnnounceNewTransactions generates and relays inventory vectors and notifies
 // websocket clients of the passed transactions.  This function should be
 // called whenever new transactions are added to the mempool.
@@ -1788,6 +1896,19 @@ func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 	// Notify websocket clients of all newly accepted transactions.
 	if s.rpcServer != nil {
 		s.rpcServer.NotifyNewTransactions(txns)
+	}
+}
+
+// AnnounceMixMessages generates and relays inventory vectors of the passed
+// mixing messages.  This function should be called whenever new messages are
+// accepted to the mixpool.
+func (s *server) AnnounceMixMessages(msgs []mixing.Message) {
+	// Generate and relay inventory vectors for all newly accepted mixing
+	// messages.
+	s.relayMixMessages(msgs)
+
+	if s.rpcServer != nil {
+		s.rpcServer.NotifyMixMessages(msgs)
 	}
 }
 
@@ -2064,6 +2185,14 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 			}
 		}
 
+		if iv.Type == wire.InvTypeMix {
+			// Don't relay mix message inventory when unsupported
+			// by the negotiated protocol version.
+			if sp.ProtocolVersion() < wire.MixVersion {
+				return
+			}
+		}
+
 		// Either queue the inventory to be relayed immediately or with
 		// the next batch depending on the immediate flag.
 		//
@@ -2321,6 +2450,13 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnInitState:      sp.OnInitState,
 			OnTx:             sp.OnTx,
 			OnBlock:          sp.OnBlock,
+			OnMixPR:          sp.OnMixPR,
+			OnMixKE:          sp.OnMixKE,
+			OnMixCT:          sp.OnMixCT,
+			OnMixSR:          sp.OnMixSR,
+			OnMixDC:          sp.OnMixDC,
+			OnMixCM:          sp.OnMixCM,
+			OnMixRS:          sp.OnMixRS,
 			OnInv:            sp.OnInv,
 			OnHeaders:        sp.OnHeaders,
 			OnGetData:        sp.OnGetData,
@@ -3514,6 +3650,26 @@ func (c *reloadableTLSConfig) configFileClient(_ *tls.ClientHelloInfo) (*tls.Con
 	return c.cachedConfig, nil
 }
 
+// mixpoolChain adapts the internal blockchain type with a FetchUtxoEntry
+// method that is compatible with the mixpool package.
+type mixpoolChain struct {
+	*blockchain.BlockChain
+}
+
+var _ mixpool.BlockChain = (*mixpoolChain)(nil)
+var _ mixpool.UtxoEntry = (*blockchain.UtxoEntry)(nil)
+
+func (m *mixpoolChain) FetchUtxoEntry(op wire.OutPoint) (mixpool.UtxoEntry, error) {
+	entry, err := m.BlockChain.FetchUtxoEntry(op)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, err
+	}
+	return entry, nil
+}
+
 // makeReloadableTLSConfig returns a TLS configuration that will dynamically
 // reload the server certificate, server key, and client CAs from the configured
 // paths when the files are updated.
@@ -3860,6 +4016,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 	s.txMemPool = mempool.New(&txC)
 
+	mixchain := &mixpoolChain{s.chain}
+	s.mixMsgPool = mixpool.NewPool(mixchain)
+
 	s.syncManager = netsync.New(&netsync.Config{
 		PeerNotifier:          &s,
 		Chain:                 s.chain,
@@ -3870,6 +4029,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,
 		RecentlyConfirmedTxns: s.recentlyConfirmedTxns,
+		MixPool:               s.mixMsgPool,
 	})
 
 	// Dump the blockchain and quit if requested.

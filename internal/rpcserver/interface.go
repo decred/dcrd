@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/math/uint256"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -130,6 +131,10 @@ type ConnManager interface {
 	// the passed transactions to all connected peers.
 	RelayTransactions(txns []*dcrutil.Tx)
 
+	// RelayMixMessages generates and relays inventory vectors for all of
+	// the passed mixing messages to all connected peers.
+	RelayMixMessages(msgs []mixing.Message)
+
 	// AddedNodeInfo returns information describing persistent (added) nodes.
 	AddedNodeInfo() []Peer
 
@@ -166,6 +171,10 @@ type SyncManager interface {
 	//
 	// This method may report a false positive, but never a false negative.
 	RecentlyConfirmedTxn(hash *chainhash.Hash) bool
+
+	// SubmitMixMessage submits the mixing message to the network after
+	// processing it locally.
+	SubmitMixMessage(msg mixing.Message) error
 }
 
 // UtxoEntry represents a utxo entry for use with the RPC server.
@@ -675,6 +684,10 @@ type NtfnManager interface {
 	// manager for processing.
 	NotifyMempoolTx(tx *dcrutil.Tx, isNew bool)
 
+	// NotifyMixMessage passes a mixing message accepted by the mixpool to the
+	// notification manager for message broadcasting.
+	NotifyMixMessage(msg mixing.Message)
+
 	// NumClients returns the number of clients actively being served.
 	NumClients() int
 
@@ -725,6 +738,14 @@ type NtfnManager interface {
 	// UnregisterNewMempoolTxsUpdates removes notifications to the passed websocket
 	// client when new transaction are added to the memory pool.
 	UnregisterNewMempoolTxsUpdates(wsc *wsClient)
+
+	// RegisterMixMessages requests notifications to the passed websocket
+	// client when new mixing messages are accepted by the mixpool.
+	RegisterMixMessages(wsc *wsClient)
+
+	// UnregisterMixMessages stops notifications to the websocket client
+	// client of any newly-accepted mixing messages.
+	UnregisterMixMessages(wsc *wsClient)
 
 	// AddClient adds the passed websocket client to the notification manager.
 	AddClient(wsc *wsClient)

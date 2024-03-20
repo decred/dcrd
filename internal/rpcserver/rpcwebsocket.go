@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,11 +26,13 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrjson/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
@@ -86,6 +90,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"notifywinningtickets":      handleWinningTickets,
 	"notifynewtickets":          handleNewTickets,
 	"notifynewtransactions":     handleNotifyNewTransactions,
+	"notifymixmessages":         handleNotifyMixMessages,
 	"rebroadcastwinners":        handleRebroadcastWinners,
 	"rescan":                    handleRescan,
 	"session":                   handleSession,
@@ -93,6 +98,8 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"stopnotifywork":            handleStopNotifyWork,
 	"stopnotifytspend":          handleStopNotifyTSpend,
 	"stopnotifynewtransactions": handleStopNotifyNewTransactions,
+	"stopnotifymixmessages":     handleStopNotifyMixMessages,
+	"sendmixmessage":            handleSendMixMessage,
 }
 
 // WebsocketHandler handles a new websocket client by creating a new wsClient,
@@ -278,6 +285,15 @@ func (m *wsNotificationManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {
 	}
 }
 
+// NotifyMixMessage passes a mixing message accepted by the mixpool to the
+// notification manager for message broadcasting.
+func (m *wsNotificationManager) NotifyMixMessage(msg mixing.Message) {
+	select {
+	case m.queueNotification <- (notificationMixMessage)(msg):
+	case <-m.quit:
+	}
+}
+
 // WinningTicketsNtfnData is the data that is used to generate
 // winning ticket notifications (which indicate a block and
 // the tickets eligible to vote on it).
@@ -408,6 +424,7 @@ type notificationTxAcceptedByMempool struct {
 	isNew bool
 	tx    *dcrutil.Tx
 }
+type notificationMixMessage mixing.Message
 
 // Notification control requests
 type notificationRegisterClient wsClient
@@ -424,6 +441,8 @@ type notificationRegisterNewTickets wsClient
 type notificationUnregisterNewTickets wsClient
 type notificationRegisterNewMempoolTxs wsClient
 type notificationUnregisterNewMempoolTxs wsClient
+type notificationRegisterMixMessages wsClient
+type notificationUnregisterMixMessages wsClient
 
 // notificationHandler reads notifications and control messages from the queue
 // handler and processes one at a time.
@@ -444,6 +463,7 @@ func (m *wsNotificationManager) notificationHandler(ctx context.Context) {
 	winningTicketNotifications := make(map[chan struct{}]*wsClient)
 	ticketNewNotifications := make(map[chan struct{}]*wsClient)
 	txNotifications := make(map[chan struct{}]*wsClient)
+	mixNotifications := make(map[chan struct{}]*wsClient)
 
 out:
 	for {
@@ -488,6 +508,17 @@ out:
 					m.notifyForNewTx(txNotifications, n.tx)
 				}
 				m.notifyRelevantTxAccepted(n.tx, clients)
+
+			case notificationMixMessage:
+				m.notifyMixMessage(mixNotifications, (mixing.Message)(n))
+
+			case *notificationRegisterMixMessages:
+				wsc := (*wsClient)(n)
+				mixNotifications[wsc.quit] = wsc
+
+			case *notificationUnregisterMixMessages:
+				wsc := (*wsClient)(n)
+				delete(mixNotifications, wsc.quit)
 
 			case *notificationRegisterBlocks:
 				wsc := (*wsClient)(n)
@@ -1179,6 +1210,56 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 	}
 }
 
+// RegisterMixMessages requests notifications to the passed websocket
+// client when mixing messages are accepted to the mixpool.
+func (m *wsNotificationManager) RegisterMixMessages(wsc *wsClient) {
+	select {
+	case m.queueNotification <- (*notificationRegisterMixMessages)(wsc):
+	case <-m.quit:
+	}
+}
+
+// UnregisterMixMessages stops notifications to the websocket client of any
+// newly-accepted mixing messages.
+func (m *wsNotificationManager) UnregisterMixMessages(wsc *wsClient) {
+	select {
+	case m.queueNotification <- (*notificationUnregisterMixMessages)(wsc):
+	case <-m.quit:
+	}
+}
+
+// notifyMixMessage notifies all clients subscribed to mixing messages with
+// the accepted mixing message.
+func (m *wsNotificationManager) notifyMixMessage(clients map[chan struct{}]*wsClient,
+	msg mixing.Message) {
+
+	// Skip notification creation if no clients have requested mix
+	// notifications.
+	if len(clients) == 0 {
+		return
+	}
+
+	// Write write message payload in hex encoding.
+	buf := new(bytes.Buffer)
+	err := msg.BtcEncode(hex.NewEncoder(buf), wire.MixVersion)
+	if err != nil {
+		// Should never error; the message has already been processed
+		// and accepted.
+		panic(err)
+	}
+
+	ntfn := types.NewMixMessageNtfn(msg.Command(), buf.String())
+	marshaledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
+	if err != nil {
+		log.Errorf("Failed to marshal mix message notification: %v",
+			err)
+		return
+	}
+	for _, client := range clients {
+		client.QueueNotification(marshaledJSON)
+	}
+}
+
 // AddClient adds the passed websocket client to the notification manager.
 func (m *wsNotificationManager) AddClient(wsc *wsClient) {
 	select {
@@ -1280,6 +1361,12 @@ type wsClient struct {
 	verboseTxUpdates bool
 
 	filterData *wsClientFilter
+
+	// blake256Hasher is the hash.Hash object that is used after
+	// deserializing mixing messages.  Message handlers may be executed
+	// concurrently, and access requires the mutex.
+	blake256Hasher  hash.Hash
+	blake256HaserMu sync.Mutex
 
 	// Networking infrastructure.
 	serviceRequestSem semaphore
@@ -1970,6 +2057,7 @@ func newWebsocketClient(server *Server, conn *websocket.Conn,
 		isAdmin:           isAdmin,
 		sessionID:         sessionID,
 		rpcServer:         server,
+		blake256Hasher:    blake256.New(),
 		serviceRequestSem: makeSemaphore(server.cfg.RPCMaxConcurrentReqs),
 		ntfnChan:          make(chan []byte, 1), // nonblocking sync
 		sendChan:          make(chan wsResponse, websocketSendBufferSize),
@@ -2170,6 +2258,79 @@ func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd interfac
 // command extension for websocket connections.
 func handleStopNotifyNewTransactions(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterNewMempoolTxsUpdates(wsc)
+	return nil, nil
+}
+
+// handleNotifyMixMessages implements the notifymixmessages command extension
+// for websocket connections.
+func handleNotifyMixMessages(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.RegisterMixMessages(wsc)
+	return nil, nil
+}
+
+// handleStopNotifyMixMessages implements the stopnotifymixmessages command
+// extension for websocket connections.
+func handleStopNotifyMixMessages(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.UnregisterMixMessages(wsc)
+	return nil, nil
+}
+
+func handleSendMixMessage(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+	c := icmd.(*types.SendMixMessageCmd)
+
+	// Allocate a message of the appropriate type based on the wire
+	// command string.
+	var msg mixing.Message
+	switch c.Command {
+	case wire.CmdMixPairReq:
+		msg = new(wire.MsgMixPairReq)
+	case wire.CmdMixKeyExchange:
+		msg = new(wire.MsgMixKeyExchange)
+	case wire.CmdMixCiphertexts:
+		msg = new(wire.MsgMixCiphertexts)
+	case wire.CmdMixSlotReserve:
+		msg = new(wire.MsgMixSlotReserve)
+	case wire.CmdMixDCNet:
+		msg = new(wire.MsgMixDCNet)
+	case wire.CmdMixConfirm:
+		msg = new(wire.MsgMixConfirm)
+	case wire.CmdMixSecrets:
+		msg = new(wire.MsgMixSecrets)
+	default:
+		err := rpcDeserializationError("Unrecognized mixing message "+
+			"wire command string %q", c.Command)
+		return nil, err
+	}
+
+	// Deserialize message.
+	err := msg.BtcDecode(hex.NewDecoder(strings.NewReader(c.Message)),
+		wire.MixVersion)
+	if err != nil {
+		return nil, rpcDeserializationError("Could not decode mix "+
+			"message: %v", err)
+	}
+
+	// Calculate the message hash, so it can be added to known inventory
+	// and used by the sync manager.
+	//
+	// XXX: where does this add the hash to known inventory? (compare to
+	// dcrd/server.go serverPeer.onMixMessage)
+	wsc.blake256HaserMu.Lock()
+	msg.WriteHash(wsc.blake256Hasher)
+	wsc.blake256HaserMu.Unlock()
+	//hash := msg.Hash()
+
+	err = wsc.rpcServer.cfg.SyncMgr.SubmitMixMessage(msg)
+	if err != nil {
+		// XXX: consider a better error code/function
+		str := fmt.Sprintf("Rejected mix message: %s", err)
+		return nil, rpcMiscError(str)
+	}
+
+	wsc.rpcServer.cfg.ConnMgr.RelayMixMessages([]mixing.Message{msg})
+
+	wsc.rpcServer.ntfnMgr.NotifyMixMessage(msg)
+
 	return nil, nil
 }
 

@@ -23,6 +23,8 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/math/uint256"
+	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -64,6 +66,10 @@ const (
 	maxRejectedTxns    = 62500
 	rejectedTxnsFPRate = 0.0000001
 
+	// XXX these numbers were copied from rejected txns
+	maxRejectedMixMsgs    = 625000
+	rejectedMixMsgsFPRate = 0.0000001
+
 	// maxRequestedBlocks is the maximum number of requested block
 	// hashes to store in memory.
 	maxRequestedBlocks = wire.MaxInvPerMsg
@@ -71,6 +77,10 @@ const (
 	// maxRequestedTxns is the maximum number of requested transactions
 	// hashes to store in memory.
 	maxRequestedTxns = wire.MaxInvPerMsg
+
+	// maxRequestedMixMsgs is the maximum number of hashes of in-flight
+	// mixing messages.
+	maxRequestedMixMsgs = wire.MaxInvPerMsg
 
 	// maxExpectedHeaderAnnouncementsPerMsg is the maximum number of headers in
 	// a single message that is expected when determining when the message
@@ -179,15 +189,24 @@ type processBlockMsg struct {
 	reply chan processBlockResponse
 }
 
+// mixMsg is a message type to be sent across the message channel for requesting
+// a message's acceptence to the mixing pool.
+type mixMsg struct {
+	msg   mixing.Message
+	peer  *Peer
+	reply chan struct{}
+}
+
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
 type Peer struct {
 	*peerpkg.Peer
 
-	syncCandidate   bool
-	requestedTxns   map[chainhash.Hash]struct{}
-	requestedBlocks map[chainhash.Hash]struct{}
+	syncCandidate    bool
+	requestedTxns    map[chainhash.Hash]struct{}
+	requestedBlocks  map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]struct{}
 
 	// initialStateRequested tracks whether or not the initial state data has
 	// been requested from the peer.
@@ -207,10 +226,11 @@ type Peer struct {
 func NewPeer(peer *peerpkg.Peer) *Peer {
 	isSyncCandidate := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
-		Peer:            peer,
-		syncCandidate:   isSyncCandidate,
-		requestedTxns:   make(map[chainhash.Hash]struct{}),
-		requestedBlocks: make(map[chainhash.Hash]struct{}),
+		Peer:             peer,
+		syncCandidate:    isSyncCandidate,
+		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
 	}
 }
 
@@ -291,13 +311,15 @@ type SyncManager struct {
 	// time.
 	minKnownWork *uint256.Uint256
 
-	rejectedTxns    *apbf.Filter
-	requestedTxns   map[chainhash.Hash]struct{}
-	requestedBlocks map[chainhash.Hash]struct{}
-	progressLogger  *progresslog.Logger
-	syncPeer        *Peer
-	msgChan         chan interface{}
-	peers           map[*Peer]struct{}
+	rejectedTxns     *apbf.Filter
+	rejectedMixMsgs  *apbf.Filter
+	requestedTxns    map[chainhash.Hash]struct{}
+	requestedBlocks  map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]struct{}
+	progressLogger   *progresslog.Logger
+	syncPeer         *Peer
+	msgChan          chan interface{}
+	peers            map[*Peer]struct{}
 
 	// hdrSyncState houses the state used to track the initial header sync
 	// process and related stall handling.
@@ -567,6 +589,9 @@ func maybeRequestInitialState(peer *Peer) {
 		err := m.AddTypes(wire.InitStateHeadBlocks,
 			wire.InitStateHeadBlockVotes,
 			wire.InitStateTSpends)
+		if err == nil && peer.ProtocolVersion() >= wire.MixVersion {
+			err = m.AddType(wire.InitStateMixPairReqs)
+		}
 		if err != nil {
 			log.Errorf("Unexpected error building getinitstate msg: %v", err)
 			return
@@ -666,6 +691,22 @@ BlockHashes:
 		// No peers found that have announced this data.
 		delete(m.requestedBlocks, blockHash)
 	}
+	inv.Type = wire.InvTypeMix
+MixHashes:
+	for mixHash := range peer.requestedMixMsgs {
+		inv.Hash = mixHash
+		for pp := range m.peers {
+			if !pp.IsKnownInventory(&inv) {
+				continue
+			}
+			invs := append(requestQueues[pp], inv)
+			requestQueues[pp] = invs
+			pp.requestedMixMsgs[mixHash] = struct{}{}
+			continue MixHashes
+		}
+		// No peers found that have announced this data.
+		delete(m.requestedMixMsgs, mixHash)
+	}
 	for pp, requestQueue := range requestQueues {
 		var numRequested int32
 		gdmsg := wire.NewMsgGetData()
@@ -752,6 +793,28 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	}
 
 	m.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
+}
+
+// handleMixMsg handles mixing messages from all peers.
+func (m *SyncManager) handleMixMsg(mmsg *mixMsg) {
+	peer := mmsg.peer
+
+	mixHash := mmsg.msg.Hash()
+
+	accepted, err := m.cfg.MixPool.AcceptMessage(mmsg.msg)
+	if err != nil {
+		log.Errorf("Failed to process %T mixing message %v: %v",
+			mmsg.msg, &mixHash, err)
+		return
+	}
+	if accepted == nil {
+		return
+	}
+
+	delete(peer.requestedMixMsgs, mixHash)
+	delete(m.requestedMixMsgs, mixHash)
+
+	m.cfg.PeerNotifier.AnnounceMixMessages([]mixing.Message{accepted})
 }
 
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
@@ -1275,6 +1338,19 @@ func (m *SyncManager) needTx(hash *chainhash.Hash) bool {
 	return true
 }
 
+// needMixMsg returns whether or not the mixing message needs to be downloaded.
+func (m *SyncManager) needMixMsg(hash *chainhash.Hash) bool {
+	if m.rejectedMixMsgs.Contains(hash[:]) {
+		return false
+	}
+
+	if m.cfg.MixPool.HaveMessage(hash) {
+		return false
+	}
+
+	return true
+}
+
 // handleInvMsg handles inv messages from all peers.  This entails examining the
 // inventory advertised by the remote peer for block and transaction
 // announcements and acting accordingly.
@@ -1330,6 +1406,29 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			if _, exists := m.requestedTxns[iv.Hash]; !exists {
 				limitAdd(m.requestedTxns, iv.Hash, maxRequestedTxns)
 				limitAdd(peer.requestedTxns, iv.Hash, maxRequestedTxns)
+				requestQueue = append(requestQueue, iv)
+			}
+
+		case wire.InvTypeMix:
+			// Add the mix message to the cache of known inventory
+			// for the peer.  This helps avoid sending mix messages
+			// to the peer that it is already known to have.
+			peer.AddKnownInventory(iv)
+
+			// Ignore mixing messages before the chain is current or
+			// if the messages are not needed.  Pair request (PR)
+			// messages reference unspent outputs that must be
+			// checked to exist and be unspent before they are
+			// accepted, and all later messages must reference an
+			// existing PR recorded in the mixing pool.
+			if !isCurrent || !m.needMixMsg(&iv.Hash) {
+				continue
+			}
+
+			// Request the mixing message if it is not already pending.
+			if _, exists := m.requestedMixMsgs[iv.Hash]; !exists {
+				limitAdd(m.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
+				limitAdd(peer.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
 				requestQueue = append(requestQueue, iv)
 			}
 		}
@@ -1415,6 +1514,13 @@ out:
 
 			case *blockMsg:
 				m.handleBlockMsg(msg)
+				select {
+				case msg.reply <- struct{}{}:
+				case <-ctx.Done():
+				}
+
+			case *mixMsg:
+				m.handleMixMsg(msg)
 				select {
 				case msg.reply <- struct{}{}:
 				case <-ctx.Done():
@@ -1534,6 +1640,15 @@ func (m *SyncManager) QueueInv(inv *wire.MsgInv, peer *Peer) {
 func (m *SyncManager) QueueHeaders(headers *wire.MsgHeaders, peer *Peer) {
 	select {
 	case m.msgChan <- &headersMsg{headers: headers, peer: peer}:
+	case <-m.quit:
+	}
+}
+
+// QueueMixMsg adds the passed mixing message and peer to the event handling
+// queue.
+func (m *SyncManager) QueueMixMsg(msg mixing.Message, peer *Peer, done chan struct{}) {
+	select {
+	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
 	case <-m.quit:
 	}
 }
@@ -1803,6 +1918,10 @@ type Config struct {
 	// and querying the most recently confirmed transactions.  It is useful for
 	// preventing duplicate requests.
 	RecentlyConfirmedTxns *apbf.Filter
+
+	// MixPool specifies the mixing pool to use for transient mixing
+	// messages broadcast across the network.
+	MixPool *mixpool.Pool
 }
 
 // New returns a new network chain synchronization manager.  Use Run to begin
@@ -1819,17 +1938,19 @@ func New(config *Config) *SyncManager {
 	}
 
 	return &SyncManager{
-		cfg:             *config,
-		rejectedTxns:    apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
-		requestedTxns:   make(map[chainhash.Hash]struct{}),
-		requestedBlocks: make(map[chainhash.Hash]struct{}),
-		peers:           make(map[*Peer]struct{}),
-		minKnownWork:    minKnownWork,
-		hdrSyncState:    makeHeaderSyncState(),
-		progressLogger:  progresslog.New("Processed", log),
-		msgChan:         make(chan interface{}, config.MaxPeers*3),
-		quit:            make(chan struct{}),
-		syncHeight:      config.Chain.BestSnapshot().Height,
-		isCurrent:       config.Chain.IsCurrent(),
+		cfg:              *config,
+		rejectedTxns:     apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
+		rejectedMixMsgs:  apbf.NewFilter(maxRejectedMixMsgs, rejectedMixMsgsFPRate),
+		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		peers:            make(map[*Peer]struct{}),
+		minKnownWork:     minKnownWork,
+		hdrSyncState:     makeHeaderSyncState(),
+		progressLogger:   progresslog.New("Processed", log),
+		msgChan:          make(chan interface{}, config.MaxPeers*3),
+		quit:             make(chan struct{}),
+		syncHeight:       config.Chain.BestSnapshot().Height,
+		isCurrent:        config.Chain.IsCurrent(),
 	}
 }
