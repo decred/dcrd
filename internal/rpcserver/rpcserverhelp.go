@@ -789,6 +789,14 @@ var helpDescsEnUS = map[string]string{
 	// StopNotifyNewTransactionsCmd help.
 	"stopnotifynewtransactions--synopsis": "Stop sending either a txaccepted or a txacceptedverbose notification when a new transaction is accepted into the mempool.",
 
+	"notifymixmessages--synopsis": "Request notifications for whenever mixing messages are accepted to the mixpool.",
+
+	"stopnotifymixmessages--synopsis": "Cancel registered notifications for whenever mixing messages are accepted to the mixpool.",
+
+	"sendmixmessage--synopsis": "Submit a mixing message to the mixpool and broadcast it to the network and all peers",
+	"sendmixmessage-message":   "Mixing message serialized and encoded as hex",
+	"sendmixmessage-command":   "The wire command name of the message type",
+
 	// OutPoint help.
 	"outpoint-hash":  "The hex-encoded bytes of the outpoint hash",
 	"outpoint-index": "The index of the outpoint",
@@ -1002,13 +1010,16 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifywork":                nil,
 	"notifytspend":              nil,
 	"notifynewtransactions":     nil,
+	"notifymixmessages":         nil,
 	"rebroadcastwinners":        nil,
 	"rescan":                    {(*types.RescanResult)(nil)},
+	"sendmixmessage":            nil,
 	"session":                   {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":          nil,
 	"stopnotifywork":            nil,
 	"stopnotifytspend":          nil,
 	"stopnotifynewtransactions": nil,
+	"stopnotifymixmessages":     nil,
 }
 
 // helpCacher provides a concurrent safe type that provides help and usage for

@@ -153,6 +153,24 @@ func NewNotifyNewTransactionsCmd(verbose *bool) *NotifyNewTransactionsCmd {
 	}
 }
 
+// NotifyMixMessagesCmd defines the notifymixmessages JSON-RPC command.
+type NotifyMixMessagesCmd struct{}
+
+// NewNotifyMixMessagesCmd returns a new instance which can be used to issue a
+// notifymixmessages JSON-RPC command.
+func NewNotifyMixMessagesCmd() *NotifyMixMessagesCmd {
+	return &NotifyMixMessagesCmd{}
+}
+
+// StopNotifyMixMessagesCmd defines the stopnotifymixmessages JSON-RPC command.
+type StopNotifyMixMessagesCmd struct{}
+
+// StopNewNotifyMixMessagesCmd returns a new instance which can be used to issue a
+// stopnotifymixmessages JSON-RPC command.
+func StopNewNotifyMixMessagesCmd() *StopNotifyMixMessagesCmd {
+	return &StopNotifyMixMessagesCmd{}
+}
+
 // SessionCmd defines the session JSON-RPC command.
 type SessionCmd struct{}
 
@@ -185,6 +203,21 @@ func NewRescanCmd(blockHashes []string) *RescanCmd {
 	return &RescanCmd{BlockHashes: blockHashes}
 }
 
+// SendMixMessage defines the sendmixmessage JSON-RPC command.
+type SendMixMessageCmd struct {
+	Command string
+	Message string
+}
+
+// NewSendMixMessageCmd returns a new instance which can be used to issue a
+// sendmixmessage JSON-RPC command.
+func NewSendMixMessageCmd(command, message string) *SendMixMessageCmd {
+	return &SendMixMessageCmd{
+		Command: command,
+		Message: message,
+	}
+}
+
 func init() {
 	// The commands in this file are only usable by websockets.
 	flags := dcrjson.UFWebsocketOnly
@@ -197,11 +230,14 @@ func init() {
 	dcrjson.MustRegister(Method("notifynewtransactions"), (*NotifyNewTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtickets"), (*NotifyNewTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifywinningtickets"), (*NotifyWinningTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("notifymixmessages"), (*NotifyMixMessagesCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("session"), (*SessionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifyblocks"), (*StopNotifyBlocksCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifywork"), (*StopNotifyWorkCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifytspend"), (*StopNotifyTSpendCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifynewtransactions"), (*StopNotifyNewTransactionsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("stopnotifymixmessages"), (*StopNotifyMixMessagesCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rescan"), (*RescanCmd)(nil), flags)
+	dcrjson.MustRegister(Method("sendmixmessage"), (*SendMixMessageCmd)(nil), flags)
 }

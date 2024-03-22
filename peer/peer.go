@@ -197,6 +197,27 @@ type MessageListeners struct {
 	// OnInitState is invoked when a peer receives an initstate message.
 	OnInitState func(p *Peer, msg *wire.MsgInitState)
 
+	// OnMixPR is invoked when a peer receives a mixpr message.
+	OnMixPR func(p *Peer, msg *wire.MsgMixPairReq)
+
+	// OnMixKE is invoked when a peer receives a mixke message.
+	OnMixKE func(p *Peer, msg *wire.MsgMixKeyExchange)
+
+	// OnMixCT is invoked when a peer receives a mixct message.
+	OnMixCT func(p *Peer, msg *wire.MsgMixCiphertexts)
+
+	// OnMixSR is invoked when a peer receives a mixsr message.
+	OnMixSR func(p *Peer, msg *wire.MsgMixSlotReserve)
+
+	// OnMixDC is invoked when a peer receives a mixdc message.
+	OnMixDC func(p *Peer, msg *wire.MsgMixDCNet)
+
+	// OnMixCM is invoked when a peer receives a mixcm message.
+	OnMixCM func(p *Peer, msg *wire.MsgMixConfirm)
+
+	// OnMixRS is invoked when a peer receives a mixrs message.
+	OnMixRS func(p *Peer, msg *wire.MsgMixSecrets)
+
 	// OnRead is invoked when a peer receives a wire message.  It consists
 	// of the number of bytes read, the message, and whether or not an error
 	// in the read occurred.  Typically, callers will opt to use the
@@ -1060,9 +1081,16 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 		addedDeadline = true
 
 	case wire.CmdGetData:
-		// Expects a block, tx, or notfound message.
+		// Expects a block, tx, mix, or notfound message.
 		pendingResponses[wire.CmdBlock] = deadline
 		pendingResponses[wire.CmdTx] = deadline
+		pendingResponses[wire.CmdMixPairReq] = deadline
+		pendingResponses[wire.CmdMixKeyExchange] = deadline
+		pendingResponses[wire.CmdMixCiphertexts] = deadline
+		pendingResponses[wire.CmdMixSlotReserve] = deadline
+		pendingResponses[wire.CmdMixDCNet] = deadline
+		pendingResponses[wire.CmdMixConfirm] = deadline
+		pendingResponses[wire.CmdMixSecrets] = deadline
 		pendingResponses[wire.CmdNotFound] = deadline
 		addedDeadline = true
 
@@ -1126,9 +1154,30 @@ out:
 					fallthrough
 				case wire.CmdTx:
 					fallthrough
+				case wire.CmdMixPairReq:
+					fallthrough
+				case wire.CmdMixKeyExchange:
+					fallthrough
+				case wire.CmdMixCiphertexts:
+					fallthrough
+				case wire.CmdMixSlotReserve:
+					fallthrough
+				case wire.CmdMixDCNet:
+					fallthrough
+				case wire.CmdMixConfirm:
+					fallthrough
+				case wire.CmdMixSecrets:
+					fallthrough
 				case wire.CmdNotFound:
 					delete(pendingResponses, wire.CmdBlock)
 					delete(pendingResponses, wire.CmdTx)
+					delete(pendingResponses, wire.CmdMixPairReq)
+					delete(pendingResponses, wire.CmdMixKeyExchange)
+					delete(pendingResponses, wire.CmdMixCiphertexts)
+					delete(pendingResponses, wire.CmdMixSlotReserve)
+					delete(pendingResponses, wire.CmdMixDCNet)
+					delete(pendingResponses, wire.CmdMixConfirm)
+					delete(pendingResponses, wire.CmdMixSecrets)
 					delete(pendingResponses, wire.CmdNotFound)
 
 				default:
@@ -1435,6 +1484,41 @@ out:
 		case *wire.MsgInitState:
 			if p.cfg.Listeners.OnInitState != nil {
 				p.cfg.Listeners.OnInitState(p, msg)
+			}
+
+		case *wire.MsgMixPairReq:
+			if p.cfg.Listeners.OnMixPR != nil {
+				p.cfg.Listeners.OnMixPR(p, msg)
+			}
+
+		case *wire.MsgMixKeyExchange:
+			if p.cfg.Listeners.OnMixKE != nil {
+				p.cfg.Listeners.OnMixKE(p, msg)
+			}
+
+		case *wire.MsgMixCiphertexts:
+			if p.cfg.Listeners.OnMixCT != nil {
+				p.cfg.Listeners.OnMixCT(p, msg)
+			}
+
+		case *wire.MsgMixSlotReserve:
+			if p.cfg.Listeners.OnMixSR != nil {
+				p.cfg.Listeners.OnMixSR(p, msg)
+			}
+
+		case *wire.MsgMixDCNet:
+			if p.cfg.Listeners.OnMixDC != nil {
+				p.cfg.Listeners.OnMixDC(p, msg)
+			}
+
+		case *wire.MsgMixConfirm:
+			if p.cfg.Listeners.OnMixCM != nil {
+				p.cfg.Listeners.OnMixCM(p, msg)
+			}
+
+		case *wire.MsgMixSecrets:
+			if p.cfg.Listeners.OnMixRS != nil {
+				p.cfg.Listeners.OnMixRS(p, msg)
 			}
 
 		default:

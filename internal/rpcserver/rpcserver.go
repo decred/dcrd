@@ -51,6 +51,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -61,7 +62,7 @@ import (
 // API version constants
 const (
 	jsonrpcSemverMajor = 8
-	jsonrpcSemverMinor = 1
+	jsonrpcSemverMinor = 2
 	jsonrpcSemverPatch = 0
 )
 
@@ -5161,6 +5162,14 @@ func (s *Server) NotifyNewTransactions(txns []*dcrutil.Tx) {
 // tspends in the mempool.
 func (s *Server) NotifyTSpend(tx *dcrutil.Tx) {
 	s.ntfnMgr.NotifyTSpend(tx)
+}
+
+// NotifyMixMessages notifies websocket clients that have registered to
+// receive mixing message notifications of newly accepted mix messages.
+func (s *Server) NotifyMixMessages(msgs []mixing.Message) {
+	for _, msg := range msgs {
+		s.ntfnMgr.NotifyMixMessage(msg)
+	}
 }
 
 // NotifyNewTickets notifies websocket clients that have registered for maturing
