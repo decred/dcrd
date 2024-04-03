@@ -30,14 +30,11 @@ func appDataDir(goos, appName string, roaming bool) string {
 	appNameLower := string(unicode.ToLower(rune(appName[0]))) + appName[1:]
 
 	// Get the OS specific home directory via the Go standard lib.
-	homeDir, err := os.UserHomeDir()
-
-	// Fall back to standard HOME environment variable that works
-	// for most POSIX OSes if the directory from the Go standard
-	// lib failed.
-	if err != nil || homeDir == "" {
-		homeDir = os.Getenv("HOME")
-	}
+	//
+	// Note that the error is intentionally ignored here since an empty string
+	// for the home directory will be returned in the case of error which is the
+	// desired behavior.
+	homeDir, _ := os.UserHomeDir()
 
 	switch goos {
 	// Attempt to use the LOCALAPPDATA or APPDATA environment variable on
