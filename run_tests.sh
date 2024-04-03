@@ -11,7 +11,7 @@ go version
 # run tests on all modules
 echo "==> test all modules"
 ROOTPKG=$(go list)
-go test -short -tags rpctest $ROOTPKG/...
+go test -short -tags rpctest $ROOTPKG/... -- "$@"
 
 # run linters on all modules
 . ./lint.sh
