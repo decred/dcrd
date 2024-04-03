@@ -7,7 +7,6 @@ package dcrutil
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -39,13 +38,11 @@ func TestAppDataDir(t *testing.T) {
 	}
 
 	// Get the home directory to use for testing expected results.
-	var homeDir string
-	usr, err := user.Current()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		t.Errorf("user.Current: %v", err)
+		t.Errorf("os.UserHomeDir: %v", err)
 		return
 	}
-	homeDir = usr.HomeDir
 
 	// Mac app data directory.
 	macAppData := filepath.Join(homeDir, "Library", "Application Support")
