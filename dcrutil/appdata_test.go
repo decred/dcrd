@@ -124,7 +124,7 @@ func TestAppDataDir(t *testing.T) {
 		ret := appDataDir(test.goos, test.appName, test.roaming)
 		if ret != test.want {
 			t.Errorf("appDataDir #%d (%s) does not match - "+
-				"expected got %s, want %s", i, test.goos, ret,
+				"got %s, expected %s", i, test.goos, ret,
 				test.want)
 			continue
 		}
