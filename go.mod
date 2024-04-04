@@ -30,7 +30,7 @@ require (
 	github.com/decred/dcrd/rpcclient/v8 v8.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.0
 	github.com/decred/dcrd/wire v1.6.0
-	github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404040015-9eed40164fec
+	github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.5.0

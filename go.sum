@@ -12,6 +12,8 @@ github.com/decred/dcrtest/dcrdtest v1.0.0 h1:M50BpCPwkCJLtRa2MAo7QMs9sQFgZdCjTnZ
 github.com/decred/dcrtest/dcrdtest v1.0.0/go.mod h1:kpuTg2gpr7ze14cumpsLa2ecRC1M4mt36IrRKzNRipU=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404040015-9eed40164fec h1:yQaLIa3s7TEi6bTTh7MfM3P+5rRqykBuGl+EegdG10k=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404040015-9eed40164fec/go.mod h1:kbRQzyWu1IfukYZqCioVyJokzu1ifvIXzVDrXReeOsQ=
+github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1 h1:RbUvO7dsxdNgb2DvP2/h34eS2Ej1T4a7opzvOzz+YFI=
+github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1/go.mod h1:kbRQzyWu1IfukYZqCioVyJokzu1ifvIXzVDrXReeOsQ=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
 github.com/decred/go-socks v1.1.0/go.mod h1:sDhHqkZH0X4JjSa02oYOGhcGHYp12FsY1jQ/meV8md0=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
