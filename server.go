@@ -3096,36 +3096,59 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 func (s *server) querySeeders(ctx context.Context) {
 	// Add peers discovered through DNS to the address manager.
 	seeders := s.chainParams.Seeders()
-	for _, seeder := range seeders {
-		go func(seeder string) {
-			ctx, cancel := context.WithTimeout(ctx, time.Minute)
-			defer cancel()
+	errs := make(chan error, len(seeders))
+	seed := func(seeder string) {
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
 
-			addrs, err := connmgr.SeedAddrs(ctx, seeder, dcrdDial,
-				connmgr.SeedFilterServices(defaultRequiredServices))
-			if err != nil {
-				srvrLog.Infof("seeder '%s' error: %v", seeder, err)
-				return
-			}
+		addrs, err := connmgr.SeedAddrs(ctx, seeder, dcrdDial,
+			connmgr.SeedFilterServices(defaultRequiredServices))
+		if err != nil {
+			srvrLog.Infof("seeder '%s' error: %v", seeder, err)
+			errs <- err
+			return
+		}
 
-			// Nothing to do if the seeder didn't return any addresses.
-			if len(addrs) == 0 {
-				return
-			}
+		// Nothing to do if the seeder didn't return any addresses.
+		if len(addrs) == 0 {
+			errs <- nil
+			return
+		}
 
-			// Lookup the IP of the https seeder to use as the source of the
-			// seeded addresses.  In the incredibly rare event that the lookup
-			// fails after it just succeeded, fall back to using the first
-			// returned address as the source.
-			srcAddr := wireToAddrmgrNetAddress(addrs[0])
-			srcIPs, err := dcrdLookup(seeder)
-			if err == nil && len(srcIPs) > 0 {
-				const httpsPort = 443
-				srcAddr = addrmgr.NewNetAddressIPPort(srcIPs[0], httpsPort, 0)
+		// Lookup the IP of the https seeder to use as the source of the
+		// seeded addresses.  In the incredibly rare event that the lookup
+		// fails after it just succeeded, fall back to using the first
+		// returned address as the source.
+		srcAddr := wireToAddrmgrNetAddress(addrs[0])
+		srcIPs, err := dcrdLookup(seeder)
+		if err == nil && len(srcIPs) > 0 {
+			const httpsPort = 443
+			srcAddr = addrmgr.NewNetAddressIPPort(srcIPs[0], httpsPort, 0)
+		}
+		addresses := wireToAddrmgrNetAddresses(addrs)
+		s.addrManager.AddAddresses(addresses, srcAddr)
+		errs <- nil
+	}
+
+	backoff := time.Second
+	for {
+		for _, seeder := range seeders {
+			go seed(seeder)
+		}
+		var errCount int
+		for range seeders {
+			if err := <-errs; err != nil {
+				errCount++
 			}
-			addresses := wireToAddrmgrNetAddresses(addrs)
-			s.addrManager.AddAddresses(addresses, srcAddr)
-		}(seeder)
+		}
+		if errCount < len(seeders) || !s.addrManager.NeedMoreAddresses() {
+			return
+		}
+
+		time.Sleep(backoff)
+		if backoff < 10*time.Second {
+			backoff += time.Second
+		}
 	}
 }
 
@@ -3153,7 +3176,7 @@ func (s *server) Run(ctx context.Context) {
 	wg.Add(1)
 	go func() {
 		if !cfg.DisableSeeders {
-			s.querySeeders(ctx)
+			go s.querySeeders(ctx)
 		}
 		s.connManager.Run(ctx)
 		wg.Done()
