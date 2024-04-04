@@ -3145,7 +3145,11 @@ func (s *server) querySeeders(ctx context.Context) {
 			return
 		}
 
-		time.Sleep(backoff)
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
 		if backoff < 10*time.Second {
 			backoff += time.Second
 		}
