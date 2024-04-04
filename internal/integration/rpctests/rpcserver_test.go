@@ -95,6 +95,8 @@ func testGetBlockHash(ctx context.Context, r *dcrdtest.Harness, t *testing.T) {
 }
 
 func TestRpcServer(t *testing.T) {
+	defer useTestLogger(t)()
+
 	// In order to properly test scenarios on as if we were on mainnet,
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
