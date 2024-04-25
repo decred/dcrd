@@ -84,7 +84,7 @@ func TestMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("NewMsgMixPairReq: %v", err)
 	}
-	msgMixKE := NewMsgMixKeyExchange([33]byte{}, [32]byte{}, 1, [33]byte{}, [1218]byte{}, [32]byte{}, []chainhash.Hash{})
+	msgMixKE := NewMsgMixKeyExchange([33]byte{}, [32]byte{}, 1, 1, [33]byte{}, [1218]byte{}, [32]byte{}, []chainhash.Hash{})
 	msgMixCT := NewMsgMixCiphertexts([33]byte{}, [32]byte{}, 1, [][1047]byte{}, []chainhash.Hash{})
 	msgMixSR := NewMsgMixSlotReserve([33]byte{}, [32]byte{}, 1, [][][]byte{{{}}}, []chainhash.Hash{})
 	msgMixDC := NewMsgMixDCNet([33]byte{}, [32]byte{}, 1, []MixVect{make(MixVect, 1)}, []chainhash.Hash{})
@@ -123,7 +123,7 @@ func TestMessage(t *testing.T) {
 		{msgGetInitState, msgGetInitState, pver, MainNet, 25},
 		{msgInitState, msgInitState, pver, MainNet, 28},
 		{msgMixPR, msgMixPR, pver, MainNet, 165},
-		{msgMixKE, msgMixKE, pver, MainNet, 1441},
+		{msgMixKE, msgMixKE, pver, MainNet, 1449},
 		{msgMixCT, msgMixCT, pver, MainNet, 158},
 		{msgMixSR, msgMixSR, pver, MainNet, 161},
 		{msgMixDC, msgMixDC, pver, MainNet, 181},
