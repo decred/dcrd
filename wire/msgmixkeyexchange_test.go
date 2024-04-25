@@ -21,18 +21,19 @@ func newTestMixKeyExchange() *MsgMixKeyExchange {
 	id := *(*[33]byte)(repeat(0x81, 33))
 	sid := *(*[32]byte)(repeat(0x82, 32))
 
-	const run = uint32(0x83838383)
+	const epoch = uint64(0x8383838383838383)
+	const run = uint32(0x84848484)
 
-	ecdh := *(*[33]byte)(repeat(0x84, 33))
-	pqpk := *(*[1218]byte)(repeat(0x85, 1218))
-	commitment := *(*[32]byte)(repeat(0x86, 32))
+	ecdh := *(*[33]byte)(repeat(0x85, 33))
+	pqpk := *(*[1218]byte)(repeat(0x86, 1218))
+	commitment := *(*[32]byte)(repeat(0x87, 32))
 
 	seenPRs := make([]chainhash.Hash, 4)
-	for b := byte(0x87); b < 0x8B; b++ {
-		copy(seenPRs[b-0x87][:], repeat(b, 32))
+	for b := byte(0x88); b < 0x8C; b++ {
+		copy(seenPRs[b-0x88][:], repeat(b, 32))
 	}
 
-	ke := NewMsgMixKeyExchange(id, sid, run, ecdh, pqpk, commitment, seenPRs)
+	ke := NewMsgMixKeyExchange(id, sid, epoch, run, ecdh, pqpk, commitment, seenPRs)
 	ke.Signature = sig
 
 	return ke
@@ -53,16 +54,17 @@ func TestMsgMixKeyExchangeWire(t *testing.T) {
 	expected = append(expected, repeat(0x80, 64)...)   // Signature
 	expected = append(expected, repeat(0x81, 33)...)   // Identity
 	expected = append(expected, repeat(0x82, 32)...)   // Session ID
-	expected = append(expected, repeat(0x83, 4)...)    // Run
-	expected = append(expected, repeat(0x84, 33)...)   // ECDH public key
-	expected = append(expected, repeat(0x85, 1218)...) // PQ public key
-	expected = append(expected, repeat(0x86, 32)...)   // Secrets commitment
-	// Four seen PRs (repeating 32 bytes of 0x87, 0x88, 0x89, 0x8a)
+	expected = append(expected, repeat(0x83, 8)...)    // Epoch
+	expected = append(expected, repeat(0x84, 4)...)    // Run
+	expected = append(expected, repeat(0x85, 33)...)   // ECDH public key
+	expected = append(expected, repeat(0x86, 1218)...) // PQ public key
+	expected = append(expected, repeat(0x87, 32)...)   // Secrets commitment
+	// Four seen PRs (repeating 32 bytes of 0x88, 0x89, 0x8a, 0x8b)
 	expected = append(expected, 0x04)
-	expected = append(expected, repeat(0x87, 32)...)
 	expected = append(expected, repeat(0x88, 32)...)
 	expected = append(expected, repeat(0x89, 32)...)
 	expected = append(expected, repeat(0x8a, 32)...)
+	expected = append(expected, repeat(0x8b, 32)...)
 
 	expectedSerializationEqual(t, buf.Bytes(), expected)
 
@@ -155,6 +157,7 @@ func TestMsgMixKeyExchangeMaxPayloadLength(t *testing.T) {
 	var expectedLen uint32 = 64 + // Signature
 		33 + // Identity
 		32 + // Session ID
+		8 + // Epoch
 		4 + // Run
 		33 + // ECDH public key
 		1218 + // sntrup4591761 public key

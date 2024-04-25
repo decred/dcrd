@@ -30,6 +30,7 @@ type MsgMixKeyExchange struct {
 	Signature  [64]byte
 	Identity   [33]byte
 	SessionID  [32]byte
+	Epoch      uint64
 	Run        uint32
 	ECDH       [33]byte   // Secp256k1 public key
 	PQPK       [1218]byte // Sntrup4591761 public key
@@ -53,7 +54,7 @@ func (msg *MsgMixKeyExchange) BtcDecode(r io.Reader, pver uint32) error {
 	}
 
 	err := readElements(r, &msg.Signature, &msg.Identity, &msg.SessionID,
-		&msg.Run, &msg.ECDH, &msg.PQPK, &msg.Commitment)
+		&msg.Epoch, &msg.Run, &msg.ECDH, &msg.PQPK, &msg.Commitment)
 	if err != nil {
 		return err
 	}
@@ -146,8 +147,8 @@ func (msg *MsgMixKeyExchange) writeMessageNoSignature(op string, w io.Writer, pv
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run,
-		&msg.ECDH, &msg.PQPK, &msg.Commitment)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Epoch,
+		msg.Run, &msg.ECDH, &msg.PQPK, &msg.Commitment)
 	if err != nil {
 		return err
 	}
@@ -188,7 +189,7 @@ func (msg *MsgMixKeyExchange) MaxPayloadLength(pver uint32) uint32 {
 	}
 
 	// See tests for this calculation.
-	return 17803
+	return 17811
 }
 
 // Pub returns the message sender's public key identity.
@@ -219,12 +220,14 @@ func (msg *MsgMixKeyExchange) GetRun() uint32 {
 // NewMsgMixKeyExchange returns a new mixkeyxchg message that conforms to the
 // Message interface using the passed parameters and defaults for the
 // remaining fields.
-func NewMsgMixKeyExchange(identity [33]byte, sid [32]byte, run uint32,
-	ecdh [33]byte, pqpk [1218]byte, commitment [32]byte, seenPRs []chainhash.Hash) *MsgMixKeyExchange {
+func NewMsgMixKeyExchange(identity [33]byte, sid [32]byte, epoch uint64,
+	run uint32, ecdh [33]byte, pqpk [1218]byte, commitment [32]byte,
+	seenPRs []chainhash.Hash) *MsgMixKeyExchange {
 
 	return &MsgMixKeyExchange{
 		Identity:   identity,
 		SessionID:  sid,
+		Epoch:      epoch,
 		Run:        run,
 		ECDH:       ecdh,
 		PQPK:       pqpk,
