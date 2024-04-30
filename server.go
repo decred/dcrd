@@ -551,8 +551,7 @@ type serverPeer struct {
 	server         *server
 	persistent     bool
 	continueHash   atomic.Pointer[chainhash.Hash]
-	relayMtx       sync.Mutex
-	disableRelayTx bool
+	disableRelayTx atomic.Bool
 	isWhitelisted  bool
 	knownAddresses *apbf.Filter
 	banScore       connmgr.DynamicBanScore
@@ -575,8 +574,7 @@ type serverPeer struct {
 	blockProcessed chan struct{}
 
 	// peerNa is network address of the peer connected to.
-	peerNa    *wire.NetAddress
-	peerNaMtx sync.Mutex
+	peerNa atomic.Pointer[wire.NetAddress]
 
 	// announcedBlock tracks the most recent block announced to this peer and is
 	// used to filter duplicates.
@@ -824,25 +822,6 @@ func (sp *serverPeer) addressKnown(na *addrmgr.NetAddress) bool {
 	return sp.knownAddresses.Contains([]byte(na.Key()))
 }
 
-// setDisableRelayTx toggles relaying of transactions for the given peer.
-// It is safe for concurrent access.
-func (sp *serverPeer) setDisableRelayTx(disable bool) {
-	sp.relayMtx.Lock()
-	sp.disableRelayTx = disable
-	sp.relayMtx.Unlock()
-}
-
-// relayTxDisabled returns whether or not relaying of transactions for the given
-// peer is disabled.
-// It is safe for concurrent access.
-func (sp *serverPeer) relayTxDisabled() bool {
-	sp.relayMtx.Lock()
-	isDisabled := sp.disableRelayTx
-	sp.relayMtx.Unlock()
-
-	return isDisabled
-}
-
 // wireToAddrmgrNetAddress converts a wire NetAddress to an address manager
 // NetAddress.
 func wireToAddrmgrNetAddress(netAddr *wire.NetAddress) *addrmgr.NetAddress {
@@ -1022,12 +1001,10 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		}
 	}
 
-	sp.peerNaMtx.Lock()
-	sp.peerNa = &msg.AddrYou
-	sp.peerNaMtx.Unlock()
+	sp.peerNa.Store(&msg.AddrYou)
 
 	// Choose whether or not to relay transactions.
-	sp.setDisableRelayTx(msg.DisableRelayTx)
+	sp.disableRelayTx.Store(msg.DisableRelayTx)
 
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
@@ -1861,9 +1838,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		return false
 	}
 
-	sp.peerNaMtx.Lock()
-	na := sp.peerNa
-	sp.peerNaMtx.Unlock()
+	na := sp.peerNa.Load()
 
 	// Add the new peer and start it.
 	srvrLog.Debugf("New peer %s", sp)
@@ -2062,9 +2037,9 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 		}
 
 		if iv.Type == wire.InvTypeTx {
-			// Don't relay the transaction to the peer when it has
-			// transaction relaying disabled.
-			if sp.relayTxDisabled() {
+			// Don't relay the transaction to the peer when it has transaction
+			// relaying disabled.
+			if sp.disableRelayTx.Load() {
 				return
 			}
 		}

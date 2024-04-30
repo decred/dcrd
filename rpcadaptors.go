@@ -94,7 +94,7 @@ func (p *rpcPeer) LastPingNonce() uint64 {
 // This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
 func (p *rpcPeer) IsTxRelayDisabled() bool {
-	return (*serverPeer)(p).relayTxDisabled()
+	return (*serverPeer)(p).disableRelayTx.Load()
 }
 
 // BanScore returns the current integer value that represents how close the peer
