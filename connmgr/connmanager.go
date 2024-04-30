@@ -379,19 +379,21 @@ out:
 					continue
 				}
 
-				// Otherwise, we will attempt a reconnection if
-				// we do not have enough peers, or if this is a
-				// persistent peer. The connection request is
-				// re added to the pending map, so that
-				// subsequent processing of connections and
-				// failures do not ignore the request.
-				if uint32(len(conns)) < cm.cfg.TargetOutbound ||
-					connReq.Permanent {
+				// Otherwise, attempt a reconnection when there are not already
+				// enough outbound peers to satisfy the target number of
+				// outbound peers or this is a persistent peer.
+				numConns := uint32(len(conns))
+				if numConns < cm.cfg.TargetOutbound || connReq.Permanent {
+					// The connection request is reused for persistent peers, so
+					// add it back to the pending map in that case so that
+					// subsequent processing of connections and failures do not
+					// ignore the request.
+					if connReq.Permanent {
+						connReq.updateState(ConnPending)
+						log.Debugf("Reconnecting to %v", connReq)
+						pending[msg.id] = connReq
+					}
 
-					connReq.updateState(ConnPending)
-					log.Debugf("Reconnecting to %v",
-						connReq)
-					pending[msg.id] = connReq
 					cm.handleFailedConn(ctx, connReq)
 				}
 
