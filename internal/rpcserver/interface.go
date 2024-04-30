@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 The Decred developers
+// Copyright (c) 2019-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -113,8 +113,7 @@ type ConnManager interface {
 	// ConnectedPeers returns an array consisting of all connected peers.
 	ConnectedPeers() []Peer
 
-	// PersistentPeers returns an array consisting of all the persistent
-	// peers.
+	// PersistentPeers returns an array consisting of all the persistent peers.
 	PersistentPeers() []Peer
 
 	// BroadcastMessage sends the provided message to all currently
@@ -129,9 +128,6 @@ type ConnManager interface {
 	// RelayTransactions generates and relays inventory vectors for all of
 	// the passed transactions to all connected peers.
 	RelayTransactions(txns []*dcrutil.Tx)
-
-	// AddedNodeInfo returns information describing persistent (added) nodes.
-	AddedNodeInfo() []Peer
 
 	// Lookup defines the DNS lookup function to be used.
 	Lookup(host string) ([]net.IP, error)

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -802,7 +802,6 @@ type testConnManager struct {
 	netTotalSent        uint64
 	connectedPeers      []Peer
 	persistentPeers     []Peer
-	addedNodeInfo       []Peer
 	lookup              func(host string) ([]net.IP, error)
 }
 
@@ -869,11 +868,6 @@ func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interfa
 // RelayTransactions provides a mock implementation for generating and relaying
 // inventory vectors for all of the passed transactions to all connected peers.
 func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {}
-
-// AddedNodeInfo returns a mocked slice of persistent (added) peers.
-func (c *testConnManager) AddedNodeInfo() []Peer {
-	return c.addedNodeInfo
-}
 
 // Lookup defines a mocked DNS lookup function to be used.
 func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
@@ -1699,12 +1693,6 @@ func defaultMockConnManager() *testConnManager {
 			testPeer4,
 		},
 		persistentPeers: []Peer{
-			testPeer1,
-			testPeer2,
-			testPeer3,
-			testPeer4,
-		},
-		addedNodeInfo: []Peer{
 			testPeer1,
 			testPeer2,
 			testPeer3,

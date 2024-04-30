@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -247,7 +247,7 @@ func (cm *rpcConnManager) PersistentPeers() []rpcserver.Peer {
 	cm.server.query <- getAddedNodesMsg{reply: replyChan}
 	serverPeers := <-replyChan
 
-	// Convert to generic peers.
+	// Convert to RPC server peers.
 	peers := make([]rpcserver.Peer, 0, len(serverPeers))
 	for _, sp := range serverPeers {
 		peers = append(peers, (*rpcPeer)(sp))
@@ -280,22 +280,6 @@ func (cm *rpcConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interfa
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) RelayTransactions(txns []*dcrutil.Tx) {
 	cm.server.relayTransactions(txns)
-}
-
-// AddedNodeInfo returns information describing persistent (added) nodes.
-//
-// This function is safe for concurrent access and is part of the
-// rpcserver.ConnManager interface implementation.
-func (cm *rpcConnManager) AddedNodeInfo() []rpcserver.Peer {
-	serverPeers := cm.server.AddedNodeInfo()
-
-	// Convert to RPC server peers.
-	peers := make([]rpcserver.Peer, 0, len(serverPeers))
-	for _, sp := range serverPeers {
-		peers = append(peers, (*rpcPeer)(sp))
-	}
-
-	return peers
 }
 
 // Lookup defines the DNS lookup function to be used.

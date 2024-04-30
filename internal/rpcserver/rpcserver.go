@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1795,7 +1795,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (inte
 
 	// Retrieve a list of persistent (added) peers from the Decred server
 	// and filter the list of peers per the specified address (if any).
-	peers := s.cfg.ConnMgr.AddedNodeInfo()
+	peers := s.cfg.ConnMgr.PersistentPeers()
 	if c.Node != nil {
 		found := false
 		for i, peer := range peers {

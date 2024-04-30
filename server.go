@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2526,18 +2526,6 @@ func (s *server) OutboundGroupCount(key string) int {
 	case <-s.quit:
 		return 0
 	case s.query <- getOutboundGroup{key: key, reply: replyChan}:
-		return <-replyChan
-	}
-}
-
-// AddedNodeInfo returns an array of dcrjson.GetAddedNodeInfoResult structures
-// describing the persistent (added) nodes.
-func (s *server) AddedNodeInfo() []*serverPeer {
-	replyChan := make(chan []*serverPeer)
-	select {
-	case <-s.quit:
-		return nil
-	case s.query <- getAddedNodesMsg{reply: replyChan}:
 		return <-replyChan
 	}
 }
