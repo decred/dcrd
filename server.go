@@ -1985,9 +1985,14 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 		s.connManager.Disconnect(sp.connReq.ID())
 	}
 
-	// Update the address' last seen time if the peer has acknowledged
-	// our version and has sent us its version as well.
-	if sp.VerAckReceived() && sp.VersionKnown() && sp.NA() != nil {
+	// Update the address manager with the last seen time when the peer has
+	// acknowledged our version and has sent us its version as well.  This is
+	// skipped when running on the simulation and regression test networks since
+	// they are only intended to connect to specified peers and actively avoid
+	// advertising and connecting to discovered peers.
+	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() &&
+		sp.NA() != nil {
+
 		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 		err := s.addrManager.Connected(remoteAddr)
 		if err != nil {
