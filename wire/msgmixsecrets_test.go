@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 func newTestMixSecrets() *MsgMixSecrets {
@@ -34,7 +35,13 @@ func newTestMixSecrets() *MsgMixSecrets {
 		copy(m[b-0x89][:], repeat(b, 20))
 	}
 
+	seenRSs := make([]chainhash.Hash, 4)
+	for b := byte(0x8D); b < 0x91; b++ {
+		copy(seenRSs[b-0x8D][:], repeat(b, 32))
+	}
+
 	rs := NewMsgMixSecrets(id, sid, run, seed, sr, m)
+	rs.SeenSecrets = seenRSs
 	rs.Signature = sig
 
 	return rs
@@ -67,12 +74,18 @@ func TestMsgMixSecretsWire(t *testing.T) {
 	expected = append(expected, repeat(0x87, 32)...)
 	expected = append(expected, 0x20)
 	expected = append(expected, repeat(0x88, 32)...)
-	// Four slot reservation mixed messages (repeating 20 bytes of 0x89, 0x8a, 0x8b, 0x8c)
+	// Four xor dc-net mixed messages (repeating 20 bytes of 0x89, 0x8a, 0x8b, 0x8c)
 	expected = append(expected, 0x04, 0x14)
 	expected = append(expected, repeat(0x89, 20)...)
 	expected = append(expected, repeat(0x8a, 20)...)
 	expected = append(expected, repeat(0x8b, 20)...)
 	expected = append(expected, repeat(0x8c, 20)...)
+	// Four seen RSs (repeating 32 bytes of 0x8d, 0x8e, 0x8f, 0x90)
+	expected = append(expected, 0x04)
+	expected = append(expected, repeat(0x8d, 32)...)
+	expected = append(expected, repeat(0x8e, 32)...)
+	expected = append(expected, repeat(0x8f, 32)...)
+	expected = append(expected, repeat(0x90, 32)...)
 
 	expectedSerializationEqual(t, buf.Bytes(), expected)
 
@@ -168,7 +181,9 @@ func TestMsgMixSecretsMaxPayloadLength(t *testing.T) {
 		MaxMixMcount*varBytesLen(MaxMixFieldValLen) + // Unpadded SR values
 		uint32(VarIntSerializeSize(MaxMixMcount)) + // DC-net message count
 		uint32(VarIntSerializeSize(MixMsgSize)) + // DC-net message size
-		MaxMixMcount*MixMsgSize // DC-net messages
+		MaxMixMcount*MixMsgSize + // DC-net messages
+		uint32(VarIntSerializeSize(MaxMixPeers)) + // RS count
+		32*MaxMixPeers // RS hashes
 
 	tests := []struct {
 		name string
