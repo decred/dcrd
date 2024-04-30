@@ -25,6 +25,7 @@ type MsgMixSecrets struct {
 	Seed            [32]byte
 	SlotReserveMsgs [][]byte
 	DCNetMsgs       MixVect
+	SeenSecrets     []chainhash.Hash
 
 	// hash records the hash of the message.  It is a member of the
 	// message for convenience and performance, but is never automatically
@@ -42,6 +43,9 @@ func writeMixVect(op string, w io.Writer, pver uint32, vec MixVect) error {
 	err := WriteVarInt(w, pver, uint64(len(vec)))
 	if err != nil {
 		return err
+	}
+	if len(vec) == 0 {
+		return nil
 	}
 	err = WriteVarInt(w, pver, MixMsgSize)
 	if err != nil {
@@ -138,6 +142,25 @@ func (msg *MsgMixSecrets) BtcDecode(r io.Reader, pver uint32) error {
 	}
 	msg.DCNetMsgs = dcnetMsgs
 
+	count, err := ReadVarInt(r, pver)
+	if err != nil {
+		return err
+	}
+	if count > MaxMixPeers {
+		msg := fmt.Sprintf("too many previous referenced messages [count %v, max %v]",
+			count, MaxMixPeers)
+		return messageError(op, ErrTooManyPrevMixMsgs, msg)
+	}
+
+	seen := make([]chainhash.Hash, count)
+	for i := range seen {
+		err := readElement(r, &seen[i])
+		if err != nil {
+			return err
+		}
+	}
+	msg.SeenSecrets = seen
+
 	return nil
 }
 
@@ -173,6 +196,17 @@ func (msg *MsgMixSecrets) Hash() chainhash.Hash {
 	return msg.hash
 }
 
+// Commitment returns a hash committing to the contents of the reveal secrets
+// message without committing to any previous seen messages or the message
+// signature.  This is the hash that is referenced by peers' key exchange
+// messages.
+func (msg *MsgMixSecrets) Commitment(h hash.Hash) chainhash.Hash {
+	msgCopy := *msg
+	msgCopy.SeenSecrets = nil
+	msgCopy.WriteHash(h)
+	return msgCopy.hash
+}
+
 // WriteHash serializes the message to a hasher and records the sum in the
 // message's Hash field.
 //
@@ -196,6 +230,14 @@ func (msg *MsgMixSecrets) WriteHash(h hash.Hash) {
 //
 // This method never errors for invalid message construction.
 func (msg *MsgMixSecrets) writeMessageNoSignature(op string, w io.Writer, pver uint32) error {
+	// Limit to max previous messages hashes.
+	count := len(msg.SeenSecrets)
+	if count > MaxMixPeers {
+		msg := fmt.Sprintf("too many previous referenced messages [count %v, max %v]",
+			count, MaxMixPeers)
+		return messageError(op, ErrTooManyPrevMixMsgs, msg)
+	}
+
 	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run, &msg.Seed)
 	if err != nil {
 		return err
@@ -215,6 +257,17 @@ func (msg *MsgMixSecrets) writeMessageNoSignature(op string, w io.Writer, pver u
 	err = writeMixVect(op, w, pver, msg.DCNetMsgs)
 	if err != nil {
 		return err
+	}
+
+	err = WriteVarInt(w, pver, uint64(count))
+	if err != nil {
+		return err
+	}
+	for i := range msg.SeenSecrets {
+		err := writeElement(w, &msg.SeenSecrets[i])
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -242,7 +295,7 @@ func (msg *MsgMixSecrets) MaxPayloadLength(pver uint32) uint32 {
 	}
 
 	// See tests for this calculation
-	return 54444
+	return 70831
 }
 
 // Pub returns the message sender's public key identity.
@@ -255,13 +308,14 @@ func (msg *MsgMixSecrets) Sig() []byte {
 	return msg.Signature[:]
 }
 
-// PrevMsgs returns nil.  Previous messages are not needed to perform blame
-// assignment, because of the assumption that all previous messages must have
-// been received for a blame stage to be necessary.  Additionally, a
-// commitment to the secrets message is included in the key exchange, and
-// future message hashes are not available at that time.
+// PrevMsgs returns previously revealed secrets messages by other peers.  An
+// honest peer who needs to report blame assignment does not need to reference
+// any previous secrets messages, and a secrets message with other referenced
+// secrets is necessary to begin blame assignment.  Dishonest peers who
+// initially reveal their secrets without blame assignment being necessary are
+// themselves removed in future runs.
 func (msg *MsgMixSecrets) PrevMsgs() []chainhash.Hash {
-	return nil
+	return msg.SeenSecrets
 }
 
 // Sid returns the session ID.
@@ -287,5 +341,6 @@ func NewMsgMixSecrets(identity [33]byte, sid [32]byte, run uint32,
 		Seed:            seed,
 		SlotReserveMsgs: slotReserveMsgs,
 		DCNetMsgs:       dcNetMsgs,
+		SeenSecrets:     make([]chainhash.Hash, 0),
 	}
 }
