@@ -3957,7 +3957,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 			ProcessBlock:               s.syncManager.ProcessBlock,
 			ConnectedCount:             s.ConnectedCount,
 			IsCurrent:                  s.syncManager.IsCurrent,
-			IsKnownInvalidBlock:        s.chain.IsKnownInvalidBlock,
 			IsBlake3PowAgendaActive:    s.chain.IsBlake3PowAgendaActive,
 		})
 	}

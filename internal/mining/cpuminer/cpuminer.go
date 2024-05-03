@@ -95,11 +95,6 @@ type Config struct {
 	// up orphaned anyways.
 	IsCurrent func() bool
 
-	// IsKnownInvalidBlock defines the function to use to obtain whether or
-	// not either the provided block is itself known to be invalid or is
-	// known to have an invalid ancestor.
-	IsKnownInvalidBlock func(*chainhash.Hash) bool
-
 	// IsBlake3PowAgendaActive returns whether or not the agenda to change the
 	// proof of work hash function to blake3, as defined in DCP0011, has passed
 	// and is now active for the block AFTER the given block.
