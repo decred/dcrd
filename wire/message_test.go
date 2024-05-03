@@ -121,7 +121,7 @@ func TestMessage(t *testing.T) {
 		{msgCFHeaders, msgCFHeaders, pver, MainNet, 58},
 		{msgCFTypes, msgCFTypes, pver, MainNet, 26},
 		{msgGetInitState, msgGetInitState, pver, MainNet, 25},
-		{msgInitState, msgInitState, pver, MainNet, 28},
+		{msgInitState, msgInitState, pver, MainNet, 27},
 		{msgMixPR, msgMixPR, pver, MainNet, 165},
 		{msgMixKE, msgMixKE, pver, MainNet, 1441},
 		{msgMixCT, msgMixCT, pver, MainNet, 158},
