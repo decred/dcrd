@@ -56,6 +56,7 @@ func newMixPairReqArgs() *mixPairReqArgs {
 			Script:    []byte{},
 			PubKey:    repeat(0x8B, 33),
 			Signature: repeat(0x8C, 64),
+			Opcode:    0xBB, // OP_SSGEN
 		},
 		{
 			OutPoint: OutPoint{
@@ -66,6 +67,7 @@ func newMixPairReqArgs() *mixPairReqArgs {
 			Script:    repeat(0x90, 25),
 			PubKey:    repeat(0x91, 33),
 			Signature: repeat(0x92, 64),
+			Opcode:    0xBC, // OP_SSRTX
 		},
 	}
 
@@ -129,6 +131,7 @@ func TestMsgMixPairReqWire(t *testing.T) {
 	expected = append(expected, repeat(0x8b, 33)...)
 	expected = append(expected, 0x40) // 64-byte signature
 	expected = append(expected, repeat(0x8c, 64)...)
+	expected = append(expected, 0xBB) // Opcode
 	// Second UTXO 8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d:0x8e8e8e8e
 	expected = append(expected, repeat(0x8d, 32)...) // Hash
 	expected = append(expected, repeat(0x8e, 4)...)  // Index
@@ -139,6 +142,7 @@ func TestMsgMixPairReqWire(t *testing.T) {
 	expected = append(expected, repeat(0x91, 33)...)
 	expected = append(expected, 0x40) // 64-byte signature
 	expected = append(expected, repeat(0x92, 64)...)
+	expected = append(expected, 0xBC) // Opcode
 	// Change output
 	expected = append(expected, 0x01) // Has change = true
 	expected = append(expected, []byte{
@@ -285,7 +289,8 @@ func TestMsgMixPairReqMaxPayloadLength(t *testing.T) {
 		1 + // Tree
 		varBytesLen(MaxMixPairReqUTXOScriptLen) + // P2SH redeem script
 		varBytesLen(33) + // Pubkey
-		varBytesLen(64) // Signature
+		varBytesLen(64) + // Signature
+		1 // Opcode
 	var maxTxOutLen uint32 = 8 + // Value
 		2 + // Version
 		varBytesLen(16384) // PkScript (txscript.MaxScriptLen)
