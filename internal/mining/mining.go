@@ -897,7 +897,15 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 			return nil, err
 		}
 		header := &block.Header
-		header.MerkleRoot = calcBlockMerkleRoot(block.Transactions, block.STransactions, hdrCmtActive)
+		header.MerkleRoot = calcBlockMerkleRoot(block.Transactions,
+			block.STransactions, hdrCmtActive)
+
+		// Calculate the required difficulty for the block.
+		reqDifficulty, err := g.cfg.CalcNextRequiredDifficulty(prevHash, ts)
+		if err != nil {
+			return nil, makeError(ErrGettingDifficulty, err.Error())
+		}
+		header.Bits = reqDifficulty
 
 		// Calculate the stake root or commitment root depending on the result
 		// of the header commitments agenda vote.
