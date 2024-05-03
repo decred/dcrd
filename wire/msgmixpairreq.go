@@ -41,11 +41,15 @@ const (
 // mix.  It includes a proof that the output is able to be spent, by
 // containing a signature and the necessary data needed to prove key
 // possession.
+//
+// The opcode defines the type of standard script.  0 is used for regular
+// outputs, otherwise it may be one of OP_SSGEN/OP_SSRTX/OP_TGEN.
 type MixPairReqUTXO struct {
 	OutPoint  OutPoint
 	Script    []byte // Only used for P2SH
 	PubKey    []byte
 	Signature []byte
+	Opcode    byte
 }
 
 // MsgMixPairReq implements the Message interface and represents a mixing pair
@@ -176,6 +180,13 @@ func (msg *MsgMixPairReq) BtcDecode(r io.Reader, pver uint32) error {
 			return err
 		}
 		utxo.Signature = sig
+
+		var opcode byte
+		err = readElement(r, &opcode)
+		if err != nil {
+			return err
+		}
+		utxo.Opcode = opcode
 	}
 	msg.UTXOs = utxos
 
@@ -337,6 +348,11 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		if err != nil {
 			return err
 		}
+
+		err = writeElement(w, utxo.Opcode)
+		if err != nil {
+			return err
+		}
 	}
 
 	var hasChange uint8
@@ -379,7 +395,7 @@ func (msg *MsgMixPairReq) MaxPayloadLength(pver uint32) uint32 {
 	}
 
 	// See tests for this calculation.
-	return 8476336
+	return 8476848
 }
 
 // Pub returns the message sender's public key identity.
