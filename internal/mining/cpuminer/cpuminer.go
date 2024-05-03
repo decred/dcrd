@@ -132,22 +132,16 @@ type CPUMiner struct {
 	speedStats        map[uint64]*speedStats
 	quit              chan struct{}
 
-	// These fields are used to provide a better user experience for the
-	// discrete mining process used in testing.  They are protected by the
-	// embedded mutex.
-	//
-	// discretePrevHash is the hash of the parent of the block that was most
-	// recently submitted by the discrete mining process.
-	//
-	// discreteBlockHash is the hash of the block that was most recently
-	// submitted by the discrete mining process.
-	discretePrevHash  chainhash.Hash
-	discreteBlockHash chainhash.Hash
+	// discretePrevTemplate is the template that was most recently mined by the
+	// discrete mining process.  It is used to provide a better user experience
+	// for the discrete mining process used in testing.
+	discretePrevTemplate atomic.Pointer[mining.BlockTemplate]
 
-	// This is a map that keeps track of how many blocks have
-	// been mined on each parent by the CPUMiner. It is only
-	// for use in simulation networks, to diminish memory
-	// exhaustion.
+	// This is a map that keeps track of how many blocks have been mined on each
+	// parent by the CPUMiner. It is only for use in simulation networks, to
+	// diminish memory exhaustion.
+	//
+	// It is protected by the embedded mutex.
 	minedOnParents map[chainhash.Hash]uint8
 }
 
@@ -784,24 +778,16 @@ out:
 		// Since callers might call this method in rapid succession and the
 		// subscription immediately sends the current template, the template
 		// might not have been updated yet (for example, it might be waiting on
-		// votes).  In that case, wait for the updated template.  However, allow
-		// the current template anyway when the block previously mined via this
-		// process is no longer valid, most likely as the result of manual
-		// invalidation.
-		m.Lock()
-		discretePrev := m.discretePrevHash
-		discreteBlockHash := m.discreteBlockHash
-		m.Unlock()
-		prevHash := templateNtfn.Template.Block.Header.PrevBlock
-		if prevHash == discretePrev &&
-			!m.cfg.IsKnownInvalidBlock(&discreteBlockHash) {
-
+		// votes).  In that case, wait for the updated template.
+		if templateNtfn.Template == m.discretePrevTemplate.Load() {
 			continue
 		}
+		m.discretePrevTemplate.Store(nil)
 
 		// Determine the state of the blake3 proof of work agenda.  An error
 		// should never really happen here in practice, but just loop around and
 		// wait for another template if it does.
+		prevHash := templateNtfn.Template.Block.Header.PrevBlock
 		isBlake3PowActive, err := m.cfg.IsBlake3PowAgendaActive(&prevHash)
 		if err != nil {
 			continue
@@ -827,10 +813,7 @@ out:
 		if m.solveBlock(ctx, shallowBlockHdr, &stats, isBlake3PowActive) {
 			block := dcrutil.NewBlock(&shallowBlockCopy)
 			if m.submitBlock(block, isBlake3PowActive) {
-				m.Lock()
-				m.discretePrevHash = shallowBlockHdr.PrevBlock
-				m.discreteBlockHash = *block.Hash()
-				m.Unlock()
+				m.discretePrevTemplate.Store(templateNtfn.Template)
 				blockHashes = append(blockHashes, block.Hash())
 			}
 		}
