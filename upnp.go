@@ -188,7 +188,7 @@ func getChildDevice(d *device, deviceType string) *device {
 	return nil
 }
 
-// getChildDevice searches the service list of device for a service with the
+// getChildService searches the service list of device for a service with the
 // given type.
 func getChildService(d *device, serviceType string) *service {
 	for i := range d.ServiceList.Service {
@@ -281,7 +281,7 @@ type soapEnvelope struct {
 	Body    soapBody `xml:"Body"`
 }
 
-// soapRequests performs a soap request with the given parameters and returns
+// soapRequest performs a soap request with the given parameters and returns
 // the xml replied stripped of the soap headers. in the case that the request is
 // unsuccessful the an error is returned.
 func soapRequest(url, function, message string) (replyXML []byte, err error) {
