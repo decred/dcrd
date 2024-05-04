@@ -1371,7 +1371,7 @@ func (g *Generator) calcNextRequiredDiffASERT() uint32 {
 		g.params.WorkDiffV2HalfLifeSecs)
 }
 
-// calcNextRequiredDifficultyEMA returns the required proof-of-work difficulty
+// CalcNextRequiredDifficulty returns the required proof-of-work difficulty
 // for the block after the current tip block the generator is associated with
 // using the difficulty algorithm configured for the generator.
 func (g *Generator) CalcNextRequiredDifficulty() uint32 {
