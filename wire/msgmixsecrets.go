@@ -202,6 +202,7 @@ func (msg *MsgMixSecrets) Hash() chainhash.Hash {
 // messages.
 func (msg *MsgMixSecrets) Commitment(h hash.Hash) chainhash.Hash {
 	msgCopy := *msg
+	msgCopy.Signature = [64]byte{}
 	msgCopy.SeenSecrets = nil
 	msgCopy.WriteHash(h)
 	return msgCopy.hash
