@@ -363,29 +363,6 @@ func makePeerState() peerState {
 	}
 }
 
-// connectionsWithIP returns the number of connections with the given IP.
-//
-// This function MUST be called with the embedded mutex locked (for reads).
-func (ps *peerState) connectionsWithIP(ip net.IP) int {
-	var total int
-	for _, p := range ps.inboundPeers {
-		if ip.Equal(p.NA().IP) {
-			total++
-		}
-	}
-	for _, p := range ps.outboundPeers {
-		if ip.Equal(p.NA().IP) {
-			total++
-		}
-	}
-	for _, p := range ps.persistentPeers {
-		if ip.Equal(p.NA().IP) {
-			total++
-		}
-	}
-	return total
-}
-
 // count returns the count of all known peers.
 //
 // This function MUST be called with the embedded mutex locked (for reads).
@@ -426,6 +403,20 @@ func (ps *peerState) ForAllPeers(closure func(sp *serverPeer)) {
 	ps.Lock()
 	ps.forAllPeers(closure)
 	ps.Unlock()
+}
+
+// connectionsWithIP returns the number of connections with the given IP.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
+func (ps *peerState) connectionsWithIP(ip net.IP) int {
+	var total int
+	ps.forAllPeers(func(sp *serverPeer) {
+		if ip.Equal(sp.NA().IP) {
+			total++
+		}
+
+	})
+	return total
 }
 
 // ResolveLocalAddress picks the best suggested network address from available
