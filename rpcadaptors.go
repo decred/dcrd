@@ -299,15 +299,14 @@ func (cm *rpcConnManager) ConnectedPeers() []rpcserver.Peer {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) PersistentPeers() []rpcserver.Peer {
-	replyChan := make(chan []*serverPeer)
-	cm.server.query <- getAddedNodesMsg{reply: replyChan}
-	serverPeers := <-replyChan
-
-	// Convert to RPC server peers.
-	peers := make([]rpcserver.Peer, 0, len(serverPeers))
-	for _, sp := range serverPeers {
+	// Return a slice of the relevant peers converted to RPC server peers.
+	state := &cm.server.peerState
+	state.Lock()
+	peers := make([]rpcserver.Peer, 0, len(state.persistentPeers))
+	for _, sp := range state.persistentPeers {
 		peers = append(peers, (*rpcPeer)(sp))
 	}
+	state.Unlock()
 	return peers
 }
 

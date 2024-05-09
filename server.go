@@ -2088,10 +2088,6 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-type getAddedNodesMsg struct {
-	reply chan []*serverPeer
-}
-
 type disconnectNodeMsg struct {
 	cmp   func(*serverPeer) bool
 	reply chan error
@@ -2101,16 +2097,6 @@ type disconnectNodeMsg struct {
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
 	switch msg := querymsg.(type) {
-	case getAddedNodesMsg:
-		// Respond with a slice of the relevant peers.
-		state.Lock()
-		peers := make([]*serverPeer, 0, len(state.persistentPeers))
-		for _, sp := range state.persistentPeers {
-			peers = append(peers, sp)
-		}
-		state.Unlock()
-		msg.reply <- peers
-
 	case disconnectNodeMsg:
 		// Check inbound peers. We pass a nil callback since we don't
 		// require any additional actions on disconnect for inbound peers.
