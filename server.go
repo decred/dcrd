@@ -2102,11 +2102,6 @@ type removeNodeMsg struct {
 	reply chan error
 }
 
-type cancelPendingMsg struct {
-	addr  string
-	reply chan error
-}
-
 // handleQuery is the central handler for all queries and commands from other
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
@@ -2135,14 +2130,6 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 		} else {
 			msg.reply <- errors.New("peer not found")
 		}
-
-	case cancelPendingMsg:
-		netAddr, err := addrStringToNetAddr(msg.addr)
-		if err != nil {
-			msg.reply <- err
-			return
-		}
-		msg.reply <- s.connManager.CancelPending(netAddr)
 
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.

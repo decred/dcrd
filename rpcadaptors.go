@@ -198,12 +198,11 @@ func (cm *rpcConnManager) RemoveByAddr(addr string) error {
 	// Cancel the connection if it could still be pending.
 	err := <-replyChan
 	if err != nil {
-		cm.server.query <- cancelPendingMsg{
-			addr:  addr,
-			reply: replyChan,
+		netAddr, err := addrStringToNetAddr(addr)
+		if err != nil {
+			return err
 		}
-
-		return <-replyChan
+		return cm.server.connManager.CancelPending(netAddr)
 	}
 	return nil
 }
