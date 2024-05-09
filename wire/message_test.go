@@ -80,7 +80,7 @@ func TestMessage(t *testing.T) {
 	msgReject := NewMsgReject("block", RejectDuplicate, "duplicate block")
 	msgGetInitState := NewMsgGetInitState()
 	msgInitState := NewMsgInitState()
-	msgMixPR, err := NewMsgMixPairReq([33]byte{}, 1, 1, "", 1, 1, 1, 1, []MixPairReqUTXO{}, NewTxOut(0, []byte{}))
+	msgMixPR, err := NewMsgMixPairReq([33]byte{}, 1, 1, "", 1, 1, 1, 1, []MixPairReqUTXO{}, NewTxOut(0, []byte{}), 1, 1)
 	if err != nil {
 		t.Errorf("NewMsgMixPairReq: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestMessage(t *testing.T) {
 		{msgCFTypes, msgCFTypes, pver, MainNet, 26},
 		{msgGetInitState, msgGetInitState, pver, MainNet, 25},
 		{msgInitState, msgInitState, pver, MainNet, 27},
-		{msgMixPR, msgMixPR, pver, MainNet, 165},
+		{msgMixPR, msgMixPR, pver, MainNet, 167},
 		{msgMixKE, msgMixKE, pver, MainNet, 1449},
 		{msgMixCT, msgMixCT, pver, MainNet, 158},
 		{msgMixSR, msgMixSR, pver, MainNet, 161},

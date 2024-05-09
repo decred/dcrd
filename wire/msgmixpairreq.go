@@ -68,6 +68,8 @@ type MsgMixPairReq struct {
 	InputValue   int64
 	UTXOs        []MixPairReqUTXO
 	Change       *TxOut
+	Flags        byte
+	PairingFlags byte
 
 	// hash records the hash of the message.  It is a member of the
 	// message for convenience and performance, but is never automatically
@@ -83,7 +85,8 @@ func (msg *MsgMixPairReq) Pairing() ([]byte, error) {
 		VarIntSerializeSize(uint64(len(msg.ScriptClass))) + // Script class
 		len(msg.ScriptClass) +
 		2 + // Tx version
-		4 // Locktime
+		4 + // Locktime
+		1 // Pairing flags
 	w := bytes.NewBuffer(make([]byte, 0, bufLen))
 
 	err := writeElement(w, msg.MixAmount)
@@ -96,7 +99,7 @@ func (msg *MsgMixPairReq) Pairing() ([]byte, error) {
 		return nil, err
 	}
 
-	err = writeElements(w, msg.TxVersion, msg.LockTime)
+	err = writeElements(w, msg.TxVersion, msg.LockTime, msg.PairingFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +212,7 @@ func (msg *MsgMixPairReq) BtcDecode(r io.Reader, pver uint32) error {
 		return messageError(op, ErrInvalidMsg, msg)
 	}
 
-	return nil
+	return readElements(r, &msg.Flags, &msg.PairingFlags)
 }
 
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
@@ -370,6 +373,11 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		}
 	}
 
+	err = writeElements(w, msg.Flags, msg.PairingFlags)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -433,7 +441,8 @@ func (msg *MsgMixPairReq) GetRun() uint32 {
 // remaining fields.
 func NewMsgMixPairReq(identity [33]byte, expiry uint32, mixAmount int64,
 	scriptClass string, txVersion uint16, lockTime, messageCount uint32,
-	inputValue int64, utxos []MixPairReqUTXO, change *TxOut) (*MsgMixPairReq, error) {
+	inputValue int64, utxos []MixPairReqUTXO, change *TxOut,
+	flags, pairingFlags byte) (*MsgMixPairReq, error) {
 
 	const op = "NewMsgMixPairReq"
 	lenScriptClass := len(scriptClass)
@@ -466,6 +475,8 @@ func NewMsgMixPairReq(identity [33]byte, expiry uint32, mixAmount int64,
 		InputValue:   inputValue,
 		UTXOs:        utxos,
 		Change:       change,
+		Flags:        flags,
+		PairingFlags: pairingFlags,
 	}
 	return msg, nil
 }

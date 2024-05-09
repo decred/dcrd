@@ -25,11 +25,14 @@ type mixPairReqArgs struct {
 	inputValue             int64
 	utxos                  []MixPairReqUTXO
 	change                 *TxOut
+	flags                  byte
+	pairingFlags           byte
 }
 
 func (a *mixPairReqArgs) msg() (*MsgMixPairReq, error) {
 	return NewMsgMixPairReq(a.identity, a.expiry, a.mixAmount, a.scriptClass,
-		a.txVersion, a.lockTime, a.messageCount, a.inputValue, a.utxos, a.change)
+		a.txVersion, a.lockTime, a.messageCount, a.inputValue, a.utxos,
+		a.change, a.flags, a.pairingFlags)
 }
 
 func newMixPairReqArgs() *mixPairReqArgs {
@@ -74,6 +77,8 @@ func newMixPairReqArgs() *mixPairReqArgs {
 	const changeValue = int64(0x1393939393939393)
 	pkScript := repeat(0x94, 25)
 	change := NewTxOut(changeValue, pkScript)
+	flags := byte(0x95)
+	pairingFlags := byte(0x96)
 
 	return &mixPairReqArgs{
 		identity:     id,
@@ -87,6 +92,8 @@ func newMixPairReqArgs() *mixPairReqArgs {
 		inputValue:   inputValue,
 		utxos:        utxos,
 		change:       change,
+		flags:        flags,
+		pairingFlags: pairingFlags,
 	}
 }
 
@@ -154,6 +161,8 @@ func TestMsgMixPairReqWire(t *testing.T) {
 		0x94, 0x94, 0x94, 0x94, 0x94, 0x94, 0x94, 0x94,
 		0x94,
 	}...)
+	expected = append(expected, 0x95) // Flags
+	expected = append(expected, 0x96) // Pairing flags
 
 	expectedSerializationEqual(t, buf.Bytes(), expected)
 
