@@ -329,19 +329,44 @@ func (sc *naSubmissionCache) bestSubmission(net addrmgr.NetAddressType) *naSubmi
 	return best
 }
 
-// peerState maintains state of inbound, persistent, outbound peers as well
+// peerState houses state of inbound, persistent, and outbound peers as well
 // as banned peers and outbound groups.
 type peerState struct {
+	sync.Mutex
+
+	// The following fields are protected by the embedded mutex.
 	inboundPeers    map[int32]*serverPeer
 	outboundPeers   map[int32]*serverPeer
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
 	outboundGroups  map[string]int
-	subCache        *naSubmissionCache
+
+	// subCache houses the network address submission cache and is protected
+	// by its own mutex.
+	subCache *naSubmissionCache
 }
 
-// ConnectionsWithIP returns the number of connections with the given IP.
-func (ps *peerState) ConnectionsWithIP(ip net.IP) int {
+// makePeerState returns a peer state instance that is used to maintain the
+// state of inbound, persistent, and outbound peers as well as banned peers and
+// outbound groups.
+func makePeerState() peerState {
+	return peerState{
+		inboundPeers:    make(map[int32]*serverPeer),
+		persistentPeers: make(map[int32]*serverPeer),
+		outboundPeers:   make(map[int32]*serverPeer),
+		banned:          make(map[string]time.Time),
+		outboundGroups:  make(map[string]int),
+		subCache: &naSubmissionCache{
+			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
+			limit: maxCachedNaSubmissions,
+		},
+	}
+}
+
+// connectionsWithIP returns the number of connections with the given IP.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
+func (ps *peerState) connectionsWithIP(ip net.IP) int {
 	var total int
 	for _, p := range ps.inboundPeers {
 		if ip.Equal(p.NA().IP) {
@@ -361,14 +386,18 @@ func (ps *peerState) ConnectionsWithIP(ip net.IP) int {
 	return total
 }
 
-// Count returns the count of all known peers.
-func (ps *peerState) Count() int {
+// count returns the count of all known peers.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
+func (ps *peerState) count() int {
 	return len(ps.inboundPeers) + len(ps.outboundPeers) +
 		len(ps.persistentPeers)
 }
 
 // forAllOutboundPeers is a helper function that runs closure on all outbound
 // peers known to peerState.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
 func (ps *peerState) forAllOutboundPeers(closure func(sp *serverPeer)) {
 	for _, e := range ps.outboundPeers {
 		closure(e)
@@ -380,6 +409,8 @@ func (ps *peerState) forAllOutboundPeers(closure func(sp *serverPeer)) {
 
 // forAllPeers is a helper function that runs closure on all peers known to
 // peerState.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
 func (ps *peerState) forAllPeers(closure func(sp *serverPeer)) {
 	for _, e := range ps.inboundPeers {
 		closure(e)
@@ -387,9 +418,21 @@ func (ps *peerState) forAllPeers(closure func(sp *serverPeer)) {
 	ps.forAllOutboundPeers(closure)
 }
 
+// ForAllPeers is a helper function that runs closure on all peers known to
+// peerState.
+//
+// This function is safe for concurrent access.
+func (ps *peerState) ForAllPeers(closure func(sp *serverPeer)) {
+	ps.Lock()
+	ps.forAllPeers(closure)
+	ps.Unlock()
+}
+
 // ResolveLocalAddress picks the best suggested network address from available
 // options, per the network interface key provided. The best suggestion, if
 // found, is added as a local address.
+//
+// This function is safe for concurrent access.
 func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag) {
 	best := ps.subCache.bestSubmission(netType)
 	if best == nil {
@@ -518,6 +561,7 @@ type server struct {
 	cpuMiner             *cpuminer.CPUMiner
 	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
+	peerState            peerState
 	newPeers             chan *serverPeer
 	donePeers            chan *serverPeer
 	banPeers             chan *serverPeer
@@ -1948,6 +1992,9 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		return false
 	}
 
+	defer state.Unlock()
+	state.Lock()
+
 	// Disconnect banned peers.
 	host, _, err := net.SplitHostPort(sp.Addr())
 	if err != nil {
@@ -1972,7 +2019,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
 	peerIP := sp.NA().IP
 	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
-		state.ConnectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
+		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
 		srvrLog.Infof("Max connections with %s reached [%d] - "+
 			"disconnecting peer", sp, cfg.MaxSameIP)
 		sp.Disconnect()
@@ -1981,7 +2028,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 
 	// Limit max number of total peers.  However, allow whitelisted inbound
 	// peers regardless.
-	if state.Count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
+	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
 		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
 			cfg.MaxPeers, sp)
 		sp.Disconnect()
@@ -2087,6 +2134,9 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 // handleDonePeerMsg deals with peers that have signalled they are done.  It is
 // invoked from the peerHandler goroutine.
 func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
+	defer state.Unlock()
+	state.Lock()
+
 	var list map[int32]*serverPeer
 	if sp.persistent {
 		list = state.persistentPeers
@@ -2142,13 +2192,16 @@ func (s *server) handleBanPeerMsg(state *peerState, sp *serverPeer) {
 	direction := directionString(sp.Inbound())
 	srvrLog.Infof("Banned peer %s (%s) for %v", host, direction,
 		cfg.BanDuration)
-	state.banned[host] = time.Now().Add(cfg.BanDuration)
+	bannedUntil := time.Now().Add(cfg.BanDuration)
+	state.Lock()
+	state.banned[host] = bannedUntil
+	state.Unlock()
 }
 
 // handleRelayInvMsg deals with relaying inventory to peers that are not already
 // known to have it.  It is invoked from the peerHandler goroutine.
 func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
-	state.forAllPeers(func(sp *serverPeer) {
+	state.ForAllPeers(func(sp *serverPeer) {
 		if !sp.Connected() {
 			return
 		}
@@ -2220,7 +2273,7 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 // handleBroadcastMsg deals with broadcasting messages to peers.  It is invoked
 // from the peerHandler goroutine.
 func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
-	state.forAllPeers(func(sp *serverPeer) {
+	state.ForAllPeers(func(sp *serverPeer) {
 		if !sp.Connected() {
 			return
 		}
@@ -2279,7 +2332,7 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 	switch msg := querymsg.(type) {
 	case getConnCountMsg:
 		nconnected := int32(0)
-		state.forAllPeers(func(sp *serverPeer) {
+		state.ForAllPeers(func(sp *serverPeer) {
 			if sp.Connected() {
 				nconnected++
 			}
@@ -2287,22 +2340,27 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 		msg.reply <- nconnected
 
 	case getPeersMsg:
-		peers := make([]*serverPeer, 0, state.Count())
+		state.Lock()
+		peers := make([]*serverPeer, 0, state.count())
 		state.forAllPeers(func(sp *serverPeer) {
 			if !sp.Connected() {
 				return
 			}
 			peers = append(peers, sp)
 		})
+		state.Unlock()
 		msg.reply <- peers
 
 	case connectNodeMsg:
 		// XXX duplicate oneshots?
 		// Limit max number of total peers.
-		if state.Count() >= cfg.MaxPeers {
+		state.Lock()
+		if state.count() >= cfg.MaxPeers {
+			state.Unlock()
 			msg.reply <- errors.New("max peers reached")
 			return
 		}
+		state.Unlock()
 		err := s.connManager.ForEachConnReq(func(c *connmgr.ConnReq) error {
 			if c.Addr != nil && c.Addr.String() == msg.addr {
 				if c.Permanent {
@@ -2339,6 +2397,7 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 		msg.reply <- nil
 
 	case removeNodeMsg:
+		state.Lock()
 		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {
 			// Keep group counts ok since we remove from
 			// the list now.
@@ -2354,6 +2413,7 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 			sp.connReq = nil
 			s.connManager.Remove(connReq.ID())
 		})
+		state.Unlock()
 
 		if found {
 			msg.reply <- nil
@@ -2370,7 +2430,9 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 		msg.reply <- s.connManager.CancelPending(netAddr)
 
 	case getOutboundGroup:
+		state.Lock()
 		count, ok := state.outboundGroups[msg.key]
+		state.Unlock()
 		if ok {
 			msg.reply <- count
 		} else {
@@ -2379,17 +2441,21 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.
+		state.Lock()
 		peers := make([]*serverPeer, 0, len(state.persistentPeers))
 		for _, sp := range state.persistentPeers {
 			peers = append(peers, sp)
 		}
+		state.Unlock()
 		msg.reply <- peers
 
 	case disconnectNodeMsg:
 		// Check inbound peers. We pass a nil callback since we don't
 		// require any additional actions on disconnect for inbound peers.
+		state.Lock()
 		found := disconnectPeer(state.inboundPeers, msg.cmp, nil)
 		if found {
+			state.Unlock()
 			msg.reply <- nil
 			return
 		}
@@ -2411,9 +2477,11 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 					state.outboundGroups[remoteAddr.GroupKey()]--
 				})
 			}
+			state.Unlock()
 			msg.reply <- nil
 			return
 		}
+		state.Unlock()
 
 		msg.reply <- errors.New("peer not found")
 	}
@@ -2551,24 +2619,12 @@ func (s *server) peerHandler(ctx context.Context) {
 
 	srvrLog.Tracef("Starting peer handler")
 
-	state := &peerState{
-		inboundPeers:    make(map[int32]*serverPeer),
-		persistentPeers: make(map[int32]*serverPeer),
-		outboundPeers:   make(map[int32]*serverPeer),
-		banned:          make(map[string]time.Time),
-		outboundGroups:  make(map[string]int),
-		subCache: &naSubmissionCache{
-			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
-			limit: maxCachedNaSubmissions,
-		},
-	}
-
 out:
 	for {
 		select {
 		// New peers connected to the server.
 		case p := <-s.newPeers:
-			s.handleAddPeerMsg(state, p)
+			s.handleAddPeerMsg(&s.peerState, p)
 
 			// Signal the net sync manager this peer is a new sync candidate
 			// unless it was disconnected above.
@@ -2578,29 +2634,29 @@ out:
 
 		// Disconnected peers.
 		case p := <-s.donePeers:
-			s.handleDonePeerMsg(state, p)
+			s.handleDonePeerMsg(&s.peerState, p)
 
 		// Peer to ban.
 		case p := <-s.banPeers:
-			s.handleBanPeerMsg(state, p)
+			s.handleBanPeerMsg(&s.peerState, p)
 
 		// New inventory to potentially be relayed to other peers.
 		case invMsg := <-s.relayInv:
-			s.handleRelayInvMsg(state, invMsg)
+			s.handleRelayInvMsg(&s.peerState, invMsg)
 
 		// Message to broadcast to all connected peers except those
 		// which are excluded by the message.
 		case bmsg := <-s.broadcast:
-			s.handleBroadcastMsg(state, &bmsg)
+			s.handleBroadcastMsg(&s.peerState, &bmsg)
 
 		case qmsg := <-s.query:
-			s.handleQuery(ctx, state, qmsg)
+			s.handleQuery(ctx, &s.peerState, qmsg)
 
 		case <-ctx.Done():
 			close(s.quit)
 
 			// Disconnect all peers on server shutdown.
-			state.forAllPeers(func(sp *serverPeer) {
+			s.peerState.ForAllPeers(func(sp *serverPeer) {
 				srvrLog.Tracef("Shutdown peer %s", sp)
 				sp.Disconnect()
 			})
@@ -3864,6 +3920,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	s := server{
 		chainParams:          chainParams,
 		addrManager:          amgr,
+		peerState:            makePeerState(),
 		newPeers:             make(chan *serverPeer, cfg.MaxPeers),
 		donePeers:            make(chan *serverPeer, cfg.MaxPeers),
 		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
