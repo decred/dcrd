@@ -554,7 +554,6 @@ type server struct {
 	modifyRebroadcastInv chan interface{}
 	peerState            peerState
 	banPeers             chan *serverPeer
-	query                chan interface{}
 	relayInv             chan relayMsg
 	broadcast            chan broadcastMsg
 	nat                  *upnpNAT
@@ -2088,11 +2087,6 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-// handleQuery is the central handler for all queries and commands from other
-// goroutines related to peer state.
-func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
-}
-
 // disconnectPeer attempts to drop the connection of a targeted peer in the
 // passed peer list. Targets are identified via usage of the passed
 // `compareFunc`, which should return `true` if the passed peer is the target
@@ -2241,9 +2235,6 @@ out:
 		// which are excluded by the message.
 		case bmsg := <-s.broadcast:
 			s.handleBroadcastMsg(&s.peerState, &bmsg)
-
-		case qmsg := <-s.query:
-			s.handleQuery(ctx, &s.peerState, qmsg)
 
 		case <-ctx.Done():
 			close(s.quit)
@@ -3722,7 +3713,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		addrManager:          amgr,
 		peerState:            makePeerState(),
 		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
-		query:                make(chan interface{}),
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
 		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
 		modifyRebroadcastInv: make(chan interface{}),
