@@ -167,6 +167,37 @@ func (cm *rpcConnManager) Connect(addr string, permanent bool) error {
 	return nil
 }
 
+// removeNode removes any peers that the provided compare function return true
+// for from the list of persistent peers.
+//
+// An error will be returned if no matching peers are found (aka the compare
+// function returns false for all peers).
+func (cm *rpcConnManager) removeNode(cmp func(*serverPeer) bool) error {
+	state := &cm.server.peerState
+	state.Lock()
+	found := disconnectPeer(state.persistentPeers, cmp, func(sp *serverPeer) {
+		// Update the group counts since the peer will be removed from the
+		// persistent peers just after this func returns.
+		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		state.outboundGroups[remoteAddr.GroupKey()]--
+
+		connReq := sp.connReq.Load()
+		peerLog.Debugf("Removing persistent peer %s (reqid %d)", remoteAddr,
+			connReq.ID())
+
+		// Mark the peer's connReq as nil to prevent it from scheduling a
+		// re-connect attempt.
+		sp.connReq.Store(nil)
+		cm.server.connManager.Remove(connReq.ID())
+	})
+	state.Unlock()
+
+	if !found {
+		return errors.New("peer not found")
+	}
+	return nil
+}
+
 // RemoveByID removes the peer associated with the provided id from the list of
 // persistent peers.  Attempting to remove an id that does not exist will return
 // an error.
@@ -174,12 +205,8 @@ func (cm *rpcConnManager) Connect(addr string, permanent bool) error {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) RemoveByID(id int32) error {
-	replyChan := make(chan error)
-	cm.server.query <- removeNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.ID() == id },
-		reply: replyChan,
-	}
-	return <-replyChan
+	cmp := func(sp *serverPeer) bool { return sp.ID() == id }
+	return cm.removeNode(cmp)
 }
 
 // RemoveByAddr removes the peer associated with the provided address from the
@@ -189,14 +216,8 @@ func (cm *rpcConnManager) RemoveByID(id int32) error {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) RemoveByAddr(addr string) error {
-	replyChan := make(chan error)
-	cm.server.query <- removeNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
-		reply: replyChan,
-	}
-
-	// Cancel the connection if it could still be pending.
-	err := <-replyChan
+	cmp := func(sp *serverPeer) bool { return sp.Addr() == addr }
+	err := cm.removeNode(cmp)
 	if err != nil {
 		netAddr, err := addrStringToNetAddr(addr)
 		if err != nil {

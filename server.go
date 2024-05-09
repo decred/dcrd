@@ -2097,40 +2097,10 @@ type disconnectNodeMsg struct {
 	reply chan error
 }
 
-type removeNodeMsg struct {
-	cmp   func(*serverPeer) bool
-	reply chan error
-}
-
 // handleQuery is the central handler for all queries and commands from other
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
 	switch msg := querymsg.(type) {
-	case removeNodeMsg:
-		state.Lock()
-		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {
-			// Keep group counts ok since we remove from
-			// the list now.
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-			state.outboundGroups[remoteAddr.GroupKey()]--
-
-			connReq := sp.connReq.Load()
-			peerLog.Debugf("Removing persistent peer %s (reqid %d)", remoteAddr,
-				connReq.ID())
-
-			// Mark the peer's connReq as nil to prevent it from scheduling a
-			// re-connect attempt.
-			sp.connReq.Store(nil)
-			s.connManager.Remove(connReq.ID())
-		})
-		state.Unlock()
-
-		if found {
-			msg.reply <- nil
-		} else {
-			msg.reply <- errors.New("peer not found")
-		}
-
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.
 		state.Lock()
