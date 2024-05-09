@@ -553,7 +553,6 @@ type server struct {
 	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
 	peerState            peerState
-	newPeers             chan *serverPeer
 	donePeers            chan *serverPeer
 	banPeers             chan *serverPeer
 	query                chan interface{}
@@ -1983,159 +1982,6 @@ func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
 	}
 }
 
-// handleAddPeerMsg deals with adding new peers.  It is invoked from the
-// peerHandler goroutine.
-func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
-	if sp == nil {
-		return false
-	}
-
-	// Ignore new peers if we're shutting down.
-	if s.shutdown.Load() {
-		srvrLog.Infof("New peer %s ignored - server is shutting down", sp)
-		sp.Disconnect()
-		return false
-	}
-
-	defer state.Unlock()
-	state.Lock()
-
-	// Disconnect banned peers.
-	host, _, err := net.SplitHostPort(sp.Addr())
-	if err != nil {
-		srvrLog.Debugf("can't split hostport %v", err)
-		sp.Disconnect()
-		return false
-	}
-	if banEnd, ok := state.banned[host]; ok {
-		if time.Now().Before(banEnd) {
-			srvrLog.Debugf("Peer %s is banned for another %v - disconnecting",
-				host, time.Until(banEnd))
-			sp.Disconnect()
-			return false
-		}
-
-		srvrLog.Infof("Peer %s is no longer banned", host)
-		delete(state.banned, host)
-	}
-
-	// Limit max number of connections from a single IP.  However, allow
-	// whitelisted inbound peers and localhost connections regardless.
-	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := sp.NA().IP
-	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
-		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
-		srvrLog.Infof("Max connections with %s reached [%d] - "+
-			"disconnecting peer", sp, cfg.MaxSameIP)
-		sp.Disconnect()
-		return false
-	}
-
-	// Limit max number of total peers.  However, allow whitelisted inbound
-	// peers regardless.
-	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
-		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
-			cfg.MaxPeers, sp)
-		sp.Disconnect()
-		// TODO: how to handle permanent peers here?
-		// they should be rescheduled.
-		return false
-	}
-
-	na := sp.peerNa.Load()
-
-	// Add the new peer and start it.
-	srvrLog.Debugf("New peer %s", sp)
-	if sp.Inbound() {
-		state.inboundPeers[sp.ID()] = sp
-
-		if na != nil {
-			id := na.IP.String()
-
-			// Inbound peers can only corroborate existing address submissions.
-			if state.subCache.exists(id) {
-				err := state.subCache.incrementScore(id)
-				if err != nil {
-					srvrLog.Errorf("unable to increment submission score: %v", err)
-					return true
-				}
-			}
-		}
-	} else {
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-		state.outboundGroups[remoteAddr.GroupKey()]++
-		if sp.persistent {
-			state.persistentPeers[sp.ID()] = sp
-		} else {
-			state.outboundPeers[sp.ID()] = sp
-		}
-
-		// Fetch the suggested public ip from the outbound peer if
-		// there are no prevailing conditions to disable automatic
-		// network address discovery.
-		//
-		// The conditions to disable automatic network address
-		// discovery are:
-		//	- If there is a proxy set (--proxy, --onion).
-		//	- If automatic network address discovery is explicitly
-		//		disabled (--nodiscoverip).
-		//	- If there is an external ip explicitly set (--externalip).
-		//	- If listening has been disabled (--nolisten, listen
-		//	disabled because of --connect, etc).
-		//	- If Universal Plug and Play is enabled (--upnp).
-		//	- If the active network is simnet or regnet.
-		if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
-			cfg.NoDiscoverIP || len(cfg.ExternalIPs) > 0 ||
-			(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
-			s.chainParams.Name == simNetParams.Name ||
-			s.chainParams.Name == regNetParams.Name {
-			return true
-		}
-
-		if na != nil {
-			net := addrmgr.IPv4Address
-			if na.IP.To4() == nil {
-				net = addrmgr.IPv6Address
-			}
-
-			localAddr := wireToAddrmgrNetAddress(na)
-			valid, reach := s.addrManager.ValidatePeerNa(localAddr, remoteAddr)
-			if !valid {
-				return true
-			}
-
-			id := na.IP.String()
-			if state.subCache.exists(id) {
-				// Increment the submission score if it already exists.
-				err := state.subCache.incrementScore(id)
-				if err != nil {
-					srvrLog.Errorf("unable to increment submission score: %v", err)
-					return true
-				}
-			} else {
-				// Create a cache entry for a new submission.
-				sub := &naSubmission{
-					na:      na,
-					netType: net,
-					reach:   reach,
-				}
-
-				err := state.subCache.add(sub)
-				if err != nil {
-					srvrLog.Errorf("unable to add submission: %v", err)
-					return true
-				}
-			}
-
-			// Pick the local address for the provided network based on
-			// submission scores.
-			state.ResolveLocalAddress(net, s.addrManager, s.services)
-		}
-	}
-
-	return true
-}
-
 // handleDonePeerMsg deals with peers that have signalled they are done.  It is
 // invoked from the peerHandler goroutine.
 func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
@@ -2616,9 +2462,10 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	go sp.Run()
 }
 
-// peerHandler is used to handle peer operations such as adding and removing
-// peers to and from the server, banning peers, and broadcasting messages to
-// peers.  It must be run in a goroutine.
+// peerHandler is used to handle peer operations such as removing peers from the
+// server, banning peers, and broadcasting messages to peers.
+//
+// It must be run in a goroutine.
 func (s *server) peerHandler(ctx context.Context) {
 	// Start the address manager which is needed by peers.  This is done here
 	// since its lifecycle is closely tied to this handler and rather than
@@ -2631,16 +2478,6 @@ func (s *server) peerHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		// New peers connected to the server.
-		case p := <-s.newPeers:
-			s.handleAddPeerMsg(&s.peerState, p)
-
-			// Signal the net sync manager this peer is a new sync candidate
-			// unless it was disconnected above.
-			if p.Connected() {
-				s.syncManager.PeerConnected(p.syncMgrPeer)
-			}
-
 		// Disconnected peers.
 		case p := <-s.donePeers:
 			s.handleDonePeerMsg(&s.peerState, p)
@@ -2677,11 +2514,175 @@ out:
 	srvrLog.Tracef("Peer handler done")
 }
 
+// handleAddPeer deals with adding new peers and includes logic such as
+// categorizing the type of peer, limiting the maximum allowed number of peers,
+// and local external address resolution.
+//
+// It returns whether or not the peer was accepted by the server.
+//
+// This function is safe for concurrent access.
+func (s *server) handleAddPeer(sp *serverPeer) bool {
+	// Ignore new peers when shutting down.
+	if s.shutdown.Load() {
+		srvrLog.Infof("New peer %s ignored - server is shutting down", sp)
+		sp.Disconnect()
+		return false
+	}
+
+	state := &s.peerState
+	defer state.Unlock()
+	state.Lock()
+
+	// Disconnect banned peers.
+	host, _, err := net.SplitHostPort(sp.Addr())
+	if err != nil {
+		srvrLog.Debugf("can't split hostport %v", err)
+		sp.Disconnect()
+		return false
+	}
+	if banEnd, ok := state.banned[host]; ok {
+		if time.Now().Before(banEnd) {
+			srvrLog.Debugf("Peer %s is banned for another %v - disconnecting",
+				host, time.Until(banEnd))
+			sp.Disconnect()
+			return false
+		}
+
+		srvrLog.Infof("Peer %s is no longer banned", host)
+		delete(state.banned, host)
+	}
+
+	// Limit max number of connections from a single IP.  However, allow
+	// whitelisted inbound peers and localhost connections regardless.
+	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
+	peerIP := sp.NA().IP
+	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
+		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
+
+		srvrLog.Infof("Max connections with %s reached [%d] - disconnecting "+
+			"peer", sp, cfg.MaxSameIP)
+		sp.Disconnect()
+		return false
+	}
+
+	// Limit max number of total peers.  However, allow whitelisted inbound
+	// peers regardless.
+	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
+		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
+			cfg.MaxPeers, sp)
+		sp.Disconnect()
+		// TODO: how to handle permanent peers here?
+		// they should be rescheduled.
+		return false
+	}
+
+	na := sp.peerNa.Load()
+
+	// Add the new peer.
+	srvrLog.Debugf("New peer %s", sp)
+	if sp.Inbound() {
+		state.inboundPeers[sp.ID()] = sp
+
+		if na != nil {
+			id := na.IP.String()
+
+			// Inbound peers can only corroborate existing address submissions.
+			if state.subCache.exists(id) {
+				err := state.subCache.incrementScore(id)
+				if err != nil {
+					srvrLog.Errorf("unable to increment submission score: %v", err)
+					return true
+				}
+			}
+		}
+
+		return true
+	}
+
+	// The peer is an outbound peer at this point.
+	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	state.outboundGroups[remoteAddr.GroupKey()]++
+	if sp.persistent {
+		state.persistentPeers[sp.ID()] = sp
+	} else {
+		state.outboundPeers[sp.ID()] = sp
+	}
+
+	// Fetch the suggested public IP from the outbound peer if there are no
+	// prevailing conditions to disable automatic network address discovery.
+	//
+	// The conditions to disable automatic network address discovery are:
+	//	- There is a proxy set (--proxy, --onion)
+	//  - Automatic network address discovery is explicitly disabled
+	//    (--nodiscoverip)
+	//	- There is an external IP explicitly set (--externalip)
+	//  - Listening has been disabled (--nolisten, listen disabled because of
+	//    --connect, etc)
+	//	- Universal Plug and Play is enabled (--upnp)
+	//	- The active network is simnet or regnet
+	if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
+		cfg.NoDiscoverIP ||
+		len(cfg.ExternalIPs) > 0 ||
+		(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
+		s.chainParams.Name == simNetParams.Name ||
+		s.chainParams.Name == regNetParams.Name {
+
+		return true
+	}
+
+	if na != nil {
+		net := addrmgr.IPv4Address
+		if na.IP.To4() == nil {
+			net = addrmgr.IPv6Address
+		}
+
+		localAddr := wireToAddrmgrNetAddress(na)
+		valid, reach := s.addrManager.ValidatePeerNa(localAddr, remoteAddr)
+		if !valid {
+			return true
+		}
+
+		id := na.IP.String()
+		if state.subCache.exists(id) {
+			// Increment the submission score if it already exists.
+			err := state.subCache.incrementScore(id)
+			if err != nil {
+				srvrLog.Errorf("unable to increment submission score: %v", err)
+				return true
+			}
+		} else {
+			// Create a cache entry for a new submission.
+			sub := &naSubmission{
+				na:      na,
+				netType: net,
+				reach:   reach,
+			}
+
+			err := state.subCache.add(sub)
+			if err != nil {
+				srvrLog.Errorf("unable to add submission: %v", err)
+				return true
+			}
+		}
+
+		// Pick the local address for the provided network based on
+		// submission scores.
+		state.ResolveLocalAddress(net, s.addrManager, s.services)
+	}
+
+	return true
+}
+
 // AddPeer adds a new peer that has already been connected to the server.
+//
+// This function is safe for concurrent access.
 func (s *server) AddPeer(sp *serverPeer) {
-	select {
-	case <-s.quit:
-	case s.newPeers <- sp:
+	s.handleAddPeer(sp)
+
+	// Signal the net sync manager this peer is a new sync candidate unless it
+	// was disconnected above.
+	if sp.Connected() {
+		s.syncManager.PeerConnected(sp.syncMgrPeer)
 	}
 }
 
@@ -3930,7 +3931,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		chainParams:          chainParams,
 		addrManager:          amgr,
 		peerState:            makePeerState(),
-		newPeers:             make(chan *serverPeer, cfg.MaxPeers),
 		donePeers:            make(chan *serverPeer, cfg.MaxPeers),
 		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
 		query:                make(chan interface{}),
