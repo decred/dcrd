@@ -2088,51 +2088,9 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-type disconnectNodeMsg struct {
-	cmp   func(*serverPeer) bool
-	reply chan error
-}
-
 // handleQuery is the central handler for all queries and commands from other
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
-	switch msg := querymsg.(type) {
-	case disconnectNodeMsg:
-		// Check inbound peers. We pass a nil callback since we don't
-		// require any additional actions on disconnect for inbound peers.
-		state.Lock()
-		found := disconnectPeer(state.inboundPeers, msg.cmp, nil)
-		if found {
-			state.Unlock()
-			msg.reply <- nil
-			return
-		}
-
-		// Check outbound peers.
-		found = disconnectPeer(state.outboundPeers, msg.cmp, func(sp *serverPeer) {
-			// Keep group counts ok since we remove from
-			// the list now.
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-			state.outboundGroups[remoteAddr.GroupKey()]--
-		})
-		if found {
-			// If there are multiple outbound connections to the same
-			// ip:port, continue disconnecting them all until no such
-			// peers are found.
-			for found {
-				found = disconnectPeer(state.outboundPeers, msg.cmp, func(sp *serverPeer) {
-					remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-					state.outboundGroups[remoteAddr.GroupKey()]--
-				})
-			}
-			state.Unlock()
-			msg.reply <- nil
-			return
-		}
-		state.Unlock()
-
-		msg.reply <- errors.New("peer not found")
-	}
 }
 
 // disconnectPeer attempts to drop the connection of a targeted peer in the

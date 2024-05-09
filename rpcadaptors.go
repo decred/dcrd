@@ -228,6 +228,46 @@ func (cm *rpcConnManager) RemoveByAddr(addr string) error {
 	return nil
 }
 
+// disconnectNode disconnects any peers that the provided compare function
+// returns true for.  It applies to both inbound and outbound peers.
+//
+// An error will be returned if no matching peers are found (aka the compare
+// function returns false for all peers).
+//
+// This function is safe for concurrent access.
+func (cm *rpcConnManager) disconnectNode(cmp func(sp *serverPeer) bool) error {
+	state := &cm.server.peerState
+	defer state.Unlock()
+	state.Lock()
+
+	// Check inbound peers.  No callback is passed since there are no additional
+	// actions on disconnect for inbound peers.
+	found := disconnectPeer(state.inboundPeers, cmp, nil)
+	if found {
+		return nil
+	}
+
+	// Check outbound peers in a loop to ensure all outbound connections to the
+	// same ip:port are disconnected when there are multiple.
+	var numFound uint32
+	for ; ; numFound++ {
+		found = disconnectPeer(state.outboundPeers, cmp, func(sp *serverPeer) {
+			// Update the group counts since the peer will be removed from the
+			// persistent peers just after this func returns.
+			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			state.outboundGroups[remoteAddr.GroupKey()]--
+		})
+		if !found {
+			break
+		}
+	}
+
+	if numFound == 0 {
+		return errors.New("peer not found")
+	}
+	return nil
+}
+
 // DisconnectByID disconnects the peer associated with the provided id.  This
 // applies to both inbound and outbound peers.  Attempting to remove an id that
 // does not exist will return an error.
@@ -235,12 +275,8 @@ func (cm *rpcConnManager) RemoveByAddr(addr string) error {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) DisconnectByID(id int32) error {
-	replyChan := make(chan error)
-	cm.server.query <- disconnectNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.ID() == id },
-		reply: replyChan,
-	}
-	return <-replyChan
+	cmp := func(sp *serverPeer) bool { return sp.ID() == id }
+	return cm.disconnectNode(cmp)
 }
 
 // DisconnectByAddr disconnects the peer associated with the provided address.
@@ -250,12 +286,8 @@ func (cm *rpcConnManager) DisconnectByID(id int32) error {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) DisconnectByAddr(addr string) error {
-	replyChan := make(chan error)
-	cm.server.query <- disconnectNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
-		reply: replyChan,
-	}
-	return <-replyChan
+	cmp := func(sp *serverPeer) bool { return sp.Addr() == addr }
+	return cm.disconnectNode(cmp)
 }
 
 // ConnectedCount returns the number of currently connected peers.
