@@ -226,15 +226,16 @@ func (cm *rpcConnManager) NetTotals() (uint64, uint64) {
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) ConnectedPeers() []rpcserver.Peer {
-	replyChan := make(chan []*serverPeer)
-	cm.server.query <- getPeersMsg{reply: replyChan}
-	serverPeers := <-replyChan
-
-	// Convert to RPC server peers.
-	peers := make([]rpcserver.Peer, 0, len(serverPeers))
-	for _, sp := range serverPeers {
+	state := &cm.server.peerState
+	state.Lock()
+	peers := make([]rpcserver.Peer, 0, state.count())
+	state.forAllPeers(func(sp *serverPeer) {
+		if !sp.Connected() {
+			return
+		}
 		peers = append(peers, (*rpcPeer)(sp))
-	}
+	})
+	state.Unlock()
 	return peers
 }
 

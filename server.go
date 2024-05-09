@@ -2088,14 +2088,6 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-type getConnCountMsg struct {
-	reply chan int32
-}
-
-type getPeersMsg struct {
-	reply chan []*serverPeer
-}
-
 type getOutboundGroup struct {
 	key   string
 	reply chan int
@@ -2130,27 +2122,6 @@ type cancelPendingMsg struct {
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
 	switch msg := querymsg.(type) {
-	case getConnCountMsg:
-		nconnected := int32(0)
-		state.ForAllPeers(func(sp *serverPeer) {
-			if sp.Connected() {
-				nconnected++
-			}
-		})
-		msg.reply <- nconnected
-
-	case getPeersMsg:
-		state.Lock()
-		peers := make([]*serverPeer, 0, state.count())
-		state.forAllPeers(func(sp *serverPeer) {
-			if !sp.Connected() {
-				return
-			}
-			peers = append(peers, sp)
-		})
-		state.Unlock()
-		msg.reply <- peers
-
 	case connectNodeMsg:
 		// XXX duplicate oneshots?
 		// Limit max number of total peers.
@@ -2731,13 +2702,13 @@ func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...*serverPeer) {
 
 // ConnectedCount returns the number of currently connected peers.
 func (s *server) ConnectedCount() int32 {
-	replyChan := make(chan int32)
-	select {
-	case <-s.quit:
-		return 0
-	case s.query <- getConnCountMsg{reply: replyChan}:
-		return <-replyChan
-	}
+	var numConnected int32
+	s.peerState.ForAllPeers(func(sp *serverPeer) {
+		if sp.Connected() {
+			numConnected++
+		}
+	})
+	return numConnected
 }
 
 // OutboundGroupCount returns the number of peers connected to the given
