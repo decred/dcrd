@@ -596,23 +596,34 @@ type server struct {
 type serverPeer struct {
 	*peer.Peer
 
-	connReq        *connmgr.ConnReq
-	server         *server
-	persistent     bool
-	continueHash   atomic.Pointer[chainhash.Hash]
-	disableRelayTx atomic.Bool
-	isWhitelisted  bool
-	knownAddresses *apbf.Filter
-	banScore       connmgr.DynamicBanScore
-	quit           chan struct{}
+	// These fields are set at creation time and never modified afterwards, so
+	// they do not need to be protected for concurrent access.
+	server        *server
+	persistent    bool
+	isWhitelisted bool
+	quit          chan struct{}
 
 	// syncMgrPeer houses the network sync manager peer instance that wraps the
 	// underlying peer similar to the way this server peer itself wraps it.
 	syncMgrPeer *netsync.Peer
 
-	// addrsSent, getMiningStateSent and initState all track whether or not
-	// the peer has already sent the respective request.  It is used to
-	// prevent more than one response per connection.
+	// All fields below this point are either not set at creation time or are
+	// otherwise modified during operation and thus need to consider whether or
+	// not they need to be protected for concurrent access.
+
+	connReq        atomic.Pointer[connmgr.ConnReq]
+	continueHash   atomic.Pointer[chainhash.Hash]
+	disableRelayTx atomic.Bool
+	knownAddresses *apbf.Filter
+	banScore       connmgr.DynamicBanScore
+
+	// addrsSent, getMiningStateSent and initState track whether or not the peer
+	// has already sent the respective request.  They are used to prevent more
+	// than one response of each respective request per connection.
+	//
+	// They are only accessed directly in callbacks which all run in the same
+	// peer input handler goroutine and thus do not need to be protected for
+	// concurrent access.
 	addrsSent          bool
 	getMiningStateSent bool
 	initStateSent      bool
@@ -628,6 +639,9 @@ type serverPeer struct {
 
 	// announcedBlock tracks the most recent block announced to this peer and is
 	// used to filter duplicates.
+	//
+	// It is only accessed in the goroutine that handles relaying inventory and
+	// thus does not need to be protected for concurrent access.
 	announcedBlock *chainhash.Hash
 
 	// The following fields are used to serve getdata requests asynchronously as
@@ -2150,16 +2164,20 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 			state.outboundGroups[remoteAddr.GroupKey()]--
 		}
-		if !sp.Inbound() && sp.connReq != nil {
-			s.connManager.Disconnect(sp.connReq.ID())
+		if !sp.Inbound() {
+			connReq := sp.connReq.Load()
+			if connReq != nil {
+				s.connManager.Disconnect(connReq.ID())
+			}
 		}
 		delete(list, sp.ID())
 		srvrLog.Debugf("Removed peer %s", sp)
 		return
 	}
 
-	if sp.connReq != nil {
-		s.connManager.Disconnect(sp.connReq.ID())
+	connReq := sp.connReq.Load()
+	if connReq != nil {
+		s.connManager.Disconnect(connReq.ID())
 	}
 
 	// Update the address manager with the last seen time when the peer has
@@ -2404,13 +2422,13 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 			state.outboundGroups[remoteAddr.GroupKey()]--
 
+			connReq := sp.connReq.Load()
 			peerLog.Debugf("Removing persistent peer %s (reqid %d)", remoteAddr,
-				sp.connReq.ID())
-			connReq := sp.connReq
+				connReq.ID())
 
 			// Mark the peer's connReq as nil to prevent it from scheduling a
 			// re-connect attempt.
-			sp.connReq = nil
+			sp.connReq.Store(nil)
 			s.connManager.Remove(connReq.ID())
 		})
 		state.Unlock()
@@ -2601,7 +2619,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	}
 	sp.Peer = p
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
-	sp.connReq = c
+	sp.connReq.Store(c)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
 	go sp.Run()
