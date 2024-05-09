@@ -553,7 +553,6 @@ type server struct {
 	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
 	peerState            peerState
-	donePeers            chan *serverPeer
 	banPeers             chan *serverPeer
 	query                chan interface{}
 	relayInv             chan relayMsg
@@ -1982,60 +1981,6 @@ func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
 	}
 }
 
-// handleDonePeerMsg deals with peers that have signalled they are done.  It is
-// invoked from the peerHandler goroutine.
-func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
-	defer state.Unlock()
-	state.Lock()
-
-	var list map[int32]*serverPeer
-	if sp.persistent {
-		list = state.persistentPeers
-	} else if sp.Inbound() {
-		list = state.inboundPeers
-	} else {
-		list = state.outboundPeers
-	}
-	if _, ok := list[sp.ID()]; ok {
-		if !sp.Inbound() && sp.VersionKnown() {
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-			state.outboundGroups[remoteAddr.GroupKey()]--
-		}
-		if !sp.Inbound() {
-			connReq := sp.connReq.Load()
-			if connReq != nil {
-				s.connManager.Disconnect(connReq.ID())
-			}
-		}
-		delete(list, sp.ID())
-		srvrLog.Debugf("Removed peer %s", sp)
-		return
-	}
-
-	connReq := sp.connReq.Load()
-	if connReq != nil {
-		s.connManager.Disconnect(connReq.ID())
-	}
-
-	// Update the address manager with the last seen time when the peer has
-	// acknowledged our version and has sent us its version as well.  This is
-	// skipped when running on the simulation and regression test networks since
-	// they are only intended to connect to specified peers and actively avoid
-	// advertising and connecting to discovered peers.
-	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() &&
-		sp.NA() != nil {
-
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
-		err := s.addrManager.Connected(remoteAddr)
-		if err != nil {
-			srvrLog.Errorf("Marking address as connected failed: %v", err)
-		}
-	}
-
-	// If we get here it means that either we didn't know about the peer
-	// or we purposefully deleted it.
-}
-
 // handleBanPeerMsg deals with banning peers.  It is invoked from the
 // peerHandler goroutine.
 func (s *server) handleBanPeerMsg(state *peerState, sp *serverPeer) {
@@ -2462,8 +2407,8 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	go sp.Run()
 }
 
-// peerHandler is used to handle peer operations such as removing peers from the
-// server, banning peers, and broadcasting messages to peers.
+// peerHandler is used to handle peer operations such as banning peers and
+// broadcasting messages to peers.
 //
 // It must be run in a goroutine.
 func (s *server) peerHandler(ctx context.Context) {
@@ -2478,10 +2423,6 @@ func (s *server) peerHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		// Disconnected peers.
-		case p := <-s.donePeers:
-			s.handleDonePeerMsg(&s.peerState, p)
-
 		// Peer to ban.
 		case p := <-s.banPeers:
 			s.handleBanPeerMsg(&s.peerState, p)
@@ -2686,11 +2627,57 @@ func (s *server) AddPeer(sp *serverPeer) {
 	}
 }
 
-// DonePeer removes a disconnected peer from the server.
+// DonePeer removes a disconnected peer from the server.  It includes logic such
+// as updating the peer tracking state and the last time the peer was seen.
+//
+// This function is safe for concurrent access.
 func (s *server) DonePeer(sp *serverPeer) {
-	select {
-	case <-s.quit:
-	case s.donePeers <- sp:
+	state := &s.peerState
+	defer state.Unlock()
+	state.Lock()
+
+	var list map[int32]*serverPeer
+	if sp.persistent {
+		list = state.persistentPeers
+	} else if sp.Inbound() {
+		list = state.inboundPeers
+	} else {
+		list = state.outboundPeers
+	}
+	if _, ok := list[sp.ID()]; ok {
+		if !sp.Inbound() && sp.VersionKnown() {
+			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			state.outboundGroups[remoteAddr.GroupKey()]--
+		}
+		if !sp.Inbound() {
+			connReq := sp.connReq.Load()
+			if connReq != nil {
+				s.connManager.Disconnect(connReq.ID())
+			}
+		}
+		delete(list, sp.ID())
+		srvrLog.Debugf("Removed peer %s", sp)
+		return
+	}
+
+	connReq := sp.connReq.Load()
+	if connReq != nil {
+		s.connManager.Disconnect(connReq.ID())
+	}
+
+	// Update the address manager with the last seen time when the peer has
+	// acknowledged our version and has sent us its version as well.  This is
+	// skipped when running on the simulation and regression test networks since
+	// they are only intended to connect to specified peers and actively avoid
+	// advertising and connecting to discovered peers.
+	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() &&
+		sp.NA() != nil {
+
+		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		err := s.addrManager.Connected(remoteAddr)
+		if err != nil {
+			srvrLog.Errorf("Marking address as connected failed: %v", err)
+		}
 	}
 }
 
@@ -3931,7 +3918,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		chainParams:          chainParams,
 		addrManager:          amgr,
 		peerState:            makePeerState(),
-		donePeers:            make(chan *serverPeer, cfg.MaxPeers),
 		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
 		query:                make(chan interface{}),
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
