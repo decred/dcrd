@@ -2088,11 +2088,6 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-type getOutboundGroup struct {
-	key   string
-	reply chan int
-}
-
 type getAddedNodesMsg struct {
 	reply chan []*serverPeer
 }
@@ -2199,16 +2194,6 @@ func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg int
 			return
 		}
 		msg.reply <- s.connManager.CancelPending(netAddr)
-
-	case getOutboundGroup:
-		state.Lock()
-		count, ok := state.outboundGroups[msg.key]
-		state.Unlock()
-		if ok {
-			msg.reply <- count
-		} else {
-			msg.reply <- 0
-		}
 
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.
@@ -2714,13 +2699,10 @@ func (s *server) ConnectedCount() int32 {
 // OutboundGroupCount returns the number of peers connected to the given
 // outbound group key.
 func (s *server) OutboundGroupCount(key string) int {
-	replyChan := make(chan int)
-	select {
-	case <-s.quit:
-		return 0
-	case s.query <- getOutboundGroup{key: key, reply: replyChan}:
-		return <-replyChan
-	}
+	s.peerState.Lock()
+	count := s.peerState.outboundGroups[key]
+	s.peerState.Unlock()
+	return count
 }
 
 // AddBytesSent adds the passed number of bytes to the total bytes sent counter
