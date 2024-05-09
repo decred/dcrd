@@ -2097,12 +2097,6 @@ type disconnectNodeMsg struct {
 	reply chan error
 }
 
-type connectNodeMsg struct {
-	addr      string
-	permanent bool
-	reply     chan error
-}
-
 type removeNodeMsg struct {
 	cmp   func(*serverPeer) bool
 	reply chan error
@@ -2117,51 +2111,6 @@ type cancelPendingMsg struct {
 // goroutines related to peer state.
 func (s *server) handleQuery(ctx context.Context, state *peerState, querymsg interface{}) {
 	switch msg := querymsg.(type) {
-	case connectNodeMsg:
-		// XXX duplicate oneshots?
-		// Limit max number of total peers.
-		state.Lock()
-		if state.count() >= cfg.MaxPeers {
-			state.Unlock()
-			msg.reply <- errors.New("max peers reached")
-			return
-		}
-		state.Unlock()
-		err := s.connManager.ForEachConnReq(func(c *connmgr.ConnReq) error {
-			if c.Addr != nil && c.Addr.String() == msg.addr {
-				if c.Permanent {
-					return errors.New("peer exists as a permanent peer")
-				}
-
-				switch c.State() {
-				case connmgr.ConnPending:
-					return errors.New("peer pending connection")
-				case connmgr.ConnEstablished:
-					return errors.New("peer already connected")
-
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			msg.reply <- err
-			return
-		}
-
-		netAddr, err := addrStringToNetAddr(msg.addr)
-		if err != nil {
-			msg.reply <- err
-			return
-		}
-
-		// TODO: if too many, nuke a non-perm peer.
-		go s.connManager.Connect(ctx,
-			&connmgr.ConnReq{
-				Addr:      netAddr,
-				Permanent: msg.permanent,
-			})
-		msg.reply <- nil
-
 	case removeNodeMsg:
 		state.Lock()
 		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {

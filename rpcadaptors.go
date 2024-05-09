@@ -13,6 +13,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mempool"
@@ -124,13 +125,46 @@ var _ rpcserver.ConnManager = (*rpcConnManager)(nil)
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
 func (cm *rpcConnManager) Connect(addr string, permanent bool) error {
-	replyChan := make(chan error)
-	cm.server.query <- connectNodeMsg{
-		addr:      addr,
-		permanent: permanent,
-		reply:     replyChan,
+	// Prevent duplicate connections to the same peer.
+	connManager := cm.server.connManager
+	err := connManager.ForEachConnReq(func(c *connmgr.ConnReq) error {
+		if c.Addr != nil && c.Addr.String() == addr {
+			if c.Permanent {
+				return errors.New("peer exists as a permanent peer")
+			}
+
+			switch c.State() {
+			case connmgr.ConnPending:
+				return errors.New("peer pending connection")
+			case connmgr.ConnEstablished:
+				return errors.New("peer already connected")
+
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	return <-replyChan
+
+	netAddr, err := addrStringToNetAddr(addr)
+	if err != nil {
+		return err
+	}
+
+	// Limit max number of total peers.
+	cm.server.peerState.Lock()
+	count := cm.server.peerState.count()
+	cm.server.peerState.Unlock()
+	if count >= cfg.MaxPeers {
+		return errors.New("max peers reached")
+	}
+
+	go connManager.Connect(context.Background(), &connmgr.ConnReq{
+		Addr:      netAddr,
+		Permanent: permanent,
+	})
+	return nil
 }
 
 // RemoveByID removes the peer associated with the provided id from the list of
