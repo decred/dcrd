@@ -77,7 +77,6 @@ func TestMessage(t *testing.T) {
 		[]byte("payload"))
 	msgCFHeaders := NewMsgCFHeaders()
 	msgCFTypes := NewMsgCFTypes([]FilterType{GCSFilterExtended})
-	msgReject := NewMsgReject("block", RejectDuplicate, "duplicate block")
 	msgGetInitState := NewMsgGetInitState()
 	msgInitState := NewMsgInitState()
 	msgMixPR, err := NewMsgMixPairReq([33]byte{}, 1, 1, "", 1, 1, 1, 1, []MixPairReqUTXO{}, NewTxOut(0, []byte{}), 1, 1)
@@ -114,7 +113,6 @@ func TestMessage(t *testing.T) {
 		{msgGetHeaders, msgGetHeaders, pver, MainNet, 61},
 		{msgHeaders, msgHeaders, pver, MainNet, 25},
 		{msgMemPool, msgMemPool, pver, MainNet, 24},
-		{msgReject, msgReject, RemoveRejectVersion - 1, MainNet, 79},
 		{msgGetCFilter, msgGetCFilter, pver, MainNet, 57},
 		{msgGetCFHeaders, msgGetCFHeaders, pver, MainNet, 58},
 		{msgGetCFTypes, msgGetCFTypes, pver, MainNet, 24},
