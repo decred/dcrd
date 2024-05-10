@@ -581,6 +581,67 @@ func TestPeerListeners(t *testing.T) {
 	outPeer.Disconnect()
 }
 
+// TestOldProtocolVersion ensures that peers with protocol versions older than
+// the minimum required version are disconnected.
+func TestOldProtocolVersion(t *testing.T) {
+	version := make(chan wire.Message, 1)
+	verack := make(chan struct{}, 1)
+	peerCfg := &Config{
+		ProtocolVersion: wire.RemoveRejectVersion - 1,
+		Listeners: MessageListeners{
+			OnVersion: func(p *Peer, msg *wire.MsgVersion) {
+				version <- msg
+			},
+			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
+				verack <- struct{}{}
+			},
+		},
+		UserAgentName:    "peer",
+		UserAgentVersion: "1.0",
+		Net:              wire.MainNet,
+		Services:         wire.SFNodeNetwork,
+	}
+	inConn, outConn := pipe(
+		&conn{raddr: "10.0.0.1:8333"},
+		&conn{raddr: "10.0.0.2:8333"},
+	)
+	inPeer := NewInboundPeer(peerCfg)
+	inPeer.AssociateConnection(inConn)
+	defer inPeer.Disconnect()
+
+	peerCfg.Listeners = MessageListeners{}
+	outPeer, err := NewOutboundPeer(peerCfg, "10.0.0.2:8333")
+	if err != nil {
+		t.Errorf("NewOutboundPeer: unexpected err %v", err)
+		return
+	}
+	outPeer.AssociateConnection(outConn)
+	defer outPeer.Disconnect()
+
+	select {
+	case <-version:
+	case <-time.After(time.Second * 1):
+		t.Fatal("version timeout")
+	}
+
+	// Ensure the inbound peer is disconnected and does not receive a verack
+	// from the outbound side.
+	select {
+	case <-inPeer.quit:
+	case <-verack:
+		t.Fatal("unexpected verack from outbound peer")
+	case <-time.After(time.Second * 1):
+		t.Fatal("inbound peer disconnect timeout")
+	}
+
+	// Ensure the outbound peer is disconnected.
+	select {
+	case <-outPeer.quit:
+	case <-time.After(time.Second * 1):
+		t.Fatal("outbound peer disconnect timeout")
+	}
+}
+
 // TestOutboundPeer tests that the outbound peer works as expected.
 func TestOutboundPeer(t *testing.T) {
 	peerCfg := &Config{

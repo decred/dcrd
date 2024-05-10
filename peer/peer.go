@@ -1842,9 +1842,10 @@ func (p *Peer) readRemoteVersionMsg() error {
 	}
 
 	// Disconnect clients that have a protocol version that is too old.
-	if msg.ProtocolVersion < int32(wire.InitialProcotolVersion) {
+	const reqProtocolVersion = int32(wire.RemoveRejectVersion)
+	if msg.ProtocolVersion < reqProtocolVersion {
 		return fmt.Errorf("protocol version must be %d or greater",
-			wire.InitialProcotolVersion)
+			reqProtocolVersion)
 	}
 
 	return nil
