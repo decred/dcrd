@@ -87,6 +87,7 @@ func TestMessage(t *testing.T) {
 	msgMixKE := NewMsgMixKeyExchange([33]byte{}, [32]byte{}, 1, 1, [33]byte{}, [1218]byte{}, [32]byte{}, []chainhash.Hash{})
 	msgMixCT := NewMsgMixCiphertexts([33]byte{}, [32]byte{}, 1, [][1047]byte{}, []chainhash.Hash{})
 	msgMixSR := NewMsgMixSlotReserve([33]byte{}, [32]byte{}, 1, [][][]byte{{{}}}, []chainhash.Hash{})
+	msgMixFP := NewMsgMixFactoredPoly([33]byte{}, [32]byte{}, 1, [][]byte{}, []chainhash.Hash{})
 	msgMixDC := NewMsgMixDCNet([33]byte{}, [32]byte{}, 1, []MixVect{make(MixVect, 1)}, []chainhash.Hash{})
 	msgMixCM := NewMsgMixConfirm([33]byte{}, [32]byte{}, 1, NewMsgTx(), []chainhash.Hash{})
 	msgMixRS := NewMsgMixSecrets([33]byte{}, [32]byte{}, 1, [32]byte{}, [][]byte{}, MixVect{})
@@ -126,6 +127,7 @@ func TestMessage(t *testing.T) {
 		{msgMixKE, msgMixKE, pver, MainNet, 1449},
 		{msgMixCT, msgMixCT, pver, MainNet, 158},
 		{msgMixSR, msgMixSR, pver, MainNet, 161},
+		{msgMixFP, msgMixFP, pver, MainNet, 159},
 		{msgMixDC, msgMixDC, pver, MainNet, 181},
 		{msgMixCM, msgMixCM, pver, MainNet, 173},
 		{msgMixRS, msgMixRS, pver, MainNet, 192},

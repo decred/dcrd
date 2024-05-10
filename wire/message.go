@@ -28,37 +28,38 @@ const MaxMessagePayload = (1024 * 1024 * 32) // 32MB
 
 // Commands used in message headers which describe the type of message.
 const (
-	CmdVersion        = "version"
-	CmdVerAck         = "verack"
-	CmdGetAddr        = "getaddr"
-	CmdAddr           = "addr"
-	CmdGetBlocks      = "getblocks"
-	CmdInv            = "inv"
-	CmdGetData        = "getdata"
-	CmdNotFound       = "notfound"
-	CmdBlock          = "block"
-	CmdTx             = "tx"
-	CmdGetHeaders     = "getheaders"
-	CmdHeaders        = "headers"
-	CmdPing           = "ping"
-	CmdPong           = "pong"
-	CmdMemPool        = "mempool"
-	CmdMiningState    = "miningstate"
-	CmdGetMiningState = "getminings"
-	CmdReject         = "reject"
-	CmdSendHeaders    = "sendheaders"
-	CmdFeeFilter      = "feefilter"
-	CmdGetCFilterV2   = "getcfilterv2"
-	CmdCFilterV2      = "cfilterv2"
-	CmdGetInitState   = "getinitstate"
-	CmdInitState      = "initstate"
-	CmdMixPairReq     = "mixpairreq"
-	CmdMixKeyExchange = "mixkeyxchg"
-	CmdMixCiphertexts = "mixcphrtxt"
-	CmdMixSlotReserve = "mixslotres"
-	CmdMixDCNet       = "mixdcnet"
-	CmdMixConfirm     = "mixconfirm"
-	CmdMixSecrets     = "mixsecrets"
+	CmdVersion         = "version"
+	CmdVerAck          = "verack"
+	CmdGetAddr         = "getaddr"
+	CmdAddr            = "addr"
+	CmdGetBlocks       = "getblocks"
+	CmdInv             = "inv"
+	CmdGetData         = "getdata"
+	CmdNotFound        = "notfound"
+	CmdBlock           = "block"
+	CmdTx              = "tx"
+	CmdGetHeaders      = "getheaders"
+	CmdHeaders         = "headers"
+	CmdPing            = "ping"
+	CmdPong            = "pong"
+	CmdMemPool         = "mempool"
+	CmdMiningState     = "miningstate"
+	CmdGetMiningState  = "getminings"
+	CmdReject          = "reject"
+	CmdSendHeaders     = "sendheaders"
+	CmdFeeFilter       = "feefilter"
+	CmdGetCFilterV2    = "getcfilterv2"
+	CmdCFilterV2       = "cfilterv2"
+	CmdGetInitState    = "getinitstate"
+	CmdInitState       = "initstate"
+	CmdMixPairReq      = "mixpairreq"
+	CmdMixKeyExchange  = "mixkeyxchg"
+	CmdMixCiphertexts  = "mixcphrtxt"
+	CmdMixSlotReserve  = "mixslotres"
+	CmdMixFactoredPoly = "mixfactpoly"
+	CmdMixDCNet        = "mixdcnet"
+	CmdMixConfirm      = "mixconfirm"
+	CmdMixSecrets      = "mixsecrets"
 )
 
 const (
@@ -206,6 +207,9 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdMixSlotReserve:
 		msg = &MsgMixSlotReserve{}
+
+	case CmdMixFactoredPoly:
+		msg = &MsgMixFactoredPoly{}
 
 	case CmdMixDCNet:
 		msg = &MsgMixDCNet{}
