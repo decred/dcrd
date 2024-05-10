@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -392,9 +392,6 @@ func TestPeerListeners(t *testing.T) {
 			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 				verack <- struct{}{}
 			},
-			OnReject: func(p *Peer, msg *wire.MsgReject) {
-				ok <- msg
-			},
 			OnSendHeaders: func(p *Peer, msg *wire.MsgSendHeaders) {
 				ok <- msg
 			},
@@ -578,78 +575,6 @@ func TestPeerListeners(t *testing.T) {
 	}
 	inPeer.Disconnect()
 	outPeer.Disconnect()
-}
-
-// TestDeprecatedRejectListener ensures that the deprecated on reject listener
-// is called as expected on older protocol versions.
-func TestDeprecatedRejectListener(t *testing.T) {
-	version := make(chan wire.Message, 1)
-	verack := make(chan struct{}, 1)
-	reject := make(chan wire.Message, 20)
-	peerCfg := &Config{
-		ProtocolVersion: wire.RemoveRejectVersion - 1,
-		Listeners: MessageListeners{
-			OnVersion: func(p *Peer, msg *wire.MsgVersion) {
-				version <- msg
-			},
-			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
-				verack <- struct{}{}
-			},
-			OnReject: func(p *Peer, msg *wire.MsgReject) {
-				reject <- msg
-			},
-		},
-		UserAgentName:    "peer",
-		UserAgentVersion: "1.0",
-		Net:              wire.MainNet,
-		Services:         wire.SFNodeNetwork,
-	}
-	inConn, outConn := pipe(
-		&conn{raddr: "10.0.0.1:8333"},
-		&conn{raddr: "10.0.0.2:8333"},
-	)
-	inPeer := NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
-	defer inPeer.Disconnect()
-
-	peerCfg.Listeners = MessageListeners{
-		OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
-			verack <- struct{}{}
-		},
-	}
-	outPeer, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
-	if err != nil {
-		t.Errorf("NewOutboundPeer: unexpected err %v\n", err)
-		return
-	}
-	outPeer.AssociateConnection(outConn)
-	defer outPeer.Disconnect()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-verack:
-		case <-time.After(time.Second * 1):
-			t.Error("TestPeerListeners: verack timeout\n")
-			return
-		}
-	}
-
-	select {
-	case <-version:
-	case <-time.After(time.Second * 1):
-		t.Error("TestPeerListeners: version timeout")
-		return
-	}
-
-	// Queue the reject message.
-	msg := wire.NewMsgReject("block", wire.RejectDuplicate, "dupe block")
-	outPeer.QueueMessage(msg, nil)
-	select {
-	case <-reject:
-	case <-time.After(time.Second * 1):
-		t.Error("TestPeerListeners: OnReject timeout")
-		return
-	}
 }
 
 // TestOutboundPeer tests that the outbound peer works as expected.

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2021 The Decred developers
+// Copyright (c) 2016-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -182,8 +182,9 @@ type MessageListeners struct {
 
 	// OnReject is invoked when a peer receives a reject wire message.
 	//
-	// Deprecated: This will be removed in a future release.  Callers should
-	// avoid using it.
+	// Deprecated: This will be removed in a future release.  The underlying
+	// message is no longer valid and thus this will no longer ever be invoked.
+	// Callers should avoid using it.
 	OnReject func(p *Peer, msg *wire.MsgReject)
 
 	// OnSendHeaders is invoked when a peer receives a sendheaders wire
@@ -1401,11 +1402,6 @@ out:
 		case *wire.MsgFeeFilter:
 			if p.cfg.Listeners.OnFeeFilter != nil {
 				p.cfg.Listeners.OnFeeFilter(p, msg)
-			}
-
-		case *wire.MsgReject:
-			if p.cfg.Listeners.OnReject != nil {
-				p.cfg.Listeners.OnReject(p, msg)
 			}
 
 		case *wire.MsgSendHeaders:
