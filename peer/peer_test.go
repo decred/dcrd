@@ -24,9 +24,8 @@ import (
 // is used to test peer connection without actually opening a network
 // connection.
 type conn struct {
-	io.Reader
-	io.Writer
-	io.Closer
+	io.ReadCloser
+	io.WriteCloser
 
 	// local network, address for the connection.
 	lnet, laddr string
@@ -59,7 +58,12 @@ func (c conn) RemoteAddr() net.Addr {
 
 // Close handles closing the connection.
 func (c conn) Close() error {
-	return nil
+	readCloseErr := c.ReadCloser.Close()
+	writeCloseErr := c.WriteCloser.Close()
+	if readCloseErr != nil {
+		return readCloseErr
+	}
+	return writeCloseErr
 }
 
 func (c conn) SetDeadline(t time.Time) error      { return nil }
@@ -80,10 +84,10 @@ func pipe(c1, c2 *conn) (*conn, *conn) {
 	r1, w1 := io.Pipe()
 	r2, w2 := io.Pipe()
 
-	c1.Writer = w1
-	c2.Reader = r1
-	c1.Reader = r2
-	c2.Writer = w2
+	c1.WriteCloser = w1
+	c2.ReadCloser = r1
+	c1.ReadCloser = r2
+	c2.WriteCloser = w2
 
 	return c1, c2
 }
@@ -590,7 +594,7 @@ func TestOutboundPeer(t *testing.T) {
 	}
 
 	r, w := io.Pipe()
-	c := &conn{raddr: "10.0.0.1:8333", Writer: w, Reader: r}
+	c := &conn{raddr: "10.0.0.1:8333", WriteCloser: w, ReadCloser: r}
 
 	p, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
@@ -647,7 +651,7 @@ func TestOutboundPeer(t *testing.T) {
 
 	peerCfg.NewestBlock = newestBlock
 	r1, w1 := io.Pipe()
-	c1 := &conn{raddr: "10.0.0.1:8333", Writer: w1, Reader: r1}
+	c1 := &conn{raddr: "10.0.0.1:8333", WriteCloser: w1, ReadCloser: r1}
 	p1, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
@@ -663,7 +667,7 @@ func TestOutboundPeer(t *testing.T) {
 	peerCfg.Net = wire.TestNet3
 	peerCfg.Services = wire.SFNodeBloom
 	r2, w2 := io.Pipe()
-	c2 := &conn{raddr: "10.0.0.1:8333", Writer: w2, Reader: r2}
+	c2 := &conn{raddr: "10.0.0.1:8333", WriteCloser: w2, ReadCloser: r2}
 	p2, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
