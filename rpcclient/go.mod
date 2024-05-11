@@ -12,7 +12,7 @@ require (
 	github.com/decred/dcrd/wire v1.6.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
-	github.com/gorilla/websocket v1.4.2
+	github.com/gorilla/websocket v1.5.0
 )
 
 require (
