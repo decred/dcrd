@@ -23,6 +23,7 @@ func newTestMixKeyExchange() *MsgMixKeyExchange {
 
 	const epoch = uint64(0x8383838383838383)
 	const run = uint32(0x84848484)
+	const pos = uint32(0x8C8C8C8C)
 
 	ecdh := *(*[33]byte)(repeat(0x85, 33))
 	pqpk := *(*[1218]byte)(repeat(0x86, 1218))
@@ -33,7 +34,7 @@ func newTestMixKeyExchange() *MsgMixKeyExchange {
 		copy(seenPRs[b-0x88][:], repeat(b, 32))
 	}
 
-	ke := NewMsgMixKeyExchange(id, sid, epoch, run, ecdh, pqpk, commitment, seenPRs)
+	ke := NewMsgMixKeyExchange(id, sid, epoch, run, pos, ecdh, pqpk, commitment, seenPRs)
 	ke.Signature = sig
 
 	return ke
@@ -56,6 +57,7 @@ func TestMsgMixKeyExchangeWire(t *testing.T) {
 	expected = append(expected, repeat(0x82, 32)...)   // Session ID
 	expected = append(expected, repeat(0x83, 8)...)    // Epoch
 	expected = append(expected, repeat(0x84, 4)...)    // Run
+	expected = append(expected, repeat(0x8c, 4)...)    // Unmixed position in session
 	expected = append(expected, repeat(0x85, 33)...)   // ECDH public key
 	expected = append(expected, repeat(0x86, 1218)...) // PQ public key
 	expected = append(expected, repeat(0x87, 32)...)   // Secrets commitment
@@ -159,6 +161,7 @@ func TestMsgMixKeyExchangeMaxPayloadLength(t *testing.T) {
 		32 + // Session ID
 		8 + // Epoch
 		4 + // Run
+		4 + // Unmixed position
 		33 + // ECDH public key
 		1218 + // sntrup4591761 public key
 		32 + // Secrets commitment
