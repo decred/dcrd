@@ -141,9 +141,9 @@ func MainNetParams() *Params {
 		// chain at a given point in time.  This is intended to be updated
 		// periodically with new releases.
 		//
-		// Block 0000000000000000149b797ca19e1b4a061ab0e28c73e9c02687c72c8a18bd22
-		// Height: 770630
-		MinKnownChainWork: hexToBigInt("00000000000000000000000000000000000000000023e312aba3df81d0c21ef0"),
+		// Block bf7f2d914bea1b97f5db0cd914f0ff6ca7f8675e1c4d0984776a74de48948568
+		// Height: 869216
+		MinKnownChainWork: hexToBigInt("000000000000000000000000000000000000000000243845fb2fb3d8f20ddfeb"),
 
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
