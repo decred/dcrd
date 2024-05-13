@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The decred developers
+// Copyright (c) 2020-2024 The decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 

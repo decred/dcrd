@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
-	lukechampine.com/blake3 v1.2.1
+	lukechampine.com/blake3 v1.3.0
 )
 
 require (

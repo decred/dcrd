@@ -40,7 +40,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/sys v0.8.0
 	golang.org/x/term v0.5.0
-	lukechampine.com/blake3 v1.2.1
+	lukechampine.com/blake3 v1.3.0
 )
 
 require (
