@@ -133,9 +133,9 @@ func MainNetParams() *Params {
 		// forks rejection checkpoint.  This is intended to be updated
 		// periodically with new releases.
 		//
-		// Block 00000000000000008e50a3c18725d7272ec0057999a64aa62c15f398ffb7a0d7
-		// Height: 766600
-		AssumeValid: *newHashFromStr("00000000000000008e50a3c18725d7272ec0057999a64aa62c15f398ffb7a0d7"),
+		// Block f04628f2fe7fd0d33055dc326936a6af3772ec5226525bc8fca50631f3081faa
+		// Height: 865184
+		AssumeValid: *newHashFromStr("f04628f2fe7fd0d33055dc326936a6af3772ec5226525bc8fca50631f3081faa"),
 
 		// MinKnownChainWork is the minimum amount of known total work for the
 		// chain at a given point in time.  This is intended to be updated

@@ -131,9 +131,9 @@ func TestNet3Params() *Params {
 		// forks rejection checkpoint.  This is intended to be updated
 		// periodically with new releases.
 		//
-		// Block 00000000787986d95cef3b42beee6cc3c8065f6e5338e17854b1ff4d16b6a396
-		// Height: 1138320
-		AssumeValid: *newHashFromStr("00000000787986d95cef3b42beee6cc3c8065f6e5338e17854b1ff4d16b6a396"),
+		// Block 88d61d7609c06c8e171f050789f6649d21525a144b820026f7b396476a05a44b
+		// Height: 1377455
+		AssumeValid: *newHashFromStr("88d61d7609c06c8e171f050789f6649d21525a144b820026f7b396476a05a44b"),
 
 		// MinKnownChainWork is the minimum amount of known total work for the
 		// chain at a given point in time.  This is intended to be updated
