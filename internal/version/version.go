@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,7 +56,7 @@ var (
 	// the package will panic at runtime.  Of particular note is the pre-release
 	// and build metadata portions MUST only contain characters from
 	// semanticAlphabet.
-	Version = "1.9.0-pre"
+	Version = "2.0.0-pre"
 
 	// NOTE: The following values are set via init by parsing the above Version
 	// string.
