@@ -535,7 +535,7 @@ type server struct {
 
 	// These following fields are used to filter duplicate block lottery data
 	// anouncements.
-	lotteryDataBroadcastMtx sync.RWMutex
+	lotteryDataBroadcastMtx sync.Mutex
 	lotteryDataBroadcast    map[chainhash.Hash]struct{}
 
 	// recentlyConfirmedTxns tracks transactions that have been confirmed in the
