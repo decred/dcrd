@@ -36,5 +36,5 @@ go work use . ./addrmgr ./bech32 ./blockchain ./blockchain/stake
 go work use ./blockchain/standalone ./certgen ./chaincfg ./chaincfg/chainhash
 go work use ./connmgr ./container/apbf ./crypto/blake256 ./crypto/ripemd160
 go work use ./database ./dcrec ./dcrec/edwards ./dcrec/secp256k1 ./dcrjson
-go work use ./dcrutil ./gcs ./hdkeychain ./lru ./math/uint256 ./peer
+go work use ./dcrutil ./gcs ./hdkeychain ./lru ./math/uint256 ./mixing ./peer
 go work use ./rpc/jsonrpc/types ./rpcclient ./txscript ./wire
