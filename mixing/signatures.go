@@ -96,6 +96,9 @@ func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
 }
 
 func verify(h hash.Hash, pk []byte, sig []byte, sigHash []byte, command string, sid []byte, run uint32) bool {
+	if len(pk) != secp256k1.PubKeyBytesLenCompressed {
+		return false
+	}
 	pkParsed, err := secp256k1.ParsePubKey(pk)
 	if err != nil {
 		return false
