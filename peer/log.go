@@ -162,7 +162,8 @@ func messageSummary(msg wire.Message) string {
 
 	case *wire.MsgInitState:
 		return fmt.Sprintf("blocks %d, votes %d, treasury spends %d",
-			len(msg.BlockHashes), len(msg.VoteHashes), len(msg.TSpendHashes))
+			len(msg.BlockHashes), len(msg.VoteHashes),
+			len(msg.TSpendHashes))
 	}
 
 	// No summary for other messages.

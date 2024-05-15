@@ -1084,6 +1084,22 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*bloc
 	return utxoView, nil
 }
 
+// IsSpent returns whether the outpoint is spent by any transient or staged
+// transaction in the tx pool.  Outpoints that are not spent by transactions
+// in the pool may not exist or may be spent in blocks.
+func (mp *TxPool) IsSpent(outpoint wire.OutPoint) bool {
+	mp.mtx.RLock()
+	defer mp.mtx.RUnlock()
+
+	_, exists := mp.outpoints[outpoint]
+	if exists {
+		return true
+	}
+
+	_, exists = mp.stagedOutpoints[outpoint]
+	return exists
+}
+
 // FetchTransaction returns the requested transaction from the transaction pool.
 // This only fetches from the main and stage transaction pools and does not
 // include orphans.

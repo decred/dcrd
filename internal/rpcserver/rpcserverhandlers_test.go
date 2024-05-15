@@ -41,6 +41,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/math/uint256"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
@@ -531,6 +532,7 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 type testSyncManager struct {
 	isCurrent             bool
 	submitBlockErr        error
+	submitMixErr          error
 	syncPeerID            int32
 	syncHeight            int64
 	processTransaction    []*dcrutil.Tx
@@ -548,6 +550,10 @@ func (s *testSyncManager) IsCurrent() bool {
 // to the network after processing it locally.
 func (s *testSyncManager) SubmitBlock(block *dcrutil.Block) error {
 	return s.submitBlockErr
+}
+
+func (s *testSyncManager) SubmitMixMessage(msg mixing.Message) error {
+	return s.submitMixErr
 }
 
 // SyncPeer returns a mocked id of the current peer being synced with.
@@ -869,6 +875,10 @@ func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interfa
 // inventory vectors for all of the passed transactions to all connected peers.
 func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {}
 
+// RelayMixMessages generates and relays inventory vectors for all of
+// the passed mixing messages to all connected peers.
+func (c *testConnManager) RelayMixMessages(msgs []mixing.Message) {}
+
 // Lookup defines a mocked DNS lookup function to be used.
 func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
 	return c.lookup(host)
@@ -1161,6 +1171,10 @@ func (mgr *testNtfnManager) NotifyNewTickets(tnd *blockchain.TicketNotifications
 // manager for processing.
 func (mgr *testNtfnManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {}
 
+// NotifyMixMessage passes a mixing message accepted by the mixpool to the
+// notification manager for message broadcasting.
+func (mgr *testNtfnManager) NotifyMixMessage(msg mixing.Message) {}
+
 // NumClients returns the number of clients actively being served.
 func (mgr *testNtfnManager) NumClients() int {
 	return mgr.clients
@@ -1221,6 +1235,14 @@ func (mgr *testNtfnManager) RegisterNewMempoolTxsUpdates(wsc *wsClient) {}
 // UnregisterNewMempoolTxsUpdates removes notifications to the passed websocket
 // client when new transaction are added to the memory pool.
 func (mgr *testNtfnManager) UnregisterNewMempoolTxsUpdates(wsc *wsClient) {}
+
+// RegisterMixMessages requests notifications to the passed websocket
+// client when new mixing messages are accepted by the mixpool.
+func (mgr *testNtfnManager) RegisterMixMessages(wsc *wsClient) {}
+
+// UnregisterMixMessages stops notifications to the websocket client
+// of any newly-accepted mixing messages.
+func (mgr *testNtfnManager) UnregisterMixMessages(wsc *wsClient) {}
 
 // AddClient adds the passed websocket client to the notification manager.
 func (mgr *testNtfnManager) AddClient(wsc *wsClient) {}

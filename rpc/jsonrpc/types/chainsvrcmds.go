@@ -552,6 +552,15 @@ func NewGetMiningInfoCmd() *GetMiningInfoCmd {
 	return &GetMiningInfoCmd{}
 }
 
+// GetMixPairRequestsCmd defines the getmixpairrequests JSON-RPC command.
+type GetMixPairRequestsCmd struct{}
+
+// NewGetMixPairRequestsCmd returns a new instance which can be used to issue a
+// getmixpairrequests JSON-RPC command.
+func NewGetMixPairRequestsCmd() *GetMixPairRequestsCmd {
+	return &GetMixPairRequestsCmd{}
+}
+
 // GetNetworkInfoCmd defines the getnetworkinfo JSON-RPC command.
 type GetNetworkInfoCmd struct{}
 
@@ -898,6 +907,21 @@ func NewReconsiderBlockCmd(hash string) *ReconsiderBlockCmd {
 	}
 }
 
+// SendRawMixMessage defines the sendrawmixmessage JSON-RPC command.
+type SendRawMixMessageCmd struct {
+	Command string
+	Message string
+}
+
+// NewSendRawMixMessageCmd returns a new instance which can be used to issue a
+// sendrawmixmessage JSON-RPC command.
+func NewSendRawMixMessageCmd(command, message string) *SendRawMixMessageCmd {
+	return &SendRawMixMessageCmd{
+		Command: command,
+		Message: message,
+	}
+}
+
 // SendRawTransactionCmd defines the sendrawtransaction JSON-RPC command.
 type SendRawTransactionCmd struct {
 	HexTx         string
@@ -1122,6 +1146,7 @@ func init() {
 	dcrjson.MustRegister(Method("getinfo"), (*GetInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmempoolinfo"), (*GetMempoolInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmininginfo"), (*GetMiningInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getmixpairrequests"), (*GetMixPairRequestsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnetworkinfo"), (*GetNetworkInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnettotals"), (*GetNetTotalsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnetworkhashps"), (*GetNetworkHashPSCmd)(nil), flags)
@@ -1145,6 +1170,7 @@ func init() {
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
 	dcrjson.MustRegister(Method("reconsiderblock"), (*ReconsiderBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("regentemplate"), (*RegenTemplateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("sendrawmixmessage"), (*SendRawMixMessageCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("setgenerate"), (*SetGenerateCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stop"), (*StopCmd)(nil), flags)

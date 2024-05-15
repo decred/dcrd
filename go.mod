@@ -25,6 +25,7 @@ require (
 	github.com/decred/dcrd/gcs/v4 v4.0.0
 	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.1
+	github.com/decred/dcrd/mixing v0.0.1
 	github.com/decred/dcrd/peer/v3 v3.0.2
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
 	github.com/decred/dcrd/rpcclient/v8 v8.0.0
@@ -38,18 +39,20 @@ require (
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	golang.org/x/sys v0.8.0
-	golang.org/x/term v0.5.0
+	golang.org/x/sys v0.20.0
+	golang.org/x/term v0.20.0
 	lukechampine.com/blake3 v1.3.0
 )
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
+	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.1 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
 )
 
 replace (
@@ -75,6 +78,7 @@ replace (
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/math/uint256 => ./math/uint256
+	github.com/decred/dcrd/mixing => ./mixing
 	github.com/decred/dcrd/peer/v3 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v8 => ./rpcclient

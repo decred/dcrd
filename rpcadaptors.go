@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -282,6 +283,15 @@ func (cm *rpcConnManager) RelayTransactions(txns []*dcrutil.Tx) {
 	cm.server.relayTransactions(txns)
 }
 
+// RelayMixMessages generates and relays inventory vectors for all of the
+// passed mixing messages to all connected peers.
+//
+// This function is safe for concurrent access and is part of the
+// rpcserver.ConnManager interface implementation.
+func (cm *rpcConnManager) RelayMixMessages(msgs []mixing.Message) {
+	cm.server.relayMixMessages(msgs)
+}
+
 // Lookup defines the DNS lookup function to be used.
 //
 // This function is safe for concurrent access and is part of the
@@ -346,6 +356,12 @@ func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 // This method may report a false positive, but never a false negative.
 func (b *rpcSyncMgr) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
 	return b.server.recentlyConfirmedTxns.Contains(hash[:])
+}
+
+// SubmitMixMessage locally processes the mixing message.
+func (b *rpcSyncMgr) SubmitMixMessage(msg mixing.Message) error {
+	_, err := b.server.mixMsgPool.AcceptMessage(msg)
+	return err
 }
 
 // rpcUtxoEntry represents a utxo entry for use with the RPC server and

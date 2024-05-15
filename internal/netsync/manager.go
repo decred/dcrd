@@ -23,6 +23,8 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/math/uint256"
+	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -64,6 +66,14 @@ const (
 	maxRejectedTxns    = 62500
 	rejectedTxnsFPRate = 0.0000001
 
+	// maxRejectedMixMsgs specifies the maximum number of recently
+	// rejected mixing messages to track, and rejectedMixMsgsFPRate is the
+	// false positive rate for the APBF.  These values have not been tuned
+	// specifically for the mixing messages, and the equivalent constants
+	// for handling rejected transactions are used.
+	maxRejectedMixMsgs    = maxRejectedTxns
+	rejectedMixMsgsFPRate = rejectedTxnsFPRate
+
 	// maxRequestedBlocks is the maximum number of requested block
 	// hashes to store in memory.
 	maxRequestedBlocks = wire.MaxInvPerMsg
@@ -71,6 +81,10 @@ const (
 	// maxRequestedTxns is the maximum number of requested transactions
 	// hashes to store in memory.
 	maxRequestedTxns = wire.MaxInvPerMsg
+
+	// maxRequestedMixMsgs is the maximum number of hashes of in-flight
+	// mixing messages.
+	maxRequestedMixMsgs = wire.MaxInvPerMsg
 
 	// maxExpectedHeaderAnnouncementsPerMsg is the maximum number of headers in
 	// a single message that is expected when determining when the message
@@ -153,6 +167,7 @@ type requestFromPeerMsg struct {
 	blocks       []chainhash.Hash
 	voteHashes   []chainhash.Hash
 	tSpendHashes []chainhash.Hash
+	mixHashes    []chainhash.Hash
 	reply        chan requestFromPeerResponse
 }
 
@@ -179,15 +194,24 @@ type processBlockMsg struct {
 	reply chan processBlockResponse
 }
 
+// mixMsg is a message type to be sent across the message channel for requesting
+// a message's acceptance to the mixing pool.
+type mixMsg struct {
+	msg   mixing.Message
+	peer  *Peer
+	reply chan error
+}
+
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
 type Peer struct {
 	*peerpkg.Peer
 
-	syncCandidate   bool
-	requestedTxns   map[chainhash.Hash]struct{}
-	requestedBlocks map[chainhash.Hash]struct{}
+	syncCandidate    bool
+	requestedTxns    map[chainhash.Hash]struct{}
+	requestedBlocks  map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]struct{}
 
 	// initialStateRequested tracks whether or not the initial state data has
 	// been requested from the peer.
@@ -207,10 +231,11 @@ type Peer struct {
 func NewPeer(peer *peerpkg.Peer) *Peer {
 	isSyncCandidate := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
-		Peer:            peer,
-		syncCandidate:   isSyncCandidate,
-		requestedTxns:   make(map[chainhash.Hash]struct{}),
-		requestedBlocks: make(map[chainhash.Hash]struct{}),
+		Peer:             peer,
+		syncCandidate:    isSyncCandidate,
+		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
 	}
 }
 
@@ -291,13 +316,15 @@ type SyncManager struct {
 	// time.
 	minKnownWork *uint256.Uint256
 
-	rejectedTxns    *apbf.Filter
-	requestedTxns   map[chainhash.Hash]struct{}
-	requestedBlocks map[chainhash.Hash]struct{}
-	progressLogger  *progresslog.Logger
-	syncPeer        *Peer
-	msgChan         chan interface{}
-	peers           map[*Peer]struct{}
+	rejectedTxns     *apbf.Filter
+	rejectedMixMsgs  *apbf.Filter
+	requestedTxns    map[chainhash.Hash]struct{}
+	requestedBlocks  map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]struct{}
+	progressLogger   *progresslog.Logger
+	syncPeer         *Peer
+	msgChan          chan interface{}
+	peers            map[*Peer]struct{}
 
 	// hdrSyncState houses the state used to track the initial header sync
 	// process and related stall handling.
@@ -666,6 +693,22 @@ BlockHashes:
 		// No peers found that have announced this data.
 		delete(m.requestedBlocks, blockHash)
 	}
+	inv.Type = wire.InvTypeMix
+MixHashes:
+	for mixHash := range peer.requestedMixMsgs {
+		inv.Hash = mixHash
+		for pp := range m.peers {
+			if !pp.IsKnownInventory(&inv) {
+				continue
+			}
+			invs := append(requestQueues[pp], inv)
+			requestQueues[pp] = invs
+			pp.requestedMixMsgs[mixHash] = struct{}{}
+			continue MixHashes
+		}
+		// No peers found that have announced this data.
+		delete(m.requestedMixMsgs, mixHash)
+	}
 	for pp, requestQueue := range requestQueues {
 		var numRequested int32
 		gdmsg := wire.NewMsgGetData()
@@ -752,6 +795,66 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	}
 
 	m.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
+}
+
+// handleMixMsg handles mixing messages from all peers.
+func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
+	peer := mmsg.peer
+
+	mixHash := mmsg.msg.Hash()
+
+	// Ignore transactions that have already been rejected.  The transaction was
+	// unsolicited if it was already previously rejected.
+	if m.rejectedMixMsgs.Contains(mixHash[:]) {
+		log.Debugf("Ignoring unsolicited previously rejected mix message %v "+
+			"from %s", &mixHash, peer)
+		return nil
+	}
+
+	accepted, err := m.cfg.MixPool.AcceptMessage(mmsg.msg)
+
+	// Remove message from request maps. Either the mixpool already knows
+	// about it and as such we shouldn't have any more instances of trying
+	// to fetch it, or we failed to insert and thus we'll retry next time
+	// we get an inv.
+	delete(peer.requestedMixMsgs, mixHash)
+	delete(m.requestedMixMsgs, mixHash)
+
+	if err != nil {
+		// Do not request this message again until a new block has
+		// been processed.  If the message is an orphan KE, it is
+		// tracked internally by mixpool as an orphan; there is no
+		// need to request it again after requesting the unknown PR.
+		m.rejectedMixMsgs.Add(mixHash[:])
+
+		// When the error is a rule error, it means the message was
+		// simply rejected as opposed to something actually going wrong,
+		// so log it as such.
+		//
+		// When the error is an orphan KE with unknown PR, the PR will be
+		// requested from the peer submitting the KE.  This is a normal
+		// occurrence, and will be logged at debug instead at error level.
+		//
+		// Otherwise, something really did go wrong, so log it as an
+		// actual error.
+		var rErr *mixpool.RuleError
+		var missingPRErr *mixpool.MissingOwnPRError
+		if errors.As(err, &rErr) || errors.As(err, &missingPRErr) {
+			log.Debugf("Rejected %T mixing message %v from %s: %v",
+				mmsg.msg, &mixHash, peer, err)
+		} else {
+			log.Errorf("Failed to process %T mixing message %v: %v",
+				mmsg.msg, &mixHash, err)
+		}
+		return err
+	}
+
+	if len(accepted) == 0 {
+		return nil
+	}
+
+	m.cfg.PeerNotifier.AnnounceMixMessages(accepted)
+	return nil
 }
 
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
@@ -903,6 +1006,12 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 		// Clear the rejected transactions.
 		m.rejectedTxns.Reset()
+
+		// Remove expired pair requests and completed mixes from
+		// mixpool.
+		m.cfg.MixPool.RemoveSpentPRs(msgBlock.Transactions)
+		m.cfg.MixPool.RemoveSpentPRs(msgBlock.STransactions)
+		m.cfg.MixPool.ExpireMessagesInBackground(header.Height)
 	}
 
 	// Update the latest block height for the peer to avoid stale heights when
@@ -1275,6 +1384,24 @@ func (m *SyncManager) needTx(hash *chainhash.Hash) bool {
 	return true
 }
 
+// needMixMsg returns whether or not the mixing message needs to be downloaded.
+func (m *SyncManager) needMixMsg(hash *chainhash.Hash) bool {
+	if m.rejectedMixMsgs.Contains(hash[:]) {
+		return false
+	}
+
+	if m.cfg.MixPool.HaveMessage(hash) {
+		return false
+	}
+
+	// TODO: It would be ideal here to not 'need' previously-observed
+	// messages that are known/expected to fail validation, or messages
+	// that have already been removed from mixpool.  An LRU of recently
+	// removed mixpool messages may work well.
+
+	return true
+}
+
 // handleInvMsg handles inv messages from all peers.  This entails examining the
 // inventory advertised by the remote peer for block and transaction
 // announcements and acting accordingly.
@@ -1330,6 +1457,29 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			if _, exists := m.requestedTxns[iv.Hash]; !exists {
 				limitAdd(m.requestedTxns, iv.Hash, maxRequestedTxns)
 				limitAdd(peer.requestedTxns, iv.Hash, maxRequestedTxns)
+				requestQueue = append(requestQueue, iv)
+			}
+
+		case wire.InvTypeMix:
+			// Add the mix message to the cache of known inventory
+			// for the peer.  This helps avoid sending mix messages
+			// to the peer that it is already known to have.
+			peer.AddKnownInventory(iv)
+
+			// Ignore mixing messages before the chain is current or
+			// if the messages are not needed.  Pair request (PR)
+			// messages reference unspent outputs that must be
+			// checked to exist and be unspent before they are
+			// accepted, and all later messages must reference an
+			// existing PR recorded in the mixing pool.
+			if !isCurrent || !m.needMixMsg(&iv.Hash) {
+				continue
+			}
+
+			// Request the mixing message if it is not already pending.
+			if _, exists := m.requestedMixMsgs[iv.Hash]; !exists {
+				limitAdd(m.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
+				limitAdd(peer.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
 				requestQueue = append(requestQueue, iv)
 			}
 		}
@@ -1420,6 +1570,13 @@ out:
 				case <-ctx.Done():
 				}
 
+			case *mixMsg:
+				err := m.handleMixMsg(msg)
+				select {
+				case msg.reply <- err:
+				case <-ctx.Done():
+				}
+
 			case *invMsg:
 				m.handleInvMsg(msg)
 
@@ -1441,7 +1598,7 @@ out:
 
 			case requestFromPeerMsg:
 				err := m.requestFromPeer(msg.peer, msg.blocks, msg.voteHashes,
-					msg.tSpendHashes)
+					msg.tSpendHashes, msg.mixHashes)
 				msg.reply <- requestFromPeerResponse{
 					err: err,
 				}
@@ -1538,6 +1695,15 @@ func (m *SyncManager) QueueHeaders(headers *wire.MsgHeaders, peer *Peer) {
 	}
 }
 
+// QueueMixMsg adds the passed mixing message and peer to the event handling
+// queue.
+func (m *SyncManager) QueueMixMsg(msg mixing.Message, peer *Peer, done chan error) {
+	select {
+	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
+	case <-m.quit:
+	}
+}
+
 // QueueNotFound adds the passed notfound message and peer to the event handling
 // queue.
 func (m *SyncManager) QueueNotFound(notFound *wire.MsgNotFound, peer *Peer) {
@@ -1575,7 +1741,7 @@ func (m *SyncManager) SyncPeerID() int32 {
 // from a peer.  The requests are logged in the internal map of requests so the
 // peer is not later banned for sending the respective data.
 func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
-	tSpendHashes []chainhash.Hash) error {
+	tSpendHashes, mixHashes []chainhash.Hash) error {
 
 	reply := make(chan requestFromPeerResponse, 1)
 	request := requestFromPeerMsg{
@@ -1583,6 +1749,7 @@ func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
 		blocks:       blocks,
 		voteHashes:   voteHashes,
 		tSpendHashes: tSpendHashes,
+		mixHashes:    mixHashes,
 		reply:        reply,
 	}
 	select {
@@ -1599,7 +1766,7 @@ func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
 }
 
 func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
-	tSpendHashes []chainhash.Hash) error {
+	tSpendHashes, mixHashes []chainhash.Hash) error {
 
 	// Add the blocks to the request.
 	msgResp := wire.NewMsgGetData()
@@ -1706,6 +1873,32 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 		return err
 	}
 
+	for i := range mixHashes {
+		// If we've already requested this mix message, skip it.
+		mh := &mixHashes[i]
+		_, alreadyReqP := peer.requestedMixMsgs[*mh]
+		_, alreadyReqB := m.requestedMixMsgs[*mh]
+
+		if alreadyReqP || alreadyReqB {
+			continue
+		}
+
+		// Skip the message when it is already known.
+		if m.cfg.MixPool.HaveMessage(mh) {
+			continue
+		}
+
+		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
+		if err != nil {
+			return fmt.Errorf("unexpected error encountered building request "+
+				"for inv vect mix hash %v: %v",
+				mh, err.Error())
+		}
+
+		peer.requestedMixMsgs[*mh] = struct{}{}
+		m.requestedMixMsgs[*mh] = struct{}{}
+	}
+
 	if len(msgResp.InvList) > 0 {
 		peer.QueueMessage(msgResp, nil)
 	}
@@ -1803,6 +1996,10 @@ type Config struct {
 	// and querying the most recently confirmed transactions.  It is useful for
 	// preventing duplicate requests.
 	RecentlyConfirmedTxns *apbf.Filter
+
+	// MixPool specifies the mixing pool to use for transient mixing
+	// messages broadcast across the network.
+	MixPool *mixpool.Pool
 }
 
 // New returns a new network chain synchronization manager.  Use Run to begin
@@ -1819,17 +2016,19 @@ func New(config *Config) *SyncManager {
 	}
 
 	return &SyncManager{
-		cfg:             *config,
-		rejectedTxns:    apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
-		requestedTxns:   make(map[chainhash.Hash]struct{}),
-		requestedBlocks: make(map[chainhash.Hash]struct{}),
-		peers:           make(map[*Peer]struct{}),
-		minKnownWork:    minKnownWork,
-		hdrSyncState:    makeHeaderSyncState(),
-		progressLogger:  progresslog.New("Processed", log),
-		msgChan:         make(chan interface{}, config.MaxPeers*3),
-		quit:            make(chan struct{}),
-		syncHeight:      config.Chain.BestSnapshot().Height,
-		isCurrent:       config.Chain.IsCurrent(),
+		cfg:              *config,
+		rejectedTxns:     apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
+		rejectedMixMsgs:  apbf.NewFilter(maxRejectedMixMsgs, rejectedMixMsgsFPRate),
+		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		peers:            make(map[*Peer]struct{}),
+		minKnownWork:     minKnownWork,
+		hdrSyncState:     makeHeaderSyncState(),
+		progressLogger:   progresslog.New("Processed", log),
+		msgChan:          make(chan interface{}, config.MaxPeers*3),
+		quit:             make(chan struct{}),
+		syncHeight:       config.Chain.BestSnapshot().Height,
+		isCurrent:        config.Chain.IsCurrent(),
 	}
 }

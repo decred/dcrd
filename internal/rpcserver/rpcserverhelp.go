@@ -510,6 +510,10 @@ var helpDescsEnUS = map[string]string{
 	// GetMiningInfoCmd help.
 	"getmininginfo--synopsis": "Returns a JSON object containing mining-related information.",
 
+	// GetMixPairRequests help.
+	"getmixpairrequests--synopsis": "Returns current set of mixing pair request messages from mixpool.",
+	"getmixpairrequests--result0":  "JSON array of hex-encoded mixing pair request messages.",
+
 	// GetNetworkHashPSCmd help.
 	"getnetworkhashps--synopsis": "Returns the estimated network hashes per second for the block heights provided by the parameters.",
 	"getnetworkhashps-blocks":    "The number of blocks or -1 for the default number of blocks",
@@ -789,6 +793,14 @@ var helpDescsEnUS = map[string]string{
 	// StopNotifyNewTransactionsCmd help.
 	"stopnotifynewtransactions--synopsis": "Stop sending either a txaccepted or a txacceptedverbose notification when a new transaction is accepted into the mempool.",
 
+	"notifymixmessages--synopsis": "Request notifications for whenever mixing messages are accepted to the mixpool.",
+
+	"stopnotifymixmessages--synopsis": "Cancel registered notifications for whenever mixing messages are accepted to the mixpool.",
+
+	"sendrawmixmessage--synopsis": "Submit a mixing message to the mixpool and broadcast it to the network and all peers",
+	"sendrawmixmessage-message":   "Mixing message serialized and encoded as hex",
+	"sendrawmixmessage-command":   "The wire command name of the message type",
+
 	// OutPoint help.
 	"outpoint-hash":  "The hex-encoded bytes of the outpoint hash",
 	"outpoint-index": "The index of the outpoint",
@@ -922,8 +934,8 @@ var helpDescsEnUS = map[string]string{
 // pointer to the type (or nil to indicate no return value).
 var rpcResultTypes = map[types.Method][]interface{}{
 	"addnode":               nil,
-	"createrawsstx":         {(*string)(nil)},
 	"createrawssrtx":        {(*string)(nil)},
+	"createrawsstx":         {(*string)(nil)},
 	"createrawtransaction":  {(*string)(nil)},
 	"debuglevel":            {(*string)(nil), (*string)(nil)},
 	"decoderawtransaction":  {(*types.TxRawDecodeResult)(nil)},
@@ -936,9 +948,9 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"existsliveticket":      {(*bool)(nil)},
 	"existslivetickets":     {(*string)(nil)},
 	"existsmempooltxs":      {(*string)(nil)},
+	"generate":              {(*[]string)(nil)},
 	"getaddednodeinfo":      {(*[]string)(nil), (*[]types.GetAddedNodeInfoResult)(nil)},
 	"getbestblock":          {(*types.GetBestBlockResult)(nil)},
-	"generate":              {(*[]string)(nil)},
 	"getbestblockhash":      {(*string)(nil)},
 	"getblock":              {(*string)(nil), (*types.GetBlockVerboseResult)(nil)},
 	"getblockchaininfo":     {(*types.GetBlockChainInfoResult)(nil)},
@@ -948,24 +960,26 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getblocksubsidy":       {(*types.GetBlockSubsidyResult)(nil)},
 	"getcfilterv2":          {(*types.GetCFilterV2Result)(nil)},
 	"getchaintips":          {(*[]types.GetChainTipsResult)(nil)},
+	"getcoinsupply":         {(*int64)(nil)},
 	"getconnectioncount":    {(*int32)(nil)},
 	"getcurrentnet":         {(*uint32)(nil)},
 	"getdifficulty":         {(*float64)(nil)},
-	"getstakedifficulty":    {(*types.GetStakeDifficultyResult)(nil)},
-	"getstakeversioninfo":   {(*types.GetStakeVersionInfoResult)(nil)},
-	"getstakeversions":      {(*types.GetStakeVersionsResult)(nil)},
 	"getgenerate":           {(*bool)(nil)},
 	"gethashespersec":       {(*float64)(nil)},
 	"getheaders":            {(*types.GetHeadersResult)(nil)},
 	"getinfo":               {(*types.InfoChainResult)(nil)},
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
+	"getmixpairrequests":    {(*[]string)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
 	"getnetworkinfo":        {(*[]types.GetNetworkInfoResult)(nil)},
 	"getpeerinfo":           {(*[]types.GetPeerInfoResult)(nil)},
 	"getrawmempool":         {(*[]string)(nil), (*types.GetRawMempoolVerboseResult)(nil)},
 	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
+	"getstakedifficulty":    {(*types.GetStakeDifficultyResult)(nil)},
+	"getstakeversioninfo":   {(*types.GetStakeVersionInfoResult)(nil)},
+	"getstakeversions":      {(*types.GetStakeVersionsResult)(nil)},
 	"getticketpoolvalue":    {(*float64)(nil)},
 	"gettreasurybalance":    {(*types.GetTreasuryBalanceResult)(nil)},
 	"gettreasuryspendvotes": {(*types.GetTreasurySpendVotesResult)(nil)},
@@ -973,7 +987,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"gettxoutsetinfo":       {(*types.GetTxOutSetInfoResult)(nil)},
 	"getvoteinfo":           {(*types.GetVoteInfoResult)(nil)},
 	"getwork":               {(*types.GetWorkResult)(nil), (*bool)(nil)},
-	"getcoinsupply":         {(*int64)(nil)},
 	"help":                  {(*string)(nil), (*string)(nil)},
 	"invalidateblock":       nil,
 	"livetickets":           {(*types.LiveTicketsResult)(nil)},
@@ -981,6 +994,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"ping":                  nil,
 	"reconsiderblock":       nil,
 	"regentemplate":         nil,
+	"sendrawmixmessage":     nil,
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
 	"stop":                  {(*string)(nil)},
@@ -996,19 +1010,21 @@ var rpcResultTypes = map[types.Method][]interface{}{
 
 	// Websocket commands.
 	"loadtxfilter":              nil,
-	"notifywinningtickets":      nil,
-	"notifynewtickets":          nil,
 	"notifyblocks":              nil,
-	"notifywork":                nil,
-	"notifytspend":              nil,
+	"notifymixmessages":         nil,
+	"notifynewtickets":          nil,
 	"notifynewtransactions":     nil,
+	"notifytspend":              nil,
+	"notifywinningtickets":      nil,
+	"notifywork":                nil,
 	"rebroadcastwinners":        nil,
 	"rescan":                    {(*types.RescanResult)(nil)},
 	"session":                   {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":          nil,
-	"stopnotifywork":            nil,
-	"stopnotifytspend":          nil,
+	"stopnotifymixmessages":     nil,
 	"stopnotifynewtransactions": nil,
+	"stopnotifytspend":          nil,
+	"stopnotifywork":            nil,
 }
 
 // helpCacher provides a concurrent safe type that provides help and usage for

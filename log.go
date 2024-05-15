@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/slog"
@@ -68,6 +69,7 @@ var (
 	feesLog = backendLog.Logger("FEES")
 	indxLog = backendLog.Logger("INDX")
 	minrLog = backendLog.Logger("MINR")
+	mixpLog = backendLog.Logger("MIXP")
 	peerLog = backendLog.Logger("PEER")
 	rpcsLog = backendLog.Logger("RPCS")
 	scrpLog = backendLog.Logger("SCRP")
@@ -89,6 +91,7 @@ func init() {
 	indexers.UseLogger(indxLog)
 	mempool.UseLogger(txmpLog)
 	mining.UseLogger(minrLog)
+	mixpool.UseLogger(mixpLog)
 	cpuminer.UseLogger(minrLog)
 	peer.UseLogger(peerLog)
 	rpcserver.UseLogger(rpcsLog)
@@ -109,6 +112,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"FEES": feesLog,
 	"INDX": indxLog,
 	"MINR": minrLog,
+	"MIXP": mixpLog,
 	"PEER": peerLog,
 	"RPCS": rpcsLog,
 	"SCRP": scrpLog,

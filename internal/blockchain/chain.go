@@ -297,6 +297,11 @@ type BlockChain struct {
 	bulkImportMode bool
 }
 
+// ChainParams returns the chain parameters.
+func (b *BlockChain) ChainParams() *chaincfg.Params {
+	return b.chainParams
+}
+
 const (
 	// stakeMajorityCacheKeySize is comprised of the stake version and the
 	// hash size.  The stake version is a little endian uint32, hence we

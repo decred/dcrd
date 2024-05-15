@@ -52,6 +52,9 @@ const (
 	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
 	// notification.
 	WinningTicketsNtfnMethod Method = "winningtickets"
+
+	// MixMessageNtfnMethod is the method of the mixmessage notification.
+	MixMessageNtfnMethod Method = "mixmessage"
 )
 
 // BlockConnectedNtfn defines the blockconnected JSON-RPC notification.
@@ -207,6 +210,20 @@ func NewWinningTicketsNtfn(hash string, height int32, tickets map[string]string)
 	}
 }
 
+// MixMessageNtfn defines the mixmessage JSON-RPC notification.
+type MixMessageNtfn struct {
+	Command string `json:"command"`
+	Payload string `json:"payload"`
+}
+
+// NewMixMessageNtfn returns a new instance which can be used to issue a
+// mixmessage JSON-RPC notification.
+func NewMixMessageNtfn(command, payload string) *MixMessageNtfn {
+	return &MixMessageNtfn{
+		Command: command,
+		Payload: payload,
+	}
+}
 func init() {
 	// The commands in this file are only usable by websockets and are
 	// notifications.
@@ -222,4 +239,5 @@ func init() {
 	dcrjson.MustRegister(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
 	dcrjson.MustRegister(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
 	dcrjson.MustRegister(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
+	dcrjson.MustRegister(MixMessageNtfnMethod, (*MixMessageNtfn)(nil), flags)
 }

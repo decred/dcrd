@@ -51,6 +51,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -61,7 +62,7 @@ import (
 // API version constants
 const (
 	jsonrpcSemverMajor = 8
-	jsonrpcSemverMinor = 1
+	jsonrpcSemverMinor = 2
 	jsonrpcSemverPatch = 0
 )
 
@@ -208,6 +209,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getinfo":               handleGetInfo,
 	"getmempoolinfo":        handleGetMempoolInfo,
 	"getmininginfo":         handleGetMiningInfo,
+	"getmixpairrequests":    handleGetMixPairRequests,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
 	"getnetworkinfo":        handleGetNetworkInfo,
@@ -231,6 +233,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"ping":                  handlePing,
 	"reconsiderblock":       handleReconsiderBlock,
 	"regentemplate":         handleRegenTemplate,
+	"sendrawmixmessage":     handleSendRawMixMessage,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
 	"stop":                  handleStop,
@@ -338,6 +341,7 @@ var rpcUnimplemented = map[string]struct{}{
 var rpcLimited = map[string]struct{}{
 	// Websockets commands
 	"notifyblocks":          {},
+	"notifymixmessages":     {},
 	"notifynewtransactions": {},
 	"rescan":                {},
 	"session":               {},
@@ -375,6 +379,7 @@ var rpcLimited = map[string]struct{}{
 	"getdifficulty":        {},
 	"getheaders":           {},
 	"getinfo":              {},
+	"getmixpairrequests":   {},
 	"getnettotals":         {},
 	"getnetworkhashps":     {},
 	"getnetworkinfo":       {},
@@ -388,6 +393,7 @@ var rpcLimited = map[string]struct{}{
 	"getvoteinfo":          {},
 	"livetickets":          {},
 	"regentemplate":        {},
+	"sendrawmixmessage":    {},
 	"sendrawtransaction":   {},
 	"submitblock":          {},
 	"ticketfeeinfo":        {},
@@ -2556,6 +2562,30 @@ func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interfa
 	return &result, nil
 }
 
+// handleGetMixPairRequests implements the getmixpairrequests command,
+// returning all current mixing pair requests messages from mixpool.
+func handleGetMixPairRequests(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+	mp := s.cfg.MixPooler
+
+	mp.RemoveConfirmedRuns() // XXX: a bit hacky to do this here
+	prs := mp.MixPRs(nil)
+
+	buf := new(strings.Builder)
+	res := make([]string, 0, len(prs))
+
+	const pver = wire.MixVersion
+	for _, pr := range prs {
+		err := pr.BtcEncode(hex.NewEncoder(buf), pver)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, buf.String())
+		buf.Reset()
+	}
+
+	return res, nil
+}
+
 // handleGetNetTotals implements the getnettotals command.
 func handleGetNetTotals(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	totalBytesRecv, totalBytesSent := s.cfg.ConnMgr.NetTotals()
@@ -4224,6 +4254,65 @@ func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface
 	return nil, nil
 }
 
+// handleSendRawMixMessage implements the sendrawmixmessage command.
+func handleSendRawMixMessage(_ context.Context, s *Server, icmd interface{}) (interface{}, error) {
+	c := icmd.(*types.SendRawMixMessageCmd)
+
+	// Allocate a message of the appropriate type based on the wire
+	// command string.
+	var msg mixing.Message
+	switch c.Command {
+	case wire.CmdMixPairReq:
+		msg = new(wire.MsgMixPairReq)
+	case wire.CmdMixKeyExchange:
+		msg = new(wire.MsgMixKeyExchange)
+	case wire.CmdMixCiphertexts:
+		msg = new(wire.MsgMixCiphertexts)
+	case wire.CmdMixSlotReserve:
+		msg = new(wire.MsgMixSlotReserve)
+	case wire.CmdMixDCNet:
+		msg = new(wire.MsgMixDCNet)
+	case wire.CmdMixConfirm:
+		msg = new(wire.MsgMixConfirm)
+	case wire.CmdMixFactoredPoly:
+		msg = new(wire.MsgMixFactoredPoly)
+	case wire.CmdMixSecrets:
+		msg = new(wire.MsgMixSecrets)
+	default:
+		err := rpcInvalidError("Unrecognized mixing message "+
+			"wire command string %q", c.Command)
+		return nil, err
+	}
+
+	// Deserialize message.
+	err := msg.BtcDecode(hex.NewDecoder(strings.NewReader(c.Message)),
+		wire.MixVersion)
+	if err != nil {
+		return nil, rpcDeserializationError("Could not decode mix "+
+			"message: %v", err)
+	}
+
+	// Message hash of the freshly-deserialized mixing message needs to be
+	// pre-calculated.  Calculate this here now; it is required before it
+	// can be accepted and notified.
+	s.blake256HaserMu.Lock()
+	msg.WriteHash(s.blake256Hasher)
+	s.blake256HaserMu.Unlock()
+
+	err = s.cfg.SyncMgr.SubmitMixMessage(msg)
+	if err != nil {
+		// XXX: consider a better error code/function
+		str := fmt.Sprintf("Rejected mix message: %s", err)
+		return nil, rpcMiscError(str)
+	}
+
+	s.cfg.ConnMgr.RelayMixMessages([]mixing.Message{msg})
+
+	s.ntfnMgr.NotifyMixMessage(msg)
+
+	return nil, nil
+}
+
 // handleSendRawTransaction implements the sendrawtransaction command.
 func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.SendRawTransactionCmd)
@@ -5017,6 +5106,12 @@ type Server struct {
 	workState              *workState
 	helpCacher             RPCHelpCacher
 	requestProcessShutdown chan struct{}
+
+	// blake256Hasher is the hash.Hash object that is used after
+	// deserializing mixing messages.  Message handlers may be executed
+	// concurrently, and access requires the mutex.
+	blake256Hasher  hash.Hash
+	blake256HaserMu sync.Mutex
 }
 
 // isTreasuryAgendaActive returns if the treasury agenda is active or not for
@@ -5161,6 +5256,14 @@ func (s *Server) NotifyNewTransactions(txns []*dcrutil.Tx) {
 // tspends in the mempool.
 func (s *Server) NotifyTSpend(tx *dcrutil.Tx) {
 	s.ntfnMgr.NotifyTSpend(tx)
+}
+
+// NotifyMixMessages notifies websocket clients that have registered to
+// receive mixing message notifications of newly accepted mix messages.
+func (s *Server) NotifyMixMessages(msgs []mixing.Message) {
+	for _, msg := range msgs {
+		s.ntfnMgr.NotifyMixMessage(msg)
+	}
 }
 
 // NotifyNewTickets notifies websocket clients that have registered for maturing
@@ -5977,6 +6080,9 @@ type Config struct {
 
 	// FiltererV2 defines the V2 filterer for the RPC server to use.
 	FiltererV2 FiltererV2
+
+	// MixPooler defines the mixpool for the RPC server to use.
+	MixPooler MixPooler
 }
 
 // New returns a new instance of the Server struct.
@@ -5987,6 +6093,7 @@ func New(config *Config) (*Server, error) {
 		workState:              newWorkState(),
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
+		blake256Hasher:         blake256.New(),
 	}
 	key := make([]byte, 32)
 	_, err := io.ReadFull(rand.Reader, key)
