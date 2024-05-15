@@ -454,6 +454,17 @@ func TestChainSvrCmds(t *testing.T) {
 			unmarshalled: &GetMiningInfoCmd{},
 		},
 		{
+			name: "getmixpairrequests",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("getmixpairrequests"))
+			},
+			staticCmd: func() interface{} {
+				return NewGetMixPairRequestsCmd()
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"getmixpairrequests","params":[],"id":1}`,
+			unmarshalled: &GetMixPairRequestsCmd{},
+		},
+		{
 			name: "getnetworkinfo",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("getnetworkinfo"))
@@ -813,6 +824,20 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"ping","params":[],"id":1}`,
 			unmarshalled: &PingCmd{},
+		},
+		{
+			name: "sendrawmixmessage",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("sendrawmixmessage"), "mixpairrequest", "1122")
+			},
+			staticCmd: func() interface{} {
+				return NewSendRawMixMessageCmd("mixpairrequest", "1122")
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"sendrawmixmessage","params":["mixpairrequest","1122"],"id":1}`,
+			unmarshalled: &SendRawMixMessageCmd{
+				Command: "mixpairrequest",
+				Message: "1122",
+			},
 		},
 		{
 			name: "sendrawtransaction",

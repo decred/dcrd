@@ -165,9 +165,9 @@ func NewNotifyMixMessagesCmd() *NotifyMixMessagesCmd {
 // StopNotifyMixMessagesCmd defines the stopnotifymixmessages JSON-RPC command.
 type StopNotifyMixMessagesCmd struct{}
 
-// StopNewNotifyMixMessagesCmd returns a new instance which can be used to issue a
+// NewStopNewNotifyMixMessagesCmd returns a new instance which can be used to issue a
 // stopnotifymixmessages JSON-RPC command.
-func StopNewNotifyMixMessagesCmd() *StopNotifyMixMessagesCmd {
+func NewStopNewNotifyMixMessagesCmd() *StopNotifyMixMessagesCmd {
 	return &StopNotifyMixMessagesCmd{}
 }
 

@@ -144,6 +144,20 @@ func TestChainSvrWsNtfns(t *testing.T) {
 				Tickets:     map[string]string{"a": "b"},
 			},
 		},
+		{
+			name: "mixmessage",
+			newNtfn: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("mixmessage"), "mixpairrequest", "1122")
+			},
+			staticNtfn: func() interface{} {
+				return NewMixMessageNtfn("mixpairrequest", "1122")
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"mixmessage","params":["mixpairrequest","1122"],"id":null}`,
+			unmarshalled: &MixMessageNtfn{
+				Command: "mixpairrequest",
+				Payload: "1122",
+			},
+		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
