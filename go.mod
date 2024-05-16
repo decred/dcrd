@@ -22,19 +22,19 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/decred/dcrd/dcrjson/v4 v4.0.1
 	github.com/decred/dcrd/dcrutil/v4 v4.0.2
-	github.com/decred/dcrd/gcs/v4 v4.0.0
+	github.com/decred/dcrd/gcs/v4 v4.1.0
 	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.1
 	github.com/decred/dcrd/mixing v0.0.1
 	github.com/decred/dcrd/peer/v3 v3.0.2
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.2.0
 	github.com/decred/dcrd/rpcclient/v8 v8.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.1
 	github.com/decred/dcrd/wire v1.7.0
 	github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
@@ -54,6 +54,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 )
 
