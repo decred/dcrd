@@ -268,6 +268,10 @@ the method name for further details such as parameter and return information.
 |N
 |Returns a JSON object containing mining-related information.
 |-
+|[[#getmixpairrequests|getmixpairrequests]]
+|Y
+|Returns the current set of mixing pair request messages from the mixpool.  WARNING: This is experimental and will very likely be removed in the next version.  Do not use!
+|-
 |[[#getnettotals|getnettotals]]
 |Y
 |Returns a JSON object containing network traffic statistics.
@@ -359,6 +363,10 @@ the method name for further details such as parameter and return information.
 |[[#regentemplate|regentemplate]]
 |Y
 |Asks the daemon to regenerate the mining block template.
+|-
+|[[#sendrawmixmessage|sendrawmixmessage]]
+|Y
+|Submits a serialized, hex-encoded mix message to the mixpool and broadcasts it to the network.
 |-
 |[[#sendrawtransaction|sendrawtransaction]]
 |Y
@@ -1496,6 +1504,28 @@ of the best block.
 
 ----
 
+====getmixpairrequests====
+{|
+!Method
+|getmixpairrequests
+|-
+!Parameters
+|None
+|-
+!Description
+|
+: Returns the current set of mixing pair request messages from the mixpool.
+: WARNING: This is experimental and will very likely be removed in the next version.  Do not use!
+|-
+!Returns
+|<code>(json array of string)</code> hex-encoded mixing pair request messages.
+|-
+!Example Return
+|<code>["a1d1d8c6ffc20a51ad9a5aa093c31bdeb06a0f627af95...",...]</code>
+|}
+
+----
+
 ====getnettotals====
 {|
 !Method
@@ -2243,6 +2273,27 @@ of the best block.
 
 ----
 
+====sendrawmixmessage====
+{|
+!Method
+|sendrawmixmessage
+|-
+!Parameters
+|
+# <code>command</code>: <code>(string, required)</code> the wire command name of the message type.
+# <code>message</code>: <code>(string, required)</code> mixing message serialized and encoded as hex.
+|-
+!Description
+|
+: Submits a serialized, hex-encoded mixing message to the mixpool and broadcasts it to the network.
+: The valid wire command names are <code>mixpairreq</code>, <code>mixkeyxchg</code>, <code>mixcphrtxt</code>, <code>mixslotres</code>, <code>mixdcnet</code>, <code>mixconfirm</code>, <code>mixfactpoly</code>, and <code>mixsecrets</code>.
+|-
+!Returns
+|<code>Nothing</code>
+|}
+
+----
+
 ====sendrawtransaction====
 {|
 !Method
@@ -2590,6 +2641,14 @@ user.  Click the method name for further details such as parameter and return in
 |Rescan blocks for transactions matching the loaded transaction filter.
 |None
 |-
+|[[#notifymixmessages|notifymixmessages]]
+|Send notifications for all mixing messages as they are accepted into the mixpool.
+|[[#mixmessage|mixmessage]]
+|-
+|[[#stopnotifymixmessages|stopnotifymixmessages]]
+|Stop sending a mixmessage notification for all mixing messages as they are accepted into the mixpool.
+|None
+|-
 |[[#notifynewtransactions|notifynewtransactions]]
 |Send notifications for all new transactions as they are accepted into the mempool.
 |[[#txaccepted|txaccepted]] or [[#txacceptedverbose|txacceptedverbose]]
@@ -2827,6 +2886,46 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 
 ----
 
+====notifymixmessages====
+{|
+!Method
+|notifymixmessages
+|-
+!Notifications
+|[[#mixmessage|mixmessage]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send a [[#mixmessage|mixmessage]] notification when a mixing message is accepted into the mixpool.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====stopnotifymixmessages====
+{|
+!Method
+|stopnotifymixmessages
+|-
+!Notifications
+|None
+|-
+!Parameters
+|None
+|-
+!Description
+|Stop sending a [[#mixmessage|mixmessage]] notification when a mixing message is accepted into the mixpool.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
 ====notifynewtransactions====
 {|
 !Method
@@ -2954,6 +3053,10 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Block disconnected from the main chain.
 |[[#notifyblocks|notifyblocks]]
 |-
+|[[#mixmessage|mixmessage]]
+|Received a mixing message after request notifications of all mixing messages accepted into the mixpool.
+|[[#notifymixnotifymixmessages|notifymixmessages]]
+|-
 |[[#work|work]]
 |New generated block template.
 |[[#notifywork|notifywork]]
@@ -3028,6 +3131,30 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Example blockdisconnected notification for mainnet block 280330:
 
 : <code>{"jsonrpc": "1.0","method": "blockdisconnected", "params": ["05000000be1e39c54738d534a55e6ee8d2fc62433857368041def11b000000000000000085d..."], "id": null}</code>
+|}
+
+----
+
+====mixmessage====
+{|
+!Method
+|mixmessage
+|-
+!Request
+|[[#notifymixmessages|notifymixmessages]]
+|-
+!Parameters
+|
+# <code>Command</code>: <code>(string)</code> the wire command name of the message type.
+# <code>Payload</code>: <code>(string)</code> mixing message serialized and encoded as hex.
+|-
+!Description
+|Notifies when a mixing message has been accepted and the client has requested mixing message details.
+|-
+!Example
+|Example mixmessage notification:
+
+: <code>{"jsonrpc": "1.0", "method": "mixmessage", "params": ["mixpairrequest", "a1d1d8c6ffc20a51ad9a5aa093c31bdeb06a0f627af95..."], "id": null}</code>
 |}
 
 ----
