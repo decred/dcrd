@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -660,11 +660,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	_, err := preParser.Parse()
 	if err != nil {
 		var e *flags.Error
-		if errors.As(err, &e) {
-			if e.Type != flags.ErrHelp {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
+		if errors.As(err, &e) && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stdout, err)
 			os.Exit(0)
 		}
@@ -743,7 +739,7 @@ func loadConfig(appName string) (*config, []string, error) {
 
 	// Load additional config from file.
 	var configFileError error
-	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
+	parser := newConfigParser(&cfg, &serviceOpts, flags.HelpFlag|flags.PassDoubleDash)
 	if !(cfg.SimNet || cfg.RegNet) || preCfg.ConfigFile != defaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(preCfg.ConfigFile)
 		if err != nil {
