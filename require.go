@@ -14,4 +14,5 @@ package main
 
 import (
 	_ "github.com/decred/dcrd/bech32"
+	_ "github.com/decred/dcrd/mixing/mixclient"
 )
