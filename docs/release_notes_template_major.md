@@ -1,4 +1,4 @@
-# dcrd v{TODO: X.Y}.0 Draft Relase Notes
+# dcrd v{TODO: X.Y}.0 Draft Release Notes
 
 This is a new major release of dcrd.  Some of the key highlights are:
 
@@ -89,7 +89,7 @@ See the following for more details:
 
 {TODO: Key highlight 1 user-facing summary}
 
-### {TODO: Key Highlight 3}
+### {TODO: Key Highlight 2}
 
 {TODO: Key highlight 2 user-facing summary}
 
