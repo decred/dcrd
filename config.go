@@ -585,9 +585,10 @@ func (e errSuppressUsage) Error() string {
 //
 // The configuration proceeds as follows:
 //  1. Start with a default config with sane settings
-//  2. Pre-parse the command line to check for an alternative config file
-//  3. Load configuration file overwriting defaults with any specified options
-//  4. Parse CLI options and overwrite/add any specified options
+//  2. Check if help has been requested, print it and exit if so
+//  3. Pre-parse the command line to check for an alternative config file
+//  4. Load configuration file overwriting defaults with any specified options
+//  5. Parse CLI options and overwrite/add any specified options
 //
 // The above results in dcrd functioning properly without any config settings
 // while still allowing the user to override settings with config files and
@@ -648,23 +649,23 @@ func loadConfig(appName string) (*config, []string, error) {
 		params:       &mainNetParams,
 	}
 
+	// Pre-parse the command line options looking only for the help option. If
+	// found, print the help message to stdout and exit.
+	helpOpts := flags.Options(flags.HelpFlag | flags.PrintErrors | flags.IgnoreUnknown)
+	_, err := flags.NewParser(&cfg, helpOpts).Parse()
+	if flags.WroteHelp(err) {
+		os.Exit(0)
+	}
+
 	// Service options which are only added on Windows.
 	serviceOpts := serviceOptions{}
 
-	// Pre-parse the command line options to see if an alternative config
-	// file or the version flag was specified.  Any errors aside from the
-	// help message error can be ignored here since they will be caught by
-	// the final parse below.
+	// Pre-parse the command line options to see if an alternative config file
+	// or the version flag was specified.  Any errors can be ignored here since
+	// they will be caught by the final parse below.
 	preCfg := cfg
-	preParser := newConfigParser(&preCfg, &serviceOpts, flags.HelpFlag)
-	_, err := preParser.Parse()
-	if err != nil {
-		var e *flags.Error
-		if errors.As(err, &e) && e.Type == flags.ErrHelp {
-			fmt.Fprintln(os.Stdout, err)
-			os.Exit(0)
-		}
-	}
+	preParser := newConfigParser(&preCfg, &serviceOpts, flags.None)
+	_, _ = preParser.Parse()
 
 	// Show the version and exit if the version flag was specified.
 	if preCfg.ShowVersion {
@@ -739,7 +740,7 @@ func loadConfig(appName string) (*config, []string, error) {
 
 	// Load additional config from file.
 	var configFileError error
-	parser := newConfigParser(&cfg, &serviceOpts, flags.HelpFlag|flags.PassDoubleDash)
+	parser := newConfigParser(&cfg, &serviceOpts, flags.PassDoubleDash)
 	if !(cfg.SimNet || cfg.RegNet) || preCfg.ConfigFile != defaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(preCfg.ConfigFile)
 		if err != nil {
