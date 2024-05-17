@@ -24,7 +24,7 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-const minconf = 2
+const minconf = 1
 const feeRate = 0.0001e8
 
 type idPubKey = [33]byte
