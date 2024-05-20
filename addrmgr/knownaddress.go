@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -63,18 +63,11 @@ func (ka *KnownAddress) LastAttempt() time.Time {
 func (ka *KnownAddress) chance() float64 {
 	ka.mtx.Lock()
 	defer ka.mtx.Unlock()
-	now := time.Now()
-	lastAttempt := now.Sub(ka.lastattempt)
-
-	if lastAttempt < 0 {
-		lastAttempt = 0
-	}
-
-	// Apply a lower limit to the value returned.
-	const minChance = 0.01
 
 	// Very recent attempts are less likely to be retried.
-	if lastAttempt < 10*time.Minute {
+	const minChance = 0.01
+	if ka.lastattempt.IsZero() ||
+		time.Since(ka.lastattempt) < 10*time.Minute {
 		return minChance
 	}
 
