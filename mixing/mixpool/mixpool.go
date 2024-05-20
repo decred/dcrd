@@ -16,10 +16,10 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/utxoproof"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -1297,7 +1297,7 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 
 func validateOwnerProofP2PKHv0(extractFunc func([]byte) []byte, pkscript, pubkey, sig []byte, expires uint32) bool {
 	extractedHash160 := extractFunc(pkscript)
-	pubkeyHash160 := dcrutil.Hash160(pubkey)
+	pubkeyHash160 := stdaddr.Hash160(pubkey)
 	if !bytes.Equal(extractedHash160, pubkeyHash160) {
 		return false
 	}

@@ -18,11 +18,11 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/slog"
 	"golang.org/x/sync/errgroup"
@@ -127,7 +127,7 @@ func (w *testWallet) gen(mcount uint32) (wire.MixVect, error) {
 			return nil, err
 		}
 		serializedPub := pub.SerializeCompressed()
-		hash160 := *(*[20]byte)(dcrutil.Hash160(serializedPub))
+		hash160 := *(*[20]byte)(stdaddr.Hash160(serializedPub))
 
 		w.mu.Lock()
 		w.keys[hash160] = priv
@@ -145,7 +145,7 @@ func (w *testWallet) outputScript() ([]byte, error) {
 	}
 
 	serializedPub := pub.SerializeCompressed()
-	hash160 := *(*[20]byte)(dcrutil.Hash160(serializedPub))
+	hash160 := *(*[20]byte)(stdaddr.Hash160(serializedPub))
 	pkScript := []byte{
 		0:  txscript.OP_DUP,
 		1:  txscript.OP_HASH160,
