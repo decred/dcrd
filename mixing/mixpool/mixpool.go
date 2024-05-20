@@ -831,15 +831,15 @@ var zeroHash chainhash.Hash
 // All newly accepted messages, including any orphan key exchange messages
 // that were processed after processing missing pair requests, are returned.
 func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err error) {
+	hash := msg.Hash()
 	defer func() {
 		if err == nil {
-			log.Tracef("AcceptMessage: accepted message %T %v", msg, msg.Hash())
+			log.Tracef("AcceptMessage: accepted message %T %v", msg, hash)
 		} else {
-			log.Tracef("AcceptMessage: rejected message %T %v: %v", msg, msg.Hash(), err)
+			log.Tracef("AcceptMessage: rejected message %T %v: %v", msg, hash, err)
 		}
 	}()
 
-	hash := msg.Hash()
 	if hash == zeroHash {
 		return nil, fmt.Errorf("message of type %T has not been hashed", msg)
 	}
@@ -982,7 +982,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 	ses := p.sessions[sid]
 	if ses == nil {
 		return nil, fmt.Errorf("%s %s belongs to unknown session %x",
-			msgtype, &hash, &sid)
+			msgtype, &hash, sid)
 	}
 
 	err = p.acceptEntry(msg, msgtype, &hash, id, ses)
