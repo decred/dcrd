@@ -21,11 +21,11 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/internal/chacha20prng"
 	"github.com/decred/dcrd/mixing/utxoproof"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -118,7 +118,7 @@ func makeMockUTXO(rand io.Reader, value int64) *mockUTXO {
 		23: txscript.OP_EQUALVERIFY,
 		24: txscript.OP_CHECKSIG,
 	}
-	hash160 := dcrutil.Hash160(pubSerialized)
+	hash160 := stdaddr.Hash160(pubSerialized)
 	copy(p2pkhScript[3:23], hash160)
 
 	output := wire.NewTxOut(value, p2pkhScript)

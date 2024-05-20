@@ -24,11 +24,11 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/internal/chacha20prng"
 	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/slog"
 	"golang.org/x/sync/errgroup"
@@ -1615,12 +1615,12 @@ func (c *Client) validateMergedCoinjoin(cj *CoinJoin, prs []*wire.MsgMixPairReq,
 	prevScriptForUTXO := func(utxo *wire.MixPairReqUTXO) []byte {
 		switch utxo.Opcode {
 		case 0:
-			copy(hash160, dcrutil.Hash160(utxo.PubKey))
+			copy(hash160, stdaddr.Hash160(utxo.PubKey))
 			return prevScript[1:]
 
 		case txscript.OP_SSGEN, txscript.OP_SSRTX, txscript.OP_TGEN:
 			*opcode = utxo.Opcode
-			copy(hash160, dcrutil.Hash160(utxo.PubKey))
+			copy(hash160, stdaddr.Hash160(utxo.PubKey))
 			return prevScript
 
 		default:
