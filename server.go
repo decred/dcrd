@@ -4039,10 +4039,14 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 					continue
 				}
 
-				// only allow recent nodes (10mins) after we failed 30
-				// times
-				if tries < 30 && time.Since(addr.LastAttempt()) < 10*time.Minute {
-					continue
+				// Skip recently attempted nodes until we have
+				// tried 30 times.
+				if tries < 30 {
+					lastAttempt := addr.LastAttempt()
+					if !lastAttempt.IsZero() &&
+						time.Since(lastAttempt) < 10*time.Minute {
+						continue
+					}
 				}
 
 				// allow nondefault ports after 50 failed tries.
