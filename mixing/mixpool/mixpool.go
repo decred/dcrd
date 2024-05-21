@@ -947,10 +947,10 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 		run := msg.GetRun()
 		if e.msgtype == msgtype && e.msg.GetRun() == run &&
 			bytes.Equal(e.msg.Sid(), msg.Sid()) {
-			return nil, fmt.Errorf("message %v by identity %x "+
+			return nil, ruleError(fmt.Errorf("message %v by identity %x "+
 				"reuses run number %d in session %x, "+
 				"conflicting with already accepted message %v",
-				hash, *id, run, msg.Sid(), prevHash)
+				hash, *id, run, msg.Sid(), prevHash))
 		}
 		if !haveKE && e.msgtype == msgtypeKE && e.msg.GetRun() == run &&
 			bytes.Equal(e.msg.Sid(), msg.Sid()) {
@@ -981,8 +981,8 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 
 	ses := p.sessions[sid]
 	if ses == nil {
-		return nil, fmt.Errorf("%s %s belongs to unknown session %x",
-			msgtype, &hash, sid)
+		return nil, ruleError(fmt.Errorf("%s %s belongs to unknown session %x",
+			msgtype, &hash, sid))
 	}
 
 	err = p.acceptEntry(msg, msgtype, &hash, id, ses)
@@ -1046,16 +1046,16 @@ func (p *Pool) checkAcceptPR(pr *wire.MsgMixPairReq) error {
 	maxExpiry := mixing.MaxExpiry(uint32(curHeight), p.params)
 	switch {
 	case uint32(curHeight) >= pr.Expiry:
-		return fmt.Errorf("message has expired")
+		return ruleError(fmt.Errorf("message has expired"))
 	case pr.Expiry > maxExpiry:
-		return fmt.Errorf("expiry is too far into future")
+		return ruleError(fmt.Errorf("expiry is too far into future"))
 	}
 
 	// Require known script classes.
 	switch mixing.ScriptClass(pr.ScriptClass) {
 	case mixing.ScriptClassP2PKHv0:
 	default:
-		return fmt.Errorf("unsupported mixing script class")
+		return ruleError(fmt.Errorf("unsupported mixing script class"))
 	}
 
 	// Require enough fee contributed from this mixing participant.
@@ -1084,7 +1084,10 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 	// Discourage identity reuse.  PRs should be the first message sent by
 	// this identity, and there should only be one PR per identity.
 	if len(p.messagesByIdentity[*id]) != 0 {
-		return nil, fmt.Errorf("identity reused for a PR message")
+		// XXX: Consider making this a bannable offense.  In the
+		// future, it would be better to publish proof of identity
+		// reuse when signing different messages.
+		return nil, ruleError(fmt.Errorf("identity reused for a PR message"))
 	}
 
 	// Only accept PRs that double spend outpoints if they expire later
@@ -1096,9 +1099,9 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 			continue
 		}
 		if otherPR.Expiry >= pr.Expiry {
-			err := fmt.Errorf("PR double spends outpoints of " +
+			err := ruleError(fmt.Errorf("PR double spends outpoints of " +
 				"already-accepted PR message without " +
-				"increasing expiry")
+				"increasing expiry"))
 			return nil, err
 		}
 	}
@@ -1250,17 +1253,17 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 			return err
 		}
 		if entry == nil || entry.IsSpent() {
-			return fmt.Errorf("output %v is not unspent",
-				&utxo.OutPoint)
+			return ruleError(fmt.Errorf("output %v is not unspent",
+				&utxo.OutPoint))
 		}
 		height := entry.BlockHeight()
 		if !confirmed(minconf, height, curHeight) {
-			return fmt.Errorf("output %v is unconfirmed",
-				&utxo.OutPoint)
+			return ruleError(fmt.Errorf("output %v is unconfirmed",
+				&utxo.OutPoint))
 		}
 		if entry.ScriptVersion() != 0 {
-			return fmt.Errorf("output %v does not use script version 0",
-				&utxo.OutPoint)
+			return ruleError(fmt.Errorf("output %v does not use script version 0",
+				&utxo.OutPoint))
 		}
 
 		// Check proof of key ownership and ability to sign coinjoin
@@ -1276,7 +1279,7 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 		case utxo.Opcode == txscript.OP_TGEN:
 			extractPubKeyHash160 = stdscript.ExtractTreasuryGenPubKeyHashV0
 		default:
-			return fmt.Errorf("unsupported output script for UTXO %s", &utxo.OutPoint)
+			return ruleError(fmt.Errorf("unsupported output script for UTXO %s", &utxo.OutPoint))
 		}
 		valid := validateOwnerProofP2PKHv0(extractPubKeyHash160,
 			entry.PkScript(), utxo.PubKey, utxo.Signature, pr.Expires())
@@ -1288,8 +1291,8 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 	}
 
 	if totalValue != pr.InputValue {
-		return fmt.Errorf("input value does not match sum of UTXO " +
-			"values")
+		return ruleError(fmt.Errorf("input value does not match sum of UTXO " +
+			"values"))
 	}
 
 	return nil
@@ -1312,8 +1315,7 @@ func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
 	}
 
 	if ke.Pos >= uint32(len(ke.SeenPRs)) {
-		err := fmt.Errorf("peer position is an invalid seen PRs position")
-		return ruleError(err)
+		return ruleError(ErrPeerPositionOutOfBounds)
 	}
 
 	return nil
@@ -1342,6 +1344,10 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 			continue
 		}
 		if uint32(i) == ke.Pos && pr.Identity != ke.Identity {
+			// This cannot be a bannable rule error.  One peer may
+			// have sent an orphan KE first, then another peer the
+			// PR, and we must not ban the peer who sent only the
+			// PR if this is called by reconsiderOrphans.
 			err := fmt.Errorf("KE identity does not match own PR " +
 				"at unmixed position")
 			return nil, ruleError(err)
@@ -1358,8 +1364,11 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 				return nil, err
 			}
 			if !bytes.Equal(pairing, pairing2) {
+				// This likewise cannot be a bannable rule
+				// error.  Peers may relay a KE without
+				// knowing any but the identity's own PR.
 				err := fmt.Errorf("referenced PRs are incompatible")
-				return nil, err
+				return nil, ruleError(err)
 			}
 		}
 	}
@@ -1420,7 +1429,7 @@ func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.
 
 	run := msg.GetRun()
 	if run > uint32(len(ses.runs)) {
-		return fmt.Errorf("message skips runs")
+		return ruleError(fmt.Errorf("message skips runs"))
 	}
 
 	var rs *runstate
@@ -1499,7 +1508,7 @@ func checkFee(pr *wire.MsgMixPairReq, feeRate int64) error {
 		int(pr.MessageCount), pr.Change != nil)
 	requiredFee := feeForSerializeSize(feeRate, estimatedSize)
 	if fee < requiredFee {
-		return fmt.Errorf("not enough input value, or too low fee")
+		return ruleError(ErrLowInput)
 	}
 
 	return nil

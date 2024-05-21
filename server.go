@@ -1729,8 +1729,7 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 			nil, nil, nil, mixHashes)
 		return
 	}
-	var ruleError *mixpool.RuleError
-	if errors.As(err, &ruleError) {
+	if mixpool.IsBannable(err) {
 		sp.server.BanPeer(sp)
 		sp.Disconnect()
 	}
