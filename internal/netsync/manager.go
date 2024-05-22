@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -453,6 +453,27 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	}
 }
 
+// fetchNextHeaders requests headers from the provided peer starting from the
+// parent of the best known header for the local chain in order to discover any
+// blocks that are not already known as well as accurately discover the best
+// known block of the remote peer.
+//
+// Note that the parent is used because the request would otherwise result in an
+// empty response when both the local and remote tips are the same.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) fetchNextHeaders(peer *Peer) {
+	chain := m.cfg.Chain
+	parentHash, _ := chain.BestHeader()
+	header, err := chain.HeaderByHash(&parentHash)
+	if err == nil {
+		parentHash = header.PrevBlock
+	}
+	blkLocator := chain.BlockLocatorFromHash(&parentHash)
+	locator := chainBlockLocatorToHashes(blkLocator)
+	peer.PushGetHeadersMsg(locator, &zeroHash)
+}
+
 // startSync will choose the best peer among the available candidate peers to
 // download/sync the blockchain from.  When syncing is already running, it
 // simply returns.  It also examines the candidates for any which are no longer
@@ -520,28 +541,17 @@ func (m *SyncManager) startSync() {
 			bestPeer)
 	}
 
-	// The chain is not synced whenever the current best height is less than the
-	// height to sync to.
-	if best.Height < syncHeight {
+	// The chain is not synced whenever the current best height is not within a
+	// couple of blocks of the height to sync to.
+	if best.Height+2 < syncHeight {
 		m.isCurrentMtx.Lock()
 		m.isCurrent = false
 		m.isCurrentMtx.Unlock()
 	}
 
-	// Request headers to discover any blocks that are not already known
-	// starting from the parent of the best known header for the local chain.
-	// The parent is used as a means to accurately discover the best known block
-	// of the remote peer in the case both tips are the same where it would
-	// otherwise result in an empty response.
-	bestHeaderHash, _ := chain.BestHeader()
-	parentHash := bestHeaderHash
-	header, err := chain.HeaderByHash(&bestHeaderHash)
-	if err == nil {
-		parentHash = header.PrevBlock
-	}
-	blkLocator := chain.BlockLocatorFromHash(&parentHash)
-	locator := chainBlockLocatorToHashes(blkLocator)
-	bestPeer.PushGetHeadersMsg(locator, &zeroHash)
+	// Request headers starting from the parent of the best known header for the
+	// local chain from the sync peer.
+	m.fetchNextHeaders(bestPeer)
 
 	// Track the sync peer and update the sync height when it is higher than the
 	// currently best known value.
@@ -926,6 +936,8 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// the block for use below in determining logging behavior.
 	chain := m.cfg.Chain
 	wasChainCurrent := chain.IsCurrent()
+	curBestHeaderHash, _ := chain.BestHeader()
+	isBlockForBestHeader := curBestHeaderHash == *blockHash
 
 	// Process the block to include validation, best chain selection, etc.
 	//
@@ -960,6 +972,32 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 			log.Errorf("Critical failure: %v", err)
 		}
+
+		// Request headers from all peers that serve data to discover any new
+		// blocks that are not already known starting from the parent of the new
+		// best known header for the local chain when the header that was
+		// previously believed to be the best candidate is rejected.
+		//
+		// Also, reset the sync height to whatever the chain reports as the new
+		// best header height since it is now very likely less than the tip that
+		// was just rejected.
+		if isBlockForBestHeader {
+			_, newBestHeaderHeight := chain.BestHeader()
+			m.syncHeightMtx.Lock()
+			m.syncHeight = newBestHeaderHeight
+			m.syncHeightMtx.Unlock()
+
+			m.isCurrentMtx.Lock()
+			m.maybeUpdateIsCurrent()
+			m.isCurrentMtx.Unlock()
+
+			for peer := range m.peers {
+				if peer.syncCandidate {
+					m.fetchNextHeaders(peer)
+				}
+			}
+		}
+
 		return
 	}
 
