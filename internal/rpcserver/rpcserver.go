@@ -538,14 +538,13 @@ func normalizeAddress(addr, defaultPort string) string {
 		return net.JoinHostPort(addr, port)
 	}
 	for _, a := range ifaceAddrs {
-		switch a := a.(type) {
-		case *net.IPNet:
+		if a, ok := a.(*net.IPNet); ok {
 			dialAddr := a.IP.String()
 			if a.IP.To4() == nil { // IPv6
 				zoned := a.IP.IsLinkLocalUnicast() ||
 					a.IP.IsLinkLocalMulticast()
 				if zoned {
-					dialAddr += "%" + addr
+					dialAddr += "%" + strconv.Itoa(iface.Index)
 				}
 			}
 			return net.JoinHostPort(dialAddr, port)

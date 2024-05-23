@@ -422,14 +422,13 @@ func normalizeAddresses(addrs []string, defaultPort string, flags int) []string 
 		}
 	IfaceAddrs:
 		for _, a := range ifaceAddrs {
-			switch a := a.(type) {
-			case *net.IPNet:
+			if a, ok := a.(*net.IPNet); ok {
 				lis := a.IP.String()
 				if a.IP.To4() == nil { // IPv6
 					zoned := a.IP.IsLinkLocalUnicast() ||
 						a.IP.IsLinkLocalMulticast()
 					if zoned {
-						lis += "%" + addr
+						lis += "%" + strconv.Itoa(iface.Index)
 					}
 				}
 				norm = append(norm, net.JoinHostPort(
