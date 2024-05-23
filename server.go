@@ -553,7 +553,6 @@ type server struct {
 	mixMsgPool           *mixpool.Pool
 	modifyRebroadcastInv chan interface{}
 	peerState            peerState
-	banPeers             chan *serverPeer
 	relayInv             chan relayMsg
 	broadcast            chan broadcastMsg
 	nat                  *upnpNAT
@@ -1979,23 +1978,6 @@ func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
 	}
 }
 
-// handleBanPeerMsg deals with banning peers.  It is invoked from the
-// peerHandler goroutine.
-func (s *server) handleBanPeerMsg(state *peerState, sp *serverPeer) {
-	host, _, err := net.SplitHostPort(sp.Addr())
-	if err != nil {
-		srvrLog.Debugf("can't split ban peer %s %v", sp.Addr(), err)
-		return
-	}
-	direction := directionString(sp.Inbound())
-	srvrLog.Infof("Banned peer %s (%s) for %v", host, direction,
-		cfg.BanDuration)
-	bannedUntil := time.Now().Add(cfg.BanDuration)
-	state.Lock()
-	state.banned[host] = bannedUntil
-	state.Unlock()
-}
-
 // handleRelayInvMsg deals with relaying inventory to peers that are not already
 // known to have it.  It is invoked from the peerHandler goroutine.
 func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
@@ -2212,7 +2194,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	go sp.Run()
 }
 
-// peerHandler is used to handle peer operations such as banning peers and
+// peerHandler is used to handle peer operations such as inventory relay and
 // broadcasting messages to peers.
 //
 // It must be run in a goroutine.
@@ -2228,10 +2210,6 @@ func (s *server) peerHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		// Peer to ban.
-		case p := <-s.banPeers:
-			s.handleBanPeerMsg(&s.peerState, p)
-
 		// New inventory to potentially be relayed to other peers.
 		case invMsg := <-s.relayInv:
 			s.handleRelayInvMsg(&s.peerState, invMsg)
@@ -2489,12 +2467,20 @@ func (s *server) BanPeer(sp *serverPeer) {
 	if cfg.DisableBanning || sp.isWhitelisted {
 		return
 	}
-	sp.Disconnect()
-
-	select {
-	case <-s.quit:
-	case s.banPeers <- sp:
+	host, _, err := net.SplitHostPort(sp.Addr())
+	if err != nil {
+		srvrLog.Debugf("can't split ban peer %s %v", sp.Addr(), err)
+		return
 	}
+	direction := directionString(sp.Inbound())
+	srvrLog.Infof("Banned peer %s (%s) for %v", host, direction,
+		cfg.BanDuration)
+	bannedUntil := time.Now().Add(cfg.BanDuration)
+	s.peerState.Lock()
+	s.peerState.banned[host] = bannedUntil
+	s.peerState.Unlock()
+
+	sp.Disconnect()
 }
 
 // RelayInventory relays the passed inventory vector to all connected peers
@@ -3717,7 +3703,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		chainParams:          chainParams,
 		addrManager:          amgr,
 		peerState:            makePeerState(),
-		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
 		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
 		modifyRebroadcastInv: make(chan interface{}),
