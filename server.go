@@ -2048,6 +2048,12 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 		}
 
 		if iv.Type == wire.InvTypeMix {
+			// Don't relay the mixing message to the peer when it has transaction
+			// relaying disabled.
+			if sp.disableRelayTx.Load() {
+				return
+			}
+
 			// Don't relay mix message inventory when unsupported
 			// by the negotiated protocol version.
 			if sp.ProtocolVersion() < wire.MixVersion {
