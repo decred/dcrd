@@ -949,7 +949,7 @@ func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) b
 		return false
 	}
 	if sp.isWhitelisted {
-		peerLog.Debugf("Misbehaving whitelisted peer %s: %s", sp, reason)
+		srvrLog.Debugf("Misbehaving whitelisted peer %s: %s", sp, reason)
 		return false
 	}
 
@@ -959,19 +959,18 @@ func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) b
 		// logged if the score is above the warn threshold.
 		score := sp.banScore.Int()
 		if score > warnThreshold {
-			peerLog.Warnf("Misbehaving peer %s: %s -- ban score is %d, "+
+			srvrLog.Warnf("Misbehaving peer %s: %s -- ban score is %d, "+
 				"it was not increased this time", sp, reason, score)
 		}
 		return false
 	}
 	score := sp.banScore.Increase(persistent, transient)
 	if score > warnThreshold {
-		peerLog.Warnf("Misbehaving peer %s: %s -- ban score increased to %d",
+		srvrLog.Warnf("Misbehaving peer %s: %s -- ban score increased to %d",
 			sp, reason, score)
 		if score > cfg.BanThreshold {
-			peerLog.Warnf("Misbehaving peer %s -- banning and disconnecting",
-				sp)
-			sp.server.BanPeer(sp)
+			const reason = "ban score exceeds threshold"
+			sp.server.BanPeer(sp, reason)
 			return true
 		}
 	}
@@ -1379,8 +1378,8 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	// Ban peers sending empty inventory announcements.
 	if len(msg.InvList) == 0 {
-		peerLog.Warnf("%s sent an empty inventory announcement", sp)
-		sp.server.BanPeer(sp)
+		const reason = "sent empty inventory announcement"
+		sp.server.BanPeer(sp, reason)
 		return
 	}
 
@@ -1424,8 +1423,8 @@ func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 func (sp *serverPeer) OnGetData(_ *peer.Peer, msg *wire.MsgGetData) {
 	// Ban peers sending empty getdata requests.
 	if len(msg.InvList) == 0 {
-		peerLog.Warnf("%s sent an empty getdata request", sp)
-		sp.server.BanPeer(sp)
+		const reason = "sent an empty getdata request"
+		sp.server.BanPeer(sp, reason)
 		return
 	}
 
@@ -1667,10 +1666,9 @@ func (sp *serverPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 
 	// A message that has no addresses is invalid.
 	if len(msg.AddrList) == 0 {
-		peerLog.Warnf("%s sent an empty address list", sp)
-
 		// Ban peers sending empty address requests.
-		sp.server.BanPeer(sp)
+		const reason = "sent an empty address list"
+		sp.server.BanPeer(sp, reason)
 		return
 	}
 
@@ -1729,8 +1727,8 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 		return
 	}
 	if mixpool.IsBannable(err) {
-		peerLog.Warnf("%s: %v", sp, err)
-		sp.server.BanPeer(sp)
+		reason := fmt.Sprintf("sent malformed mix message: %s", err)
+		sp.server.BanPeer(sp, reason)
 	}
 }
 
@@ -1785,8 +1783,8 @@ func (sp *serverPeer) OnRead(_ *peer.Peer, bytesRead int, msg wire.Message, err 
 	// Ban peers sending messages that do not conform to the wire protocol.
 	var errCode wire.ErrorCode
 	if errors.As(err, &errCode) {
-		peerLog.Errorf("Unable to read wire message from %s: %v", sp, err)
-		sp.server.BanPeer(sp)
+		reason := fmt.Sprintf("sent malformed wire message: %s", err)
+		sp.server.BanPeer(sp, reason)
 	}
 
 	sp.server.AddBytesReceived(uint64(bytesRead))
@@ -2461,25 +2459,33 @@ func (s *server) DonePeer(sp *serverPeer) {
 	}
 }
 
-// BanPeer bans a peer that has already been connected to the server by ip
-// unless banning is disabled or the peer has been whitelisted.
-func (s *server) BanPeer(sp *serverPeer) {
-	if cfg.DisableBanning || sp.isWhitelisted {
+// BanPeer bans and disconnects a peer that has already been connected to the
+// server by ip unless banning is disabled or the peer has been whitelisted.
+func (s *server) BanPeer(sp *serverPeer, reason string) {
+	// No warning is logged when banning is disabled.
+	if cfg.DisableBanning {
 		return
 	}
+	if sp.isWhitelisted {
+		srvrLog.Debugf("Misbehaving whitelisted peer %s: %s", sp, reason)
+		return
+	}
+
 	host, _, err := net.SplitHostPort(sp.Addr())
 	if err != nil {
-		srvrLog.Debugf("can't split ban peer %s %v", sp.Addr(), err)
+		srvrLog.Debugf("can't split ban peer %s: %v", sp, err)
+		srvrLog.Warnf("Misbehaving peer %s: %s -- disconnecting", sp, reason)
+		sp.Disconnect()
 		return
 	}
+
 	direction := directionString(sp.Inbound())
-	srvrLog.Infof("Banned peer %s (%s) for %v", host, direction,
-		cfg.BanDuration)
+	srvrLog.Warnf("Misbehaving peer %s (%s): %s -- banned for %v", host,
+		direction, cfg.BanDuration)
 	bannedUntil := time.Now().Add(cfg.BanDuration)
 	s.peerState.Lock()
 	s.peerState.banned[host] = bannedUntil
 	s.peerState.Unlock()
-
 	sp.Disconnect()
 }
 
