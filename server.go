@@ -973,7 +973,6 @@ func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) b
 			peerLog.Warnf("Misbehaving peer %s -- banning and disconnecting",
 				sp)
 			sp.server.BanPeer(sp)
-			sp.Disconnect()
 			return true
 		}
 	}
@@ -1381,6 +1380,7 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	// Ban peers sending empty inventory announcements.
 	if len(msg.InvList) == 0 {
+		peerLog.Warnf("%s sent an empty inventory announcement", sp)
 		sp.server.BanPeer(sp)
 		return
 	}
@@ -1425,6 +1425,7 @@ func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 func (sp *serverPeer) OnGetData(_ *peer.Peer, msg *wire.MsgGetData) {
 	// Ban peers sending empty getdata requests.
 	if len(msg.InvList) == 0 {
+		peerLog.Warnf("%s sent an empty getdata request", sp)
 		sp.server.BanPeer(sp)
 		return
 	}
@@ -1667,8 +1668,7 @@ func (sp *serverPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 
 	// A message that has no addresses is invalid.
 	if len(msg.AddrList) == 0 {
-		peerLog.Errorf("Command [%s] from %s does not contain any addresses",
-			msg.Command(), sp)
+		peerLog.Warnf("%s sent an empty address list", sp)
 
 		// Ban peers sending empty address requests.
 		sp.server.BanPeer(sp)
@@ -1730,8 +1730,8 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 		return
 	}
 	if mixpool.IsBannable(err) {
+		peerLog.Warnf("%s: %v", sp, err)
 		sp.server.BanPeer(sp)
-		sp.Disconnect()
 	}
 }
 
