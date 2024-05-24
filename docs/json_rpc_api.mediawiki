@@ -268,6 +268,10 @@ the method name for further details such as parameter and return information.
 |N
 |Returns a JSON object containing mining-related information.
 |-
+|[[#getmixmessage|getmixmessage]]
+|Y
+|Returns a mix message and its message type by its hash if it is accepted by and currently in the mixpool.
+|-
 |[[#getmixpairrequests|getmixpairrequests]]
 |Y
 |Returns the current set of mixing pair request messages from the mixpool.  WARNING: This is experimental and will very likely be removed in the next version.  Do not use!
@@ -1500,6 +1504,30 @@ of the best block.
 |-
 !Example Return
 |<code>{"blocks": 236526, "currentblocksize": 185, "currentblocktx": 1, "difficulty": 256, "errors": "", "generate": false, "genproclimit": -1, "hashespersec": 0, "networkhashps": 33081554756, "pooledtx": 8, "testnet": true }</code>
+|}
+
+----
+
+====getmixmessage====
+{|
+!Method
+|getmixmessage
+|-
+!Parameters
+|
+# <code>hash</code>: <code>(string, required)</code> The hash of the message being queried.
+|-
+!Description
+|
+: Returns a mix message and its message type by its hash if it is accepted by and currently in the mixpool.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>type</code>: <code>(string)</code> The message command type
+: <code>message</code>: <code>(string)</code> The message serialized as hex.
+|-
+!Example Return
+|<code>{"type":"mixpairreq","message":"a1d1d8c6ffc20a51ad9a5aa093c31bdeb06a0f627af95..."}</code>
 |}
 
 ----
