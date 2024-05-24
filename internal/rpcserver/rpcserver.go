@@ -380,6 +380,7 @@ var rpcLimited = map[string]struct{}{
 	"getdifficulty":        {},
 	"getheaders":           {},
 	"getinfo":              {},
+	"getmixmessage":        {},
 	"getmixpairrequests":   {},
 	"getnettotals":         {},
 	"getnetworkhashps":     {},
