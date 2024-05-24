@@ -62,7 +62,7 @@ import (
 // API version constants
 const (
 	jsonrpcSemverMajor = 8
-	jsonrpcSemverMinor = 2
+	jsonrpcSemverMinor = 3
 	jsonrpcSemverPatch = 0
 )
 
@@ -209,6 +209,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getinfo":               handleGetInfo,
 	"getmempoolinfo":        handleGetMempoolInfo,
 	"getmininginfo":         handleGetMiningInfo,
+	"getmixmessage":         handleGetMixMessage,
 	"getmixpairrequests":    handleGetMixPairRequests,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
@@ -482,6 +483,15 @@ func rpcBlockNotFoundError(blockHash chainhash.Hash) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCBlockNotFound,
 		fmt.Sprintf("No information available about block %v",
 			blockHash))
+}
+
+// rpcMixMessageNotFoundError is a convenience function for returning a nicely
+// formatted RPC error which indicates that the mix message was not found in
+// the mixpool.
+func rpcMixMessageNotFoundError(hash *chainhash.Hash) *dcrjson.RPCError {
+	return dcrjson.NewRPCError(dcrjson.ErrRPCNoMixMsgInfo,
+		fmt.Sprintf("No information available about mix message %v",
+			hash))
 }
 
 // rpcConnectionClosedError is a convenience function for returning an RPC error
@@ -2562,6 +2572,36 @@ func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interfa
 	return &result, nil
 }
 
+// handleGetMixMessage implements the getmixmessage command, returning a
+// serialized message and its wire command type if it is found in the
+// mixpool.
+func handleGetMixMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.GetMixMessageCmd)
+
+	msgHash, err := chainhash.NewHashFromStr(c.Hash)
+	if err != nil {
+		return nil, rpcDecodeHexError(c.Hash)
+	}
+
+	mp := s.cfg.MixPooler
+	msg, err := mp.Message(msgHash)
+	if err != nil {
+		return nil, rpcMixMessageNotFoundError(msgHash)
+	}
+
+	buf := new(strings.Builder)
+	err = msg.BtcEncode(hex.NewEncoder(buf), wire.MixVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	result := types.GetMixMessageResult{
+		Type:    msg.Command(),
+		Message: buf.String(),
+	}
+	return &result, nil
+}
+
 // handleGetMixPairRequests implements the getmixpairrequests command,
 // returning all current mixing pair requests messages from mixpool.
 func handleGetMixPairRequests(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
@@ -4255,8 +4295,8 @@ func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface
 }
 
 // handleSendRawMixMessage implements the sendrawmixmessage command.
-func handleSendRawMixMessage(_ context.Context, s *Server, icmd interface{}) (interface{}, error) {
-	c := icmd.(*types.SendRawMixMessageCmd)
+func handleSendRawMixMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.SendRawMixMessageCmd)
 
 	// Allocate a message of the appropriate type based on the wire
 	// command string.
