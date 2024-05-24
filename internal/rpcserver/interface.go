@@ -633,6 +633,9 @@ type MixPooler interface {
 	// If query is nil, all PRs are returned.
 	MixPRs(query []chainhash.Hash) []*wire.MsgMixPairReq
 
+	// Message searches the mixing pool for a message by its hash.
+	Message(query *chainhash.Hash) (mixing.Message, error)
+
 	// RemoveConfirmedRuns removes all messages including pair requests
 	// from runs which ended in each peer sending a confirm mix message.
 	RemoveConfirmedRuns()

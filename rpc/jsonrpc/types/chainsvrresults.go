@@ -234,6 +234,12 @@ type GetMiningInfoResult struct {
 	TestNet          bool    `json:"testnet"`
 }
 
+// GetMixMessageResult models the data from the getmixmessage command.
+type GetMixMessageResult struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 // LocalAddressesResult models the localaddresses data from the getnetworkinfo
 // command.
 type LocalAddressesResult struct {

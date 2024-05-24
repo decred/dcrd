@@ -510,6 +510,15 @@ var helpDescsEnUS = map[string]string{
 	// GetMiningInfoCmd help.
 	"getmininginfo--synopsis": "Returns a JSON object containing mining-related information.",
 
+	// GetMixMessage help.
+	"getmixmessage--synopsis": "Returns a mix message if it is currently accepted by the mixpool.",
+	"getmixmessage-hash":      "Hash of the message being queried",
+	"getmixmessage--result0":  "JSON object describing the message command type and the serialized message in hex encoding.",
+
+	// GetMixMessageResult help.
+	"getmixmessageresult-type":    "Command type of the message",
+	"getmixmessageresult-message": "Serialized message in hex encoding",
+
 	// GetMixPairRequests help.
 	"getmixpairrequests--synopsis": "Returns current set of mixing pair request messages from mixpool.",
 	"getmixpairrequests--result0":  "JSON array of hex-encoded mixing pair request messages.",
@@ -970,6 +979,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getinfo":               {(*types.InfoChainResult)(nil)},
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
+	"getmixmessage":         {(*types.GetMixMessageResult)(nil)},
 	"getmixpairrequests":    {(*[]string)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
