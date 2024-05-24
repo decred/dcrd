@@ -246,6 +246,9 @@ type sessionRun struct {
 	peers   []*peer
 	mcounts []uint32
 	roots   []*big.Int
+
+	// Finalized coinjoin of a successful run.
+	cj *CoinJoin
 }
 
 type queueMsg struct {
@@ -741,28 +744,29 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 	var mixedSession *sessionRun
 	var unresponsive []*wire.MsgMixPairReq
 	defer func() {
+		c.removeUnresponsiveDuringEpoch(unresponsive, unixEpoch)
+
 		unmixedPeers := ps.localPeers
-		if mixedSession != nil {
+		if mixedSession != nil && mixedSession.cj != nil {
 			for _, pr := range mixedSession.prs {
 				delete(unmixedPeers, pr.Identity)
 			}
-		}
 
-		c.removeUnresponsiveDuringEpoch(unresponsive, unixEpoch)
-		if mixedSession != nil {
 			// XXX: Removing these later in the background is a hack to
 			// work around a race in SPV mode.  Deleting the session too
 			// soon may result in our wallet serving notfound messages
 			// for CM messages, which will increment ban score.
 			go func() {
 				time.Sleep(10 * time.Second)
+				c.logf("sid=%x removing mixed session completed with transaction %v",
+					mixedSession.sid[:], mixedSession.cj)
 				c.mixpool.RemoveSession(mixedSession.sid, true)
 			}()
 		}
-
 		if len(unmixedPeers) == 0 {
 			return
 		}
+
 		for _, p := range unmixedPeers {
 			p.ke = nil
 			p.ct = nil
@@ -823,6 +827,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		} else {
 			ps.runs = append(ps.runs, *rerun)
 			currentRun = &ps.runs[len(ps.runs)-1]
+			sesLog = c.sessionLog(currentRun.sid)
 			// rerun is not assigned nil here to please the
 			// linter.  All code paths that reenter this loop will
 			// set it again.
@@ -860,7 +865,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			action, ps.pairing, len(prHashes), localPeerCount, prHashes)
 
 		if localPeerCount == 0 {
-			c.log("no more local peers")
+			sesLog.logf("no more local peers")
 			return
 		}
 
@@ -900,7 +905,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			revealedSecrets = true
 			err := c.blame(ctx, currentRun)
 			if !errors.As(err, &blamed) {
-				c.logerrf("Aborting session for failed blame assignment: %v", err)
+				sesLog.logf("Aborting session for failed blame assignment: %v", err)
 				return
 			}
 		}
@@ -1069,8 +1074,8 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		ctx, cancel := context.WithDeadline(ctx, d.recvKE)
 		defer cancel()
 		err = mp.Receive(ctx, len(sesRun.prs), rcv)
-		if errors.Is(err, context.Canceled) {
-			err = fmt.Errorf("KE receive context cancelled: %w", err)
+		if ctx.Err() != nil {
+			err = fmt.Errorf("KE receive context cancelled: %w", ctx.Err())
 		}
 		return rcv.KEs, err
 	}
@@ -1092,13 +1097,15 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 
 		// Alternate session needs to be attempted.  Do not form an
-		// alternate session if we've already entered into the next
-		// epoch without forming a complete session.  The session
-		// forming will be performed by a new goroutine started by the
-		// epoch ticker, possibly with additional PRs.
+		// alternate session if we are about to enter into the next
+		// epoch.  The session forming will be performed by a new
+		// goroutine started by the epoch ticker, possibly with
+		// additional PRs.
 		nextEpoch := d.epoch.Add(c.epoch)
-		if time.Now().After(nextEpoch) {
-			return err
+		if time.Now().Add(timeoutDuration).After(nextEpoch) {
+			c.logf("Aborting session %x after %d attempts",
+				sesRun.sid[:], len(ps.runs))
+			return errOnlyKEsBroadcasted
 		}
 
 		altses := c.alternateSession(ps.pairing, sesRun.prs, d)
@@ -1502,6 +1509,8 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 		return nil
 	})
+
+	sesRun.cj = cj
 
 	return nil
 }
