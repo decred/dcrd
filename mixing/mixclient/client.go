@@ -759,7 +759,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			go func() {
 				time.Sleep(10 * time.Second)
 				c.logf("sid=%x removing mixed session completed with transaction %v",
-					mixedSession.sid[:], mixedSession.cj)
+					mixedSession.sid[:], mixedSession.cj.txHash)
 				c.mixpool.RemoveSession(mixedSession.sid, true)
 			}()
 		}
@@ -876,6 +876,11 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 
 		var altses *alternateSession
 		if errors.As(err, &altses) {
+			if altses.err != nil {
+				sesLog.logf("Unable to recreate session: %v", altses.err)
+				return
+			}
+
 			if len(altses.prs) < MinPeers {
 				sesLog.logf("Aborting session with too few remaining peers")
 				return
@@ -1075,7 +1080,8 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		defer cancel()
 		err = mp.Receive(ctx, len(sesRun.prs), rcv)
 		if ctx.Err() != nil {
-			err = fmt.Errorf("KE receive context cancelled: %w", ctx.Err())
+			err = fmt.Errorf("session %x run-%d KE receive context cancelled: %w",
+				sesRun.sid[:], sesRun.run, ctx.Err())
 		}
 		return rcv.KEs, err
 	}
@@ -1092,7 +1098,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		// may be operable now if all wallets have come to agree on a
 		// previous session we also tried to form.
 		kes, err = recvKEs(sesRun)
-		if len(kes) == len(sesRun.prs) {
+		if err == nil && len(kes) == len(sesRun.prs) {
 			break
 		}
 
@@ -1108,11 +1114,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 			return errOnlyKEsBroadcasted
 		}
 
-		altses := c.alternateSession(ps.pairing, sesRun.prs, d)
-		if altses.err != nil {
-			return err
-		}
-		return altses
+		return c.alternateSession(ps.pairing, sesRun.prs, d)
 
 	default:
 		// Receive KEs only for the agreed-upon session.
