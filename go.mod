@@ -20,14 +20,14 @@ require (
 	github.com/decred/dcrd/database/v3 v3.0.2
 	github.com/decred/dcrd/dcrec v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
-	github.com/decred/dcrd/dcrjson/v4 v4.0.1
+	github.com/decred/dcrd/dcrjson/v4 v4.1.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.2
 	github.com/decred/dcrd/gcs/v4 v4.1.0
 	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.2
-	github.com/decred/dcrd/mixing v0.1.0
+	github.com/decred/dcrd/mixing v0.2.0
 	github.com/decred/dcrd/peer/v3 v3.1.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.2.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0
 	github.com/decred/dcrd/rpcclient/v8 v8.0.1
 	github.com/decred/dcrd/txscript/v4 v4.1.1
 	github.com/decred/dcrd/wire v1.7.0
