@@ -2468,7 +2468,7 @@ func (s *server) BanPeer(sp *serverPeer, reason string) {
 
 	direction := directionString(sp.Inbound())
 	srvrLog.Warnf("Misbehaving peer %s (%s): %s -- banned for %v", host,
-		direction, cfg.BanDuration)
+		direction, reason, cfg.BanDuration)
 	bannedUntil := time.Now().Add(cfg.BanDuration)
 	s.peerState.Lock()
 	s.peerState.banned[host] = bannedUntil
