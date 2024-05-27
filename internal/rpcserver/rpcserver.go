@@ -35,9 +35,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gorilla/websocket"
-	"github.com/jrick/bitset"
-
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -57,6 +54,8 @@ import (
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/gorilla/websocket"
+	"github.com/jrick/bitset"
 )
 
 // API version constants
@@ -237,7 +236,9 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"sendrawmixmessage":     handleSendRawMixMessage,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
+	"startprofiler":         handleStartProfiler,
 	"stop":                  handleStop,
+	"stopprofiler":          handleStopProfiler,
 	"submitblock":           handleSubmitBlock,
 	"ticketfeeinfo":         handleTicketFeeInfo,
 	"ticketsforaddress":     handleTicketsForAddress,
@@ -4468,6 +4469,39 @@ func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface
 	return nil, nil
 }
 
+// handleStartProfiler implements the startprofiler command.
+func handleStartProfiler(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.StartProfilerCmd)
+
+	if listeners := s.cfg.ProfilerMgr.Listeners(); len(listeners) > 0 {
+		const str = "profile server is already running"
+		return nil, dcrjson.NewRPCError(dcrjson.ErrRPCProfilerState, str)
+	}
+
+	var allowNonLoopback bool
+	if c.AllowNonLoopback != nil {
+		allowNonLoopback = *c.AllowNonLoopback
+	}
+	if err := s.cfg.ProfilerMgr.Start(c.Addr, allowNonLoopback); err != nil {
+		return nil, rpcInvalidError("unable to start profile server: %v", err)
+	}
+
+	// Ensure there are active listeners for generating the result.
+	//
+	// In general, there should always be listeners since the server was just
+	// successfully started.  However, although improbable, it's possible that
+	// the server was stopped by a separate goroutine in between, so be safe.
+	listeners := s.cfg.ProfilerMgr.Listeners()
+	if len(listeners) == 0 {
+		err := errors.New("profile server started without active listeners")
+		return nil, rpcInternalErr(err, "")
+	}
+
+	return &types.StartProfilerResult{
+		Listeners: listeners,
+	}, nil
+}
+
 // handleStop implements the stop command.
 func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	select {
@@ -4475,6 +4509,21 @@ func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error
 	default:
 	}
 	return "dcrd stopping.", nil
+}
+
+// handleStopProfiler implements the stopprofiler command.
+func handleStopProfiler(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+	if listeners := s.cfg.ProfilerMgr.Listeners(); len(listeners) == 0 {
+		const str = "profile server is not started"
+		return nil, dcrjson.NewRPCError(dcrjson.ErrRPCProfilerState, str)
+	}
+
+	if err := s.cfg.ProfilerMgr.Stop(); err != nil {
+		const context = "unexpected error when stopping profile server"
+		return nil, rpcInternalErr(err, context)
+	}
+
+	return "profile server stopped", nil
 }
 
 // handleSubmitBlock implements the submitblock command.
@@ -6020,6 +6069,11 @@ type Config struct {
 	// StartupTime is the unix timestamp for when the server that is hosting
 	// the RPC server started.
 	StartupTime int64
+
+	// ProfilerMgr defines the profile server manager for the RPC server to use.
+	// It provides the RPC server with the means to dynamically start and stop
+	// an HTTP profile server on a separate listening address.
+	ProfilerMgr ProfilerManager
 
 	// ConnMgr defines the connection manager for the RPC server to use.  It
 	// provides the RPC server with a means to do things such as add,

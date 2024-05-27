@@ -26,6 +26,38 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// ProfilerManager represents a profile server manager for use with the RPC
+// server.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type ProfilerManager interface {
+	// Start binds a listener to the provided address and launches an HTTP
+	// server that handles profiling endpoints in the background using that
+	// listener.  An error must be returned when the listener fails to bind or
+	// when the profile server has already been started.
+	//
+	// An error must also be returned when the allow non loopback flag is not
+	// set and the provided listen address does not normalize to an IPv4 or IPv6
+	// loopback address.
+	//
+	// It must have no effect when the server is already running, so it may be
+	// called multiple times without error.
+	Start(listenAddr string, allowNonLoopback bool) error
+
+	// Listeners returns all listeners the profile server is currently listening
+	// on.  It may also be used as a means to tell if the server is currently
+	// running since there will only be active listeners when it is.
+	Listeners() []string
+
+	// Stop immediately closes the active listener and any connections to the
+	// profile server.
+	//
+	// It must have no effect when the server is not running, so it may be
+	// called multiple times without error.
+	Stop() error
+}
+
 // Peer represents a peer for use with the RPC server.
 //
 // The interface contract requires that all of these methods are safe for

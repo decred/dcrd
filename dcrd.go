@@ -228,8 +228,8 @@ func dcrdMain() error {
 
 	// Create server.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
-	svr, err := newServer(ctx, cfg.Listeners, db, utxoDb, cfg.params.Params,
-		cfg.DataDir)
+	svr, err := newServer(ctx, &profiler, cfg.Listeners, db, utxoDb,
+		cfg.params.Params, cfg.DataDir)
 	if err != nil {
 		dcrdLog.Errorf("Unable to start server: %v", err)
 		return err

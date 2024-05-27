@@ -15,6 +15,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -513,6 +514,44 @@ func (p *testPeer) IsTxRelayDisabled() bool {
 // the peer is to being banned.
 func (p *testPeer) BanScore() uint32 {
 	return p.banScore
+}
+
+// testProfManager provides a mock profiler manager by implementing the
+// ProfilerManager interface.
+type testProfManager struct {
+	startFn   func(listenAddr string, allowNonLoopback bool) error
+	startErr  error
+	stopErr   error
+	listeners []string
+}
+
+// Start is a mocked start function for the startprofiler RPC.
+func (m *testProfManager) Start(listenAddr string, allowNonLoopback bool) error {
+	if m.startFn != nil {
+		return m.startFn(listenAddr, allowNonLoopback)
+	}
+	if m.startErr != nil {
+		return m.startErr
+	}
+	addr, err := netip.ParseAddrPort(listenAddr)
+	if err != nil {
+		return err
+	}
+	if !allowNonLoopback && !addr.Addr().IsLoopback() {
+		return errors.New("not allowed non loopback")
+	}
+	m.listeners = []string{listenAddr}
+	return nil
+}
+
+// Stop is a mocked stop function for the stopprofiler RPC.
+func (m *testProfManager) Stop() error {
+	return m.stopErr
+}
+
+// Listeners provides mocked listeners for the profile manager.
+func (m *testProfManager) Listeners() []string {
+	return m.listeners
 }
 
 // testAddrManager provides a mock address manager by implementing the
@@ -1383,6 +1422,7 @@ type rpcTest struct {
 	mockBlockTemplater    *testBlockTemplater
 	setBlockTemplaterNil  bool
 	mockSanityChecker     *testSanityChecker
+	mockProfManager       *testProfManager
 	mockAddrManager       *testAddrManager
 	mockFeeEstimator      *testFeeEstimator
 	mockSyncManager       *testSyncManager
@@ -1594,6 +1634,15 @@ func defaultMockBlockTemplater() *testBlockTemplater {
 		regenReason:   mining.TURNewParent,
 		currTemplate:  &mining.BlockTemplate{Block: &block432100},
 	}
+}
+
+// defaultMockProfManager provides a defaut mock profiler manager to be used
+// throughout the tests.  Tests can override these defaults by calling
+// defaultMockProfManager, updating fields as necessary on the returned
+// *testProfilerManager, and then setting rpcTest.mockProfManager as that
+// *testProfilerManager.
+func defaultMockProfManager() *testProfManager {
+	return &testProfManager{}
 }
 
 // defaultMockAddrManager provides a default mock address manager to be used
@@ -7926,6 +7975,111 @@ func TestHandleStop(t *testing.T) {
 	}})
 }
 
+// TestHandleStartProfiler tests the expected behavior of the startprofiler RPC.
+func TestHandleStartProfiler(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handleStartProfiler: ok",
+		handler:         handleStartProfiler,
+		mockProfManager: defaultMockProfManager(),
+		cmd:             &types.StartProfilerCmd{Addr: "127.0.0.1:6060"},
+		result: &types.StartProfilerResult{
+			Listeners: []string{"127.0.0.1:6060"},
+		},
+	}, {
+		name:            "handleStartProfiler: non loopback ok with flag",
+		handler:         handleStartProfiler,
+		mockProfManager: defaultMockProfManager(),
+		cmd: &types.StartProfilerCmd{
+			Addr:             "10.0.0.1:6060",
+			AllowNonLoopback: dcrjson.Bool(true),
+		},
+		result: &types.StartProfilerResult{
+			Listeners: []string{"10.0.0.1:6060"},
+		},
+	}, {
+		name:    "handleStartProfiler: already running",
+		handler: handleStartProfiler,
+		mockProfManager: func() *testProfManager {
+			m := defaultMockProfManager()
+			m.listeners = []string{"127.0.0.1:6060"}
+			return m
+		}(),
+		cmd:     &types.StartProfilerCmd{Addr: "127.0.0.1:6060"},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCProfilerState,
+	}, {
+		name:    "handleStartProfiler: start failure",
+		handler: handleStartProfiler,
+		mockProfManager: func() *testProfManager {
+			m := defaultMockProfManager()
+			m.startErr = errors.New("fail")
+			return m
+		}(),
+		cmd:     &types.StartProfilerCmd{Addr: "127.0.0.1:6060"},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:            "handleStartProfiler: non loopback not allowed",
+		handler:         handleStartProfiler,
+		mockProfManager: defaultMockProfManager(),
+		cmd:             &types.StartProfilerCmd{Addr: "10.0.0.1:6060"},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleStartProfiler: no listeners after start",
+		handler: handleStartProfiler,
+		mockProfManager: func() *testProfManager {
+			m := defaultMockProfManager()
+			m.startFn = func(string, bool) error {
+				m.listeners = nil
+				return nil
+			}
+			return m
+		}(),
+		cmd:     &types.StartProfilerCmd{Addr: "127.0.0.1:6060"},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+// TestHandleStopProfiler tests the expected behavior of the stopprofiler RPC.
+func TestHandleStopProfiler(t *testing.T) {
+	t.Parallel()
+
+	mockRunningProfManager := func() *testProfManager {
+		m := defaultMockProfManager()
+		m.listeners = []string{"127.0.0.1:6060"}
+		return m
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handleStopProfiler: ok",
+		handler:         handleStopProfiler,
+		mockProfManager: mockRunningProfManager(),
+		cmd:             &types.StopProfilerCmd{},
+		result:          "profile server stopped",
+	}, {
+		name:            "handleStopProfiler: not started",
+		handler:         handleStopProfiler,
+		mockProfManager: defaultMockProfManager(),
+		cmd:             &types.StopProfilerCmd{},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCProfilerState,
+	}, {
+		name:    "handleStopProfiler: unexpected stop err",
+		handler: handleStopProfiler,
+		mockProfManager: func() *testProfManager {
+			m := mockRunningProfManager()
+			m.stopErr = errors.New("failed to close listener")
+			return m
+		}(),
+		cmd:     &types.StopProfilerCmd{},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleHelp(t *testing.T) {
 	t.Parallel()
 
@@ -8014,6 +8168,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			rpcserverConfig := defaultMockConfig(chainParams)
 			if test.mockChain != nil {
 				rpcserverConfig.Chain = test.mockChain
+			}
+			if test.mockProfManager != nil {
+				rpcserverConfig.ProfilerMgr = test.mockProfManager
 			}
 			if test.mockAddrManager != nil {
 				rpcserverConfig.AddrManager = test.mockAddrManager

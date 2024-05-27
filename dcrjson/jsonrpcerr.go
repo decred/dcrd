@@ -40,6 +40,7 @@ const (
 	ErrRPCDatabase            RPCErrorCode = -20
 	ErrRPCDeserialization     RPCErrorCode = -22
 	ErrRPCVerify              RPCErrorCode = -25
+	ErrRPCInvalidState        RPCErrorCode = -26
 )
 
 // Peer-to-peer client errors.
@@ -77,6 +78,7 @@ const (
 	ErrRPCNoMixMsgInfo      RPCErrorCode = -5
 	ErrRPCRawTxString       RPCErrorCode = -32602
 	ErrRPCDecodeHexString   RPCErrorCode = -22
+	ErrRPCProfilerState     RPCErrorCode = -26
 	ErrRPCDuplicateTx       RPCErrorCode = -40
 	ErrRPCReconsiderFailure RPCErrorCode = -50
 )

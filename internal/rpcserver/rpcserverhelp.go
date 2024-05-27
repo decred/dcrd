@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -725,9 +725,19 @@ var helpDescsEnUS = map[string]string{
 	"setgenerate-generate":     "Use true to enable generation, false to disable it",
 	"setgenerate-genproclimit": "The number of processors (cores) to limit generation to or -1 for default",
 
+	// StartProfilerCmd help.
+	"startprofiler--synopsis":        "Starts the HTTP profile server listening on a given address.",
+	"startprofiler-addr":             "The interface/port to listen for profile server connections (e.g. 127.0.0.1:6060)",
+	"startprofiler-allownonloopback": "Whether or not to allow listening on non loopback addresses",
+	"startprofilerresult-listeners":  "List of normalized listening addresses the profile server is listening on",
+
 	// StopCmd help.
 	"stop--synopsis": "Shutdown dcrd.",
 	"stop--result0":  "The string 'dcrd stopping.'",
+
+	// StopProfilerCmd help.
+	"stopprofiler--synopsis": "Stops the running HTTP profile server.",
+	"stopprofiler--result0":  "The string 'profile server stopped'",
 
 	// SubmitBlockOptions help.
 	"submitblockoptions-workid": "This parameter is currently ignored",
@@ -1007,7 +1017,9 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"sendrawmixmessage":     nil,
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
+	"startprofiler":         {(*types.StartProfilerResult)(nil)},
 	"stop":                  {(*string)(nil)},
+	"stopprofiler":          {(*string)(nil)},
 	"submitblock":           {nil, (*string)(nil)},
 	"ticketfeeinfo":         {(*types.TicketFeeInfoResult)(nil)},
 	"ticketsforaddress":     {(*types.TicketsForAddressResult)(nil)},
