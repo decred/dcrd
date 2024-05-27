@@ -931,25 +931,13 @@ func loadConfig(appName string) (*config, []string, error) {
 		cfg.UtxoCacheMaxSize = maxUtxoCacheMaxSize
 	}
 
-	// Validate format of profile, can be an address:port, or just a port.
+	// Validate format of profile address.  It may either be an address:port or
+	// just a port.  The port also must be between 1024 and 65535.
 	if cfg.Profile != "" {
-		// if profile is just a number, then add a default host of "127.0.0.1" such that Profile is a valid tcp address
-		if _, err := strconv.Atoi(cfg.Profile); err == nil {
-			cfg.Profile = net.JoinHostPort("127.0.0.1", cfg.Profile)
-		}
-
-		// check the Profile is a valid address
-		_, portStr, err := net.SplitHostPort(cfg.Profile)
-		if err != nil {
+		cfg.Profile = portToLocalHostAddr(cfg.Profile)
+		if err := validateProfileAddr(cfg.Profile); err != nil {
 			str := "%s: profile: %w"
 			err := fmt.Errorf(str, funcName, err)
-			return nil, nil, err
-		}
-
-		// finally, check the port is in range
-		if port, _ := strconv.Atoi(portStr); port < 1024 || port > 65535 {
-			str := "%s: profile: address %s: port must be between 1024 and 65535"
-			err := fmt.Errorf(str, funcName, cfg.Profile)
 			return nil, nil, err
 		}
 	}

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,15 +8,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
 	"strings"
-	"time"
 
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/blockchain/indexers"
@@ -106,24 +103,17 @@ func dcrdMain() error {
 		debug.SetGCPercent(20)
 	}
 
-	// Enable http profiling server if requested.
+	// Enable http profile server if requested.  Note that since the server may
+	// be started now or dynamically started and stopped later, the stop call is
+	// always deferred to ensure it is always stopped during process shutdown.
+	var profiler profileServer
+	defer profiler.Stop()
 	if cfg.Profile != "" {
-		go func() {
-			listenAddr := cfg.Profile
-			dcrdLog.Infof("Creating profiling server listening on %s",
-				listenAddr)
-			profileRedirect := http.RedirectHandler("/debug/pprof",
-				http.StatusSeeOther)
-			http.Handle("/", profileRedirect)
-			server := &http.Server{
-				Addr:              listenAddr,
-				ReadHeaderTimeout: time.Second * 3,
-			}
-			err := server.ListenAndServe()
-			if err != nil {
-				fatalf(err.Error())
-			}
-		}()
+		const allowNonLoopback = true
+		if err := profiler.Start(cfg.Profile, allowNonLoopback); err != nil {
+			dcrdLog.Warnf("unable to start profile server: %v", err)
+			return err
+		}
 	}
 
 	// Write cpu profile if requested.
