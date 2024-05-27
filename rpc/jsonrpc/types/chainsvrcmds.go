@@ -971,6 +971,21 @@ func NewSetGenerateCmd(generate bool, genProcLimit *int) *SetGenerateCmd {
 	}
 }
 
+// StartProfilerCmd defines the startprofiler JSON-RPC command.
+type StartProfilerCmd struct {
+	Addr             string
+	AllowNonLoopback *bool `jsonrpcdefault:"false"`
+}
+
+// NewStartProfilerCmd returns a new instance which can be used to issue a
+// startprofiler JSON-RPC command.
+func NewStartProfilerCmd(addr string, allowNonLookback *bool) *StartProfilerCmd {
+	return &StartProfilerCmd{
+		Addr:             addr,
+		AllowNonLoopback: allowNonLookback,
+	}
+}
+
 // StopCmd defines the stop JSON-RPC command.
 type StopCmd struct{}
 
@@ -978,6 +993,15 @@ type StopCmd struct{}
 // command.
 func NewStopCmd() *StopCmd {
 	return &StopCmd{}
+}
+
+// StopProfilerCmd defines the stopprofiler JSON-RPC command.
+type StopProfilerCmd struct{}
+
+// NewStopProfilerCmd returns a new instance which can be used to issue a
+// stopprofiler JSON-RPC command.
+func NewStopProfilerCmd() *StopProfilerCmd {
+	return &StopProfilerCmd{}
 }
 
 // SubmitBlockOptions represents the optional options struct provided with a
@@ -1187,7 +1211,9 @@ func init() {
 	dcrjson.MustRegister(Method("sendrawmixmessage"), (*SendRawMixMessageCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("setgenerate"), (*SetGenerateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("startprofiler"), (*StartProfilerCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stop"), (*StopCmd)(nil), flags)
+	dcrjson.MustRegister(Method("stopprofiler"), (*StopProfilerCmd)(nil), flags)
 	dcrjson.MustRegister(Method("submitblock"), (*SubmitBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("ticketfeeinfo"), (*TicketFeeInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("ticketsforaddress"), (*TicketsForAddressCmd)(nil), flags)

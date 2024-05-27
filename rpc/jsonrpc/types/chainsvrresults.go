@@ -485,6 +485,11 @@ type LiveTicketsResult struct {
 	Tickets []string `json:"tickets"`
 }
 
+// StartProfilerResult models the data returned from the startprofiler command.
+type StartProfilerResult struct {
+	Listeners []string `json:"listeners"`
+}
+
 // FeeInfoBlock is ticket fee information about a block.
 type FeeInfoBlock struct {
 	Height uint32  `json:"height"`

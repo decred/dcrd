@@ -896,6 +896,34 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 		},
 		{
+			name: "startprofiler",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("startprofiler"), "127.0.0.1:6060")
+			},
+			staticCmd: func() interface{} {
+				return NewStartProfilerCmd("127.0.0.1:6060", nil)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"startprofiler","params":["127.0.0.1:6060"],"id":1}`,
+			unmarshalled: &StartProfilerCmd{
+				Addr:             "127.0.0.1:6060",
+				AllowNonLoopback: dcrjson.Bool(false),
+			},
+		},
+		{
+			name: "startprofiler allownonloopback",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("startprofiler"), "127.0.0.1:6060", true)
+			},
+			staticCmd: func() interface{} {
+				return NewStartProfilerCmd("127.0.0.1:6060", dcrjson.Bool(true))
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"startprofiler","params":["127.0.0.1:6060",true],"id":1}`,
+			unmarshalled: &StartProfilerCmd{
+				Addr:             "127.0.0.1:6060",
+				AllowNonLoopback: dcrjson.Bool(true),
+			},
+		},
+		{
 			name: "stop",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("stop"))
@@ -905,6 +933,17 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"stop","params":[],"id":1}`,
 			unmarshalled: &StopCmd{},
+		},
+		{
+			name: "stopprofiler",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("stopprofiler"))
+			},
+			staticCmd: func() interface{} {
+				return NewStopProfilerCmd()
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"stopprofiler","params":[],"id":1}`,
+			unmarshalled: &StopProfilerCmd{},
 		},
 		{
 			name: "submitblock",
@@ -1036,6 +1075,7 @@ func TestChainSvrCmds(t *testing.T) {
 		if err != nil {
 			t.Errorf("Test #%d (%s) unexpected dcrjson.NewCmd error: %v",
 				i, test.name, err)
+			continue
 		}
 
 		// Marshal the command as created by the generic new command
