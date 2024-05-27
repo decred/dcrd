@@ -380,9 +380,17 @@ the method name for further details such as parameter and return information.
 |N
 |Set the server to generate coins (mine) or not. NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the <code>--miningaddr</code> option to provide which payment addresses to pay created blocks to for this RPC to function.
 |-
+|[[#startprofiler|startprofiler]]
+|N
+|Starts the HTTP profile server listening on a given address.
+|-
 |[[#stop|stop]]
 |N
 |Shutdown dcrd.
+|-
+|[[#stopprofiler|stopprofiler]]
+|N
+|Stops the running HTTP profiler server.
 |-
 |[[#submitblock|submitblock]]
 |Y
@@ -2367,6 +2375,37 @@ of the best block.
 
 ----
 
+====startprofiler====
+{|
+!Method
+|startprofiler
+|-
+!Parameters
+|
+# <code>address</code>: <code>(string, required)</code> the interface/port to listen for profile server connections (e.g. <code>127.0.0.1:6060</code>)
+# <code>allownonloopback</code>: <code>(boolean, optional, default=false)</code> whether or not to allow listening on non loopback addresses
+|-
+!Description
+|
+: Starts the HTTP profile server listening on a given address.
+: The provided address may either be a lone port or of the form <code>host:port</code>.  When a lone port is provided, the address will be normalized to a loopback address by prepending <code>127.0.0.1:</code>
+:
+: Note that all non loopback addresses are rejected by default unless the <code>allownonloopback</code> parameter is set to <code>true</code>.  This protection mechanism is in place to help prevent accidentally exposing the profile server publicly.
+:
+: If access to profiling data from outside of the local machine is required, users are highly encouraged to use a mechanism such as <code>ssh</code> local port forwarding with its <code>-L</code> flag instead.
+:
+: When the <code>allownonloopback</code> parameter is <code>true</code>, the <code>host</code> portion of the address may be an interface name to listen on all IP addresses associated with the interface.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>listeners</code>: <code>(json array)</code> List of normalized listening addresses the profile server is listening on
+|-
+!Example Return
+|<code>{"listeners": ["127.0.0.1:6060",...]}</code>
+|}
+
+----
+
 ====stop====
 {|
 !Method
@@ -2380,6 +2419,24 @@ of the best block.
 |-
 !Returns
 |<code>"dcrd stopping."</code> <code>(string)</code>
+|-
+|}
+
+----
+
+====stopprofiler====
+{|
+!Method
+|stopprofiler
+|-
+!Parameters
+|None
+|-
+!Description
+|Stops the running HTTP profiler server.
+|-
+!Returns
+|<code>"profiler server stopped"</code> <code>(string)</code>
 |-
 |}
 
