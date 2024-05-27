@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"path"
 	"runtime"
@@ -3235,22 +3236,14 @@ func parseListeners(addrs []string) ([]net.Addr, error) {
 			continue
 		}
 
-		// Strip IPv6 zone id if present since net.ParseIP does not
-		// handle it.
-		zoneIndex := strings.LastIndex(host, "%")
-		if zoneIndex > 0 {
-			host = host[:zoneIndex]
-		}
-
 		// Parse the IP.
-		ip := net.ParseIP(host)
-		if ip == nil {
+		ip, err := netip.ParseAddr(host)
+		if err != nil {
 			return nil, fmt.Errorf("'%s' is not a valid IP address", host)
 		}
 
-		// To4 returns nil when the IP is not an IPv4 address, so use
-		// this determine the address type.
-		if ip.To4() == nil {
+		// Determine the address type.
+		if ip.Unmap().Is6() {
 			netAddrs = append(netAddrs, simpleAddr{net: "tcp6", addr: addr})
 		} else {
 			netAddrs = append(netAddrs, simpleAddr{net: "tcp4", addr: addr})
