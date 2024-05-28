@@ -1396,6 +1396,11 @@ func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
 				delete(peer.requestedTxns, inv.Hash)
 				delete(m.requestedTxns, inv.Hash)
 			}
+		case wire.InvTypeMix:
+			if _, exists := peer.requestedMixMsgs[inv.Hash]; exists {
+				delete(peer.requestedMixMsgs, inv.Hash)
+				delete(m.requestedMixMsgs, inv.Hash)
+			}
 		}
 	}
 }
