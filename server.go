@@ -14,7 +14,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash"
 	"math"
 	"net"
 	"os"
@@ -34,7 +33,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/container/apbf"
-	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
@@ -641,12 +639,6 @@ type serverPeer struct {
 	// data item requests that still need to be served.
 	getDataQueue              chan []*wire.InvVect
 	numPendingGetDataItemReqs atomic.Uint32
-
-	// blake256Hasher is the hash.Hash object that is reused by the
-	// message listener callbacks (the serverPeer's On* methods) to hash
-	// mixing messages.  It does not require locking, as the message
-	// listeners are executed serially.
-	blake256Hasher hash.Hash
 }
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
@@ -661,7 +653,6 @@ func newServerPeer(s *server, isPersistent bool) *serverPeer {
 		blockProcessed:  make(chan struct{}, 1),
 		mixMsgProcessed: make(chan error, 1),
 		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
-		blake256Hasher:  blake256.New(),
 	}
 }
 
@@ -1706,12 +1697,8 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 		return
 	}
 
-	// Calculate the message hash, so it can be added to known inventory
-	// and used by the sync manager.
-	msg.WriteHash(sp.blake256Hasher)
-	hash := msg.Hash()
-
 	// Add the message to the known inventory for the peer.
+	hash := msg.Hash()
 	iv := wire.NewInvVect(wire.InvTypeMix, &hash)
 	sp.AddKnownInventory(iv)
 
