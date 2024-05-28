@@ -1897,7 +1897,7 @@ func excludeBlamed(prevRun *sessionRun, blamed blamedIdentities, revealedSecrets
 		blamedMap[id] = struct{}{}
 	}
 
-	prs := prevRun.prs[:0]
+	prs := make([]*wire.MsgMixPairReq, 0, len(prevRun.prs)-1)
 	for _, p := range prevRun.peers {
 		if _, ok := blamedMap[*p.id]; ok {
 			// Should never happen except during tests.
