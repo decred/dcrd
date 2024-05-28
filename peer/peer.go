@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"math/rand"
 	"net"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
@@ -456,6 +458,11 @@ type Peer struct {
 	disconnect    int32
 
 	conn net.Conn
+
+	// blake256Hasher is the hash.Hash object that is used by readMessage
+	// to calculate the hash of read mixing messages.  Every peer's hasher
+	// is a distinct object and does not require locking.
+	blake256Hasher hash.Hash
 
 	// These fields are set at creation time and never modified, so they are
 	// safe to read from concurrently without a mutex.
@@ -967,6 +974,15 @@ func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 	p.statsMtx.Unlock()
 }
 
+// hashable is a wire message which can be hashed but requires the hash to be
+// calculated upfront after creating any message or (importantly for peer)
+// deserializing a message off the wire.
+type hashable interface {
+	wire.Message
+	WriteHash(hash.Hash)
+	Hash() chainhash.Hash
+}
+
 // readMessage reads the next wire message from the peer with logging.
 func (p *Peer) readMessage() (wire.Message, []byte, error) {
 	err := p.conn.SetReadDeadline(time.Now().Add(p.cfg.IdleTimeout))
@@ -976,10 +992,19 @@ func (p *Peer) readMessage() (wire.Message, []byte, error) {
 	n, msg, buf, err := wire.ReadMessageN(p.conn, p.ProtocolVersion(),
 		p.cfg.Net)
 	atomic.AddUint64(&p.bytesReceived, uint64(n))
+
+	// Calculate and store the message hash of any mixing message
+	// immediately after deserializing it.
+	if err == nil {
+		if msg, ok := msg.(hashable); ok {
+			msg.WriteHash(p.blake256Hasher)
+		}
+	}
+
 	if p.cfg.Listeners.OnRead != nil {
 		p.cfg.Listeners.OnRead(p, n, msg, err)
 	}
-	if err != nil {
+	if err != nil { // Check ReadMessageN error
 		return nil, nil, err
 	}
 
@@ -2171,6 +2196,7 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	}
 
 	p := Peer{
+		blake256Hasher:  blake256.New(),
 		inbound:         inbound,
 		knownInventory:  lru.NewCache(maxKnownInventory),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
