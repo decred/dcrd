@@ -511,9 +511,14 @@ func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool)
 	}
 
 	delete(p.sessions, sid)
-	for _, r := range ses.runs {
+	for i, r := range ses.runs {
 		for hash := range r.hashes {
-			delete(p.pool, hash)
+			e, ok := p.pool[hash]
+			if ok {
+				log.Debugf("Removing session %x run %d %T %v by %x",
+					sid[:], i, e.msg, hash, e.msg.Pub())
+				delete(p.pool, hash)
+			}
 		}
 	}
 
