@@ -682,8 +682,9 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 			txHash := &iv.Hash
 			tx, err := sp.server.txMemPool.FetchTransaction(txHash)
 			if err != nil {
-				peerLog.Tracef("Unable to fetch tx %v from transaction pool: %v",
-					txHash, err)
+				peerLog.Debugf("Unable to fetch tx %v from the "+
+					"transaction pool for %v: %v", txHash,
+					sp, err)
 				break
 			}
 			dataMsg = tx.MsgTx()
@@ -692,8 +693,8 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 			blockHash := &iv.Hash
 			block, err := sp.server.chain.BlockByHash(blockHash)
 			if err != nil {
-				peerLog.Tracef("Unable to fetch requested block hash %v: %v",
-					blockHash, err)
+				peerLog.Debugf("Unable to fetch block hash %v "+
+					"for %v: %v", blockHash, sp, err)
 				break
 			}
 			dataMsg = block.MsgBlock()
@@ -720,8 +721,9 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 			mixHash := &iv.Hash
 			msg, err := sp.server.mixMsgPool.Message(mixHash)
 			if err != nil {
-				peerLog.Tracef("Unable to fetch requested mix message %v: %v",
-					mixHash, err)
+				peerLog.Debugf("Unable to fetch mix message %v ",
+					"from the mix pool for %v: %v", mixHash,
+					sp, err)
 				break
 			}
 			dataMsg = msg
