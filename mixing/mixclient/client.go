@@ -57,28 +57,34 @@ const (
 	cmTimeout
 )
 
-func blameTimedOut(sesRun *sessionRun, timeoutMessage int) blamedIdentities {
+func blameTimedOut(sesLog *sessionLogger, sesRun *sessionRun, timeoutMessage int) blamedIdentities {
 	var blamed blamedIdentities
+	var stage string
 	for _, p := range sesRun.peers {
 		switch timeoutMessage {
 		case ctTimeout:
+			stage = "CT"
 			if p.ct == nil {
 				blamed = append(blamed, *p.id)
 			}
 		case srTimeout:
+			stage = "SR"
 			if p.sr == nil {
 				blamed = append(blamed, *p.id)
 			}
 		case dcTimeout:
+			stage = "DC"
 			if p.dc == nil {
 				blamed = append(blamed, *p.id)
 			}
 		case cmTimeout:
+			stage = "CM"
 			if p.cm == nil {
 				blamed = append(blamed, *p.id)
 			}
 		}
 	}
+	sesLog.logf("blaming %x during run (%s timeout)", []identity(blamed), stage)
 	return blamed
 }
 
@@ -1186,6 +1192,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		pqpk = append(pqpk, &ke.PQPK)
 	}
 	if len(blamed) > 0 {
+		sesLog.logf("blaming %x during run (invalid ECDH pubkeys)", []identity(blamed))
 		return blamed
 	}
 
@@ -1224,7 +1231,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	if len(cts) != len(prs) {
 		// Blame peers
 		sesLog.logf("Received %d CTs for %d peers; rerunning", len(cts), len(prs))
-		return blameTimedOut(sesRun, ctTimeout)
+		return blameTimedOut(sesLog, sesRun, ctTimeout)
 	}
 	sort.Slice(cts, func(i, j int) bool {
 		a := identityIndices[cts[i].Identity]
@@ -1285,6 +1292,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		for id := range blamedMap {
 			blamed = append(blamed, id)
 		}
+		sesLog.logf("blaming %x during run (wrong ciphertext count)", []identity(blamed))
 		return blamed
 	}
 	if err != nil {
@@ -1309,7 +1317,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	if len(srs) != len(prs) {
 		// Blame peers
 		sesLog.logf("Received %d SRs for %d peers; rerunning", len(srs), len(prs))
-		return blameTimedOut(sesRun, srTimeout)
+		return blameTimedOut(sesLog, sesRun, srTimeout)
 	}
 	sort.Slice(srs, func(i, j int) bool {
 		a := identityIndices[srs[i].Identity]
@@ -1387,7 +1395,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	if len(dcs) != len(prs) {
 		// Blame peers
 		sesLog.logf("Received %d DCs for %d peers; rerunning", len(dcs), len(prs))
-		return blameTimedOut(sesRun, dcTimeout)
+		return blameTimedOut(sesLog, sesRun, dcTimeout)
 	}
 	sort.Slice(dcs, func(i, j int) bool {
 		a := identityIndices[dcs[i].Identity]
@@ -1411,6 +1419,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 	}
 	if len(blamed) > 0 {
+		sesLog.logf("blaming %x during run (wrong DC-net count)", []identity(blamed))
 		return blamed
 	}
 	mixedMsgs := mixing.XorVectors(dcVecs)
@@ -1466,7 +1475,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	if len(cms) != len(prs) {
 		// Blame peers
 		sesLog.logf("Received %d CMs for %d peers; rerunning", len(cms), len(prs))
-		return blameTimedOut(sesRun, cmTimeout)
+		return blameTimedOut(sesLog, sesRun, cmTimeout)
 	}
 	sort.Slice(cms, func(i, j int) bool {
 		a := identityIndices[cms[i].Identity]
@@ -1494,6 +1503,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 	}
 	if len(blamed) > 0 {
+		sesLog.logf("blaming %x during run (confirmed wrong coinjoin)", []identity(blamed))
 		return blamed
 	}
 	err = c.validateMergedCoinjoin(cj, prs, utxos)
