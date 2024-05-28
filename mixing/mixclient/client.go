@@ -39,9 +39,11 @@ const MinPeers = 4
 
 const pairingFlags byte = 0
 
-// ErrExpired indicates that a dicemix session failed to complete due to the
+// expiredPRErr indicates that a dicemix session failed to complete due to the
 // submitted pair request expiring.
-var ErrExpired = errors.New("mixing pair request expired")
+func expiredPRErr(pr *wire.MsgMixPairReq) error {
+	return fmt.Errorf("mixing pair request %v by %x expired", pr.Hash(), pr.Pub())
+}
 
 var (
 	errOnlyKEsBroadcasted = errors.New("session ended without mix occurring")
@@ -717,7 +719,7 @@ func (c *Client) expireMessages() {
 				// blocked, we have already served this peer
 				// or sent another error.
 				select {
-				case p.res <- ErrExpired:
+				case p.res <- expiredPRErr(p.pr):
 				default:
 				}
 
