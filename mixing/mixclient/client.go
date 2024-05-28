@@ -917,7 +917,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			}
 		}
 		if blamed != nil || errors.As(err, &blamed) {
-			sesLog.logf("Identified %d blamed peers", len(blamed))
+			sesLog.logf("Identified %d blamed peers %x", len(blamed), []identity(blamed))
 
 			// Blamed peers were identified, either during the run
 			// in a way that all participants could have observed,
