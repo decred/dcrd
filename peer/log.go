@@ -68,24 +68,29 @@ func invSummary(invList []*wire.InvVect) string {
 			return fmt.Sprintf("tx %s", iv.Hash)
 		case wire.InvTypeFilteredBlock:
 			return fmt.Sprintf("filtered block %s", iv.Hash)
+		case wire.InvTypeMix:
+			return fmt.Sprintf("mix message %s", iv.Hash)
 		}
 
 		return fmt.Sprintf("unknown (%d) %s", uint32(iv.Type), iv.Hash)
 	}
 
 	// More than one inv item.
-	var numTxns, numBlocks uint64
+	var numTxns, numBlocks, numMixes uint64
 	for _, iv := range invList {
 		switch iv.Type {
 		case wire.InvTypeTx:
 			numTxns++
 		case wire.InvTypeBlock:
 			numBlocks++
+		case wire.InvTypeMix:
+			numMixes++
 		}
 	}
 
-	diff := uint64(invLen) - (numTxns + numBlocks)
-	return fmt.Sprintf("txns %d, blocks %d, other %d", numTxns, numBlocks, diff)
+	diff := uint64(invLen) - (numTxns + numBlocks + numMixes)
+	return fmt.Sprintf("txns %d, blocks %d, mixmsgs %d, other %d", numTxns,
+		numBlocks, numMixes, diff)
 }
 
 // locatorSummary returns a block locator as a human-readable string.
@@ -95,6 +100,23 @@ func locatorSummary(locator []*chainhash.Hash, stopHash *chainhash.Hash) string 
 	}
 
 	return fmt.Sprintf("no locator, stop %s", stopHash)
+}
+
+type mixMessage interface {
+	Hash() chainhash.Hash
+	Pub() []byte
+	Sid() []byte    // PR returns nil
+	GetRun() uint32 // PR returns 0
+}
+
+// mixMessageSummary returns short summary of a mixing message as a
+// human-readable string.
+func mixMessageSummary(msg mixMessage) string {
+	if pr, ok := msg.(*wire.MsgMixPairReq); ok {
+		return fmt.Sprintf("identity %x, hash %v", pr.Pub(), pr.Hash())
+	}
+	return fmt.Sprintf("identity %x, hash %v, session %x, run %d",
+		msg.Pub(), msg.Hash(), msg.Sid(), msg.GetRun())
 }
 
 // messageSummary returns a human-readable string which summarizes a message.
@@ -132,6 +154,23 @@ func messageSummary(msg wire.Message) string {
 		header := &msg.Header
 		return fmt.Sprintf("hash %s, ver %d, %d tx, %s", msg.BlockHash(),
 			header.Version, len(msg.Transactions), header.Timestamp)
+
+	case *wire.MsgMixPairReq:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixKeyExchange:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixCiphertexts:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixSlotReserve:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixDCNet:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixConfirm:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixFactoredPoly:
+		return mixMessageSummary(msg)
+	case *wire.MsgMixSecrets:
+		return mixMessageSummary(msg)
 
 	case *wire.MsgInv:
 		return invSummary(msg.InvList)
