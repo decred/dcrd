@@ -1206,7 +1206,7 @@ func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx, isTreasuryEnabled bool) 
 // It should also set the dcrutil tree type for the tx as well.
 func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	rejectDupOrphans bool,
-	checkTxFlags blockchain.AgendaFlags) ([]*chainhash.Hash, error) {
+	checkTxFlags blockchain.AgendaFlags) ([]wire.OutPoint, error) {
 
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()
@@ -1434,7 +1434,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 	// Transaction is an orphan if any of the referenced transaction outputs
 	// don't exist or are already spent.
-	var missingParents []*chainhash.Hash
+	var missingParents []wire.OutPoint
 	var updateFraudProof bool
 	for i, txIn := range msgTx.TxIn {
 		if (i == 0 && isVote) || isTSpend {
@@ -1443,23 +1443,19 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry == nil || entry.IsSpent() {
-			// Must make a copy of the hash here since the iterator
-			// is replaced and taking its address directly would
-			// result in all of the entries pointing to the same
-			// memory location and thus all be the final hash.
-			hashCopy := txIn.PreviousOutPoint.Hash
-			missingParents = append(missingParents, &hashCopy)
+			missingParents = append(missingParents, txIn.PreviousOutPoint)
+			unknownOutPoint := &missingParents[len(missingParents)-1]
 
 			// Prevent a panic in the logger by continuing here if the
 			// transaction input is nil.
 			if entry == nil {
 				log.Tracef("Transaction %v uses unknown input %v "+
-					"and will be considered an orphan", txHash, hashCopy)
+					"and will be considered an orphan", txHash, unknownOutPoint)
 				continue
 			}
 			if entry.IsSpent() {
 				log.Tracef("Transaction %v uses spent input %v and will be "+
-					"considered an orphan", txHash, hashCopy)
+					"considered an orphan", txHash, unknownOutPoint)
 			}
 
 			continue
@@ -1843,7 +1839,7 @@ func (mp *TxPool) determineCheckTxFlags() (blockchain.AgendaFlags, error) {
 // rules, orphan transaction handling, and insertion into the memory pool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*chainhash.Hash, error) {
+func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]wire.OutPoint, error) {
 	// Create agenda flags for checking transactions based on which ones are
 	// active or should otherwise always be enforced.
 	checkTxFlags, err := mp.determineCheckTxFlags()
@@ -1853,11 +1849,11 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*chainha
 
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	hashes, err := mp.maybeAcceptTransaction(tx, isNew, true, true,
+	missingInputs, err := mp.maybeAcceptTransaction(tx, isNew, true, true,
 		checkTxFlags)
 	mp.mtx.Unlock()
 
-	return hashes, err
+	return missingInputs, err
 }
 
 // isDoubleSpendOrDuplicateError returns whether or not the passed error, which
@@ -2214,8 +2210,8 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, allowHighFees 
 		// inputs is assumed to mean they are already spent
 		// which is not really always the case.
 		str := fmt.Sprintf("orphan transaction %v references "+
-			"outputs of unknown or fully-spent "+
-			"transaction %v", tx.Hash(), missingParents[0])
+			"output %v of unknown or fully-spent transaction",
+			tx.Hash(), missingParents[0])
 		return nil, txRuleError(ErrOrphan, str)
 	}
 
