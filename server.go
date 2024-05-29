@@ -1001,15 +1001,6 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		}
 	}
 
-	// Enforce the minimum protocol limit on outbound connections.
-	if !isInbound && msg.ProtocolVersion < int32(wire.RemoveRejectVersion) {
-		srvrLog.Debugf("Rejecting outbound peer %s with protocol version %d prior to "+
-			"the required version %d", sp, msg.ProtocolVersion,
-			wire.RemoveRejectVersion)
-		sp.Disconnect()
-		return
-	}
-
 	// Reject peers that have a protocol version that is too old.
 	const reqProtocolVersion = int32(wire.RemoveRejectVersion)
 	if msg.ProtocolVersion < reqProtocolVersion {
