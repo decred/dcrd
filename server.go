@@ -530,6 +530,11 @@ type server struct {
 	bytesSent     atomic.Uint64 // Total bytes sent by all peers since start.
 	shutdown      atomic.Bool
 
+	// targetOutbound is the calculated number of target outbound peers to
+	// maintain.  It is set at creation time and never modified afterwards, so
+	// it does not need to be protected for concurrent access.
+	targetOutbound uint32
+
 	// minKnownWork houses the minimum known work from the associated network
 	// params converted to a uint256 so the conversion only needs to be
 	// performed once when the server is initialized.  Ideally, the chain params
@@ -1009,6 +1014,28 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 			reqProtocolVersion)
 		sp.Disconnect()
 		return
+	}
+
+	// Maintain at least one outbound peer capable of supporting p2p mixing.
+	if !isInbound && msg.ProtocolVersion < int32(wire.MixVersion) {
+		var hasMixCapableOutbound bool
+		var numOutbound uint32
+		peerState := &sp.server.peerState
+		peerState.Lock()
+		peerState.forAllOutboundPeers(func(sp *serverPeer) {
+			if sp.ProtocolVersion() >= wire.MixVersion {
+				hasMixCapableOutbound = true
+			}
+			numOutbound++
+		})
+		peerState.Unlock()
+
+		if !hasMixCapableOutbound && numOutbound+1 == sp.server.targetOutbound {
+			srvrLog.Debugf("Rejecting outbound peer %s with protocol version "+
+				"%d in favor of a peer with minimum version %d", sp,
+				msg.ProtocolVersion, wire.MixVersion)
+			sp.Disconnect()
+		}
 	}
 
 	// Reject outbound peers that are not full nodes.
@@ -3679,6 +3706,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 
 	s := server{
+		targetOutbound:       defaultTargetOutbound,
 		chainParams:          chainParams,
 		addrManager:          amgr,
 		peerState:            makePeerState(),
@@ -4032,15 +4060,14 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 
 	// Create a connection manager.
-	targetOutbound := defaultTargetOutbound
-	if cfg.MaxPeers < targetOutbound {
-		targetOutbound = cfg.MaxPeers
+	if uint32(cfg.MaxPeers) < s.targetOutbound {
+		s.targetOutbound = uint32(cfg.MaxPeers)
 	}
 	cmgr, err := connmgr.New(&connmgr.Config{
 		Listeners:      listeners,
 		OnAccept:       s.inboundPeerConnected,
 		RetryDuration:  connectionRetryInterval,
-		TargetOutbound: uint32(targetOutbound),
+		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
 		Timeout:        cfg.DialTimeout,
 		OnConnection:   s.outboundPeerConnected,
