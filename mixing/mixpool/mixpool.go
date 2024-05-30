@@ -837,7 +837,6 @@ var zeroHash chainhash.Hash
 // All newly accepted messages, including any orphan key exchange messages
 // that were processed after processing missing pair requests, are returned.
 func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err error) {
-	hash := msg.Hash()
 	defer func() {
 		if err == nil && len(accepted) == 0 {
 			// Duplicate message; don't log it again.
@@ -847,6 +846,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			return
 		}
 		if err != nil {
+			hash := msg.Hash()
 			switch msg.(type) {
 			case *wire.MsgMixPairReq:
 				log.Debugf("Rejected message %T %v by %x: %v",
@@ -858,6 +858,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			return
 		}
 		for _, msg := range accepted {
+			hash := msg.Hash()
 			switch msg.(type) {
 			case *wire.MsgMixPairReq:
 				log.Debugf("Accepted message %T %v by %x", msg, hash, msg.Pub())
@@ -868,6 +869,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 		}
 	}()
 
+	hash := msg.Hash()
 	if hash == zeroHash {
 		return nil, fmt.Errorf("message of type %T has not been hashed", msg)
 	}
