@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
 )
 
 const minconf = 1
@@ -838,10 +839,32 @@ var zeroHash chainhash.Hash
 func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err error) {
 	hash := msg.Hash()
 	defer func() {
-		if err == nil {
-			log.Tracef("AcceptMessage: accepted message %T %v", msg, hash)
-		} else {
-			log.Tracef("AcceptMessage: rejected message %T %v: %v", msg, hash, err)
+		if err == nil && len(accepted) == 0 {
+			// Duplicate message; don't log it again.
+			return
+		}
+		if log.Level() > slog.LevelDebug {
+			return
+		}
+		if err != nil {
+			switch msg.(type) {
+			case *wire.MsgMixPairReq:
+				log.Debugf("Rejected message %T %v by %x: %v",
+					msg, hash, msg.Pub(), err)
+			default:
+				log.Debugf("Rejected message %T %v (session %x run %d) by %x: %v",
+					msg, hash, msg.Sid(), msg.GetRun(), msg.Pub(), err)
+			}
+			return
+		}
+		for _, msg := range accepted {
+			switch msg.(type) {
+			case *wire.MsgMixPairReq:
+				log.Debugf("Accepted message %T %v by %x", msg, hash, msg.Pub())
+			default:
+				log.Debugf("Accepted message %T %v (session %x run %d) by %x",
+					msg, hash, msg.Sid(), msg.GetRun(), msg.Pub())
+			}
 		}
 	}()
 
