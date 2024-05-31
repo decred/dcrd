@@ -1621,7 +1621,7 @@ func (b *BlockChain) BestSnapshot() *BestState {
 	return snapshot
 }
 
-// MaximumBlockSize returns the maximum permitted block size for the block
+// maxBlockSize returns the maximum permitted block size for the block
 // AFTER the given node.
 //
 // This function MUST be called with the chain state lock held (for reads).
