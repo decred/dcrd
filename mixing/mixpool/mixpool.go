@@ -75,7 +75,6 @@ type entry struct {
 	recvTime time.Time
 	msg      mixing.Message
 	msgtype  msgtype
-	run      uint32
 }
 
 type orphan struct {
@@ -1482,7 +1481,6 @@ func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.
 		recvTime: time.Now(),
 		msg:      msg,
 		msgtype:  msgtype,
-		run:      run,
 	}
 	p.pool[*hash] = e
 	p.messagesByIdentity[*id] = append(p.messagesByIdentity[*id], *hash)
