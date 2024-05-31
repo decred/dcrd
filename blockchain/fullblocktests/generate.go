@@ -308,7 +308,7 @@ func encodeNonCanonicalBlock(b *wire.MsgBlock) []byte {
 	return buf.Bytes()
 }
 
-// assertTipsNonCanonicalBlockSize panics if the current tip block associated
+// assertTipNonCanonicalBlockSize panics if the current tip block associated
 // with the generator does not have the specified non-canonical size
 // when serialized.
 func assertTipNonCanonicalBlockSize(g *chaingen.Generator, expected int) {
