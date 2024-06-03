@@ -627,18 +627,11 @@ type TxMempooler interface {
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
 type MixPooler interface {
-	// MixPRs returns all MixPR messages with hashes matching the query.
-	// Unknown messages are ignored.
-	//
-	// If query is nil, all PRs are returned.
-	MixPRs(query []chainhash.Hash) []*wire.MsgMixPairReq
+	// MixPRs returns all MixPR messages.
+	MixPRs() []*wire.MsgMixPairReq
 
 	// Message searches the mixing pool for a message by its hash.
 	Message(query *chainhash.Hash) (mixing.Message, error)
-
-	// RemoveConfirmedRuns removes all messages including pair requests
-	// from runs which ended in each peer sending a confirm mix message.
-	RemoveConfirmedRuns()
 }
 
 // TxIndexer provides an interface for retrieving details for a given

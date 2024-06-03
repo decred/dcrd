@@ -2608,8 +2608,7 @@ func handleGetMixMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 func handleGetMixPairRequests(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	mp := s.cfg.MixPooler
 
-	mp.RemoveConfirmedRuns() // XXX: a bit hacky to do this here
-	prs := mp.MixPRs(nil)
+	prs := mp.MixPRs()
 
 	buf := new(strings.Builder)
 	res := make([]string, 0, len(prs))
