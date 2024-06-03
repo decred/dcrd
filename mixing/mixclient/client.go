@@ -538,7 +538,7 @@ func (c *Client) removeUnresponsiveDuringEpoch(prs []*wire.MsgMixPairReq, prevEp
 }
 
 func (c *Client) epochTicker(ctx context.Context) error {
-	prevPRs := c.mixpool.MixPRs(nil)
+	prevPRs := c.mixpool.MixPRs()
 
 	// Wait for the next epoch + the KE timeout + extra duration for local
 	// clock differences, then remove any previous pair requests that are

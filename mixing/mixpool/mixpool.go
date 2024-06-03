@@ -214,19 +214,6 @@ func (p *Pool) Epoch() time.Duration {
 	return p.epoch
 }
 
-// MixPRHashes returns the hashes of all MixPR messages recorded by the pool.
-// This data is provided to peers requesting initial state of the mixpool.
-func (p *Pool) MixPRHashes() []chainhash.Hash {
-	p.mtx.RLock()
-	hashes := make([]chainhash.Hash, 0, len(p.prs))
-	for hash := range p.prs {
-		hashes = append(hashes, hash)
-	}
-	p.mtx.RUnlock()
-
-	return hashes
-}
-
 // Message searches the mixing pool for a message by its hash.
 func (p *Pool) Message(query *chainhash.Hash) (mixing.Message, error) {
 	p.mtx.RLock()
@@ -253,60 +240,25 @@ func (p *Pool) HaveMessage(query *chainhash.Hash) bool {
 	return ok
 }
 
-// MixPR searches the mixing pool for a PR message by its hash.
-func (p *Pool) MixPR(query *chainhash.Hash) (*wire.MsgMixPairReq, error) {
-	var pr *wire.MsgMixPairReq
-
-	p.mtx.RLock()
-	pr = p.prs[*query]
-	p.mtx.RUnlock()
-
-	if pr == nil {
-		return nil, fmt.Errorf("PR message not found")
-	}
-
-	return pr, nil
-}
-
-// MixPRs returns all MixPR messages with hashes matching the query.  Unknown
-// messages are ignored.
+// MixPRs returns all MixPR messages.
 //
-// If query is nil, all PRs are returned.
-//
-// In both cases, any expired PRs that are still internally tracked by the
-// mixpool for ongoing sessions are excluded from the result set.
-func (p *Pool) MixPRs(query []chainhash.Hash) []*wire.MsgMixPairReq {
+// Any expired PRs that are still internally tracked by the mixpool for
+// ongoing sessions are excluded from the result set.
+func (p *Pool) MixPRs() []*wire.MsgMixPairReq {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	p.removeConfirmedRuns()
 
-	if query == nil {
-		res := make([]*wire.MsgMixPairReq, 0, len(p.prs))
-		for _, pr := range p.prs {
-			// Exclude expired but not yet removed PRs.
-			if pr.Expiry <= p.expireHeight {
-				continue
-			}
-
-			res = append(res, pr)
+	res := make([]*wire.MsgMixPairReq, 0, len(p.prs))
+	for _, pr := range p.prs {
+		// Exclude expired but not yet removed PRs.
+		if pr.Expiry <= p.expireHeight {
+			continue
 		}
-		return res
+
+		res = append(res, pr)
 	}
-
-	res := make([]*wire.MsgMixPairReq, 0, len(query))
-	for i := range query {
-		pr, ok := p.prs[query[i]]
-		if ok {
-			// Exclude expired but not yet removed PRs.
-			if pr.Expiry <= p.expireHeight {
-				continue
-			}
-
-			res = append(res, pr)
-		}
-	}
-
 	return res
 }
 
