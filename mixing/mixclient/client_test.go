@@ -238,7 +238,7 @@ func TestHonest(t *testing.T) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(200 * time.Millisecond):
+			case <-time.After(500 * time.Millisecond):
 			}
 		}
 	}()
@@ -367,7 +367,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(200 * time.Millisecond):
+			case <-time.After(1000 * time.Millisecond):
 			}
 		}
 	}()
@@ -395,7 +395,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 func TestCTDisruption(t *testing.T) {
 	var misbehavingID identity
 	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if s.run != 0 || p.myVk != 0 {
+		if p.myVk != 0 {
 			return
 		}
 		if misbehavingID != [33]byte{} {
@@ -410,7 +410,10 @@ func TestCTDisruption(t *testing.T) {
 func TestCTLength(t *testing.T) {
 	var misbehavingID identity
 	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if s.run != 0 || p.myVk != 0 {
+		if p.myVk != 0 {
+			return
+		}
+		if misbehavingID != [33]byte{} {
 			return
 		}
 		t.Logf("malicious peer %x: sending too few ciphertexts", p.id[:])
@@ -418,8 +421,12 @@ func TestCTLength(t *testing.T) {
 		p.ct.Ciphertexts = p.ct.Ciphertexts[:len(p.ct.Ciphertexts)-1]
 	})
 
+	misbehavingID = identity{}
 	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if s.run != 0 || p.myVk != 0 {
+		if p.myVk != 0 {
+			return
+		}
+		if misbehavingID != [33]byte{} {
 			return
 		}
 		t.Logf("malicious peer %x: sending too many ciphertexts", p.id[:])
@@ -431,7 +438,10 @@ func TestCTLength(t *testing.T) {
 func TestSRDisruption(t *testing.T) {
 	var misbehavingID identity
 	testDisruption(t, &misbehavingID, hookBeforePeerSRPublish, func(c *Client, s *sessionRun, p *peer) {
-		if s.run != 0 || p.myVk != 0 {
+		if p.myVk != 0 {
+			return
+		}
+		if misbehavingID != [33]byte{} {
 			return
 		}
 		t.Logf("malicious peer %x: flipping SR bit", p.id[:])
@@ -443,7 +453,10 @@ func TestSRDisruption(t *testing.T) {
 func TestDCDisruption(t *testing.T) {
 	var misbehavingID identity
 	testDisruption(t, &misbehavingID, hookBeforePeerDCPublish, func(c *Client, s *sessionRun, p *peer) {
-		if s.run != 0 || p.myVk != 0 {
+		if p.myVk != 0 {
+			return
+		}
+		if misbehavingID != [33]byte{} {
 			return
 		}
 		t.Logf("malicious peer %x: flipping DC bit", p.id[:])
