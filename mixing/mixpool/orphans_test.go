@@ -67,7 +67,7 @@ func TestOrphans(t *testing.T) {
 	prs := []*wire.MsgMixPairReq{pr}
 	epoch := uint64(1704067200)
 	sid := mixing.SortPRsForSession(prs, epoch)
-	ke1 := &wire.MsgMixKeyExchange{
+	ke := &wire.MsgMixKeyExchange{
 		Identity: id,
 		SeenPRs: []chainhash.Hash{
 			pr.Hash(),
@@ -76,59 +76,30 @@ func TestOrphans(t *testing.T) {
 		Epoch:     epoch,
 		Run:       0,
 	}
-	err = mixing.SignMessage(ke1, priv)
+	err = mixing.SignMessage(ke, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ke1.WriteHash(h)
+	ke.WriteHash(h)
 
-	ke2 := &wire.MsgMixKeyExchange{
-		Identity: id,
-		SeenPRs: []chainhash.Hash{
-			pr.Hash(),
-		},
-		SessionID: sid,
-		Epoch:     epoch,
-		Run:       1,
-	}
-	err = mixing.SignMessage(ke2, priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ke2.WriteHash(h)
-
-	fp1 := &wire.MsgMixFactoredPoly{
+	fp := &wire.MsgMixFactoredPoly{
 		Identity:  id,
 		SessionID: sid,
 		Run:       0,
 	}
-	err = mixing.SignMessage(fp1, priv)
+	err = mixing.SignMessage(fp, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fp1.WriteHash(h)
-
-	fp2 := &wire.MsgMixFactoredPoly{
-		Identity:  id,
-		SessionID: sid,
-		Run:       1,
-	}
-	err = mixing.SignMessage(fp2, priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fp2.WriteHash(h)
+	fp.WriteHash(h)
 
 	t.Logf("pr %s", pr.Hash())
-	t.Logf("ke1 %s", ke1.Hash())
-	t.Logf("ke2 %s", ke2.Hash())
-	t.Logf("fp1 %s", fp1.Hash())
-	t.Logf("fp2 %s", fp2.Hash())
+	t.Logf("ke %s", ke.Hash())
+	t.Logf("fp %s", fp.Hash())
 
-	// Create a pair request, several KEs, and later messages belong to
-	// the session and run increment for each KE.  Test different
-	// combinations of acceptance order to test orphan processing of
-	// various message types.
+	// Create a pair request, KE, and later messages that belong to the
+	// session for each KE.  Test different combinations of acceptance
+	// order to test orphan processing of various message types.
 	type accept struct {
 		desc     string
 		message  mixing.Message
@@ -140,7 +111,7 @@ func TestOrphans(t *testing.T) {
 		// Accept KE, then PR, then FP
 		0: {{
 			desc:     "accept KE before PR",
-			message:  ke1,
+			message:  ke,
 			errors:   true,
 			errAs:    new(MissingOwnPRError),
 			accepted: nil,
@@ -148,23 +119,23 @@ func TestOrphans(t *testing.T) {
 			desc:     "accept PR after KE; both should now process",
 			message:  pr,
 			errors:   false,
-			accepted: []mixing.Message{pr, ke1},
+			accepted: []mixing.Message{pr, ke},
 		}, {
 			desc:     "accept future message in accepted KE session/run",
-			message:  fp1,
+			message:  fp,
 			errors:   false, // maybe later.
-			accepted: []mixing.Message{fp1},
+			accepted: []mixing.Message{fp},
 		}},
 
 		// Accept FP, then KE, then PR
 		1: {{
 			desc:     "accept FP first",
-			message:  fp1,
+			message:  fp,
 			errors:   false,
 			accepted: nil,
 		}, {
 			desc:     "accept KE",
-			message:  ke1,
+			message:  ke,
 			errors:   true,
 			errAs:    new(MissingOwnPRError),
 			accepted: nil,
@@ -172,64 +143,7 @@ func TestOrphans(t *testing.T) {
 			desc:     "accept PR; all should now be processed",
 			message:  pr,
 			errors:   false,
-			accepted: []mixing.Message{pr, ke1, fp1},
-		}},
-
-		// Accept PR, then FP1, then FP2, then KE1, then KE2.
-		2: {{
-			desc:     "accept PR first",
-			message:  pr,
-			errors:   false,
-			accepted: []mixing.Message{pr},
-		}, {
-			desc:     "accept FP1",
-			message:  fp1,
-			errors:   false,
-			accepted: nil,
-		}, {
-			desc:     "accept FP2",
-			message:  fp2,
-			errors:   false,
-			accepted: nil,
-		}, {
-			desc:     "accept KE1",
-			message:  ke1,
-			errors:   false,
-			accepted: []mixing.Message{ke1, fp1},
-		}, {
-			desc:     "accept KE2",
-			message:  ke2,
-			errors:   false,
-			accepted: []mixing.Message{ke2, fp2},
-		}},
-
-		3: {{
-			desc:     "accept FP1",
-			message:  fp1,
-			errors:   false,
-			accepted: nil,
-		}, {
-			desc:     "accept FP2",
-			message:  fp2,
-			errors:   false,
-			accepted: nil,
-		}, {
-			desc:     "accept KE1",
-			message:  ke1,
-			errors:   true,
-			errAs:    new(MissingOwnPRError),
-			accepted: nil,
-		}, {
-			desc:     "accept KE2",
-			message:  ke2,
-			errors:   true,
-			errAs:    new(MissingOwnPRError),
-			accepted: nil,
-		}, {
-			desc:     "accept PR last",
-			message:  pr,
-			errors:   false,
-			accepted: []mixing.Message{pr, ke1, ke2, fp1, fp2},
+			accepted: []mixing.Message{pr, ke, fp},
 		}},
 	}
 
@@ -249,8 +163,6 @@ func TestOrphans(t *testing.T) {
 				t.Logf("orphans: %v", mp.orphans)
 				t.Logf("orphansByID: %v", mp.orphansByID)
 				t.Logf("pr: %v", pr)
-				t.Logf("ke2: %v", ke2)
-				t.Logf("fp2: %v", fp2)
 				t.Errorf("test %d call %d %q: accepted lengths differ %d != %d", i, j, a.desc,
 					len(accepted), len(a.accepted))
 			}

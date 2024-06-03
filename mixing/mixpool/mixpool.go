@@ -84,23 +84,19 @@ type orphan struct {
 
 type session struct {
 	sid    [32]byte
-	runs   []runstate
+	prs    []chainhash.Hash
+	counts [nmsgtypes]uint32
+	hashes map[chainhash.Hash]struct{}
 	expiry uint32
 	bc     broadcast
 }
 
-type runstate struct {
-	prs    []chainhash.Hash
-	counts [nmsgtypes]uint32
-	hashes map[chainhash.Hash]struct{}
+func (s *session) countFor(t msgtype) uint32 {
+	return s.counts[t-1]
 }
 
-func (r *runstate) countFor(t msgtype) uint32 {
-	return r.counts[t-1]
-}
-
-func (r *runstate) incrementCountFor(t msgtype) {
-	r.counts[t-1]++
+func (s *session) incrementCountFor(t msgtype) {
+	s.counts[t-1]++
 }
 
 type broadcast struct {
@@ -248,7 +244,7 @@ func (p *Pool) MixPRs() []*wire.MsgMixPairReq {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.removeConfirmedRuns()
+	p.removeConfirmedSessions()
 
 	res := make([]*wire.MsgMixPairReq, 0, len(p.prs))
 	for _, pr := range p.prs {
@@ -373,10 +369,8 @@ func (p *Pool) expireMessagesNow(height uint32) {
 		}
 
 		delete(p.sessions, sid)
-		for _, r := range ses.runs {
-			for hash := range r.hashes {
-				delete(p.pool, hash)
-			}
+		for hash := range ses.hashes {
+			delete(p.pool, hash)
 		}
 	}
 
@@ -421,13 +415,13 @@ func (p *Pool) RemoveMessage(msg mixing.Message) {
 	}
 }
 
-// RemoveSession removes all non-PR messages from a completed or errored
-// session.  PR messages of a successful run (or rerun) are also removed.
-func (p *Pool) RemoveSession(sid [32]byte, success bool) {
+// RemoveSession removes the PRs and all session messages involving them from
+// a completed session.  PR messages of a successful session are also removed.
+func (p *Pool) RemoveSession(sid [32]byte) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.removeSession(sid, nil, success)
+	p.removeSession(sid, nil, true)
 }
 
 func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool) {
@@ -438,17 +432,15 @@ func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool)
 
 	// Delete PRs used to form final run
 	var removePRs []chainhash.Hash
-	var lastRun *runstate
 	if success {
-		lastRun = &ses.runs[len(ses.runs)-1]
-		removePRs = lastRun.prs
+		removePRs = ses.prs
 	}
 
 	if txHash != nil || success {
 		if txHash == nil {
 			// XXX: may be better to store this in the runstate as
 			// a CM is received.
-			for h := range lastRun.hashes {
+			for h := range ses.hashes {
 				if e, ok := p.pool[h]; ok && e.msgtype == msgtypeCM {
 					cm := e.msg.(*wire.MsgMixConfirm)
 					hash := cm.Mix.TxHash()
@@ -463,14 +455,12 @@ func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool)
 	}
 
 	delete(p.sessions, sid)
-	for i, r := range ses.runs {
-		for hash := range r.hashes {
-			e, ok := p.pool[hash]
-			if ok {
-				log.Debugf("Removing session %x run %d %T %v by %x",
-					sid[:], i, e.msg, hash, e.msg.Pub())
-				delete(p.pool, hash)
-			}
+	for hash := range ses.hashes {
+		e, ok := p.pool[hash]
+		if ok {
+			log.Debugf("Removing session %x %T %v by %x",
+				sid[:], e.msg, hash, e.msg.Pub())
+			delete(p.pool, hash)
 		}
 	}
 
@@ -482,31 +472,28 @@ func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool)
 	}
 }
 
-// RemoveConfirmedRuns removes all messages including pair requests from
+// RemoveConfirmedSessions removes all messages including pair requests from
 // runs which ended in each peer sending a confirm mix message.
-func (p *Pool) RemoveConfirmedRuns() {
+func (p *Pool) RemoveConfirmedSessions() {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.removeConfirmedRuns()
+	p.removeConfirmedSessions()
 }
 
-func (p *Pool) removeConfirmedRuns() {
+func (p *Pool) removeConfirmedSessions() {
 	for sid, ses := range p.sessions {
-		lastRun := &ses.runs[len(ses.runs)-1]
-		cmCount := lastRun.countFor(msgtypeCM)
-		if uint32(len(lastRun.prs)) != cmCount {
+		cmCount := ses.countFor(msgtypeCM)
+		if uint32(len(ses.prs)) != cmCount {
 			continue
 		}
 
 		delete(p.sessions, sid)
-		for _, run := range ses.runs {
-			for hash := range run.hashes {
-				delete(p.pool, hash)
-			}
+		for hash := range ses.hashes {
+			delete(p.pool, hash)
 		}
 
-		for _, hash := range lastRun.prs {
+		for _, hash := range ses.prs {
 			delete(p.pool, hash)
 			pr := p.prs[hash]
 			if pr != nil {
@@ -612,7 +599,6 @@ PRLoop:
 // appended to.  Received messages are unsorted.
 type Received struct {
 	Sid [32]byte
-	Run uint32
 	KEs []*wire.MsgMixKeyExchange
 	CTs []*wire.MsgMixCiphertexts
 	SRs []*wire.MsgMixSlotReserve
@@ -636,9 +622,7 @@ type Received struct {
 // the secrets after each peer publishes their own revealed secrets.
 func (p *Pool) Receive(ctx context.Context, expectedMessages int, r *Received) error {
 	sid := r.Sid
-	run := r.Run
 	var bc *broadcast
-	var rs *runstate
 
 	p.mtx.RLock()
 	ses, ok := p.sessions[sid]
@@ -647,11 +631,6 @@ func (p *Pool) Receive(ctx context.Context, expectedMessages int, r *Received) e
 		return fmt.Errorf("unknown session %x", sid[:])
 	}
 	bc = &ses.bc
-	if run >= uint32(len(ses.runs)) {
-		p.mtx.RUnlock()
-		return fmt.Errorf("unknown run %d", run)
-	}
-	rs = &ses.runs[run]
 
 	nonNilSlices := 0
 	if r.KEs != nil {
@@ -684,7 +663,7 @@ Loop:
 		// Pool is locked for reads.  Count if the total number of
 		// expected messages have been received.
 		received := 0
-		for hash := range rs.hashes {
+		for hash := range ses.hashes {
 			msgtype := p.pool[hash].msgtype
 			switch {
 			case msgtype == msgtypeKE && r.KEs != nil:
@@ -736,7 +715,7 @@ Loop:
 	}
 
 	// Pool is locked for reads.  Collect all of the messages.
-	for hash := range rs.hashes {
+	for hash := range ses.hashes {
 		msg := p.pool[hash].msg
 		switch msg := msg.(type) {
 		case *wire.MsgMixKeyExchange:
@@ -790,7 +769,7 @@ var zeroHash chainhash.Hash
 func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err error) {
 	defer func() {
 		if err == nil && len(accepted) == 0 {
-			// Duplicate message; don't log it again.
+			// Don't log duplicate messages or non-KE orphans.
 			return
 		}
 		if log.Level() > slog.LevelDebug {
@@ -803,8 +782,8 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 				log.Debugf("Rejected message %T %v by %x: %v",
 					msg, hash, msg.Pub(), err)
 			default:
-				log.Debugf("Rejected message %T %v (session %x run %d) by %x: %v",
-					msg, hash, msg.Sid(), msg.GetRun(), msg.Pub(), err)
+				log.Debugf("Rejected message %T %v (session %x) by %x: %v",
+					msg, hash, msg.Sid(), msg.Pub(), err)
 			}
 			return
 		}
@@ -814,11 +793,15 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			case *wire.MsgMixPairReq:
 				log.Debugf("Accepted message %T %v by %x", msg, hash, msg.Pub())
 			default:
-				log.Debugf("Accepted message %T %v (session %x run %d) by %x",
-					msg, hash, msg.Sid(), msg.GetRun(), msg.Pub())
+				log.Debugf("Accepted message %T %v (session %x) by %x",
+					msg, hash, msg.Sid(), msg.Pub())
 			}
 		}
 	}()
+
+	if msg.GetRun() != 0 {
+		return nil, ruleError(fmt.Errorf("nonzero reruns are unsupported"))
+	}
 
 	hash := msg.Hash()
 	if hash == zeroHash {
@@ -938,7 +921,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			haveKE = true
 		}
 	}
-	// Save as an orphan if their KE is not (yet) known.
+	// Save as an orphan if their KE is not (yet) accepted.
 	if !haveKE {
 		orphansByID := p.orphansByID[*id]
 		if _, ok := orphansByID[hash]; ok {
@@ -1373,14 +1356,8 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 	sid := ke.SessionID
 	ses := p.sessions[sid]
 
-	// Create a session for the first run-0 KE
+	// Create a session for the first KE
 	if ses == nil {
-		if ke.Run != 0 {
-			err := fmt.Errorf("unknown session for run-%d KE",
-				ke.Run)
-			return nil, err
-		}
-
 		expiry := ^uint32(0)
 		for i := range prs {
 			prExpiry := prs[i].Expires()
@@ -1390,8 +1367,9 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		}
 		ses = &session{
 			sid:    sid,
-			runs:   make([]runstate, 0, 4),
+			prs:    ke.SeenPRs,
 			expiry: expiry,
+			hashes: make(map[chainhash.Hash]struct{}),
 			bc:     broadcast{ch: make(chan struct{})},
 		}
 		p.sessions[sid] = ses
@@ -1408,25 +1386,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.Hash,
 	id *[33]byte, ses *session) error {
 
-	run := msg.GetRun()
-	if run > uint32(len(ses.runs)) {
-		return ruleError(fmt.Errorf("message skips runs"))
-	}
-
-	var rs *runstate
-	if msgtype == msgtypeKE && run == uint32(len(ses.runs)) {
-		// Add a runstate for the next run.
-		ses.runs = append(ses.runs, runstate{
-			prs:    msg.PrevMsgs(),
-			hashes: make(map[chainhash.Hash]struct{}),
-		})
-		rs = &ses.runs[len(ses.runs)-1]
-	} else {
-		// Add to existing runstate
-		rs = &ses.runs[run]
-	}
-
-	rs.hashes[*hash] = struct{}{}
+	ses.hashes[*hash] = struct{}{}
 	e := entry{
 		hash:     *hash,
 		sid:      ses.sid,
@@ -1441,7 +1401,7 @@ func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.
 		p.sessionsByTxHash[cm.Mix.TxHash()] = ses
 	}
 
-	rs.incrementCountFor(msgtype)
+	ses.incrementCountFor(msgtype)
 	ses.bc.signal()
 
 	return nil
