@@ -48,7 +48,7 @@ func (e blamedIdentities) String() string {
 }
 
 func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
-	c.logf("Blaming for sid=%x run=%d", sesRun.sid[:], sesRun.run)
+	c.logf("Blaming for sid=%x", sesRun.sid[:])
 
 	mp := c.mixpool
 	prs := sesRun.prs
@@ -79,7 +79,6 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 
 	// Receive currently-revealed secrets
 	rcv := new(mixpool.Received)
-	rcv.Run = sesRun.run
 	rcv.Sid = sesRun.sid
 	rcv.RSs = make([]*wire.MsgMixSecrets, 0, len(sesRun.prs))
 	_ = mp.Receive(ctx, 0, rcv)
@@ -193,7 +192,7 @@ KELoop:
 
 		// Recover or initialize PRNG from seed and the last run that
 		// caused secrets to be generated.
-		p.prng = chacha20prng.New(p.rs.Seed[:], sesRun.prngRun)
+		p.prng = chacha20prng.New(p.rs.Seed[:], 0)
 
 		// Recover derived key exchange from PRNG.
 		p.kx, err = mixing.NewKX(p.prng)
@@ -320,7 +319,7 @@ SRLoop:
 			revealed.Ciphertexts = append(revealed.Ciphertexts, ct[p.myVk])
 		}
 		sharedSecrets, err := p.kx.SharedSecrets(revealed,
-			sesRun.sid[:], sesRun.run, sesRun.mcounts)
+			sesRun.sid[:], 0, sesRun.mcounts)
 		var decapErr *mixing.DecapsulateError
 		if errors.As(err, &decapErr) {
 			submittingID := p.id
