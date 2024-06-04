@@ -220,7 +220,7 @@ func (p *Pool) Message(query *chainhash.Hash) (mixing.Message, error) {
 		return pr, nil
 	}
 	if !ok || e.msg == nil {
-		return nil, fmt.Errorf("message not found")
+		return nil, errMsgNotFound
 	}
 	return e.msg, nil
 }
@@ -655,7 +655,7 @@ func (p *Pool) Receive(ctx context.Context, expectedMessages int, r *Received) e
 		nonNilSlices++
 	}
 	if nonNilSlices != 1 {
-		return fmt.Errorf("mixpool: exactly one Received slice must be non-nil")
+		return errInvalidReceiveUsage
 	}
 
 Loop:
@@ -1010,16 +1010,16 @@ func (p *Pool) checkAcceptPR(pr *wire.MsgMixPairReq) error {
 	maxExpiry := mixing.MaxExpiry(uint32(curHeight), p.params)
 	switch {
 	case uint32(curHeight) >= pr.Expiry:
-		return ruleError(fmt.Errorf("message has expired"))
+		return ruleError(errMessageExpired)
 	case pr.Expiry > maxExpiry:
-		return ruleError(fmt.Errorf("expiry is too far into future"))
+		return ruleError(errExpiryTooHigh)
 	}
 
 	// Require known script classes.
 	switch mixing.ScriptClass(pr.ScriptClass) {
 	case mixing.ScriptClassP2PKHv0:
 	default:
-		return ruleError(fmt.Errorf("unsupported mixing script class"))
+		return ruleError(errUnsupportedScriptClass)
 	}
 
 	// Require enough fee contributed from this mixing participant.
@@ -1051,7 +1051,7 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 		// XXX: Consider making this a bannable offense.  In the
 		// future, it would be better to publish proof of identity
 		// reuse when signing different messages.
-		return nil, ruleError(fmt.Errorf("identity reused for a PR message"))
+		return nil, ruleError(errReusedIdentity)
 	}
 
 	// Only accept PRs that double spend outpoints if they expire later
@@ -1063,9 +1063,7 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 			continue
 		}
 		if otherPR.Expiry >= pr.Expiry {
-			err := ruleError(fmt.Errorf("PR double spends outpoints of " +
-				"already-accepted PR message without " +
-				"increasing expiry"))
+			err := ruleError(errDoubleSpend)
 			return nil, err
 		}
 	}
@@ -1255,8 +1253,7 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 	}
 
 	if totalValue != pr.InputValue {
-		return ruleError(fmt.Errorf("input value does not match sum of UTXO " +
-			"values"))
+		return ruleError(errInvalidInputValue)
 	}
 
 	return nil
@@ -1312,9 +1309,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 			// have sent an orphan KE first, then another peer the
 			// PR, and we must not ban the peer who sent only the
 			// PR if this is called by reconsiderOrphans.
-			err := fmt.Errorf("KE identity does not match own PR " +
-				"at unmixed position")
-			return nil, ruleError(err)
+			return nil, ruleError(errUnmatchedIdentity)
 		}
 		if pairing == nil {
 			var err error
@@ -1331,8 +1326,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 				// This likewise cannot be a bannable rule
 				// error.  Peers may relay a KE without
 				// knowing any but the identity's own PR.
-				err := fmt.Errorf("referenced PRs are incompatible")
-				return nil, ruleError(err)
+				return nil, ruleError(errIncompatiblePRs)
 			}
 		}
 	}

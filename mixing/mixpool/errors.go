@@ -121,3 +121,16 @@ type MissingOwnPRError struct {
 func (e *MissingOwnPRError) Error() string {
 	return "KE identity's own PR is missing from mixpool"
 }
+
+var (
+	errMsgNotFound            = errors.New("message not found")
+	errInvalidReceiveUsage    = errors.New("mixpool: exactly one Received slice must be non-nil")
+	errMessageExpired         = errors.New("message has expired")
+	errExpiryTooHigh          = errors.New("expiry is too far into future")
+	errUnsupportedScriptClass = errors.New("unsupported mixing script class")
+	errReusedIdentity         = errors.New("identity reused for a PR message")
+	errDoubleSpend            = errors.New("PR double spends outpoints of already-accepted PR message without increasing expiry")
+	errInvalidInputValue      = errors.New("input value does not match sum of UTXO values")
+	errUnmatchedIdentity      = errors.New("KE identity does not match own PR at unmixed position")
+	errIncompatiblePRs        = errors.New("referenced PRs are incompatible")
+)
