@@ -56,8 +56,8 @@ github.com/decred/dcrd/math/uint256 v1.0.2 h1:o8peafL5QmuXGTergI3YDpDU0eq5Z0pQi8
 github.com/decred/dcrd/math/uint256 v1.0.2/go.mod h1:7M/y9wJJvlyNG/f/X6mxxhxo9dgloZHFiOfbiscl75A=
 github.com/decred/dcrd/mixing v0.2.0 h1:6aQiJuyu3D4OduSRPLta6GX6FZEi4XCxuQVNt26H0rY=
 github.com/decred/dcrd/mixing v0.2.0/go.mod h1:W3K7yJKmoI03G2U5Yw+HSRNe6lLBegi63ZR6fFLnM9c=
-github.com/decred/dcrd/peer/v3 v3.1.0 h1:20bdEHVJjcOrhVNNdVuQEhWffU0k9SCtlwzBz7XhCxk=
-github.com/decred/dcrd/peer/v3 v3.1.0/go.mod h1:6htwUvneZt44SMIQjHClliBmlDgMIH4rHxYSmkUo+FU=
+github.com/decred/dcrd/peer/v3 v3.1.1 h1:yBUnhcJQGPXWp4izdpV0bDz+N1eEoz+75V51TxcDqkQ=
+github.com/decred/dcrd/peer/v3 v3.1.1/go.mod h1:viGm1O62juvbV6uXQpKKKiEkwR5C7GRSAdb7HijnICY=
 github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0 h1:l0DnCcILTNrpy8APF3FLN312ChpkQaAuW30aC/RgBaw=
 github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0/go.mod h1:j+kkRPXPJB5S9VFOsx8SQLcU7PTFkPKRc1aCHN4ENzA=
 github.com/decred/dcrd/rpcclient/v8 v8.0.1 h1:hd81e4w1KSqvPcozJlnz6XJfWKDNuahgooH/N5E8vOU=
