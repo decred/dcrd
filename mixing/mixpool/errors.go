@@ -121,3 +121,7 @@ type MissingOwnPRError struct {
 func (e *MissingOwnPRError) Error() string {
 	return "KE identity's own PR is missing from mixpool"
 }
+
+var (
+	errMessageNotFound = errors.New("message not found")
+)
