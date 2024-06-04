@@ -886,10 +886,8 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 
 			rerun = &sessionRun{
 				sid:       sizeLimitedErr.sid,
-				run:       0,
 				prs:       sizeLimitedErr.prs,
 				freshGen:  false,
-				prngRun:   0,
 				deadlines: d,
 			}
 			continue
@@ -1140,14 +1138,14 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 	}
 
-	// Before confirming the pairing in run-0, check all of the
-	// agreed-upon PRs that they will not result in a coinjoin transaction
-	// that exceeds the standard size limits.
+	// Before confirming the pairing, check all of the agreed-upon PRs
+	// that they will not result in a coinjoin transaction that exceeds
+	// the standard size limits.
 	//
 	// PRs are randomly ordered in each epoch based on the session ID, so
 	// they can be iterated in order to discover any PR that would
 	// increase the final coinjoin size above the limits.
-	if run == 0 {
+	if !*madePairing {
 		var sizeExcluded []*wire.MsgMixPairReq
 		var cjSize coinjoinSize
 		for _, pr := range sesRun.prs {
