@@ -882,6 +882,29 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		c.testHook(hookBeforeRun, currentRun, nil)
 		err := c.run(ctx, ps, &madePairing)
 
+		var sizeLimitedErr *sizeLimited
+		if errors.As(err, &sizeLimitedErr) {
+			if len(sizeLimitedErr.prs) < MinPeers {
+				sesLog.logf("Aborting session with too few remaining peers")
+				return
+			}
+
+			d.shift()
+
+			sesLog.logf("Recreating as session %x due to standard tx size limits (pairid=%x)",
+				sizeLimitedErr.sid[:], ps.pairing)
+
+			rerun = &sessionRun{
+				sid:       sizeLimitedErr.sid,
+				run:       0,
+				prs:       sizeLimitedErr.prs,
+				freshGen:  false,
+				prngRun:   0,
+				deadlines: d,
+			}
+			continue
+		}
+
 		var altses *alternateSession
 		if errors.As(err, &altses) {
 			if altses.err != nil {
@@ -1129,6 +1152,50 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		kes, err = recvKEs(sesRun)
 		if err != nil {
 			return err
+		}
+	}
+
+	// Before confirming the pairing in run-0, check all of the
+	// agreed-upon PRs that they will not result in a coinjoin transaction
+	// that exceeds the standard size limits.
+	//
+	// PRs are randomly ordered in each epoch based on the session ID, so
+	// they can be iterated in order to discover any PR that would
+	// increase the final coinjoin size above the limits.
+	if run == 0 {
+		var sizeExcluded []*wire.MsgMixPairReq
+		var cjSize coinjoinSize
+		for _, pr := range sesRun.prs {
+			contributedInputs := len(pr.UTXOs)
+			mcount := int(pr.MessageCount)
+			if err := cjSize.join(contributedInputs, mcount, pr.Change); err != nil {
+				sizeExcluded = append(sizeExcluded, pr)
+			}
+		}
+
+		if len(sizeExcluded) > 0 {
+			// sizeExcluded and sesRun.prs are in the same order;
+			// can zip down both to create the slice of peers that
+			// can continue the mix.
+			excl := sizeExcluded
+			kept := make([]*wire.MsgMixPairReq, 0, len(sesRun.prs))
+			for _, pr := range sesRun.prs {
+				if pr != excl[0] {
+					kept = append(kept, pr)
+					continue
+				}
+				excl = excl[1:]
+				if len(excl) == 0 {
+					break
+				}
+			}
+
+			sid := mixing.SortPRsForSession(kept, unixEpoch)
+			return &sizeLimited{
+				prs:      kept,
+				sid:      sid,
+				excluded: sizeExcluded,
+			}
 		}
 	}
 
@@ -1701,6 +1768,16 @@ prs:
 		}
 	}
 	return blamed
+}
+
+type sizeLimited struct {
+	prs      []*wire.MsgMixPairReq
+	sid      [32]byte
+	excluded []*wire.MsgMixPairReq
+}
+
+func (e *sizeLimited) Error() string {
+	return "mix session coinjoin exceeds standard size limits"
 }
 
 type alternateSession struct {
