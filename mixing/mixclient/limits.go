@@ -6,33 +6,16 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// nolint: unused
+var errExceedsStandardSize = errors.New("tx size would exceed standardness rules")
+
 const (
 	redeemP2PKHv0SigScriptSize = 1 + 73 + 1 + 33
 	p2pkhv0PkScriptSize        = 1 + 1 + 1 + 20 + 1 + 1
 )
 
-// nolint: unused
-func estimateP2PKHv0SerializeSize(inputs, outputs int, hasChange bool) int {
-	// Sum the estimated sizes of the inputs and outputs.
-	txInsSize := inputs * estimateInputSize(redeemP2PKHv0SigScriptSize)
-	txOutsSize := outputs * estimateOutputSize(p2pkhv0PkScriptSize)
-
-	changeSize := 0
-	if hasChange {
-		changeSize = estimateOutputSize(p2pkhv0PkScriptSize)
-		outputs++
-	}
-
-	// 12 additional bytes are for version, locktime and expiry.
-	return 12 + (2 * wire.VarIntSerializeSize(uint64(inputs))) +
-		wire.VarIntSerializeSize(uint64(outputs)) +
-		txInsSize + txOutsSize + changeSize
-}
+var estimatedRedeemP2PKHv0InputSize = estimateInputSize(redeemP2PKHv0SigScriptSize)
 
 // estimateInputSize returns the worst case serialize size estimate for a tx input
-//
-// nolint: unused
 func estimateInputSize(scriptSize int) int {
 	return 32 + // previous tx
 		4 + // output index
@@ -46,8 +29,6 @@ func estimateInputSize(scriptSize int) int {
 }
 
 // estimateOutputSize returns the worst case serialize size estimate for a tx output
-//
-// nolint: unused
 func estimateOutputSize(scriptSize int) int {
 	return 8 + // previous tx
 		2 + // version
@@ -55,26 +36,55 @@ func estimateOutputSize(scriptSize int) int {
 		scriptSize // script itself
 }
 
-// nolint: unused
-func estimateIsStandardSize(inputs, outputs int) bool {
-	const maxSize = 100000
+func estimateP2PKHv0SerializeSize(inputs int, outputScriptSizes []int) int {
+	// Sum the estimated sizes of the inputs and outputs.
+	txInsSize := inputs * estimatedRedeemP2PKHv0InputSize
 
-	estimated := estimateP2PKHv0SerializeSize(inputs, outputs, false)
-	return estimated <= maxSize
+	var txOutsSize int
+	for _, sz := range outputScriptSizes {
+		txOutsSize += estimateOutputSize(sz)
+	}
+
+	// 12 additional bytes are for version, locktime and expiry.
+	return 12 + (2 * wire.VarIntSerializeSize(uint64(inputs))) +
+		wire.VarIntSerializeSize(uint64(len(outputScriptSizes))) +
+		txInsSize + txOutsSize
 }
 
-// checkLimited determines if adding an peer with the provided unmixed values
-// and a total number of mixed outputs would cause the transaction size to
-// exceed the maximum allowed size.  Peers must be excluded from mixes if
-// their contributions would cause the total transaction size to be too large,
-// even if they have not acted maliciously in the mixing protocol.
-//
-// nolint: unused
-func checkLimited(currentTx, unmixed *wire.MsgTx, totalMessages int) error {
-	totalInputs := len(currentTx.TxIn) + len(unmixed.TxIn)
-	totalOutputs := len(currentTx.TxOut) + len(unmixed.TxOut) + totalMessages
-	if !estimateIsStandardSize(totalInputs, totalOutputs) {
-		return errors.New("tx size would exceed standardness rules")
+type coinjoinSize struct {
+	currentInputs            int
+	currentOutputScriptSizes []int
+}
+
+// join determines if adding inputs, mixed outputs, and potentially a change
+// output from a peer would cause the coinjoin transaction size to exceed the
+// maximum allowed size.  The coinjoin size estimator is updated if the peer
+// can be included, and remains unchanged (returning an error) when it can't.
+// Peers must be excluded from mixes if their contributions would cause the
+// total transaction size to be too large, even if they have not acted
+// maliciously in the mixing protocol.
+func (c *coinjoinSize) join(contributedInputs, mcount int, change *wire.TxOut) error {
+	const maxStandardSize = 100000
+
+	totalInputs := c.currentInputs + contributedInputs
+
+	l := len(c.currentOutputScriptSizes)
+	for i := 0; i < mcount; i++ {
+		c.currentOutputScriptSizes = append(c.currentOutputScriptSizes, p2pkhv0PkScriptSize)
 	}
+	if change != nil {
+		c.currentOutputScriptSizes = append(c.currentOutputScriptSizes, len(change.PkScript))
+	}
+	totalOutputScriptSizes := c.currentOutputScriptSizes
+	c.currentOutputScriptSizes = c.currentOutputScriptSizes[:l]
+
+	estimated := estimateP2PKHv0SerializeSize(totalInputs, totalOutputScriptSizes)
+	if estimated >= maxStandardSize {
+		return errExceedsStandardSize
+	}
+
+	c.currentInputs = totalInputs
+	c.currentOutputScriptSizes = totalOutputScriptSizes
+
 	return nil
 }
