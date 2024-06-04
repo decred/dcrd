@@ -1734,7 +1734,7 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 			nil, nil, nil, mixHashes)
 		return
 	}
-	if mixpool.IsBannable(err) {
+	if mixpool.IsBannable(err, sp.Services()) {
 		reason := fmt.Sprintf("sent malformed mix message: %s", err)
 		sp.server.BanPeer(sp, reason)
 	}
