@@ -220,7 +220,7 @@ func (p *Pool) Message(query *chainhash.Hash) (mixing.Message, error) {
 		return pr, nil
 	}
 	if !ok || e.msg == nil {
-		return nil, fmt.Errorf("message not found")
+		return nil, errMessageNotFound
 	}
 	return e.msg, nil
 }
