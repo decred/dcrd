@@ -848,6 +848,9 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 				localPeerCount++
 			} else {
 				p = newRemotePeer(pr)
+				rs := wire.NewMsgMixSecrets(*p.id, currentRun.sid, currentRun.run,
+					[32]byte{}, [][]byte{}, nil)
+				p.rs = rs
 			}
 			p.myVk = uint32(i)
 			p.myStart = m
