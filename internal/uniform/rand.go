@@ -1,3 +1,7 @@
+// Copyright (c) 2024 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 // Package uniform provides uniform, cryptographically secure random numbers
 // with randomness obtained from a crypto/rand.Reader or other CSPRNG reader.
 //
