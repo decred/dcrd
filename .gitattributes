@@ -1,0 +1,18 @@
+# Normalize line endings of text files to LF regardless of OS or git settings
+*.conf          text
+*.dockerignore  text
+.gitattributes  text
+.gitignore      text
+*.go            text
+*.gv            text
+*.json          text
+*.md            text
+*.mediawiki     text
+*.mod           text
+*.py            text
+*.service       text
+*.sh            text
+*.sum           text
+*.svg           text
+*.xml           text
+*.yml           text
