@@ -31,10 +31,14 @@ if [ ! -f "go.work" ]; then
   go work init
 fi
 
+# Remove old modules as needed
+go work edit -dropuse ./lru
+
 # Add all of the modules as needed
 go work use . ./addrmgr ./bech32 ./blockchain ./blockchain/stake
 go work use ./blockchain/standalone ./certgen ./chaincfg ./chaincfg/chainhash
-go work use ./connmgr ./container/apbf ./crypto/blake256 ./crypto/ripemd160
-go work use ./database ./dcrec ./dcrec/edwards ./dcrec/secp256k1 ./dcrjson
-go work use ./dcrutil ./gcs ./hdkeychain ./lru ./math/uint256 ./mixing ./peer
-go work use ./rpc/jsonrpc/types ./rpcclient ./txscript ./wire
+go work use ./connmgr ./container/apbf ./container/lru ./crypto/blake256
+go work use ./crypto/ripemd160 ./database ./dcrec ./dcrec/edwards
+go work use ./dcrec/secp256k1 ./dcrjson ./dcrutil ./gcs ./hdkeychain
+go work use ./math/uint256 ./mixing ./peer ./rpc/jsonrpc/types ./rpcclient
+go work use ./txscript ./wire
