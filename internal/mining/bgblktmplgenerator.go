@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,9 +14,9 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
-	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -258,7 +258,7 @@ type BgBlkTmplGenerator struct {
 	subscriptionMtx   sync.Mutex
 	subscriptions     map[*TemplateSubscription]struct{}
 	notifySubscribers chan *TemplateNtfn
-	notifiedParents   lru.Cache
+	notifiedParents   *lru.Set[chainhash.Hash]
 
 	// These fields deal with the template regeneration event queue.  This is
 	// implemented as a concurrent queue with immediate passthrough when
@@ -347,7 +347,7 @@ func NewBgBlkTmplGenerator(cfg *BgBlkTmplConfig) *BgBlkTmplGenerator {
 		minVotesRequired:  (tg.cfg.ChainParams.TicketsPerBlock / 2) + 1,
 		subscriptions:     make(map[*TemplateSubscription]struct{}),
 		notifySubscribers: make(chan *TemplateNtfn),
-		notifiedParents:   lru.NewCache(3),
+		notifiedParents:   lru.NewSet[chainhash.Hash](3),
 		queueRegenEvent:   make(chan regenEvent),
 		regenEventMsgs:    make(chan regenEvent),
 		cancelTemplate:    func() {},
@@ -757,7 +757,7 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 				}
 			}
 			if reason == TURNewParent {
-				g.notifiedParents.Add(header.PrevBlock)
+				g.notifiedParents.Put(header.PrevBlock)
 			}
 
 			// Ensure the goroutine exits cleanly during shutdown.

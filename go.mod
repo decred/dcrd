@@ -24,7 +24,6 @@ require (
 	github.com/decred/dcrd/dcrjson/v4 v4.1.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.2
 	github.com/decred/dcrd/gcs/v4 v4.1.0
-	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.2
 	github.com/decred/dcrd/mixing v0.3.0
 	github.com/decred/dcrd/peer/v3 v3.1.1
@@ -81,7 +80,6 @@ replace (
 	github.com/decred/dcrd/gcs/v4 => ./gcs
 	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
-	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/math/uint256 => ./math/uint256
 	github.com/decred/dcrd/mixing => ./mixing
 	github.com/decred/dcrd/peer/v3 => ./peer
