@@ -20,8 +20,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/crypto/blake256"
-	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/peer/v3/internal/uniform"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
@@ -42,6 +42,10 @@ const (
 	// maxKnownInventory is the maximum number of items to keep in the known
 	// inventory cache.
 	maxKnownInventory = 1000
+
+	// maxKnownInventoryTTL is the duration to keep known inventory vectors in
+	// the cache before they are expired.
+	maxKnownInventoryTTL = 15 * time.Minute
 
 	// negotiateTimeout is the duration of inactivity before we timeout a
 	// peer that hasn't completed the initial version negotiation.
@@ -80,7 +84,7 @@ var (
 
 	// sentNonces houses the unique nonces that are generated when pushing
 	// version messages that are used to detect self connections.
-	sentNonces = lru.NewCache(50)
+	sentNonces = lru.NewSet[uint64](50)
 
 	// allowSelfConns is only used to allow the tests to bypass the self
 	// connection detecting and disconnect logic since they intentionally
@@ -484,7 +488,7 @@ type Peer struct {
 	versionSent          bool
 	verAckReceived       bool
 
-	knownInventory     lru.Cache
+	knownInventory     *lru.Set[wire.InvVect]
 	prevGetBlocksMtx   sync.Mutex
 	prevGetBlocksBegin *chainhash.Hash
 	prevGetBlocksStop  *chainhash.Hash
@@ -542,7 +546,7 @@ func (p *Peer) UpdateLastBlockHeight(newHeight int64) {
 //
 // This function is safe for concurrent access.
 func (p *Peer) AddKnownInventory(invVect *wire.InvVect) {
-	p.knownInventory.Add(*invVect)
+	p.knownInventory.Put(*invVect)
 }
 
 // IsKnownInventory returns whether the passed inventory already exists in
@@ -1670,7 +1674,7 @@ out:
 			for _, iv := range invSendQueue {
 				// Don't send inventory that became known after
 				// the initial check.
-				if p.knownInventory.Contains(iv) {
+				if p.knownInventory.Contains(*iv) {
 					continue
 				}
 
@@ -1872,7 +1876,7 @@ func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
 func (p *Peer) QueueInventory(invVect *wire.InvVect) {
 	// Don't add the inventory to the send queue if the peer is already
 	// known to have it.
-	if p.knownInventory.Contains(invVect) {
+	if p.knownInventory.Contains(*invVect) {
 		return
 	}
 
@@ -1895,7 +1899,7 @@ func (p *Peer) QueueInventory(invVect *wire.InvVect) {
 // This function is safe for concurrent access.
 func (p *Peer) QueueInventoryImmediate(invVect *wire.InvVect) {
 	// Don't announce the inventory if the peer is already known to have it.
-	if p.knownInventory.Contains(invVect) {
+	if p.knownInventory.Contains(*invVect) {
 		return
 	}
 
@@ -2045,7 +2049,7 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 	if err != nil {
 		return nil, err
 	}
-	sentNonces.Add(nonce)
+	sentNonces.Put(nonce)
 
 	// Version message.
 	msg := wire.NewMsgVersion(ourNA, theirNA, nonce, int32(blockNum))
@@ -2210,9 +2214,10 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	}
 
 	p := Peer{
-		blake256Hasher:  blake256.New(),
-		inbound:         inbound,
-		knownInventory:  lru.NewCache(maxKnownInventory),
+		blake256Hasher: blake256.New(),
+		inbound:        inbound,
+		knownInventory: lru.NewSetWithDefaultTTL[wire.InvVect](
+			maxKnownInventory, maxKnownInventoryTTL),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
 		outputQueue:     make(chan outMsg, outputBufferSize),
 		sendQueue:       make(chan outMsg, 1),   // nonblocking sync

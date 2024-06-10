@@ -23,11 +23,8 @@ for module in $MODULES; do
   (
     cd $MODNAME
 
-    # run tests if there are any _test files.
-    tfiles=$(find . -maxdepth 1 -name '*_test.go' 2>/dev/null | xargs)
-    if [ -n "$tfiles" ]; then
-        go test -short -tags ./... -- "$@"
-    fi
+    # run tests
+    go test -short -tags rpcserver ./... -- "$@"
   )
 done
 

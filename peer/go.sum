@@ -5,10 +5,10 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/dchest/siphash v1.2.3 h1:QXwFc8cFOR2dSa/gE6o/HokBMWtLUaNDVd+22aKHeEA=
 github.com/dchest/siphash v1.2.3/go.mod h1:0NvQU092bT0ipiFN++/rXm69QG9tVxLAlQHIXMPAkHc=
 github.com/decred/base58 v1.0.5 h1:hwcieUM3pfPnE/6p3J100zoRfGkQxBulZHo7GZfOqic=
-github.com/decred/base58 v1.0.5/go.mod h1:s/8lukEHFA6bUQQb/v3rjUySJ2hu+RioCzLukAVkrfw=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.4 h1:zRCv6tdncLfLTKYqu7hrXvs7hW+8FO/NvwoFvGsrluU=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.4/go.mod h1:hA86XxlBWwHivMvxzXTSD0ZCG/LoYsFdWnCekkTMCqY=
-github.com/decred/dcrd/chaincfg/v3 v3.2.1/go.mod h1:SDCWDtY7BLj0leXc9FuoA1YjSVKyCIBVAyxwZn6+sXc=
+github.com/decred/dcrd/container/lru v1.0.0 h1:7foQymtbu18aQWYiY9RnNIeE+kvpiN+fiBQ3+viyJjI=
+github.com/decred/dcrd/container/lru v1.0.0/go.mod h1:vlPwj0l+IzAHhQSsbgQnJgO5Cte78+yI065V+Mc5PRQ=
 github.com/decred/dcrd/crypto/blake256 v1.0.1 h1:7PltbUIQB7u/FfZ39+DGa/ShuMyJ5ilcvdfma9wOH6Y=
 github.com/decred/dcrd/crypto/blake256 v1.0.1/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
 github.com/decred/dcrd/crypto/ripemd160 v1.0.2 h1:TvGTmUBHDU75OHro9ojPLK+Yv7gDl2hnUvRocRCjsys=
@@ -19,8 +19,6 @@ github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 h1:l/lhv2aJCUignzls81+wvga0TFlyoZ
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3/go.mod h1:AKpV6+wZ2MfPRJnTbQ6NPgWrKzbe9RCIlCF/FKzMtM8=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 h1:rpfIENRNNilwHwZeG5+P150SMrnNEcHYvcCuK6dPZSg=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0/go.mod h1:v57UDF4pDQJcEfFUCRop3lJL149eHGSe9Jvczhzjo/0=
-github.com/decred/dcrd/lru v1.1.2 h1:KdCzlkxppuoIDGEvCGah1fZRicrDH36IipvlB1ROkFY=
-github.com/decred/dcrd/lru v1.1.2/go.mod h1:gEdCVgXs1/YoBvFWt7Scgknbhwik3FgVSzlnCcXL2N8=
 github.com/decred/dcrd/txscript/v4 v4.1.1 h1:R4M2+jMujgQA91899SkL0cW66d6DC76Gx+1W1oEHjc0=
 github.com/decred/dcrd/txscript/v4 v4.1.1/go.mod h1:7ybmJoI+b6dxvQ+0aXdZpkyrj0PbnylJCzFxD1g8+/A=
 github.com/decred/dcrd/wire v1.7.0 h1:5JHiDjEQeS4XUl4PfnTZYLwAD/E/+LwBmPRec/fP76o=
