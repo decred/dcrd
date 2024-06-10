@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -393,7 +393,7 @@ func (b *BlockChain) maybeAcceptBlocks(curTip *blockNode, nodes []*blockNode, fl
 		// happens under normal operation, especially once the chain is fully
 		// synced.
 		b.addRecentBlock(linkedBlock)
-		b.recentContextChecks.Add(n.hash)
+		b.recentContextChecks.Put(n.hash)
 
 		// Notify the caller when the block intends to extend the main chain,
 		// the chain believes it is current, and the block has passed all of the

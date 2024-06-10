@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,12 +18,12 @@ import (
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
-	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -4106,7 +4106,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		// tests without eviction.
 		bc := newFakeChain(params)
 		node := bc.bestChain.Tip()
-		bc.recentBlocks = lru.NewKVCache(uint(test.numNodes))
+		bc.recentBlocks = lru.NewMap[chainhash.Hash, *dcrutil.Block](
+			uint32(test.numNodes))
 
 		ticketCount = 0
 		for i := int64(0); i < test.numNodes; i++ {

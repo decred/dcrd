@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,12 +22,12 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
 	"github.com/decred/dcrd/internal/blockchain/indexers"
-	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
@@ -213,14 +213,13 @@ type BlockChain struct {
 	// These fields house caches for blocks to facilitate faster chain reorgs,
 	// block connection, and more efficient recent block serving.
 	//
-	// recentBlocks houses a block cache of block data that has been seen
-	// recently.
+	// recentBlocks houses a cache of block data that has been seen recently.
 	//
 	// recentContextChecks tracks recent blocks that have successfully passed
 	// all contextual checks and is primarily used as an optimization to avoid
 	// running the checks again when possible.
-	recentBlocks        lru.KVCache
-	recentContextChecks lru.Cache
+	recentBlocks        *lru.Map[chainhash.Hash, *dcrutil.Block]
+	recentContextChecks *lru.Set[chainhash.Hash]
 
 	// These fields house a cached view that represents a block that votes
 	// against its parent and therefore contains all changes as a result
@@ -461,7 +460,7 @@ func (b *BlockChain) TipGeneration() []chainhash.Hash {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) addRecentBlock(block *dcrutil.Block) {
-	b.recentBlocks.Add(*block.Hash(), block)
+	b.recentBlocks.Put(*block.Hash(), block)
 }
 
 // lookupRecentBlock attempts to return the requested block from the recent
@@ -470,9 +469,9 @@ func (b *BlockChain) addRecentBlock(block *dcrutil.Block) {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) lookupRecentBlock(hash *chainhash.Hash) (*dcrutil.Block, bool) {
-	block, ok := b.recentBlocks.Lookup(*hash)
+	block, ok := b.recentBlocks.Get(*hash)
 	if ok {
-		return block.(*dcrutil.Block), true
+		return block, true
 	}
 	return nil, false
 }
@@ -1228,7 +1227,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 
 			// Mark the block as recently checked to avoid checking it again
 			// when processing.
-			b.recentContextChecks.Add(n.hash)
+			b.recentContextChecks.Put(n.hash)
 
 			// In the case the block is determined to be invalid due to a rule
 			// violation, mark it as invalid and mark all of its descendants as
@@ -2363,6 +2362,18 @@ type Config struct {
 	UtxoCache UtxoCacher
 }
 
+// newRecentBlocksCache returns a new LRU map for more efficient access to
+// recently used blocks.
+func newRecentBlocksCache() *lru.Map[chainhash.Hash, *dcrutil.Block] {
+	return lru.NewMap[chainhash.Hash, *dcrutil.Block](recentBlockCacheSize)
+}
+
+// newRecentContextChecksCache returns a new LRU cache for tracking recent
+// blocks that have successfully passed all contextual checks.
+func newRecentContextChecksCache() *lru.Set[chainhash.Hash] {
+	return lru.NewSet[chainhash.Hash](contextCheckCacheSize)
+}
+
 // New returns a BlockChain instance using the provided configuration details.
 func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Enforce required config fields.
@@ -2443,8 +2454,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
-		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
-		recentContextChecks:           lru.NewCache(contextCheckCacheSize),
+		recentBlocks:                  newRecentBlocksCache(),
+		recentContextChecks:           newRecentContextChecksCache(),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),
