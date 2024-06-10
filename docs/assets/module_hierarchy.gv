@@ -21,7 +21,7 @@ digraph {
 	stake [label="blockchain/stake/v5" fillcolor=bisque]
 	gcs [label="gcs/v4" fillcolor=gold]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
-	lru [label="lru" fillcolor=royalblue3]
+	lru [label="container/lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]
 	rpcclient [label="rpcclient/v8" fillcolor=mediumseagreen]
 	addrmgr [label="addrmgr/v2" fillcolor=lightsalmon]

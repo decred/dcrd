@@ -221,10 +221,11 @@ The following versioned modules are provided by dcrd repository:
 * [gcs/v4](https://github.com/decred/dcrd/tree/master/gcs) - Provides an API for
   building and using Golomb-coded set filters useful for light clients such as
   SPV wallets
-* [lru](https://github.com/decred/dcrd/tree/master/lru) - Implements a generic
-  concurrent safe least-recently-used cache with near O(1) perf
 * [container/apbf](https://github.com/decred/dcrd/tree/master/container/apbf) -
   Implements an optimized Age-Partitioned Bloom Filter
+* [container/lru](https://github.com/decred/dcrd/tree/master/container/lru) -
+  Provides generic type and concurrent safe LRU data structures with near O(1)
+  perf and optional time-based expiration support
 * [crypto/blake256](https://github.com/decred/dcrd/tree/master/crypto/blake256) -
   Implements 14-round BLAKE-256 and BLAKE-224 hash functions (SHA-3 candidate)
 * [crypto/ripemd160](https://github.com/decred/dcrd/tree/master/crypto/ripemd160) -
