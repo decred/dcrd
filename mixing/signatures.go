@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
+	"github.com/decred/dcrd/wire"
 )
 
 const tag = "decred-mix-signature"
@@ -85,6 +86,12 @@ func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
 	}
 
 	buf := new(bytes.Buffer)
+	buf.Grow(len(tag) + wire.CommandSize +
+		64 + // sid
+		4 + // run
+		64 + // sigHash
+		4, // commas
+	)
 	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", m.Command(), sid, run, sigHash)
 	h.Write(buf.Bytes())
 
@@ -111,6 +118,12 @@ func verify(h hash.Hash, pk []byte, sig []byte, sigHash []byte, command string, 
 	h.Reset()
 
 	buf := new(bytes.Buffer)
+	buf.Grow(len(tag) + wire.CommandSize +
+		64 + // sid
+		4 + // run
+		64 + // sigHash
+		4, // commas
+	)
 	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", command, sid, run, sigHash)
 	h.Write(buf.Bytes())
 	return sigParsed.Verify(h.Sum(nil), pkParsed)
