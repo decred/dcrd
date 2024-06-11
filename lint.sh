@@ -9,18 +9,15 @@ set -ex
 go version
 
 # loop all modules
-ROOTPKG=$(go list)
-ROOTPKGPATTERN=$(echo $ROOTPKG | sed 's,\\,\\\\,g' | sed 's,/,\\/,g')
-MODPATHS=$(go list -m all | grep "^$ROOTPKGPATTERN" | cut -d' ' -f1)
-for module in $MODPATHS; do
-  echo "==> lint ${module}"
-
-  # determine module directory
-  MODNAME=$(echo $module | sed -E -e "s/^$ROOTPKGPATTERN//" \
-    -e 's,^/,,' -e 's,/v[0-9]+$,,')
+MODULES=$(find . -name go.mod -not -path "./playground/*")
+for module in $MODULES; do
+  # determine module name/directory
+  MODNAME=$(echo $module | sed -E -e 's,/go\.mod$,,' -e 's,^./,,')
   if [ -z "$MODNAME" ]; then
     MODNAME=.
   fi
+
+  echo "==> lint ${MODNAME}"
 
   # run commands in the module directory as a subshell
   (
