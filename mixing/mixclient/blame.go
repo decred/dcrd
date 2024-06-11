@@ -80,8 +80,8 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 	// Receive currently-revealed secrets
 	rcv := new(mixpool.Received)
 	rcv.Sid = sesRun.sid
-	rcv.RSs = make([]*wire.MsgMixSecrets, 0, len(sesRun.prs))
-	_ = mp.Receive(ctx, 0, rcv)
+	rcv.RSs = make([]*wire.MsgMixSecrets, 0, 1)
+	_ = mp.Receive(ctx, rcv)
 	rsHashes := make([]chainhash.Hash, len(rcv.RSs))
 	for _, rs := range rcv.RSs {
 		rsHashes = append(rsHashes, rs.Hash())
@@ -101,8 +101,8 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 	}
 
 	// Wait for all secrets, or timeout.
-	rcv.RSs = rcv.RSs[:0]
-	_ = mp.Receive(ctx, len(sesRun.prs), rcv)
+	rcv.RSs = make([]*wire.MsgMixSecrets, 0, len(sesRun.prs))
+	_ = mp.Receive(ctx, rcv)
 	rss := rcv.RSs
 	for _, rs := range rcv.RSs {
 		if idx, ok := identityIndices[rs.Identity]; ok {

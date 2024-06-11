@@ -1093,7 +1093,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		rcv.KEs = make([]*wire.MsgMixKeyExchange, 0, len(sesRun.prs))
 		ctx, cancel := context.WithDeadline(ctx, d.recvKE)
 		defer cancel()
-		err = mp.Receive(ctx, len(sesRun.prs), rcv)
+		err = mp.Receive(ctx, rcv)
 		if ctx.Err() != nil {
 			err = fmt.Errorf("session %x KE receive context cancelled: %w",
 				sesRun.sid[:], ctx.Err())
@@ -1264,7 +1264,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	rcv.KEs = nil
 	rcv.CTs = make([]*wire.MsgMixCiphertexts, 0, len(prs))
 	rcvCtx, rcvCtxCancel := context.WithDeadline(ctx, d.recvCT)
-	err = mp.Receive(rcvCtx, len(prs), rcv)
+	err = mp.Receive(rcvCtx, rcv)
 	rcvCtxCancel()
 	cts := rcv.CTs
 	for _, ct := range cts {
@@ -1350,7 +1350,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	rcv.CTs = nil
 	rcv.SRs = make([]*wire.MsgMixSlotReserve, 0, len(prs))
 	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvSR)
-	err = mp.Receive(rcvCtx, len(prs), rcv)
+	err = mp.Receive(rcvCtx, rcv)
 	rcvCtxCancel()
 	srs := rcv.SRs
 	for _, sr := range srs {
@@ -1428,7 +1428,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	rcv.SRs = nil
 	rcv.DCs = make([]*wire.MsgMixDCNet, 0, len(prs))
 	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvDC)
-	err = mp.Receive(rcvCtx, len(prs), rcv)
+	err = mp.Receive(rcvCtx, rcv)
 	rcvCtxCancel()
 	dcs := rcv.DCs
 	for _, dc := range dcs {
@@ -1508,7 +1508,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	rcv.DCs = nil
 	rcv.CMs = make([]*wire.MsgMixConfirm, 0, len(prs))
 	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvCM)
-	err = mp.Receive(rcvCtx, len(prs), rcv)
+	err = mp.Receive(rcvCtx, rcv)
 	rcvCtxCancel()
 	cms := rcv.CMs
 	for _, cm := range cms {
@@ -1612,16 +1612,15 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 	// We can return a result as soon as we read any valid factored
 	// polynomial message that provides the solutions for this SR
 	// polynomial.
-	expectedMessages := 1
 	rcv := &mixpool.Received{
 		Sid: sesRun.sid,
-		FPs: make([]*wire.MsgMixFactoredPoly, 0, sesRun.mtot),
+		FPs: make([]*wire.MsgMixFactoredPoly, 0, 1),
 	}
 	roots := make([]*big.Int, 0, len(a)-1)
 	checkedFPByIdentity := make(map[identity]struct{})
 	for {
 		rcv.FPs = rcv.FPs[:0]
-		err := c.mixpool.Receive(ctx, expectedMessages, rcv)
+		err := c.mixpool.Receive(ctx, rcv)
 		if err != nil {
 			return nil, err
 		}
@@ -1663,7 +1662,7 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 			checkedFPByIdentity[fp.Identity] = struct{}{}
 		}
 
-		expectedMessages = len(rcv.FPs) + 1
+		rcv.FPs = make([]*wire.MsgMixFactoredPoly, 0, len(rcv.FPs)+1)
 	}
 }
 

@@ -595,8 +595,9 @@ PRLoop:
 
 // Received is a parameter for Pool.Receive describing the session and run to
 // receive messages for, and slices for returning results.  A single non-nil
-// slice is required and indicates which message slice will be will be
-// appended to.  Received messages are unsorted.
+// slice with capacity of the expected number of messages is required and
+// indicates which message slice will be will be appended to.  Received
+// messages are unsorted.
 type Received struct {
 	Sid [32]byte
 	KEs []*wire.MsgMixKeyExchange
@@ -620,7 +621,7 @@ type Received struct {
 // r.RSs is nil, Receive immediately returns ErrSecretsRevealed.  An
 // additional call to Receive with a non-nil RSs can be used to receive all of
 // the secrets after each peer publishes their own revealed secrets.
-func (p *Pool) Receive(ctx context.Context, expectedMessages int, r *Received) error {
+func (p *Pool) Receive(ctx context.Context, r *Received) error {
 	sid := r.Sid
 	var bc *broadcast
 
@@ -632,30 +633,37 @@ func (p *Pool) Receive(ctx context.Context, expectedMessages int, r *Received) e
 	}
 	bc = &ses.bc
 
-	nonNilSlices := 0
-	if r.KEs != nil {
-		nonNilSlices++
+	var capSlices, expectedMessages int
+	if cap(r.KEs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.KEs)
 	}
-	if r.CTs != nil {
-		nonNilSlices++
+	if cap(r.CTs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.CTs)
 	}
-	if r.SRs != nil {
-		nonNilSlices++
+	if cap(r.SRs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.SRs)
 	}
-	if r.DCs != nil {
-		nonNilSlices++
+	if cap(r.DCs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.DCs)
 	}
-	if r.CMs != nil {
-		nonNilSlices++
+	if cap(r.CMs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.CMs)
 	}
-	if r.FPs != nil {
-		nonNilSlices++
+	if cap(r.FPs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.FPs)
 	}
-	if r.RSs != nil {
-		nonNilSlices++
+	if cap(r.RSs) != 0 {
+		capSlices++
+		expectedMessages = cap(r.RSs)
 	}
-	if nonNilSlices != 1 {
-		return fmt.Errorf("mixpool: exactly one Received slice must be non-nil")
+	if capSlices != 1 {
+		return fmt.Errorf("mixpool: exactly one Received slice must have non-zero capacity")
 	}
 
 Loop:
