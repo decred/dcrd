@@ -9,9 +9,27 @@ set -ex
 go version
 
 # run tests on all modules
-echo "==> test all modules"
-ROOTPKG=$(go list)
-go test -short -tags rpctest $ROOTPKG/... -- "$@"
+MODULES=$(find . -name go.mod -not -path "./playground/*")
+for module in $MODULES; do
+  # determine module name/directory
+  MODNAME=$(echo $module | sed -E -e 's,/go\.mod$,,' -e 's,^./,,')
+  if [ -z "$MODNAME" ]; then
+    MODNAME=.
+  fi
+
+  echo "==> test ${MODNAME}"
+
+  # run commands in the module directory as a subshell
+  (
+    cd $MODNAME
+
+    # run tests if there are any _test files.
+    tfiles=$(find . -maxdepth 1 -name '*_test.go' 2>/dev/null | xargs)
+    if [ -n "$tfiles" ]; then
+        go test -short -tags ./... -- "$@"
+    fi
+  )
+done
 
 # run linters on all modules
 . ./lint.sh
