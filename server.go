@@ -788,11 +788,10 @@ func (sp *serverPeer) handleServeGetData(invVects []*wire.InvVect,
 
 		case wire.InvTypeMix:
 			mixHash := &iv.Hash
-			msg, err := sp.server.mixMsgPool.Message(mixHash)
-			if err != nil {
-				peerLog.Debugf("Unable to fetch mix message %v ",
-					"from the mix pool for %v: %v", mixHash,
-					sp, err)
+			msg, ok := sp.server.mixMsgPool.RecentMessage(mixHash)
+			if !ok {
+				peerLog.Debugf("Unable to fetch mix message %v from the mix "+
+					"pool for peer %s", mixHash, sp)
 				break
 			}
 			dataMsg = msg
