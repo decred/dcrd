@@ -61,9 +61,11 @@ const (
 	// only checked on each stall tick interval.
 	stallResponseTimeout = 30 * time.Second
 
-	// trickleTimeout is the duration of the ticker which trickles down the
-	// inventory to a peer.
-	trickleTimeout = 500 * time.Millisecond
+	// minInvTrickleSize and maxInvTrickleSize define the lower and upper
+	// limits, respectively, of random delay waited while batching
+	// inventory before it is trickled to a peer.
+	minInvTrickleTimeout = 100 * time.Millisecond
+	maxInvTrickleTimeout = 500 * time.Millisecond
 
 	// defaultIdleTimeout is the default duration of inactivity before a peer is
 	// timed out when a peer is created with the idle timeout configuration
@@ -1593,8 +1595,6 @@ out:
 func (p *Peer) queueHandler() {
 	var pendingMsgs []outMsg
 	var invSendQueue []*wire.InvVect
-	trickleTicker := time.NewTicker(trickleTimeout)
-	defer trickleTicker.Stop()
 
 	// We keep the waiting flag so that we know if we have a message queued
 	// to the outHandler or not.  We could use the presence of a head of
@@ -1615,6 +1615,15 @@ func (p *Peer) queueHandler() {
 		// we are always waiting now.
 		return true
 	}
+
+	trickleTimeout := func() time.Duration {
+		return minInvTrickleTimeout + rand.Duration(
+			maxInvTrickleTimeout-minInvTrickleTimeout)
+	}
+
+	trickleTimer := time.NewTimer(trickleTimeout())
+	defer trickleTimer.Stop()
+
 out:
 	for {
 		select {
@@ -1643,12 +1652,15 @@ out:
 				invSendQueue = append(invSendQueue, iv)
 			}
 
-		case <-trickleTicker.C:
+		case <-trickleTimer.C:
 			// Don't send anything if we're disconnecting or there
 			// is no queued inventory.
 			// version is known if send queue has any entries.
-			if atomic.LoadInt32(&p.disconnect) != 0 ||
-				len(invSendQueue) == 0 {
+			switch {
+			case atomic.LoadInt32(&p.disconnect) != 0:
+				continue
+			case len(invSendQueue) == 0:
+				trickleTimer.Reset(trickleTimeout())
 				continue
 			}
 
@@ -1680,6 +1692,8 @@ out:
 					&pendingMsgs, waiting)
 			}
 			invSendQueue = nil
+
+			trickleTimer.Reset(trickleTimeout())
 
 		case <-p.quit:
 			break out
