@@ -1046,17 +1046,10 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		m.rejectedTxns.Reset()
 
 		// Remove expired pair requests and completed mixes from
-		// mixpool.  The transactions from the previous block are used
-		// to remove spent PRs to avoid a logic race where a mined
-		// block immediately removes messages still propagating the
-		// network.
-		prevBlock, err := chain.BlockByHash(&header.PrevBlock)
-		if err == nil {
-			prev := prevBlock.MsgBlock()
-			m.cfg.MixPool.RemoveSpentPRs(prev.Transactions)
-			m.cfg.MixPool.RemoveSpentPRs(prev.STransactions)
-			m.cfg.MixPool.ExpireMessagesInBackground(prev.Header.Height)
-		}
+		// mixpool.
+		m.cfg.MixPool.RemoveSpentPRs(msgBlock.Transactions)
+		m.cfg.MixPool.RemoveSpentPRs(msgBlock.STransactions)
+		m.cfg.MixPool.ExpireMessagesInBackground(header.Height)
 	}
 
 	// Update the latest block height for the peer to avoid stale heights when
