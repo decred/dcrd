@@ -62,20 +62,20 @@ func Uint64() uint64 {
 	return globalRand.Uint64()
 }
 
-// Uint32n returns a random uint32 in range [0,n) without modulo bias.
-func Uint32n(n uint32) uint32 {
+// Uint32N returns a random uint32 in range [0,n) without modulo bias.
+func Uint32N(n uint32) uint32 {
 	globalRand.mu.Lock()
 	defer globalRand.mu.Unlock()
 
-	return globalRand.Uint32n(n)
+	return globalRand.Uint32N(n)
 }
 
-// Uint64n returns a random uint32 in range [0,n) without modulo bias.
-func Uint64n(n uint64) uint64 {
+// Uint64N returns a random uint32 in range [0,n) without modulo bias.
+func Uint64N(n uint64) uint64 {
 	globalRand.mu.Lock()
 	defer globalRand.mu.Unlock()
 
-	return globalRand.Uint64n(n)
+	return globalRand.Uint64N(n)
 }
 
 // Int32 returns a random 31-bit non-negative integer as an int32 without
@@ -87,14 +87,14 @@ func Int32() int32 {
 	return globalRand.Int32()
 }
 
-// Int32n returns, as an int32, a random 31-bit non-negative integer in [0,n)
+// Int32N returns, as an int32, a random 31-bit non-negative integer in [0,n)
 // without modulo bias.
 // Panics if n <= 0.
-func Int32n(n int32) int32 {
+func Int32N(n int32) int32 {
 	globalRand.mu.Lock()
 	defer globalRand.mu.Unlock()
 
-	return globalRand.Int32n(n)
+	return globalRand.Int32N(n)
 }
 
 // Int64 returns a random 63-bit non-negative integer as an int64 without
@@ -106,14 +106,14 @@ func Int64() int64 {
 	return globalRand.Int64()
 }
 
-// Int64n returns, as an int64, a random 63-bit non-negative integer in [0,n)
+// Int64N returns, as an int64, a random 63-bit non-negative integer in [0,n)
 // without modulo bias.
 // Panics if n <= 0.
-func Int64n(n int64) int64 {
+func Int64N(n int64) int64 {
 	globalRand.mu.Lock()
 	defer globalRand.mu.Unlock()
 
-	return globalRand.Int64n(n)
+	return globalRand.Int64N(n)
 }
 
 // Int returns a non-negative integer without bias.
