@@ -6,6 +6,7 @@ package rand
 
 import (
 	"io"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -158,4 +159,13 @@ func Shuffle(n int, swap func(i, j int)) {
 	defer globalRand.mu.Unlock()
 
 	globalRand.Shuffle(n, swap)
+}
+
+// Int returns a uniform random value in [0,max).
+// Panics if max <= 0.
+func BigInt(max *big.Int) *big.Int {
+	globalRand.mu.Lock()
+	defer globalRand.mu.Unlock()
+
+	return globalRand.PRNG.BigInt(max)
 }
