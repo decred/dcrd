@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
 	_ "crypto/sha512" // Needed for RegisterHash in init
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -20,6 +19,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/decred/dcrd/crypto/rand"
 )
 
 // NewTLSCertPair returns a new PEM-encoded x.509 certificate pair with new
@@ -31,7 +32,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 		return nil, nil, errors.New("validUntil would create an already-expired certificate")
 	}
 
-	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
+	priv, err := ecdsa.GenerateKey(curve, rand.Reader())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -43,10 +44,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate serial number: %w", err)
-	}
+	serialNumber := rand.BigInt(serialNumberLimit)
 
 	host, err := os.Hostname()
 	if err != nil {
@@ -117,7 +115,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 		IPAddresses: ipAddresses,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template,
+	derBytes, err := x509.CreateCertificate(rand.Reader(), &template,
 		&template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)

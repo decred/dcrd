@@ -1,14 +1,9 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package treap
-
-import (
-	"math/rand"
-	"time"
-)
 
 const (
 	// staticDepth is the size of the static array to use for keeping track
@@ -130,8 +125,4 @@ func (s *parentStack) Push(node *treapNode) {
 	}
 	s.overflow[index] = node
 	s.index++
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }

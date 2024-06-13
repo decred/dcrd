@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v4/blockcf2"
 	"github.com/decred/dcrd/internal/blockchain"
@@ -475,10 +476,7 @@ func txIndexFromTxList(hash chainhash.Hash, list []*dcrutil.Tx) int {
 // coinbase. This function autogenerates the extranonce. The OP_RETURN pushes
 // 12 bytes.
 func standardCoinbaseOpReturn(height uint32) ([]byte, error) {
-	extraNonce, err := wire.RandomUint64()
-	if err != nil {
-		return nil, err
-	}
+	extraNonce := rand.Uint64()
 
 	enData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
@@ -495,10 +493,7 @@ func standardCoinbaseOpReturn(height uint32) ([]byte, error) {
 // into a treasurybase. This function autogenerates the extranonce. The
 // OP_RETURN pushes 12 bytes.
 func standardTreasurybaseOpReturn(height uint32) ([]byte, error) {
-	extraNonce, err := wire.RandomUint64()
-	if err != nil {
-		return nil, err
-	}
+	extraNonce := rand.Uint64()
 
 	enData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(enData[0:4], height)

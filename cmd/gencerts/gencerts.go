@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -17,12 +16,12 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"net"
 	"os"
 	"time"
 
+	"github.com/decred/dcrd/crypto/rand"
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -172,10 +171,7 @@ func fileExists(name string) bool {
 
 func ed25519KeyGen() (pub, priv interface{}) {
 	seed := make([]byte, ed25519.SeedSize)
-	_, err := io.ReadFull(rand.Reader, seed)
-	if err != nil {
-		fatalf("read random bytes: %v\n", err)
-	}
+	rand.Read(seed)
 	key := ed25519.NewKeyFromSeed(seed)
 	return key.Public(), key
 }
@@ -183,7 +179,7 @@ func ed25519KeyGen() (pub, priv interface{}) {
 func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
 	return func() (pub, priv interface{}) {
 		var key *ecdsa.PrivateKey
-		key, err := ecdsa.GenerateKey(curve, rand.Reader)
+		key, err := ecdsa.GenerateKey(curve, rand.Reader())
 		if err != nil {
 			fatalf("generate random EC key: %v\n", err)
 		}
@@ -194,7 +190,7 @@ func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
 func rsaKeyGen(bits int) func() (pub, priv interface{}) {
 	return func() (pub, priv interface{}) {
 		var key *rsa.PrivateKey
-		key, err := rsa.GenerateKey(rand.Reader, bits)
+		key, err := rsa.GenerateKey(rand.Reader(), bits)
 		if err != nil {
 			fatalf("generate random RSA key: %v\n", err)
 		}
@@ -202,13 +198,10 @@ func rsaKeyGen(bits int) func() (pub, priv interface{}) {
 	}
 }
 
-func randomX509SerialNumber() (*big.Int, error) {
+func randomX509SerialNumber() *big.Int {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %w", err)
-	}
-	return serialNumber, nil
+	serialNumber := rand.BigInt(serialNumberLimit)
+	return serialNumber
 }
 
 // End of ASN.1 time
@@ -227,10 +220,7 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	if validUntil.Before(now) {
 		return nil, fmt.Errorf("valid until date %v already elapsed", validUntil)
 	}
-	serialNumber, err := randomX509SerialNumber()
-	if err != nil {
-		return nil, err
-	}
+	serialNumber := randomX509SerialNumber()
 	cn := org
 	if len(hosts) > 0 {
 		cn = hosts[0]
@@ -270,7 +260,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 	template.BasicConstraintsValid = true
 	template.IsCA = true
 
-	cert, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	cert, err := x509.CreateCertificate(rand.Reader(), template, template, pub, priv)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +300,7 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 	template.KeyUsage = x509.KeyUsageDigitalSignature
 	template.BasicConstraintsValid = true
 
-	cert, err := x509.CreateCertificate(rand.Reader, template, ca, pub, caPriv)
+	cert, err := x509.CreateCertificate(rand.Reader(), template, ca, pub, caPriv)
 	if err != nil {
 		return nil, err
 	}

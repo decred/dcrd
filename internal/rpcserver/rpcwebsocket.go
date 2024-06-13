@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,12 +18,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
-
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrjson/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -34,6 +33,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -2037,10 +2037,7 @@ func (c *wsClient) Run(ctx context.Context) {
 func newWebsocketClient(server *Server, conn *websocket.Conn,
 	remoteAddr string, authenticated bool, isAdmin bool) (*wsClient, error) {
 
-	sessionID, err := wire.RandomUint64()
-	if err != nil {
-		return nil, err
-	}
+	sessionID := rand.Uint64()
 
 	client := &wsClient{
 		conn:              conn,

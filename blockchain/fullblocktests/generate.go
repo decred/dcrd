@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2023 The Decred developers
+// Copyright (c) 2016-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -198,10 +199,7 @@ func opReturnScript(data []byte) []byte {
 // height is not defined however this effectively mirrors the actual mining code
 // at the time it was written.
 func standardCoinbaseOpReturnScript(blockHeight uint32) []byte {
-	rand, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
+	rand := rand.Uint64()
 
 	data := make([]byte, 36)
 	binary.LittleEndian.PutUint32(data[0:4], blockHeight)

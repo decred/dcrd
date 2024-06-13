@@ -7,7 +7,6 @@ package mining
 import (
 	"context"
 	"math"
-	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/container/lru"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -725,8 +725,7 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 
 		// Pick a mining address at random and generate a block template that
 		// pays to it.
-		prng := rand.New(rand.NewSource(time.Now().Unix()))
-		payToAddr := g.cfg.MiningAddrs[prng.Intn(len(g.cfg.MiningAddrs))]
+		payToAddr := g.cfg.MiningAddrs[rand.IntN(len(g.cfg.MiningAddrs))]
 		template, err := g.tg.NewBlockTemplate(payToAddr)
 		// NOTE: err is handled below.
 		if err != nil {

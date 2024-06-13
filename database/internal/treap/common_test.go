@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,6 @@ package treap
 
 import (
 	"encoding/binary"
-	"math/rand"
 	"reflect"
 	"testing"
 )
@@ -101,9 +100,4 @@ testLoop:
 			continue testLoop
 		}
 	}
-}
-
-func init() {
-	// Force the same pseudo random numbers for each test run.
-	rand.Seed(0)
 }

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -40,6 +39,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 	"github.com/decred/dcrd/dcrjson/v4"
@@ -4221,11 +4221,7 @@ func handleLiveTickets(_ context.Context, s *Server, _ interface{}) (interface{}
 // handlePing implements the ping command.
 func handlePing(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	// Ask server to ping \o_
-	nonce, err := wire.RandomUint64()
-	if err != nil {
-		const context = "Not sending ping - failed to generate nonce"
-		return nil, rpcInternalErr(err, context)
-	}
+	nonce := rand.Uint64()
 	s.cfg.ConnMgr.BroadcastMessage(wire.NewMsgPing(nonce))
 
 	return nil, nil
@@ -6189,10 +6185,7 @@ func New(config *Config) (*Server, error) {
 		blake256Hasher:         blake256.New(),
 	}
 	key := make([]byte, 32)
-	_, err := io.ReadFull(rand.Reader, key)
-	if err != nil {
-		return nil, err
-	}
+	rand.Read(key)
 	rpc.hmac = hmac.New(sha256.New, key)
 	if config.RPCUser != "" && config.RPCPass != "" {
 		login := config.RPCUser + ":" + config.RPCPass

@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,11 +10,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"errors"
-	"io"
+
+	"github.com/decred/dcrd/crypto/rand"
 )
 
 var (
@@ -78,9 +78,7 @@ func Encrypt(pubkey *PublicKey, in []byte) ([]byte, error) {
 	// IV + Curve params/X/Y + padded plaintext/ciphertext + HMAC-256
 	out := make([]byte, aes.BlockSize+36+len(paddedIn)+sha256.Size)
 	iv := out[:aes.BlockSize]
-	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
+	rand.Read(iv)
 	// start writing public key
 	ePubX, ePubY := ephemeral.Public()
 	pbk := NewPublicKey(ePubX, ePubY)
