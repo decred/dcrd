@@ -230,6 +230,9 @@ The following versioned modules are provided by dcrd repository:
   Implements 14-round BLAKE-256 and BLAKE-224 hash functions (SHA-3 candidate)
 * [crypto/ripemd160](https://github.com/decred/dcrd/tree/master/crypto/ripemd160) -
    Implements the RIPEMD-160 hash algorithm
+* [crypto/rand](https://github.com/decred/dcrd/tree/master/crypto/rand) -
+  Implements a fast userspace CSPRNG that is periodically reseeded with entropy
+  obtained from crypto/rand.
 * [math/uint256](https://github.com/decred/dcrd/tree/master/math/uint256) -
   Implements highly optimized fixed precision unsigned 256-bit integer
   arithmetic

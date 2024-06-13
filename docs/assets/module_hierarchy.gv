@@ -4,6 +4,7 @@ digraph {
 
 	blake256 [label="crypto/blake256" fillcolor=cornflowerblue]
 	ripemd160 [label="crypto/ripemd160" fillcolor=darkturquoise]
+	rand [label="crypto/rand" fillcolor=lavender]
 	certgen [label="certgen" fillcolor=darkkhaki]
 	bech32 [label="bech32" fillcolor=antiquewhite3]
 	chainhash [label="chaincfg/chainhash" fillcolor=aquamarine]
@@ -64,6 +65,7 @@ digraph {
 	dcrjson -> types [dir=back color=indianred]
 	types -> rpcclient [dir=back color=tomato]
 
+	rand -> dcrd [dir=back color=lavender]
 	blockchain -> dcrd [dir=back color=orchid]
 	standalone -> dcrd [dir=back color=firebrick]
 	certgen -> dcrd [dir=back color=darkkhaki]
