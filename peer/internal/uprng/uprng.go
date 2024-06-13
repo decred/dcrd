@@ -51,8 +51,7 @@ func (n *nonce) inc() {
 	var carry uint32
 	n0, carry = bits.Add32(n0, 1, carry)
 	n1, carry = bits.Add32(n1, 0, carry)
-	n2, carry = bits.Add32(n2, 0, carry)
-	n0, _ = bits.Add32(n0, 0, carry)
+	n2, _ = bits.Add32(n2, 0, carry)
 
 	binary.LittleEndian.PutUint32(n[0:4], n0)
 	binary.LittleEndian.PutUint32(n[4:8], n1)
