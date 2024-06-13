@@ -5,7 +5,6 @@
 package mixing
 
 import (
-	cryptorand "crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/companyzero/sntrup4591761"
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/mixing/internal/chacha20prng"
 	"github.com/decred/dcrd/wire"
@@ -26,12 +26,12 @@ type (
 	PQSharedKey  = [sntrup4591761.SharedKeySize]byte
 )
 
-func generateSecp256k1(rand io.Reader) (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
-	if rand == nil {
-		rand = cryptorand.Reader
+func generateSecp256k1(r io.Reader) (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
+	if r == nil {
+		r = rand.Reader()
 	}
 
-	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(rand)
+	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(r)
 	if err != nil {
 		return nil, nil, err
 	}

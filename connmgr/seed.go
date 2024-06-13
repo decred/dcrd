@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,20 +10,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	mrand "math/rand"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/wire"
 )
 
 const (
 	// These constants are used by the seed code to pick a random last
 	// seen time.
-	secondsIn3Days int32 = 24 * 60 * 60 * 3
-	secondsIn4Days int32 = 24 * 60 * 60 * 4
+	duration3Days = 24 * time.Hour * 3
+	duration4Days = 24 * time.Hour * 4
 )
 
 // DialFunc is the signature of the Dialer function.
@@ -163,7 +163,6 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 	}
 
 	// Convert the response to net addresses.
-	randSource := mrand.New(mrand.NewSource(time.Now().UnixNano()))
 	addrs := make([]*wire.NetAddress, 0, len(nodes))
 	for _, node := range nodes {
 		host, portStr, err := net.SplitHostPort(node.Host)
@@ -186,8 +185,7 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 		// Set the timestamp to a value randomly selected between 3 and 7 days
 		// ago in order to improve the ranking of peers discovered from seeders
 		// since they are a more authoritative source than other random peers.
-		offsetSecs := secondsIn3Days + randSource.Int31n(secondsIn4Days)
-		ts := time.Now().Add(-1 * time.Second * time.Duration(offsetSecs))
+		ts := time.Now().Add(-1 * (duration3Days + rand.Duration(duration4Days)))
 		na := wire.NewNetAddressTimestamp(ts, wire.ServiceFlag(node.Services),
 			ip, uint16(port))
 		addrs = append(addrs, na)

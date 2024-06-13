@@ -8,10 +8,8 @@ package main
 import (
 	"context"
 	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -34,6 +32,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/container/apbf"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
@@ -1850,24 +1849,6 @@ func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
 	sp.server.syncManager.QueueNotFound(msg, sp.syncMgrPeer)
 }
 
-// randomUint16Number returns a random uint16 in a specified input range.  Note
-// that the range is in zeroth ordering; if you pass it 1800, you will get
-// values from 0 to 1800.
-func randomUint16Number(max uint16) uint16 {
-	// In order to avoid modulo bias and ensure every possible outcome in
-	// [0, max) has equal probability, the random number must be sampled
-	// from a random source that has a range limited to a multiple of the
-	// modulus.
-	var randomNumber uint16
-	var limitRange = (math.MaxUint16 / max) * max
-	for {
-		binary.Read(rand.Reader, binary.LittleEndian, &randomNumber)
-		if randomNumber < limitRange {
-			return (randomNumber % max)
-		}
-	}
-}
-
 // attemptDcrdDial is a wrapper function around dcrdDial which adds and marks
 // the remote peer as attempted in the address manager.
 func (s *server) attemptDcrdDial(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -3067,10 +3048,8 @@ func (s *server) rebroadcastHandler(ctx context.Context) {
 				s.RelayInventory(&ivCopy, data, false)
 			}
 
-			// Process at a random time up to 30mins (in seconds)
-			// in the future.
-			timer.Reset(time.Second *
-				time.Duration(randomUint16Number(1800)))
+			// Process at a random time up to 30mins in the future.
+			timer.Reset(rand.Duration(30 * time.Minute))
 
 		case <-ctx.Done():
 			timer.Stop()

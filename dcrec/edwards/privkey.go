@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,12 +8,12 @@ package edwards
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/sha512"
 	"fmt"
 	"math/big"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/crypto/rand"
 )
 
 // These constants define the lengths of serialized private keys.
@@ -41,7 +41,7 @@ func NewPrivateKey(d *big.Int) *PrivateKey {
 // GeneratePrivateKey is a wrapper for ecdsa.GenerateKey that returns a
 // PrivateKey instead of the normal ecdsa.PrivateKey.
 func GeneratePrivateKey() (*PrivateKey, error) {
-	key, err := ecdsa.GenerateKey(Edwards(), rand.Reader)
+	key, err := ecdsa.GenerateKey(Edwards(), rand.Reader())
 	if err != nil {
 		return nil, err
 	}

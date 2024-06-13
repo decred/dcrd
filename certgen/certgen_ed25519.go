@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,6 @@ package certgen
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -21,6 +20,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/decred/dcrd/crypto/rand"
 )
 
 // NewEd25519TLSCertPair returns a new PEM-encoded x.509 certificate pair with
@@ -33,10 +34,7 @@ func NewEd25519TLSCertPair(organization string, validUntil time.Time, extraHosts
 	}
 
 	seed := make([]byte, ed25519.SeedSize)
-	_, err = rand.Read(seed)
-	if err != nil {
-		return nil, nil, err
-	}
+	rand.Read(seed)
 	priv := ed25519.NewKeyFromSeed(seed)
 
 	// end of ASN.1 time
@@ -46,10 +44,7 @@ func NewEd25519TLSCertPair(organization string, validUntil time.Time, extraHosts
 	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate serial number: %w", err)
-	}
+	serialNumber := rand.BigInt(serialNumberLimit)
 
 	host, err := os.Hostname()
 	if err != nil {
@@ -120,7 +115,7 @@ func NewEd25519TLSCertPair(organization string, validUntil time.Time, extraHosts
 		IPAddresses: ipAddresses,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template,
+	derBytes, err := x509.CreateCertificate(rand.Reader(), &template,
 		&template, priv.Public(), priv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create certificate: %w", err)

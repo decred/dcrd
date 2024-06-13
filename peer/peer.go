@@ -22,7 +22,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/crypto/blake256"
-	"github.com/decred/dcrd/peer/v3/internal/uniform"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
@@ -848,10 +848,9 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 	// Randomize the addresses sent if there are more than the maximum allowed.
 	if len(msg.AddrList) > wire.MaxAddrPerMsg {
 		// Shuffle the address list.
-		for i := range msg.AddrList {
-			j := uniform.Int64n(int64(i) + 1)
+		rand.Shuffle(len(msg.AddrList), func(i, j int) {
 			msg.AddrList[i], msg.AddrList[j] = msg.AddrList[j], msg.AddrList[i]
-		}
+		})
 
 		// Truncate it to the maximum size.
 		msg.AddrList = msg.AddrList[:wire.MaxAddrPerMsg]
@@ -1620,7 +1619,7 @@ func (p *Peer) queueHandler() {
 	}
 
 	trickleTimeout := func() time.Duration {
-		return minInvTrickleTimeout + uniform.Duration(
+		return minInvTrickleTimeout + rand.Duration(
 			maxInvTrickleTimeout-minInvTrickleTimeout)
 	}
 
@@ -1799,11 +1798,7 @@ out:
 			p.sendDoneQueue <- struct{}{}
 
 		case <-pingTicker.C:
-			nonce, err := wire.RandomUint64()
-			if err != nil {
-				log.Errorf("Not sending ping to %s: %v", p, err)
-				continue
-			}
+			nonce := rand.Uint64()
 			p.QueueMessage(wire.NewMsgPing(nonce), nil)
 
 		case <-p.quit:

@@ -7,7 +7,6 @@ package mixclient
 import (
 	"bytes"
 	"context"
-	cryptorand "crypto/rand"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 	"decred.org/cspp/v2/solverrpc"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/internal/chacha20prng"
@@ -212,12 +212,12 @@ func newRemotePeer(pr *wire.MsgMixPairReq) *peer {
 	}
 }
 
-func generateSecp256k1(rand io.Reader) (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
-	if rand == nil {
-		rand = cryptorand.Reader
+func generateSecp256k1(r io.Reader) (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
+	if r == nil {
+		r = rand.Reader()
 	}
 
-	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(rand)
+	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(r)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1006,10 +1006,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 			// the same byte count in all versions.
 			p.srMsg = make([]*big.Int, p.pr.MessageCount)
 			for i := range p.srMsg {
-				p.srMsg[i], err = cryptorand.Int(p.rand, mixing.F)
-				if err != nil {
-					return err
-				}
+				p.srMsg[i] = rand.BigInt(mixing.F)
 			}
 
 			// Generate fresh DC messages

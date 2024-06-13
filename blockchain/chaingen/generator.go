@@ -6,7 +6,6 @@ package chaingen
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
@@ -396,10 +396,7 @@ func opReturnScript(data []byte) []byte {
 // UniqueOpReturnScript returns a standard provably-pruneable OP_RETURN script
 // with a random uint64 encoded as the data.
 func UniqueOpReturnScript() []byte {
-	rand, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
+	rand := rand.Uint64()
 
 	data := make([]byte, 8)
 	binary.LittleEndian.PutUint64(data[0:8], rand)
@@ -694,10 +691,7 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 	// that it becomes signed. This is consensus enforced.
 	var payload [32]byte
 	binary.LittleEndian.PutUint64(payload[0:8], uint64(valueIn))
-	_, err := rand.Read(payload[8:])
-	if err != nil {
-		panic(err)
-	}
+	rand.Read(payload[8:])
 	opretScript := opReturnScript(payload[:])
 	msgTx := wire.NewMsgTx()
 	msgTx.Version = wire.TxVersionTreasury

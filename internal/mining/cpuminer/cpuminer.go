@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mining"
@@ -243,12 +244,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, header *wire.BlockHeader,
 
 	// Choose a random extra nonce offset for this block template and
 	// worker.
-	enOffset, err := wire.RandomUint64()
-	if err != nil {
-		log.Errorf("Unexpected error while generating random extra nonce "+
-			"offset: %v", err)
-		enOffset = 0
-	}
+	enOffset := rand.Uint64()
 
 	// Create some convenience variables.
 	targetDiff, isNeg, overflows := primitives.DiffBitsToUint256(header.Bits)

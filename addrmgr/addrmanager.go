@@ -1,18 +1,15 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package addrmgr
 
 import (
-	crand "crypto/rand" // for seeding
 	"encoding/base32"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,6 +19,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -43,12 +41,6 @@ type AddrManager struct {
 	// perform DNS lookups for a given hostname.
 	// The provided function MUST be safe for concurrent access.
 	lookupFunc func(string) ([]net.IP, error)
-
-	// rand is the address manager's internal PRNG.  It is used to both randomly
-	// retrieve addresses from the address manager's internal new and tried
-	// buckets in addition to deciding whether an unknown address is accepted
-	// to the address manager.
-	rand *rand.Rand
 
 	// key is a random seed used to map addresses to new and tried buckets.
 	key [32]byte
@@ -276,7 +268,7 @@ func (a *AddrManager) addOrUpdateAddress(netAddr, srcAddr *NetAddress) {
 		// The more entries we have, the less likely we are to add more.
 		// likelihood is 2N.
 		factor := int32(2 * ka.refs)
-		if a.rand.Int31n(factor) != 0 {
+		if rand.Int32N(factor) != 0 {
 			return
 		}
 	} else {
@@ -721,11 +713,9 @@ func (a *AddrManager) AddressCache() []*NetAddress {
 
 	// Fisher-Yates shuffle the array. We only need to do the first
 	// numAddresses since we are throwing away the rest.
-	for i := 0; i < numAddresses; i++ {
-		// Pick a number between current index and the end.
-		j := a.rand.Intn(addrLen-i) + i
+	rand.Shuffle(len(allAddr), func(i, j int) {
 		allAddr[i], allAddr[j] = allAddr[j], allAddr[i]
-	}
+	})
 
 	// Slice off the limit we are willing to share.
 	return allAddr[0:numAddresses]
@@ -737,7 +727,7 @@ func (a *AddrManager) reset() {
 	a.addrIndex = make(map[string]*KnownAddress)
 
 	// fill key with bytes from a good random source.
-	io.ReadFull(crand.Reader, a.key[:])
+	rand.Read(a.key[:])
 	for i := range a.addrNew {
 		a.addrNew[i] = make(map[string]*KnownAddress)
 	}
@@ -805,20 +795,20 @@ func (a *AddrManager) GetAddress() *KnownAddress {
 	// Use a 50% chance for choosing between tried and new table entries.
 	large := 1 << 30
 	factor := 1.0
-	if a.nTried > 0 && (a.nNew == 0 || a.rand.Intn(2) == 0) {
+	if a.nTried > 0 && (a.nNew == 0 || rand.IntN(2) == 0) {
 		// Tried entry.
 		for {
 			// Pick a random bucket.
-			bucket := a.rand.Intn(len(a.addrTried))
+			bucket := rand.IntN(len(a.addrTried))
 			if len(a.addrTried[bucket]) == 0 {
 				continue
 			}
 
 			// Then, a random entry in the list.
-			randEntry := a.rand.Intn(len(a.addrTried[bucket]))
+			randEntry := rand.IntN(len(a.addrTried[bucket]))
 			ka := a.addrTried[bucket][randEntry]
 
-			randval := a.rand.Intn(large)
+			randval := rand.IntN(large)
 			if float64(randval) < (factor * ka.chance() * float64(large)) {
 				log.Tracef("Selected %v from tried bucket", ka.na.Key())
 				return ka
@@ -829,14 +819,14 @@ func (a *AddrManager) GetAddress() *KnownAddress {
 		// New node.
 		for {
 			// Pick a random bucket.
-			bucket := a.rand.Intn(len(a.addrNew))
+			bucket := rand.IntN(len(a.addrNew))
 			if len(a.addrNew[bucket]) == 0 {
 				continue
 			}
 
 			// Then, a random entry in it.
 			var ka *KnownAddress
-			nth := a.rand.Intn(len(a.addrNew[bucket]))
+			nth := rand.IntN(len(a.addrNew[bucket]))
 			for _, value := range a.addrNew[bucket] {
 				if nth == 0 {
 					ka = value
@@ -844,7 +834,7 @@ func (a *AddrManager) GetAddress() *KnownAddress {
 				}
 				nth--
 			}
-			randval := a.rand.Intn(large)
+			randval := rand.IntN(large)
 			if float64(randval) < (factor * ka.chance() * float64(large)) {
 				log.Tracef("Selected %s from new bucket", ka.na)
 				return ka
@@ -1251,7 +1241,6 @@ func New(dataDir string, lookupFunc func(string) ([]net.IP, error)) *AddrManager
 	am := AddrManager{
 		peersFile:       filepath.Join(dataDir, peersFilename),
 		lookupFunc:      lookupFunc,
-		rand:            rand.New(rand.NewSource(time.Now().UnixNano())),
 		quit:            make(chan struct{}),
 		localAddresses:  make(map[string]*localAddress),
 		triedBucketSize: defaultTriedBucketSize,
