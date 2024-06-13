@@ -57,8 +57,8 @@ func (p *PRNG) Uint64() uint64 {
 	return binary.LittleEndian.Uint64(b)
 }
 
-// Uint32n returns a random uint32 in range [0,n) without modulo bias.
-func (p *PRNG) Uint32n(n uint32) uint32 {
+// Uint32N returns a random uint32 in range [0,n) without modulo bias.
+func (p *PRNG) Uint32N(n uint32) uint32 {
 	if n&(n-1) == 0 { // n is power of two, can mask
 		return uint32(p.Uint64()) & (n - 1)
 	}
@@ -98,10 +98,10 @@ func (p *PRNG) Uint32n(n uint32) uint32 {
 
 const is32bit = ^uint(0)>>32 == 0
 
-// Uint64n returns a random uint32 in range [0,n) without modulo bias.
-func (p *PRNG) Uint64n(n uint64) uint64 {
+// Uint64N returns a random uint32 in range [0,n) without modulo bias.
+func (p *PRNG) Uint64N(n uint64) uint64 {
 	if is32bit && uint64(uint32(n)) == n {
-		return uint64(p.Uint32n(uint32(n)))
+		return uint64(p.Uint32N(uint32(n)))
 	}
 	if n&(n-1) == 0 { // n is power of two, can mask
 		return p.Uint64() & (n - 1)
@@ -153,14 +153,14 @@ func (p *PRNG) Int32() int32 {
 	return int32(p.Uint32() & 0x7FFFFFFF)
 }
 
-// Int32n returns, as an int32, a random 31-bit non-negative integer in [0,n)
+// Int32N returns, as an int32, a random 31-bit non-negative integer in [0,n)
 // without modulo bias.
 // Panics if n <= 0.
-func (p *PRNG) Int32n(n int32) int32 {
+func (p *PRNG) Int32N(n int32) int32 {
 	if n <= 0 {
-		panic("rand: invalid argument to Int32n")
+		panic("rand: invalid argument to Int32N")
 	}
-	return int32(p.Uint32n(uint32(n)))
+	return int32(p.Uint32N(uint32(n)))
 }
 
 // Int64 returns a random 63-bit non-negative integer as an int64 without
@@ -169,14 +169,14 @@ func (p *PRNG) Int64() int64 {
 	return int64(p.Uint64() & 0x7FFFFFFF_FFFFFFFF)
 }
 
-// Int64n returns, as an int64, a random 63-bit non-negative integer in [0,n)
+// Int64N returns, as an int64, a random 63-bit non-negative integer in [0,n)
 // without modulo bias.
 // Panics if n <= 0.
-func (p *PRNG) Int64n(n int64) int64 {
+func (p *PRNG) Int64N(n int64) int64 {
 	if n <= 0 {
-		panic("rand: invalid argument to Int64n")
+		panic("rand: invalid argument to Int64N")
 	}
-	return int64(p.Uint64n(uint64(n)))
+	return int64(p.Uint64N(uint64(n)))
 }
 
 // Int returns a non-negative integer without bias.
@@ -191,12 +191,12 @@ func (p *PRNG) IntN(n int) int {
 	if n <= 0 {
 		panic("rand: invalid argument to IntN")
 	}
-	return int(p.Uint64n(uint64(n)))
+	return int(p.Uint64N(uint64(n)))
 }
 
 // UintN returns, as an uint, a random integer in [0,n) without modulo bias.
 func (p *PRNG) UintN(n uint) uint {
-	return uint(p.Uint64n(uint64(n)))
+	return uint(p.Uint64N(uint64(n)))
 }
 
 // Duration returns a random duration in [0,n) without modulo bias.
@@ -205,7 +205,7 @@ func (p *PRNG) Duration(n time.Duration) time.Duration {
 	if n <= 0 {
 		panic("rand: invalid argument to Duration")
 	}
-	return time.Duration(p.Uint64n(uint64(n)))
+	return time.Duration(p.Uint64N(uint64(n)))
 }
 
 // Shuffle randomizes the order of n elements by swapping the elements at
@@ -223,7 +223,7 @@ func (p *PRNG) Shuffle(n int, swap func(i, j int)) {
 	// generate even a minuscule percentage of the possible permutations.
 	// Nevertheless, the right API signature accepts an int n, so handle it as best we can.
 	for i := n - 1; i > 0; i-- {
-		j := int(p.Uint64n(uint64(i + 1)))
+		j := int(p.Uint64N(uint64(i + 1)))
 		swap(i, j)
 	}
 }
