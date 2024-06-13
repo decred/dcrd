@@ -36,7 +36,9 @@
 package rand
 
 import (
+	"crypto/rand"
 	"encoding/binary"
+	"math/big"
 	"math/bits"
 	"time"
 )
@@ -224,4 +226,12 @@ func (p *PRNG) Shuffle(n int, swap func(i, j int)) {
 		j := int(p.Uint64n(uint64(i + 1)))
 		swap(i, j)
 	}
+}
+
+// Int returns a uniform random value in [0,max).
+// Panics if max <= 0.
+func (p *PRNG) BigInt(max *big.Int) *big.Int {
+	// Will never error with our reader.
+	n, _ := rand.Int(p, max)
+	return n
 }
