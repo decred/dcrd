@@ -506,7 +506,7 @@ func (p *Pool) removeConfirmedSessions() {
 // RemoveConfirmedMixes removes sessions and messages belonging to a completed
 // session that resulted in published or mined transactions.  Transaction
 // hashes not associated with a session are ignored.  PRs from the successful
-// mix run are removed from the pool.
+// mix session are removed from the pool.
 func (p *Pool) RemoveConfirmedMixes(txHashes []chainhash.Hash) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -593,11 +593,11 @@ PRLoop:
 	}
 }
 
-// Received is a parameter for Pool.Receive describing the session and run to
-// receive messages for, and slices for returning results.  A single non-nil
-// slice with capacity of the expected number of messages is required and
-// indicates which message slice will be will be appended to.  Received
-// messages are unsorted.
+// Received is a parameter for Pool.Receive describing the session to receive
+// messages for, and slices for returning results.  A single non-nil slice
+// with capacity of the expected number of messages is required and indicates
+// which message slice will be will be appended to.  Received messages are
+// unsorted.
 type Received struct {
 	Sid [32]byte
 	KEs []*wire.MsgMixKeyExchange
@@ -609,18 +609,18 @@ type Received struct {
 	RSs []*wire.MsgMixSecrets
 }
 
-// Receive returns messages matching a session, run, and message type, waiting
-// until all described messages have been received, or earlier with the
-// messages received so far if the context is cancelled before this point.
+// Receive returns messages matching a session and message type, waiting until
+// all described messages have been received, or earlier with the messages
+// received so far if the context is cancelled before this point.
 //
-// Receive only returns results for the session ID and run increment in the r
-// parameter.  If no such session or run has any messages currently accepted
-// in the mixpool, the method immediately errors.
+// Receive only returns results for the session ID in the r parameter.  If no
+// such session has any messages currently accepted in the mixpool, the method
+// immediately errors.
 //
-// If any secrets messages are received for the described session and run, and
-// r.RSs is nil, Receive immediately returns ErrSecretsRevealed.  An
-// additional call to Receive with a non-nil RSs can be used to receive all of
-// the secrets after each peer publishes their own revealed secrets.
+// If any secrets messages are received for the described session, and r.RSs
+// is nil, Receive immediately returns ErrSecretsRevealed.  An additional call
+// to Receive with a non-nil RSs can be used to receive all of the secrets
+// after each peer publishes their own revealed secrets.
 func (p *Pool) Receive(ctx context.Context, r *Received) error {
 	sid := r.Sid
 	var bc *broadcast
@@ -1086,9 +1086,9 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 
 // reconsiderOrphans reconsiders any messages that are currently saved as
 // orphans due to missing previous PR message (in the case of KE orphans) or
-// missing the identity's KE in matching session and run (for all other
-// messages).  The function is recursive: if a reconsidered orphan KE is
-// accepted, other orphans by the identity will be considered as well.
+// missing the identity's KE in matching session (for all other messages).
+// The function is recursive: if a reconsidered orphan KE is accepted, other
+// orphans by the identity will be considered as well.
 func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing.Message {
 	acceptedMessages := []mixing.Message{accepted}
 
@@ -1100,8 +1100,6 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 	// If the accepted message was a PR, there may be KE orphans that can
 	// be accepted now.
 	if pr, ok := accepted.(*wire.MsgMixPairReq); ok {
-		// Orphan KEs must be accepted in run order.  Find all
-		// possible matching ones and sort by run.
 		var orphanKEs []*wire.MsgMixKeyExchange
 		for _, orphan := range p.orphansByID[*id] {
 			orphanKE, ok := orphan.(*wire.MsgMixKeyExchange)
@@ -1121,9 +1119,6 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 
 			orphanKEs = append(orphanKEs, orphanKE)
 		}
-		sort.Slice(orphanKEs, func(i, j int) bool {
-			return orphanKEs[i].Run < orphanKEs[j].Run
-		})
 
 		for _, orphanKE := range orphanKEs {
 			orphanKEHash := orphanKE.Hash()
@@ -1159,9 +1154,6 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 		var acceptedOrphans []mixing.Message
 		for orphanHash, orphan := range p.orphansByID[*id] {
 			if !bytes.Equal(orphan.Sid(), ke.SessionID[:]) {
-				continue
-			}
-			if orphan.GetRun() != ke.Run {
 				continue
 			}
 
