@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/certgen
 
-go 1.17
+go 1.18
 
 require github.com/decred/dcrd/crypto/rand v0.0.0-20240613205600-1d6f99b4dfb4
 

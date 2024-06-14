@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/blockchain/v5
 
-go 1.17
+go 1.18
 
 require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4

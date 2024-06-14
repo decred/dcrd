@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/mixing
 
-go 1.17
+go 1.18
 
 require (
 	decred.org/cspp/v2 v2.2.0
