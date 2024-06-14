@@ -161,6 +161,13 @@ func Shuffle(n int, swap func(i, j int)) {
 	globalRand.Shuffle(n, swap)
 }
 
+// ShuffleSlice randomizes the order of all elements in s.
+func ShuffleSlice[S ~[]E, E any](s S) {
+	Shuffle(len(s), func(i, j int) {
+		s[i], s[j] = s[j], s[i]
+	})
+}
+
 // Int returns a uniform random value in [0,max).
 // Panics if max <= 0.
 func BigInt(max *big.Int) *big.Int {
