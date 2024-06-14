@@ -911,21 +911,17 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 		return nil, nil
 	}
 
-	// Check that a message from this identity does not reuse a run number
-	// for the session.
+	// Check that a message from this identity does not conflict with a
+	// different message of the same type in the session.
 	var haveKE bool
 	for _, prevHash := range p.messagesByIdentity[*id] {
 		e := p.pool[prevHash]
-		run := msg.GetRun()
-		if e.msgtype == msgtype && e.msg.GetRun() == run &&
-			bytes.Equal(e.msg.Sid(), msg.Sid()) {
+		if e.msgtype == msgtype && bytes.Equal(e.msg.Sid(), msg.Sid()) {
 			return nil, ruleError(fmt.Errorf("message %v by identity %x "+
-				"reuses run number %d in session %x, "+
-				"conflicting with already accepted message %v",
-				hash, *id, run, msg.Sid(), prevHash))
+				"in session %x conflicts with already accepted message %v",
+				hash, *id, msg.Sid(), prevHash))
 		}
-		if !haveKE && e.msgtype == msgtypeKE && e.msg.GetRun() == run &&
-			bytes.Equal(e.msg.Sid(), msg.Sid()) {
+		if !haveKE && e.msgtype == msgtypeKE && bytes.Equal(e.msg.Sid(), msg.Sid()) {
 			haveKE = true
 		}
 	}
