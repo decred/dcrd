@@ -430,7 +430,7 @@ func rpcInvalidError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
 		fmt.Sprintf(fmtStr, args...))
 }
 
-// rpcDeserializetionError is a convenience function to convert a
+// rpcDeserializationError is a convenience function to convert a
 // deserialization error to an RPC error with the appropriate code set.
 func rpcDeserializationError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCDeserialization,

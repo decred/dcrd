@@ -135,7 +135,7 @@ func (s *fakeChain) BestHash() *chainhash.Hash {
 	return hash
 }
 
-// SetHash sets the current best hash associated with the fake chain instance.
+// SetBestHash sets the current best hash associated with the fake chain instance.
 func (s *fakeChain) SetBestHash(hash *chainhash.Hash) {
 	s.Lock()
 	s.currentHash = *hash
