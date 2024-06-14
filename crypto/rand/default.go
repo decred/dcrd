@@ -169,3 +169,18 @@ func BigInt(max *big.Int) *big.Int {
 
 	return globalRand.PRNG.BigInt(max)
 }
+
+// N returns a pseudo-random number in the half-open interval [0,n).
+// The type parameter Int can be any integer type.
+// Panics if n <= 0.
+func N[Int intType](n Int) Int {
+	if n <= 0 {
+		panic("rand: invalid argument to N")
+	}
+	return Int(Uint64N(uint64(n)))
+}
+
+type intType interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+}
