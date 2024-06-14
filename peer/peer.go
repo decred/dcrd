@@ -848,9 +848,7 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 	// Randomize the addresses sent if there are more than the maximum allowed.
 	if len(msg.AddrList) > wire.MaxAddrPerMsg {
 		// Shuffle the address list.
-		rand.Shuffle(len(msg.AddrList), func(i, j int) {
-			msg.AddrList[i], msg.AddrList[j] = msg.AddrList[j], msg.AddrList[i]
-		})
+		rand.ShuffleSlice(msg.AddrList)
 
 		// Truncate it to the maximum size.
 		msg.AddrList = msg.AddrList[:wire.MaxAddrPerMsg]

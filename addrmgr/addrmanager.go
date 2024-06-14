@@ -711,11 +711,8 @@ func (a *AddrManager) AddressCache() []*NetAddress {
 		numAddresses = getKnownAddressLimit
 	}
 
-	// Fisher-Yates shuffle the array. We only need to do the first
-	// numAddresses since we are throwing away the rest.
-	rand.Shuffle(len(allAddr), func(i, j int) {
-		allAddr[i], allAddr[j] = allAddr[j], allAddr[i]
-	})
+	// Fisher-Yates shuffle the array.
+	rand.ShuffleSlice(allAddr)
 
 	// Slice off the limit we are willing to share.
 	return allAddr[0:numAddresses]

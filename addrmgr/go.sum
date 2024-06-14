@@ -3,8 +3,8 @@ github.com/decred/dcrd/chaincfg/chainhash v1.0.4 h1:zRCv6tdncLfLTKYqu7hrXvs7hW+8
 github.com/decred/dcrd/chaincfg/chainhash v1.0.4/go.mod h1:hA86XxlBWwHivMvxzXTSD0ZCG/LoYsFdWnCekkTMCqY=
 github.com/decred/dcrd/crypto/blake256 v1.0.1 h1:7PltbUIQB7u/FfZ39+DGa/ShuMyJ5ilcvdfma9wOH6Y=
 github.com/decred/dcrd/crypto/blake256 v1.0.1/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
-github.com/decred/dcrd/crypto/rand v0.0.0-20240613225426-c320f9914994 h1:+SVSe5nF5ZHOMrFU/CV2QY1FMeYp6k5bYXwk5dYA64Q=
-github.com/decred/dcrd/crypto/rand v0.0.0-20240613225426-c320f9914994/go.mod h1:coa7BbxSTiKH6esi257plGfMFYuGL4MTbQlLYnOdzpE=
+github.com/decred/dcrd/crypto/rand v0.0.0-20240614031620-f7dd7c89f0a6 h1:n70K8plsbppuliD8X/oVjjfdRYK9tlCcJNo7G4IUz+M=
+github.com/decred/dcrd/crypto/rand v0.0.0-20240614031620-f7dd7c89f0a6/go.mod h1:coa7BbxSTiKH6esi257plGfMFYuGL4MTbQlLYnOdzpE=
 github.com/decred/dcrd/wire v1.7.0 h1:5JHiDjEQeS4XUl4PfnTZYLwAD/E/+LwBmPRec/fP76o=
 github.com/decred/dcrd/wire v1.7.0/go.mod h1:lAqrzV0SU4kyV6INLEJgDtUjJaTaVKrbF4LHtaYl+zU=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=

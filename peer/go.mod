@@ -7,7 +7,7 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
 	github.com/decred/dcrd/container/lru v1.0.0
 	github.com/decred/dcrd/crypto/blake256 v1.0.1
-	github.com/decred/dcrd/crypto/rand v0.0.0-20240613191711-f467a378e749
+	github.com/decred/dcrd/crypto/rand v0.0.0-20240614031620-f7dd7c89f0a6
 	github.com/decred/dcrd/txscript/v4 v4.1.1
 	github.com/decred/dcrd/wire v1.7.0
 	github.com/decred/go-socks v1.1.0

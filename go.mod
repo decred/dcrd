@@ -17,7 +17,7 @@ require (
 	github.com/decred/dcrd/container/apbf v1.0.1
 	github.com/decred/dcrd/container/lru v1.0.0
 	github.com/decred/dcrd/crypto/blake256 v1.0.1
-	github.com/decred/dcrd/crypto/rand v0.0.0-20240613225426-c320f9914994
+	github.com/decred/dcrd/crypto/rand v0.0.0-20240614031620-f7dd7c89f0a6
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.2
 	github.com/decred/dcrd/database/v3 v3.0.2
 	github.com/decred/dcrd/dcrec v1.0.1
