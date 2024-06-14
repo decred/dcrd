@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
-	github.com/decred/dcrd/crypto/rand v0.0.0-20240613191711-f467a378e749
+	github.com/decred/dcrd/crypto/rand v1.0.0
 )
 
 require (

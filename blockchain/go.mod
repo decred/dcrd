@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
 	github.com/decred/dcrd/chaincfg/v3 v3.2.1
-	github.com/decred/dcrd/crypto/rand v0.0.0-20240613191711-f467a378e749
+	github.com/decred/dcrd/crypto/rand v1.0.0
 	github.com/decred/dcrd/dcrec v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.2

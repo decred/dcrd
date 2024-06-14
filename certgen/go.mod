@@ -2,7 +2,7 @@ module github.com/decred/dcrd/certgen
 
 go 1.18
 
-require github.com/decred/dcrd/crypto/rand v0.0.0-20240613205600-1d6f99b4dfb4
+require github.com/decred/dcrd/crypto/rand v1.0.0
 
 require (
 	golang.org/x/crypto v0.24.0 // indirect
