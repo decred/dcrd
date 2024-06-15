@@ -17,7 +17,7 @@ import (
 func SRMixPads(kp [][]byte, my uint32) []*big.Int {
 	h := blake256.New()
 	scratch := make([]byte, 8)
-
+	digest := make([]byte, blake256.Size)
 	pads := make([]*big.Int, len(kp))
 	partialPad := new(big.Int)
 	for j := uint32(0); j < uint32(len(kp)); j++ {
@@ -30,7 +30,7 @@ func SRMixPads(kp [][]byte, my uint32) []*big.Int {
 			h.Reset()
 			h.Write(kp[i])
 			h.Write(scratch)
-			digest := h.Sum(nil)
+			digest = h.Sum(digest[:0])
 			partialPad.SetBytes(digest)
 			if my > i {
 				pads[j].Add(pads[j], partialPad)
