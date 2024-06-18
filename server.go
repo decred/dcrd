@@ -1078,24 +1078,33 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		return
 	}
 
-	// Maintain at least one outbound peer capable of supporting p2p mixing.
+	// Maintain a minimum desired number of outbound peers capable of supporting
+	// p2p mixing.
 	if !isInbound && msg.ProtocolVersion < int32(wire.MixVersion) {
-		var hasMixCapableOutbound bool
-		var numOutbound uint32
+		var numOutbound, numMixCapableOutbound uint32
 		peerState := &sp.server.peerState
 		peerState.Lock()
 		peerState.forAllOutboundPeers(func(sp *serverPeer) {
 			if sp.ProtocolVersion() >= wire.MixVersion {
-				hasMixCapableOutbound = true
+				numMixCapableOutbound++
 			}
 			numOutbound++
 		})
 		peerState.Unlock()
 
-		if !hasMixCapableOutbound && numOutbound+1 == sp.server.targetOutbound {
+		const defaultWantMixCapableOutbound uint32 = 3
+		wantMixCapableOutbound := defaultWantMixCapableOutbound
+		if sp.server.targetOutbound < wantMixCapableOutbound {
+			wantMixCapableOutbound = sp.server.targetOutbound
+		}
+		hasMinMixCapableOuts := numMixCapableOutbound >= wantMixCapableOutbound
+		needsMoreMixCapable := !hasMinMixCapableOuts &&
+			numOutbound+wantMixCapableOutbound >= sp.server.targetOutbound
+		if needsMoreMixCapable {
 			srvrLog.Debugf("Rejecting outbound peer %s with protocol version "+
-				"%d in favor of a peer with minimum version %d", sp,
-				msg.ProtocolVersion, wire.MixVersion)
+				"%d in favor of a peer with minimum version %d (have: %d, "+
+				"target: %d)", sp, msg.ProtocolVersion, wire.MixVersion,
+				numMixCapableOutbound, wantMixCapableOutbound)
 			sp.Disconnect()
 		}
 	}
