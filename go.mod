@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.2
 	github.com/decred/dcrd/mixing v0.3.0
-	github.com/decred/dcrd/peer/v3 v3.1.1
+	github.com/decred/dcrd/peer/v3 v3.1.2
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0
 	github.com/decred/dcrd/rpcclient/v8 v8.0.1
 	github.com/decred/dcrd/txscript/v4 v4.1.1
@@ -49,6 +49,8 @@ require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
+	github.com/decred/dcrd/container/lru v1.0.0 // indirect
+	github.com/decred/dcrd/crypto/rand v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
