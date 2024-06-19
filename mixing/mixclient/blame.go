@@ -65,13 +65,13 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 		}
 	}()
 
-	err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
+	err = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
 		// Send initial secrets messages from any peers who detected
 		// misbehavior.
 		if !p.triggeredBlame {
 			return nil
 		}
-		return p.signAndSubmit(p.rs)
+		return p.rs
 	})
 	if err != nil {
 		return err
@@ -88,13 +88,13 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 	}
 
 	// Send remaining secrets messages.
-	err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
+	err = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
 		if p.triggeredBlame {
 			p.triggeredBlame = false
 			return nil
 		}
 		p.rs.SeenSecrets = rsHashes
-		return p.signAndSubmit(p.rs)
+		return p.rs
 	})
 	if err != nil {
 		return err
@@ -102,7 +102,9 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 
 	// Wait for all secrets, or timeout.
 	rcv.RSs = make([]*wire.MsgMixSecrets, 0, len(sesRun.prs))
-	_ = mp.Receive(ctx, rcv)
+	rcvCtx, rcvCtxCancel := context.WithTimeout(ctx, timeoutDuration)
+	_ = mp.Receive(rcvCtx, rcv)
+	rcvCtxCancel()
 	rss := rcv.RSs
 	for _, rs := range rcv.RSs {
 		if idx, ok := identityIndices[rs.Identity]; ok {
