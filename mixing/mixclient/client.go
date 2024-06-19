@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"io"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -38,6 +37,13 @@ import (
 const MinPeers = 4
 
 const pairingFlags byte = 0
+
+const (
+	timeoutDuration = 30 * time.Second
+	maxJitter       = timeoutDuration / 10
+	msgJitter       = 300 * time.Millisecond
+	peerJitter      = maxJitter - msgJitter
+)
 
 // expiredPRErr indicates that a dicemix session failed to complete due to the
 // submitted pair request expiring.
@@ -126,8 +132,6 @@ type deadlines struct {
 	recvCM time.Time
 }
 
-const timeoutDuration = 30 * time.Second
-
 func (d *deadlines) start(begin time.Time) {
 	t := begin
 	add := func() time.Time {
@@ -159,7 +163,7 @@ func (d *deadlines) restart() {
 type peer struct {
 	ctx    context.Context
 	client *Client
-	rand   io.Reader // non-PRNG cryptographic rand
+	jitter time.Duration
 
 	res chan error
 
@@ -170,7 +174,7 @@ type peer struct {
 	coinjoin *CoinJoin
 	kx       *mixing.KX
 
-	prngSeed *[32]byte
+	prngSeed [32]byte
 	prng     *chacha20prng.Reader
 
 	rs    *wire.MsgMixSecrets
@@ -180,6 +184,7 @@ type peer struct {
 	ke *wire.MsgMixKeyExchange
 	ct *wire.MsgMixCiphertexts
 	sr *wire.MsgMixSlotReserve
+	fp *wire.MsgMixFactoredPoly
 	dc *wire.MsgMixDCNet
 	cm *wire.MsgMixConfirm
 
@@ -212,12 +217,8 @@ func newRemotePeer(pr *wire.MsgMixPairReq) *peer {
 	}
 }
 
-func generateSecp256k1(r io.Reader) (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
-	if r == nil {
-		r = rand.Reader()
-	}
-
-	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(r)
+func generateSecp256k1() (*secp256k1.PublicKey, *secp256k1.PrivateKey, error) {
+	privateKey, err := secp256k1.GeneratePrivateKeyFromRand(rand.Reader())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -431,6 +432,62 @@ func (c *Client) forLocalPeers(ctx context.Context, s *sessionRun, f func(p *pee
 	return errors.Join(errs...)
 }
 
+type delayedMsg struct {
+	t time.Time
+	m mixing.Message
+	p *peer
+}
+
+func (c *Client) sendLocalPeerMsgs(ctx context.Context, s *sessionRun, mayTriggerBlame bool,
+	m func(p *peer) mixing.Message) error {
+
+	msgs := make([]delayedMsg, 0, len(s.peers))
+
+	now := time.Now()
+	for _, p := range s.peers {
+		if p.remote || p.ctx.Err() != nil {
+			continue
+		}
+		msg := m(p)
+		if mayTriggerBlame && p.triggeredBlame {
+			msg = p.rs
+		}
+		msgs = append(msgs, delayedMsg{
+			t: now.Add(p.msgJitter()),
+			m: msg,
+			p: p,
+		})
+	}
+	sort.Slice(msgs, func(i, j int) bool {
+		return msgs[i].t.Before(msgs[j].t)
+	})
+
+	resChans := make([]chan error, 0, len(s.peers))
+	for i := range msgs {
+		res := make(chan error, 1)
+		resChans = append(resChans, res)
+		m := msgs[i]
+		time.Sleep(time.Until(m.t))
+		qsend := &queueWork{
+			p: m.p,
+			f: func(p *peer) error {
+				return p.signAndSubmit(m.m)
+			},
+			res: res,
+		}
+		select {
+		case <-ctx.Done():
+			res <- ctx.Err()
+		case c.workQueue <- qsend:
+		}
+	}
+	var errs = make([]error, len(resChans))
+	for i := range errs {
+		errs[i] = <-resChans[i]
+	}
+	return errors.Join(errs...)
+}
+
 // waitForEpoch blocks until the next epoch, or errors when the context is
 // cancelled early.  Returns the calculated epoch for stage timeout
 // calculations.
@@ -445,10 +502,49 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 			<-timer.C
 		}
 		return epoch, ctx.Err()
+	case <-c.testTickC:
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return epoch, nil
 	case <-timer.C:
 		return epoch, nil
+	}
+}
+
+func (p *peer) msgJitter() time.Duration {
+	return p.jitter + rand.Duration(msgJitter)
+}
+
+// prDelay waits until an appropriate time before the PR should be authored
+// and published.  PRs will not be sent within +/-30s of the epoch, and a
+// small amount of jitter is added to help avoid timing deanonymization
+// attacks.
+func (c *Client) prDelay(ctx context.Context, p *peer) error {
+	now := time.Now().UTC()
+	epoch := now.Truncate(c.epoch).Add(c.epoch)
+	sendBefore := epoch.Add(-timeoutDuration - maxJitter)
+	sendAfter := epoch.Add(timeoutDuration)
+	var wait time.Duration
+	if now.After(sendBefore) {
+		wait = sendAfter.Sub(now)
+		sendBefore = sendBefore.Add(c.epoch)
+	}
+	wait += p.msgJitter() + rand.Duration(time.Until(sendBefore))
+	timer := time.NewTimer(wait)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return ctx.Err()
 	case <-c.testTickC:
-		return epoch, nil
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return nil
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -494,6 +590,9 @@ func (p *peer) submit(m mixing.Message) error {
 }
 
 func (p *peer) signAndSubmit(m mixing.Message) error {
+	if m == nil {
+		return nil
+	}
 	err := p.signAndHash(m)
 	if err != nil {
 		return err
@@ -627,14 +726,14 @@ func (c *Client) handleSubmitQueue(ctx context.Context) error {
 }
 
 // Dicemix performs a new mixing session for a coinjoin mix transaction.
-func (c *Client) Dicemix(ctx context.Context, rand io.Reader, cj *CoinJoin) error {
+func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 	select {
 	case <-c.warming:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 
-	pub, priv, err := generateSecp256k1(rand)
+	pub, priv, err := generateSecp256k1()
 	if err != nil {
 		return err
 	}
@@ -642,12 +741,17 @@ func (c *Client) Dicemix(ctx context.Context, rand io.Reader, cj *CoinJoin) erro
 	p := &peer{
 		ctx:      ctx,
 		client:   c,
+		jitter:   rand.Duration(peerJitter),
 		res:      make(chan error, 1),
 		pub:      pub,
 		priv:     priv,
 		id:       (*[33]byte)(pub.SerializeCompressed()),
-		rand:     rand,
 		coinjoin: cj,
+	}
+
+	err = c.prDelay(ctx, p)
+	if err != nil {
+		return err
 	}
 
 	pr, err := wire.NewMsgMixPairReq(*p.id, cj.prExpiry, cj.mixValue,
@@ -775,6 +879,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			p.ke = nil
 			p.ct = nil
 			p.sr = nil
+			p.fp = nil
 			p.dc = nil
 			p.cm = nil
 			p.rs = nil
@@ -810,8 +915,6 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 	d.epoch = epoch
 	d.start(epoch)
 	for {
-		var localPeerCount int
-
 		if rerun == nil {
 			sid := mixing.SortPRsForSession(prs, unixEpoch)
 			sesLog = c.sessionLog(sid)
@@ -842,10 +945,14 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		}
 
 		var m uint32
+		var localPeerCount, localUncancelledCount int
 		for i, pr := range prs {
 			p := ps.localPeers[pr.Identity]
 			if p != nil {
 				localPeerCount++
+				if p.ctx.Err() == nil {
+					localUncancelledCount++
+				}
 			} else {
 				p = newRemotePeer(pr)
 			}
@@ -862,8 +969,8 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		sesLog.logf("created session for pairid=%x from %d total %d local PRs %s",
 			ps.pairing, len(prHashes), localPeerCount, prHashes)
 
-		if localPeerCount == 0 {
-			sesLog.logf("no more local peers")
+		if localUncancelledCount == 0 {
+			sesLog.logf("no more active local peers")
 			return
 		}
 
@@ -970,6 +1077,8 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	d := &sesRun.deadlines
 	unixEpoch := uint64(d.epoch.Unix())
 
+	sesLog := c.sessionLog(sesRun.sid)
+
 	// A map of identity public keys to their PR position sort all
 	// messages in the same order as the PRs are ordered.
 	identityIndices := make(map[identity]int)
@@ -987,18 +1096,15 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 
 		if sesRun.freshGen {
 			// Generate a new PRNG seed
-			p.prngSeed = new([32]byte)
-			_, err := io.ReadFull(p.rand, p.prngSeed[:])
-			if err != nil {
-				return err
-			}
+			rand.Read(p.prngSeed[:])
 			p.prng = chacha20prng.New(p.prngSeed[:], 0)
 
 			// Generate fresh keys from this run's PRNG
-			p.kx, err = mixing.NewKX(p.prng)
+			kx, err := mixing.NewKX(p.prng)
 			if err != nil {
 				return err
 			}
+			p.kx = kx
 
 			// Generate fresh SR messages.
 			// These must not be created from the PRNG; the Go
@@ -1032,7 +1138,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 			srMsgBytes[i] = p.srMsg[i].Bytes()
 		}
 		rs := wire.NewMsgMixSecrets(*p.id, sesRun.sid, 0,
-			*p.prngSeed, srMsgBytes, p.dcMsg)
+			p.prngSeed, srMsgBytes, p.dcMsg)
 		c.blake256HasherMu.Lock()
 		commitment := rs.Commitment(c.blake256Hasher)
 		c.blake256HasherMu.Unlock()
@@ -1044,17 +1150,26 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 
 		p.ke = ke
 		p.rs = rs
-		return p.signAndSubmit(ke)
+		return nil
 	})
 	if err != nil {
-		c.logf("%v", err)
+		sesLog.logf("%v", err)
+	}
+	err = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
+		if p.ke == nil {
+			return nil
+		}
+		return p.ke
+	})
+	if err != nil {
+		sesLog.logf("%v", err)
 	}
 
 	// Only continue attempting to form the session if there are minimum
 	// peers available and at least one of them is capable of solving the
 	// roots.
 	if len(prs) < MinPeers {
-		c.logf("Pairing %x: minimum peer requirement unmet", ps.pairing)
+		sesLog.logf("Pairing %x: minimum peer requirement unmet", ps.pairing)
 		return errOnlyKEsBroadcasted
 	}
 	haveSolver := false
@@ -1065,7 +1180,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		}
 	}
 	if !haveSolver {
-		c.logf("Pairing %x: no solver available", ps.pairing)
+		sesLog.logf("Pairing %x: no solver available", ps.pairing)
 		return errOnlyKEsBroadcasted
 	}
 
@@ -1212,8 +1327,6 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		seenKEs[i] = kes[i].Hash()
 	}
 
-	sesLog := c.sessionLog(sesRun.sid)
-
 	involvesLocalPeers := false
 	for _, ke := range kes {
 		if ps.localPeers[ke.Identity] != nil {
@@ -1241,7 +1354,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		return blamed
 	}
 
-	c.forLocalPeers(ctx, sesRun, func(p *peer) error {
+	err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
 		// Create shared keys and ciphextexts for each peer
 		pqct, err := p.kx.Encapsulate(p.prng, pqpk, int(p.myVk))
 		if err != nil {
@@ -1252,8 +1365,20 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		ct := wire.NewMsgMixCiphertexts(*p.id, sesRun.sid, 0, pqct, seenKEs)
 		p.ct = ct
 		c.testHook(hookBeforePeerCTPublish, sesRun, p)
-		return p.signAndSubmit(ct)
+		return nil
 	})
+	if err != nil {
+		sesLog.logf("%v", err)
+	}
+	err = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
+		if p.ct == nil {
+			return nil
+		}
+		return p.ct
+	})
+	if err != nil {
+		sesLog.logf("%v", err)
+	}
 
 	// Receive all ciphertext messages
 	rcv := new(mixpool.Received)
@@ -1298,7 +1423,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		ctIds := make([]identity, 0, len(cts))
 		for _, ct := range cts {
 			if len(ct.Ciphertexts) != len(prs) {
-				// Everyone sees this, can blame now.
+				// Everyone sees this, can rerun without full blame now.
 				blamedMapMu.Lock()
 				blamedMap[ct.Identity] = struct{}{}
 				blamedMapMu.Unlock()
@@ -1330,7 +1455,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		sr := wire.NewMsgMixSlotReserve(*p.id, sesRun.sid, 0, srMixBytes, seenCTs)
 		p.sr = sr
 		c.testHook(hookBeforePeerSRPublish, sesRun, p)
-		return p.signAndSubmit(sr)
+		return nil
 	})
 	if len(blamedMap) > 0 {
 		for id := range blamedMap {
@@ -1339,7 +1464,17 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		sesLog.logf("blaming %x during run (wrong ciphertext count)", []identity(blamed))
 		return blamed
 	}
+	sendErr := c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
+		if p.sr == nil {
+			return nil
+		}
+		return p.sr
+	})
+	if sendErr != nil {
+		sesLog.logf("%v", sendErr)
+	}
 	if err != nil {
+		sesLog.logf("%v", err)
 		return err
 	}
 
@@ -1381,7 +1516,9 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	powerSums := mixing.AddVectors(mixing.IntVectorsFromBytes(vs)...)
 	coeffs := mixing.Coefficients(powerSums)
 	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvSR)
-	roots, err := c.roots(rcvCtx, seenSRs, sesRun, coeffs, mixing.F)
+	publishedRootsC := make(chan struct{})
+	defer func() { <-publishedRootsC }()
+	roots, err := c.roots(rcvCtx, seenSRs, sesRun, coeffs, mixing.F, publishedRootsC)
 	rcvCtxCancel()
 	if err != nil {
 		return err
@@ -1412,13 +1549,20 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		dc := wire.NewMsgMixDCNet(*p.id, sesRun.sid, 0, p.dcNet, seenSRs)
 		p.dc = dc
 		c.testHook(hookBeforePeerDCPublish, sesRun, p)
-		return p.signAndSubmit(dc)
+		return nil
 	})
-	if errors.Is(err, errTriggeredBlame) {
-		return err
+	sendErr = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
+		if p.dc == nil {
+			return nil
+		}
+		return p.dc
+	})
+	if sendErr != nil {
+		sesLog.logf("%v", err)
 	}
 	if err != nil {
 		sesLog.logf("DC-net error: %v", err)
+		return err
 	}
 
 	// Receive all DC messages
@@ -1492,13 +1636,20 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		cm := wire.NewMsgMixConfirm(*p.id, sesRun.sid, 0,
 			p.coinjoin.Tx().Copy(), seenDCs)
 		p.cm = cm
-		return p.signAndSubmit(cm)
+		return nil
 	})
-	if errors.Is(err, errTriggeredBlame) {
-		return err
+	sendErr = c.sendLocalPeerMsgs(ctx, sesRun, true, func(p *peer) mixing.Message {
+		if p.cm == nil {
+			return nil
+		}
+		return p.cm
+	})
+	if sendErr != nil {
+		sesLog.logf("%v", sendErr)
 	}
 	if err != nil {
 		sesLog.logf("Confirm error: %v", err)
+		return err
 	}
 
 	// Receive all CM messages
@@ -1530,10 +1681,14 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 	// Merge and validate all signatures.  Only a single coinjoin is
 	// needed at this point.
 	var cj *CoinJoin
+	var lowestJitter time.Duration
 	utxos := make(map[wire.OutPoint]*wire.MixPairReqUTXO)
 	for _, p := range sesRun.peers {
 		if cj == nil && !p.remote {
 			cj = p.coinjoin
+		}
+		if !p.remote && (lowestJitter == 0 || lowestJitter > p.jitter) {
+			lowestJitter = p.jitter
 		}
 		for i := range p.pr.UTXOs {
 			utxo := &p.pr.UTXOs[i]
@@ -1555,6 +1710,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 		return err
 	}
 
+	time.Sleep(lowestJitter + rand.Duration(msgJitter))
 	err = c.wallet.PublishTransaction(context.Background(), cj.tx)
 	if err != nil {
 		return err
@@ -1582,7 +1738,7 @@ func (c *Client) solvesRoots() bool {
 // the result to all peers.  If the client is incapable of solving the roots,
 // it waits for a solution.
 func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
-	sesRun *sessionRun, a []*big.Int, F *big.Int) ([]*big.Int, error) {
+	sesRun *sessionRun, a []*big.Int, F *big.Int, publishedRoots chan struct{}) ([]*big.Int, error) {
 
 	if c.solvesRoots() {
 		roots, err := solverrpc.Roots(a, F)
@@ -1591,19 +1747,32 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 				p.triggeredBlame = true
 				return nil
 			})
+			close(publishedRoots)
 			return nil, errTriggeredBlame
 		}
 		rootBytes := make([][]byte, len(roots))
 		for i, root := range roots {
 			rootBytes[i] = root.Bytes()
 		}
-		err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
-			fp := wire.NewMsgMixFactoredPoly(*p.id, sesRun.sid,
+		c.forLocalPeers(ctx, sesRun, func(p *peer) error {
+			p.fp = wire.NewMsgMixFactoredPoly(*p.id, sesRun.sid,
 				0, rootBytes, seenSRs)
-			return p.signAndSubmit(fp)
+			return nil
 		})
-		return roots, err
+		// Don't wait for these messages to send.
+		go func() {
+			err := c.sendLocalPeerMsgs(ctx, sesRun, false, func(p *peer) mixing.Message {
+				return p.fp
+			})
+			if ctx.Err() == nil && err != nil {
+				c.logf("sid=%x %v", sesRun.sid[:], err)
+			}
+			publishedRoots <- struct{}{}
+		}()
+		return roots, nil
 	}
+
+	close(publishedRoots)
 
 	// Clients unable to solve their own roots must wait for solutions.
 	// We can return a result as soon as we read any valid factored

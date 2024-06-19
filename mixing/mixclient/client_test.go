@@ -7,7 +7,6 @@ package mixclient
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"sync"
 	"testing"
@@ -122,7 +121,7 @@ func (w *testWallet) SubmitMixMessage(ctx context.Context, msg mixing.Message) e
 func (w *testWallet) gen(mcount uint32) (wire.MixVect, error) {
 	v := make(wire.MixVect, mcount)
 	for i := range v {
-		pub, priv, err := generateSecp256k1(nil)
+		pub, priv, err := generateSecp256k1()
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +138,7 @@ func (w *testWallet) gen(mcount uint32) (wire.MixVect, error) {
 }
 
 func (w *testWallet) outputScript() ([]byte, error) {
-	pub, priv, err := generateSecp256k1(nil)
+	pub, priv, err := generateSecp256k1()
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +223,13 @@ func TestHonest(t *testing.T) {
 		<-doneRun
 	}()
 
+	c.testTick()
+
 	var g errgroup.Group
 	for i := range peers {
 		p := peers[i]
 		g.Go(func() error {
-			return c.Dicemix(ctx, rand.Reader, p.cj)
+			return c.Dicemix(ctx, p.cj)
 		})
 	}
 
@@ -327,13 +328,19 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 		<-doneRun
 	}()
 
+	testTick := func() {
+		c.testTick()
+		c2.testTick()
+	}
+	testTick()
+
 	blameErrC := make(chan *testPeerBlamedError, 1)
 
 	var g errgroup.Group
 	for _, p := range peers[:len(peers)/2] {
 		p := p
 		g.Go(func() error {
-			err := c.Dicemix(ctx, rand.Reader, p.cj)
+			err := c.Dicemix(ctx, p.cj)
 			var e *testPeerBlamedError
 			if errors.As(err, &e) {
 				blameErrC <- e
@@ -346,7 +353,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	for _, p := range peers[len(peers)/2:] {
 		p := p
 		g.Go(func() error {
-			err := c2.Dicemix(ctx, rand.Reader, p.cj)
+			err := c2.Dicemix(ctx, p.cj)
 			var e *testPeerBlamedError
 			if errors.As(err, &e) {
 				blameErrC <- e
@@ -357,10 +364,6 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 		})
 	}
 
-	testTick := func() {
-		c.testTick()
-		c2.testTick()
-	}
 	go func() {
 		for {
 			testTick()
