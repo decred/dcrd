@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"math/rand"
 	"net"
 	"runtime/debug"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/container/lru"
 	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
@@ -846,10 +846,7 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 	// Randomize the addresses sent if there are more than the maximum allowed.
 	if len(msg.AddrList) > wire.MaxAddrPerMsg {
 		// Shuffle the address list.
-		for i := range msg.AddrList {
-			j := rand.Intn(i + 1)
-			msg.AddrList[i], msg.AddrList[j] = msg.AddrList[j], msg.AddrList[i]
-		}
+		rand.ShuffleSlice(msg.AddrList)
 
 		// Truncate it to the maximum size.
 		msg.AddrList = msg.AddrList[:wire.MaxAddrPerMsg]
@@ -1785,11 +1782,7 @@ out:
 			p.sendDoneQueue <- struct{}{}
 
 		case <-pingTicker.C:
-			nonce, err := wire.RandomUint64()
-			if err != nil {
-				log.Errorf("Not sending ping to %s: %v", p, err)
-				continue
-			}
+			nonce := rand.Uint64()
 			p.QueueMessage(wire.NewMsgPing(nonce), nil)
 
 		case <-p.quit:
@@ -2252,8 +2245,4 @@ func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
 	}
 
 	return p, nil
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
