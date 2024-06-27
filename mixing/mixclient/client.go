@@ -1420,7 +1420,6 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 			Ciphertexts:    make([]mixing.PQCiphertext, 0, len(prs)),
 			MyIndex:        p.myVk,
 		}
-		ctIds := make([]identity, 0, len(cts))
 		for _, ct := range cts {
 			if len(ct.Ciphertexts) != len(prs) {
 				// Everyone sees this, can rerun without full blame now.
@@ -1430,7 +1429,6 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 				return nil
 			}
 			revealed.Ciphertexts = append(revealed.Ciphertexts, ct.Ciphertexts[p.myVk])
-			ctIds = append(ctIds, ct.Identity)
 		}
 
 		// Derive shared secret keys
