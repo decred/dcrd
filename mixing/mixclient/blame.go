@@ -82,7 +82,7 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 	rcv.Sid = sesRun.sid
 	rcv.RSs = make([]*wire.MsgMixSecrets, 0, 1)
 	_ = mp.Receive(ctx, rcv)
-	rsHashes := make([]chainhash.Hash, len(rcv.RSs))
+	rsHashes := make([]chainhash.Hash, 0, len(rcv.RSs))
 	for _, rs := range rcv.RSs {
 		rsHashes = append(rsHashes, rs.Hash())
 	}
