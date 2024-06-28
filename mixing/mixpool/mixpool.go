@@ -1066,10 +1066,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			msgtype, &hash, sid))
 	}
 
-	err = p.acceptEntry(msg, msgtype, &hash, id, ses)
-	if err != nil {
-		return nil, err
-	}
+	p.acceptEntry(msg, msgtype, &hash, id, ses)
 	return []mixing.Message{msg}, nil
 }
 
@@ -1301,13 +1298,7 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 				continue
 			}
 
-			err := p.acceptEntry(orphan, msgtype, &orphanHash, id, ses)
-			if err != nil {
-				log.Debugf("Orphan %v by identity %x could not be "+
-					"processed after accepting KE %v",
-					orphanHash, id[:], ke.Hash())
-				continue
-			}
+			p.acceptEntry(orphan, msgtype, &orphanHash, id, ses)
 
 			acceptedOrphans = append(acceptedOrphans, orphan)
 			acceptedMessages = append(acceptedMessages, orphan)
@@ -1496,16 +1487,13 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		p.sessions[sid] = ses
 	}
 
-	err = p.acceptEntry(ke, msgtypeKE, hash, id, ses)
-	if err != nil {
-		return nil, err
-	}
+	p.acceptEntry(ke, msgtypeKE, hash, id, ses)
 	p.latestKE[*id] = ke
 	return ke, nil
 }
 
 func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.Hash,
-	id *[33]byte, ses *session) error {
+	id *[33]byte, ses *session) {
 
 	ses.hashes[*hash] = struct{}{}
 	e := entry{
@@ -1524,8 +1512,6 @@ func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.
 
 	ses.incrementCountFor(msgtype)
 	ses.bc.signal()
-
-	return nil
 }
 
 func confirmed(minConf, txHeight, curHeight int64) bool {
