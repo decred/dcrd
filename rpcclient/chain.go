@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -476,7 +476,7 @@ func (c *Client) GetBlockSubsidy(ctx context.Context, height int64, voters uint1
 type FutureGetCoinSupplyResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
-// current coin supply
+// current coin supply.
 func (r *FutureGetCoinSupplyResult) Receive() (dcrutil.Amount, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -502,7 +502,7 @@ func (c *Client) GetCoinSupplyAsync(ctx context.Context) *FutureGetCoinSupplyRes
 	return (*FutureGetCoinSupplyResult)(c.sendCmd(ctx, cmd))
 }
 
-// GetCoinSupply returns the current coin supply
+// GetCoinSupply returns the current coin supply.
 func (c *Client) GetCoinSupply(ctx context.Context) (dcrutil.Amount, error) {
 	return c.GetCoinSupplyAsync(ctx).Receive()
 }

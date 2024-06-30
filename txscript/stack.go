@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -167,7 +167,7 @@ func (s *stack) nipN(idx int32) ([]byte, error) {
 	return so, nil
 }
 
-// NipN removes the Nth object on the stack
+// NipN removes the Nth object on the stack.
 //
 // Stack transformation:
 // NipN(0): [... x1 x2 x3] -> [... x1 x2]

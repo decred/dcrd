@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -63,7 +63,7 @@ func (p *mockSubsidyParams) StakeValidationBeginHeight() int64 {
 
 // VotesPerBlock returns the value associated with the mock params for the
 // maximum number of votes a block must contain to receive full subsidy once
-// voting begins at StakeValidationBeginHeight
+// voting begins at StakeValidationBeginHeight.
 func (p *mockSubsidyParams) VotesPerBlock() uint16 {
 	return p.votesPerBlock
 }

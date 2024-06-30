@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -37,7 +37,7 @@ func TestGenerateSharedSecret(t *testing.T) {
 	}
 }
 
-// Test 1: Encryption and decryption
+// Test 1: Encryption and decryption.
 func TestCipheringBasic(t *testing.T) {
 	privkey, err := GeneratePrivateKey()
 	if err != nil {

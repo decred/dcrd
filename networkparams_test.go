@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022 The Decred developers
+// Copyright (c) 2018-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -69,7 +69,7 @@ func checkGenesisBlockRespectsNetworkPowLimit(t *testing.T, params *chaincfg.Par
 	}
 }
 
-// checkPrefix checks if targetString starts with the given prefix
+// checkPrefix checks if targetString starts with the given prefix.
 func checkPrefix(t *testing.T, prefix string, targetString, networkName string) {
 	if strings.Index(targetString, prefix) != 0 {
 		t.Logf("Address prefix mismatch for <%s>: expected <%s> received <%s>",
@@ -120,7 +120,7 @@ func checkAddressPrefixesAreConsistent(t *testing.T, privateKeyPrefix string, pa
 	checkInterval(t, pk, 33, params.Name, params.PrivateKeyID)
 }
 
-// TestDecredNetworkSettings checks Network-specific settings
+// TestDecredNetworkSettings checks Network-specific settings.
 func TestDecredNetworkSettings(t *testing.T) {
 	mainNetParams := chaincfg.MainNetParams()
 	testNet3Params := chaincfg.TestNet3Params()

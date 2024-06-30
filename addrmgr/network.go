@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -20,7 +20,7 @@ var (
 	}
 
 	// rfc2544Net specifies the IPv4 block as defined by RFC2544
-	// (198.18.0.0/15)
+	// (198.18.0.0/15).
 	rfc2544Net = ipNet("198.18.0.0", 15, 32)
 
 	// rfc3849Net specifies the IPv6 documentation address block as defined
@@ -52,7 +52,7 @@ var (
 	rfc4862Net = ipNet("FE80::", 64, 128)
 
 	// rfc5737Net specifies the IPv4 documentation address blocks as defined
-	// by RFC5737 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24)
+	// by RFC5737 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
 	rfc5737Net = []net.IPNet{
 		ipNet("192.0.2.0", 24, 32),
 		ipNet("198.51.100.0", 24, 32),
@@ -67,7 +67,7 @@ var (
 	// defined by RFC6145 (::FFFF:0:0:0/96).
 	rfc6145Net = ipNet("::FFFF:0:0:0", 96, 128)
 
-	// rfc6598Net specifies the IPv4 block as defined by RFC6598 (100.64.0.0/10)
+	// rfc6598Net specifies the IPv4 block as defined by RFC6598 (100.64.0.0/10).
 	rfc6598Net = ipNet("100.64.0.0", 10, 32)
 
 	// onionCatNet defines the IPv6 address block used to support Tor.
@@ -157,7 +157,7 @@ func isRFC1918(netIP net.IP) bool {
 }
 
 // isRFC2544 returns whether or not the passed address is part of the IPv4
-// address space as defined by RFC2544 (198.18.0.0/15)
+// address space as defined by RFC2544 (198.18.0.0/15).
 func isRFC2544(netIP net.IP) bool {
 	return rfc2544Net.Contains(netIP)
 }
@@ -206,7 +206,7 @@ func isRFC4862(netIP net.IP) bool {
 
 // isRFC5737 returns whether or not the passed address is part of the IPv4
 // documentation address space as defined by RFC5737 (192.0.2.0/24,
-// 198.51.100.0/24, 203.0.113.0/24)
+// 198.51.100.0/24, 203.0.113.0/24).
 func isRFC5737(netIP net.IP) bool {
 	for _, rfc := range rfc5737Net {
 		if rfc.Contains(netIP) {
@@ -230,7 +230,7 @@ func isRFC6145(netIP net.IP) bool {
 }
 
 // isRFC6598 returns whether or not the passed address is part of the IPv4
-// shared address space specified by RFC6598 (100.64.0.0/10)
+// shared address space specified by RFC6598 (100.64.0.0/10).
 func isRFC6598(netIP net.IP) bool {
 	return rfc6598Net.Contains(netIP)
 }

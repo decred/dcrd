@@ -1,4 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
+// Copyright (c) 2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	// hashTests provides sample inputs and outputs for hash function tests
+	// hashTests provides sample inputs and outputs for hash function tests.
 	hashTests = []struct {
 		out string
 		in  string
@@ -49,7 +50,7 @@ var (
 	}
 )
 
-// TestHashB ensure HashB returns the correct hashed bytes for given bytes
+// TestHashB ensure HashB returns the correct hashed bytes for given bytes.
 func TestHashB(t *testing.T) {
 	for _, test := range hashTests {
 		h := fmt.Sprintf("%x", HashB([]byte(test.in)))
@@ -61,7 +62,7 @@ func TestHashB(t *testing.T) {
 }
 
 // TestHashH ensure HashH returns a hash with the correct hashed bytes for
-// given bytes
+// given bytes.
 func TestHashH(t *testing.T) {
 	for _, test := range hashTests {
 		hash := HashH([]byte(test.in))
@@ -74,7 +75,7 @@ func TestHashH(t *testing.T) {
 }
 
 // TestHashFunc ensure HashFunc returns the correct hashed bytes for given
-// bytes
+// bytes.
 func TestHashFunc(t *testing.T) {
 	for _, test := range hashTests {
 		h := fmt.Sprintf("%x", HashFunc([]byte(test.in)))

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1737,7 +1737,7 @@ var sstxTxIn = wire.TxIn{
 	Sequence: 0xffffffff,
 }
 
-// sstxTxOut0 is the first output in the reference valid sstx
+// sstxTxOut0 is the first output in the reference valid sstx.
 var sstxTxOut0 = wire.TxOut{
 	Value:   0x2123e300, // 556000000
 	Version: 0x0000,
@@ -1756,7 +1756,7 @@ var sstxTxOut0 = wire.TxOut{
 	},
 }
 
-// sstxTxOut1 is the second output in the reference valid sstx
+// sstxTxOut1 is the second output in the reference valid sstx.
 var sstxTxOut1 = wire.TxOut{
 	Value:   0x00000000, // 0
 	Version: 0x0000,
@@ -1774,7 +1774,7 @@ var sstxTxOut1 = wire.TxOut{
 	},
 }
 
-// sstxTxOut2 is the third output in the reference valid sstx
+// sstxTxOut2 is the third output in the reference valid sstx.
 var sstxTxOut2 = wire.TxOut{
 	Value:   0x2223e300,
 	Version: 0x0000,
@@ -1794,7 +1794,7 @@ var sstxTxOut2 = wire.TxOut{
 }
 
 // sstxTxOut3 is another output in an SStx, this time instruction to pay to
-// a P2SH output
+// a P2SH output.
 var sstxTxOut3 = wire.TxOut{
 	Value:   0x00000000, // 0
 	Version: 0x0000,
@@ -1813,7 +1813,7 @@ var sstxTxOut3 = wire.TxOut{
 }
 
 // sstxTxOut4 is the another output in the reference valid sstx, and pays change
-// to a P2SH address
+// to a P2SH address.
 var sstxTxOut4 = wire.TxOut{
 	Value:   0x2223e300,
 	Version: 0x0000,
@@ -1848,8 +1848,8 @@ var sstxTxOut4VerBad = wire.TxOut{
 	},
 }
 
-// sstxMsgTx is a valid SStx MsgTx with an input and outputs and is used in various
-// tests
+// sstxMsgTx is a valid SStx MsgTx with an input and outputs and is used in
+// various tests.
 var sstxMsgTx = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -1871,7 +1871,7 @@ var sstxMsgTx = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// sstxMsgTxExtraInputs is an invalid SStx MsgTx with too many inputs
+// sstxMsgTxExtraInputs is an invalid SStx MsgTx with too many inputs.
 var sstxMsgTxExtraInput = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -1897,7 +1897,7 @@ var sstxMsgTxExtraInput = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// sstxMsgTxExtraOutputs is an invalid SStx MsgTx with too many outputs
+// sstxMsgTxExtraOutputs is an invalid SStx MsgTx with too many outputs.
 var sstxMsgTxExtraOutputs = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -1939,7 +1939,7 @@ var sstxMsgTxExtraOutputs = &wire.MsgTx{
 }
 
 // sstxMismatchedInsOuts is an invalid SStx MsgTx with too many outputs for the
-// number of inputs it has
+// number of inputs it has.
 var sstxMismatchedInsOuts = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -1976,8 +1976,8 @@ var sstxBadVersionOut = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// sstxNullDataMissing is an invalid SStx MsgTx with no address push in the second
-// output
+// sstxNullDataMissing is an invalid SStx MsgTx with no address push in the
+// second output.
 var sstxNullDataMissing = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -1992,7 +1992,7 @@ var sstxNullDataMissing = &wire.MsgTx{
 }
 
 // sstxNullDataMisplaced is an invalid SStx MsgTx that has the commitment and
-// change outputs swapped
+// change outputs swapped.
 var sstxNullDataMisplaced = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2007,7 +2007,7 @@ var sstxNullDataMisplaced = &wire.MsgTx{
 }
 
 // ssgenTxIn0 is the 0th position input in a valid SSGen tx used to test out the
-// IsSSGen function
+// IsSSGen function.
 var ssgenTxIn0 = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
 		Hash:  chainhash.Hash{},
@@ -2023,7 +2023,7 @@ var ssgenTxIn0 = wire.TxIn{
 }
 
 // ssgenTxIn1 is the 1st position input in a valid SSGen tx used to test out the
-// IsSSGen function
+// IsSSGen function.
 var ssgenTxIn1 = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
 		Hash: chainhash.Hash([32]byte{ // Make go vet happy.
@@ -2061,8 +2061,8 @@ var ssgenTxIn1 = wire.TxIn{
 	Sequence: 0xffffffff,
 }
 
-// ssgenTxOut0 is the 0th position output in a valid SSGen tx used to test out the
-// IsSSGen function
+// ssgenTxOut0 is the 0th position output in a valid SSGen tx used to test out
+// the IsSSGen function.
 var ssgenTxOut0 = wire.TxOut{
 	Value:   0x00000000, // 0
 	Version: 0x0000,
@@ -2081,8 +2081,8 @@ var ssgenTxOut0 = wire.TxOut{
 	},
 }
 
-// ssgenTxOut1 is the 1st position output in a valid SSGen tx used to test out the
-// IsSSGen function
+// ssgenTxOut1 is the 1st position output in a valid SSGen tx used to test out
+// the IsSSGen function.
 var ssgenTxOut1 = wire.TxOut{
 	Value:   0x00000000, // 0
 	Version: 0x0000,
@@ -2093,8 +2093,8 @@ var ssgenTxOut1 = wire.TxOut{
 	},
 }
 
-// ssgenTxOut2 is the 2nd position output in a valid SSGen tx used to test out the
-// IsSSGen function
+// ssgenTxOut2 is the 2nd position output in a valid SSGen tx used to test out
+// the IsSSGen function.
 var ssgenTxOut2 = wire.TxOut{
 	Value:   0x2123e300, // 556000000
 	Version: 0x0000,
@@ -2113,7 +2113,7 @@ var ssgenTxOut2 = wire.TxOut{
 	},
 }
 
-// ssgenTxOut3 is a P2SH output
+// ssgenTxOut3 is a P2SH output.
 var ssgenTxOut3 = wire.TxOut{
 	Value:   0x2123e300, // 556000000
 	Version: 0x0000,
@@ -2148,7 +2148,7 @@ var ssgenTxOut3BadVer = wire.TxOut{
 }
 
 // ssgenMsgTx is a valid SSGen MsgTx with an input and outputs and is used in
-// various testing scenarios
+// various testing scenarios.
 var ssgenMsgTx = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2166,7 +2166,7 @@ var ssgenMsgTx = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxExtraInput is an invalid SSGen MsgTx with too many inputs
+// ssgenMsgTxExtraInput is an invalid SSGen MsgTx with too many inputs.
 var ssgenMsgTxExtraInput = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2184,7 +2184,7 @@ var ssgenMsgTxExtraInput = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxExtraOutputs is an invalid SSGen MsgTx with too many outputs
+// ssgenMsgTxExtraOutputs is an invalid SSGen MsgTx with too many outputs.
 var ssgenMsgTxExtraOutputs = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2216,8 +2216,8 @@ var ssgenMsgTxExtraOutputs = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxStakeBaseWrong is an invalid SSGen tx with the stakebase in the wrong
-// position
+// ssgenMsgTxStakeBaseWrong is an invalid SSGen tx with the stakebase in the
+// wrong position.
 var ssgenMsgTxStakeBaseWrong = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2235,7 +2235,7 @@ var ssgenMsgTxStakeBaseWrong = &wire.MsgTx{
 }
 
 // ssgenMsgTxBadVerOut is an invalid SSGen tx that contains an output with a bad
-// version
+// version.
 var ssgenMsgTxBadVerOut = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2253,8 +2253,8 @@ var ssgenMsgTxBadVerOut = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxWrongZeroethOut is an invalid SSGen tx with the first output being not
-// an OP_RETURN push
+// ssgenMsgTxWrongZeroethOut is an invalid SSGen tx with the first output being
+// not an OP_RETURN push.
 var ssgenMsgTxWrongZeroethOut = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2271,8 +2271,8 @@ var ssgenMsgTxWrongZeroethOut = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxWrongFirstOut is an invalid SSGen tx with the second output being not
-// an OP_RETURN push
+// ssgenMsgTxWrongFirstOut is an invalid SSGen tx with the second output being
+// not an OP_RETURN push.
 var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -2550,7 +2550,7 @@ var ssgenMsgTxValid = &wire.MsgTx{
 }
 
 // ssrtxTxIn is the 0th position input in a valid SSRtx tx used to test out the
-// IsSSRtx function
+// IsSSRtx function.
 var ssrtxTxIn = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
 		Hash: chainhash.Hash([32]byte{ // Make go vet happy.
@@ -2588,8 +2588,8 @@ var ssrtxTxIn = wire.TxIn{
 	Sequence: 0xffffffff,
 }
 
-// ssrtxTxOut is the 0th position output in a valid SSRtx tx used to test out the
-// IsSSRtx function
+// ssrtxTxOut is the 0th position output in a valid SSRtx tx used to test out
+// the IsSSRtx function.
 var ssrtxTxOut = wire.TxOut{
 	Value:   0x2122e300,
 	Version: 0x0000,
@@ -2608,7 +2608,7 @@ var ssrtxTxOut = wire.TxOut{
 	},
 }
 
-// ssrtxTxOut2 is a P2SH output
+// ssrtxTxOut2 is a P2SH output.
 var ssrtxTxOut2 = wire.TxOut{
 	Value:   0x2123e300, // 556000000
 	Version: 0x0000,
@@ -2625,7 +2625,7 @@ var ssrtxTxOut2 = wire.TxOut{
 	},
 }
 
-// ssrtxTxOut2BadVer is a P2SH output with a non-default script version
+// ssrtxTxOut2BadVer is a P2SH output with a non-default script version.
 var ssrtxTxOut2BadVer = wire.TxOut{
 	Value:   0x2123e300, // 556000000
 	Version: 0x0100,
@@ -3073,7 +3073,7 @@ var ssgenTxOutValidTV = wire.TxOut{
 }
 
 // ssrtxMsgTx is a valid SSRtx MsgTx with an input and outputs and is used in
-// various testing scenarios
+// various testing scenarios.
 var ssrtxMsgTx = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -3089,7 +3089,7 @@ var ssrtxMsgTx = &wire.MsgTx{
 }
 
 // ssrtxMsgTx is a valid SSRtx MsgTx with an input and outputs and is used in
-// various testing scenarios
+// various testing scenarios.
 var ssrtxMsgTxTooManyInputs = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
@@ -3105,7 +3105,7 @@ var ssrtxMsgTxTooManyInputs = &wire.MsgTx{
 }
 
 // ssrtxMsgTx is a valid SSRtx MsgTx with an input and outputs and is used in
-// various testing scenarios
+// various testing scenarios.
 var ssrtxMsgTxTooManyOutputs = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,

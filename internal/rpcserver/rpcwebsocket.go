@@ -408,7 +408,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 	return ok
 }
 
-// Notification types
+// Notification types.
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
 type notificationWork mining.TemplateNtfn
@@ -422,7 +422,7 @@ type notificationTxAcceptedByMempool struct {
 }
 type notificationMixMessage mixing.Message
 
-// Notification control requests
+// Notification control requests.
 type notificationRegisterClient wsClient
 type notificationUnregisterClient wsClient
 type notificationRegisterBlocks wsClient

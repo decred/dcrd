@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -31,7 +31,7 @@ var (
 	//	0xe3, 0x9a, 0x84, 0x4a, 0x3e, 0xcd, 0x3c, 0xcf,
 	//}
 
-	// Serialized compressed public key
+	// Serialized compressed public key.
 	publicKey = []byte{
 		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
 		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
