@@ -569,7 +569,6 @@ func TestTreasuryIsFunctions(t *testing.T) {
 	}
 }
 
-// tspendTxInNoPubkey
 var tspendTxInNoPubkey = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
 		Hash:  chainhash.Hash{},
