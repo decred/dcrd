@@ -179,14 +179,15 @@ func Decrypt(priv *PrivateKey, in []byte) ([]byte, error) {
 
 // Implement PKCS#7 padding with block size of 16 (AES block size).
 
-// addPKCSPadding adds padding to a block of data
+// addPKCSPadding adds padding to a block of data.
 func addPKCSPadding(src []byte) []byte {
 	padding := aes.BlockSize - len(src)%aes.BlockSize
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(src, padtext...)
 }
 
-// removePKCSPadding removes padding from data that was added with addPKCSPadding
+// removePKCSPadding removes padding from data that was added with
+// addPKCSPadding.
 func removePKCSPadding(src []byte) ([]byte, error) {
 	length := len(src)
 	padLength := int(src[length-1])

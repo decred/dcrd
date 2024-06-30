@@ -49,7 +49,7 @@ const (
 	ErrRPCClientInInitialDownload RPCErrorCode = -10
 )
 
-// Wallet JSON errors
+// Wallet JSON errors.
 const (
 	ErrRPCWallet                    RPCErrorCode = -4
 	ErrRPCWalletInsufficientFunds   RPCErrorCode = -6

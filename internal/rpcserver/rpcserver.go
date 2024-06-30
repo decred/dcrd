@@ -58,7 +58,7 @@ import (
 	"github.com/jrick/bitset"
 )
 
-// API version constants
+// API version constants.
 const (
 	jsonrpcSemverMajor = 8
 	jsonrpcSemverMinor = 3
@@ -138,7 +138,7 @@ var (
 	// getwork RPC.  It consists of all zeros.
 	blake3Pad = make([]byte, getworkDataLenBlake3-wire.MaxBlockHeaderPayload)
 
-	// JSON 2.0 batched request prefix
+	// JSON 2.0 batched request prefix.
 	batchedRequestPrefix = []byte("[")
 
 	// zeroHash is the zero value for a chainhash.Hash and is defined as
@@ -339,7 +339,7 @@ var rpcUnimplemented = map[string]struct{}{
 	"estimatepriority": {},
 }
 
-// Commands that are available to a limited user
+// Commands that are available to a limited user.
 var rpcLimited = map[string]struct{}{
 	// Websockets commands
 	"notifyblocks":          {},

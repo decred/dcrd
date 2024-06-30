@@ -1598,7 +1598,8 @@ func estimateP2PKHv0SerializeSize(inputs, outputs int, hasChange bool) int {
 		txInsSize + txOutsSize + changeSize
 }
 
-// estimateInputSize returns the worst case serialize size estimate for a tx input
+// estimateInputSize returns the worst case serialize size estimate for a tx
+// input.
 func estimateInputSize(scriptSize int) int {
 	return 32 + // previous tx
 		4 + // output index
@@ -1611,7 +1612,8 @@ func estimateInputSize(scriptSize int) int {
 		4 // sequence
 }
 
-// estimateOutputSize returns the worst case serialize size estimate for a tx output
+// estimateOutputSize returns the worst case serialize size estimate for a tx
+// output.
 func estimateOutputSize(scriptSize int) int {
 	return 8 + // previous tx
 		2 + // version

@@ -1,11 +1,11 @@
 // Copyright (c) 2013-2014 Conformal Systems LLC.
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package dcrjson
 
-// Standard JSON-RPC 2.0 errors
+// Standard JSON-RPC 2.0 errors.
 var (
 	ErrInvalidRequest = RPCError{
 		Code:    -32600,
@@ -29,7 +29,7 @@ var (
 	}
 )
 
-// General application defined JSON errors
+// General application defined JSON errors.
 var (
 	ErrMisc = RPCError{
 		Code:    -1,
@@ -65,7 +65,7 @@ var (
 	}
 )
 
-// Peer-to-peer client errors
+// Peer-to-peer client errors.
 var (
 	ErrClientNotConnected = RPCError{
 		Code:    -9,
@@ -77,7 +77,7 @@ var (
 	}
 )
 
-// Wallet JSON errors
+// Wallet JSON errors.
 var (
 	ErrWallet = RPCError{
 		Code:    -4,

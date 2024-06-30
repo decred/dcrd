@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -681,7 +681,7 @@ func (p *fakeTxSource) MaybeAcceptDependents(tx *dcrutil.Tx) []*dcrutil.Tx {
 }
 
 // maybeAcceptTransaction handles inserting new transactions into the fake tx
-// source
+// source.
 func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*chainhash.Hash, error) {
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()

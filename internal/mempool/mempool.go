@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2075,7 +2075,7 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64, isAutoRevo
 // certain period of time (CoinbaseMaturity) and the submitted SStx's
 // stake difficulty is below the current required stake difficulty should be
 // pruned from mempool since they will never be mined.  The same idea stands
-// for SSGen and SSRtx
+// for SSGen and SSRtx.
 func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
 	if err != nil {

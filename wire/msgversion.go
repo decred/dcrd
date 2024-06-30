@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,7 +18,7 @@ import (
 // version message (MsgVersion).
 const MaxUserAgentLen = 256
 
-// DefaultUserAgent for wire in the stack
+// DefaultUserAgent for wire in the stack.
 const DefaultUserAgent = "/dcrwire:1.0.0/"
 
 // MsgVersion implements the Message interface and represents a Decred version

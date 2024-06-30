@@ -177,7 +177,7 @@ var (
 		version.Patch)
 )
 
-// simpleAddr implements the net.Addr interface with two struct fields
+// simpleAddr implements the net.Addr interface with two struct fields.
 type simpleAddr struct {
 	net, addr string
 }
@@ -207,15 +207,15 @@ type broadcastMsg struct {
 }
 
 // broadcastInventoryAdd is a type used to declare that the InvVect it contains
-// needs to be added to the rebroadcast map
+// needs to be added to the rebroadcast map.
 type broadcastInventoryAdd relayMsg
 
 // broadcastInventoryDel is a type used to declare that the InvVect it contains
-// needs to be removed from the rebroadcast map
+// needs to be removed from the rebroadcast map.
 type broadcastInventoryDel *wire.InvVect
 
 // broadcastPruneInventory is a type used to declare that rebroadcast
-// inventory entries need to be filtered and removed where necessary
+// inventory entries need to be filtered and removed where necessary.
 type broadcastPruneInventory struct{}
 
 // relayMsg packages an inventory vector along with the newly discovered

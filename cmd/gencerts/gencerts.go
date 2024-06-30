@@ -204,7 +204,7 @@ func randomX509SerialNumber() *big.Int {
 	return serialNumber
 }
 
-// End of ASN.1 time
+// End of ASN.1 time.
 var endOfTime = time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
 
 type certWithPEM struct {

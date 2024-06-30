@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -646,7 +646,7 @@ func isStrictPubKeyEncoding(pubKey []byte) bool {
 	return false
 }
 
-// getStack returns the contents of stack as a byte array bottom up
+// getStack returns the contents of stack as a byte array bottom up.
 func getStack(stack *stack) [][]byte {
 	array := make([][]byte, stack.Depth())
 	for i := range array {

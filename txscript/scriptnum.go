@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2017 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -42,7 +42,7 @@ const (
 	CsvMaxScriptNumLen = 5
 
 	// altSigSuitesMaxscriptNumLen is the maximum number of bytes for the
-	// type of alternative signature suite
+	// type of alternative signature suite.
 	altSigSuitesMaxscriptNumLen = 1
 )
 

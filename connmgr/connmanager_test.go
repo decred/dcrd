@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -36,7 +36,7 @@ func runConnMgrAsync(ctx context.Context, cmgr *ConnManager) (context.Context, c
 	return ctx, cancel, &wg
 }
 
-// mockAddr mocks a network address
+// mockAddr mocks a network address.
 type mockAddr struct {
 	net, address string
 }

@@ -142,7 +142,7 @@ type LocalAddr struct {
 type AddressPriority int
 
 const (
-	// InterfacePrio signifies the address is on a local interface
+	// InterfacePrio signifies the address is on a local interface.
 	InterfacePrio AddressPriority = iota
 
 	// BoundPrio signifies the address has been explicitly bounded to.

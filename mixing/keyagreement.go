@@ -18,7 +18,7 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// Aliases for sntrup4591761 types
+// Aliases for sntrup4591761 types.
 type (
 	PQPublicKey  = [sntrup4591761.PublicKeySize]byte
 	PQPrivateKey = [sntrup4591761.PrivateKeySize]byte
