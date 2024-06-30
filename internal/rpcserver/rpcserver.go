@@ -147,7 +147,6 @@ var (
 	zeroHash chainhash.Hash
 )
 
-// Errors
 var (
 	// ErrRPCUnimplemented is an error returned to RPC clients when the
 	// provided command is recognized, but not implemented.
