@@ -744,8 +744,11 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		c.pairings[string(pairingID)] = pairing
 	}
 	pairing.localPeers[*p.id] = p
+	c.mu.Unlock()
+
 	err = p.submit(pr)
 	if err != nil {
+		c.mu.Lock()
 		delete(pairing.localPeers, *p.id)
 		if len(pairing.localPeers) == 0 {
 			delete(c.pairings, string(pairingID))
@@ -753,7 +756,6 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		c.mu.Unlock()
 		return err
 	}
-	c.mu.Unlock()
 
 	select {
 	case res := <-p.res:
