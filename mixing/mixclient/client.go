@@ -256,11 +256,6 @@ type sessionRun struct {
 	cj *CoinJoin
 }
 
-type queueMsg struct {
-	message mixing.Message
-	res     chan error
-}
-
 type queueWork struct {
 	p   *peer
 	f   func(p *peer) error
@@ -278,9 +273,8 @@ type Client struct {
 	height   uint32
 	mu       sync.Mutex
 
-	warming     chan struct{}
-	submitQueue chan *queueMsg
-	workQueue   chan *queueWork
+	warming   chan struct{}
+	workQueue chan *queueWork
 
 	pairingWG sync.WaitGroup
 
@@ -310,7 +304,6 @@ func NewClient(w Wallet) *Client {
 		mixpool:        w.Mixpool(),
 		pairings:       make(map[string]*pairedSessions),
 		warming:        make(chan struct{}),
-		submitQueue:    make(chan *queueMsg, 200),
 		workQueue:      make(chan *queueWork, runtime.NumCPU()),
 		blake256Hasher: blake256.New(),
 		epoch:          w.Mixpool().Epoch(),
@@ -378,9 +371,6 @@ func (c *Client) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		return c.epochTicker(ctx)
-	})
-	g.Go(func() error {
-		return c.handleSubmitQueue(ctx)
 	})
 	for i := 0; i < runtime.NumCPU(); i++ {
 		g.Go(func() error {
@@ -572,21 +562,7 @@ func (p *peer) signAndHash(m mixing.Message) error {
 }
 
 func (p *peer) submit(m mixing.Message) error {
-	qmsg := &queueMsg{
-		message: m,
-		res:     make(chan error, 1),
-	}
-	select {
-	case <-p.ctx.Done():
-		return p.ctx.Err()
-	case p.client.submitQueue <- qmsg:
-	}
-	select {
-	case <-p.ctx.Done():
-		return p.ctx.Err()
-	case err := <-qmsg.res:
-		return err
-	}
+	return p.client.wallet.SubmitMixMessage(p.ctx, m)
 }
 
 func (p *peer) signAndSubmit(m mixing.Message) error {
@@ -710,18 +686,6 @@ func (c *Client) epochTicker(ctx context.Context) error {
 			go c.pairSession(ctx, &ps, prs, epoch)
 		}
 		c.mu.Unlock()
-	}
-}
-
-func (c *Client) handleSubmitQueue(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case qmsg := <-c.submitQueue:
-			err := c.wallet.SubmitMixMessage(ctx, qmsg.message)
-			qmsg.res <- err
-		}
 	}
 }
 
