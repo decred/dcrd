@@ -18,8 +18,10 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// Put some IP in here for convenience. Points to google.
-var someIP = "173.194.115.66"
+const (
+	someIP        = "173.194.115.66" // An IP for convenience. Points to google.
+	nonRoutableIP = "255.255.255.255"
+)
 
 func lookupFunc(host string) ([]net.IP, error) {
 	return nil, errors.New("not implemented")
@@ -34,17 +36,33 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 	a.addOrUpdateAddress(na, na)
 }
 
+// TestAddOrUpdateAddress ensures that non-routable addresses are not added,
+// that addresses are correctly added and/or updated, and that tried addresses
+// are not re-added.
 func TestAddOrUpdateAddress(t *testing.T) {
 	amgr := New("testaddaddressupdate", nil)
 	amgr.Start()
 	if ka := amgr.GetAddress(); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
-	ip := net.ParseIP(someIP)
+
+	// Attempt to add a non-routable address.
+	ip := net.ParseIP(nonRoutableIP)
+	if ip == nil {
+		t.Fatalf("invalid IP address %s", nonRoutableIP)
+	}
+	na := NewNetAddressIPPort(net.ParseIP(nonRoutableIP), 8333, 0)
+	amgr.addOrUpdateAddress(na, na)
+	if ka := amgr.GetAddress(); ka != nil {
+		t.Fatal("address manager should contain no addresses")
+	}
+
+	// Add a good address.
+	ip = net.ParseIP(someIP)
 	if ip == nil {
 		t.Fatalf("invalid IP address %s", someIP)
 	}
-	na := NewNetAddressIPPort(net.ParseIP(someIP), 8333, 0)
+	na = NewNetAddressIPPort(net.ParseIP(someIP), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
 	ka := amgr.GetAddress()
 	newlyAddedAddr := ka.NetAddress()
@@ -88,15 +106,75 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	if !netAddrFromUpdate.Timestamp.Equal(ts) {
 		t.Fatal("address manager did not update timestamp")
 	}
+
+	// Mark the address as tried.
+	err := amgr.Good(ka.NetAddress())
+	if err != nil {
+		t.Fatalf("marking address as good failed: %v", err)
+	}
+	if _, exists := amgr.addrNew[0][na.Key()]; exists {
+		t.Fatalf("expected address %s to not exist in new bucket", na)
+	}
+	// Attempt to add the same address again, even though it's already tried.
+	amgr.addOrUpdateAddress(na, na)
+
+	// Stop the address manager.
 	if err := amgr.Stop(); err != nil {
 		t.Fatalf("address manager failed to stop - %v", err)
 	}
 }
 
-func TestCorruptPeersFile(t *testing.T) {
+// TestExpireNew ensures that expireNew will correctly throw away bad addresses.
+func TestExpireNew(t *testing.T) {
+	n := New("testexpirenew", nil)
+
+	now := time.Now()
+
+	// Create a good address and a bad address.
+	lastAttempt := now.Add(-2 * time.Minute)
+	recentTimestamp := now.Add(-1 * time.Hour)
+	oldTimestamp := now.Add(-40 * 24 * time.Hour)
+
+	goodAddr := newKnownAddress(recentTimestamp, 0, lastAttempt, now, false, 2)
+	badAddr := newKnownAddress(oldTimestamp, 0, lastAttempt, now, false, 1)
+
+	// Add the addresses to bucket 0.
+	bucket := 0
+	n.addrNew[bucket]["goodKey"] = goodAddr
+	n.addrNew[bucket]["badKey"] = badAddr
+	n.addrIndex["goodKey"] = goodAddr
+	n.addrIndex["badKey"] = badAddr
+	n.nNew = 2
+
+	numAddrs := n.numAddresses()
+
+	if numAddrs != 2 {
+		t.Errorf("Expected 2 addresses, got %d", numAddrs)
+	}
+
+	n.expireNew(bucket)
+
+	if _, exists := n.addrNew[bucket]["badKey"]; exists {
+		t.Error("Expected bad address to be removed")
+	}
+	if _, exists := n.addrIndex["badKey"]; exists {
+		t.Error("Expected bad address to be removed from addrIndex")
+	}
+	if _, exists := n.addrNew[bucket]["goodKey"]; !exists {
+		t.Error("Expected good address to remain")
+	}
+	numAddrs = n.numAddresses()
+	if numAddrs != 1 {
+		t.Errorf("Only expected 1 address, got %d", numAddrs)
+	}
+}
+
+// TestLoadPeersWithCorruptPeersFile ensures that starting and stopping the
+// address manager will correctly remove an empty peers file.
+func TestLoadPeersWithCorruptPeersFile(t *testing.T) {
 	dir := t.TempDir()
 	peersFile := filepath.Join(dir, peersFilename)
-	// create corrupt (empty) peers file
+	// create corrupt (empty) peers file.
 	fp, err := os.Create(peersFile)
 	if err != nil {
 		t.Fatalf("Could not create empty peers file: %s", peersFile)
@@ -163,6 +241,8 @@ func TestStartStop(t *testing.T) {
 	}
 }
 
+// TestNeedMoreAddresses adds 1000 addresses and then checks to see if
+// NeedMoreAddresses correctly determines that no more addresses are needed.
 func TestNeedMoreAddresses(t *testing.T) {
 	n := New("testneedmoreaddresses", lookupFunc)
 	addrsToAdd := needAddressThreshold
@@ -189,6 +269,41 @@ func TestNeedMoreAddresses(t *testing.T) {
 	b = n.NeedMoreAddresses()
 	if b {
 		t.Fatal("expected address manager to not need more addresses")
+	}
+}
+
+// TestAddressCache ensures that AddressCache doesn't return bad or
+// never-attempted addresses.
+func TestAddressCache(t *testing.T) {
+	// Test that the randomized subset is nil if no addresses are known.
+	n := New("testaddresscacheisempty", nil)
+	addrList := n.AddressCache()
+	if addrList != nil {
+		t.Fatalf("expected empty AddressCache. Got %v", addrList)
+	}
+
+	// Test that bad and never-attempted addresses aren't shared.
+	n = New("testaddresscachewithbad", nil)
+	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
+	// Create and add a bad address from the future.
+	futureTime := time.Now().AddDate(0, 1, 0)
+	badAddr := NetAddress{
+		IP:        net.ParseIP("6.6.6.6"),
+		Port:      uint16(8333),
+		Timestamp: time.Unix(futureTime.Unix(), 0),
+		Services:  wire.SFNodeNetwork,
+	}
+	badAddrSlice := make([]*NetAddress, 1)
+	badAddrSlice[0] = &badAddr
+	n.AddAddresses(badAddrSlice, srcAddr)
+	// Create and add a good address, but don't mark it as attempted.
+	goodAddrSlice := make([]*NetAddress, 1)
+	goodAddrSlice[0] = NewNetAddressIPPort(net.ParseIP("1.1.1.1"), 8333, wire.SFNodeNetwork)
+	n.AddAddresses(goodAddrSlice, srcAddr)
+	// Neither address should be returned.
+	addrList = n.AddressCache()
+	if len(addrList) != 0 {
+		t.Fatalf("expected empty AddressCache. Got %v", addrList)
 	}
 }
 
@@ -278,7 +393,7 @@ func TestHostToNetAddress(t *testing.T) {
 func TestGetAddress(t *testing.T) {
 	n := New("testgetaddress", lookupFunc)
 
-	// Get an address from an empty set (should error)
+	// Get an address from an empty set (should error).
 	if rv := n.GetAddress(); rv != nil {
 		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
 	}
@@ -329,6 +444,7 @@ func TestGetAddress(t *testing.T) {
 	}
 }
 
+// TestAttempt ensures that Attempt will correctly update the lastAttempt time.
 func TestAttempt(t *testing.T) {
 	n := New("testattempt", lookupFunc)
 
@@ -359,6 +475,7 @@ func TestAttempt(t *testing.T) {
 	}
 }
 
+// TestConnected ensures that Connected will correctly update the connected timestamp.
 func TestConnected(t *testing.T) {
 	n := New("testconnected", lookupFunc)
 
@@ -389,7 +506,17 @@ func TestConnected(t *testing.T) {
 	}
 }
 
+// TestGood tests the behavior of address management in three phases:
+// Phase 1 generates 4096 new addresses and tests adding them to the address
+// manager, ensuring they are correctly added and marked as good.
+// Phase 2 tests the internal behavior of address management between the "new"
+// and "tried" address buckets. It ensures that when an address is marked as
+// good, it is then moved from the new bucket into the tried bucket. It also
+// ensures that Good correctly handles the case when the tried bucket overflows.
+// Phase 3 tests that Good will correctly error when trying to mark an address
+// as good if it hasn't first been added to a new bucket.
 func TestGood(t *testing.T) {
+	// Phase 1: test adding addresses and marking them good.
 	n := New("testgood", lookupFunc)
 	addrsToAdd := 64 * 64
 	addrs := make([]*NetAddress, addrsToAdd)
@@ -418,6 +545,7 @@ func TestGood(t *testing.T) {
 			numAddrs/4)
 	}
 
+	// Phase 2:
 	// Test internal behavior of how addresses are managed between the new and
 	// tried address buckets. When an address is initially added it should enter
 	// the new bucket, and when marked good it should move to the tried bucket.
@@ -486,6 +614,19 @@ func TestGood(t *testing.T) {
 		t.Fatalf("expected address %s to exist in tried bucket", addrAKey)
 	}
 
+	// Flagging the first address as good again should do nothing. It should
+	// remain in the tried bucket.
+	n.Good(addrA)
+	if _, exists := n.addrNew[0][addrAKey]; exists {
+		t.Fatalf("expected address %s to not exist in new bucket", addrAKey)
+	}
+	if len(n.addrTried[0]) != 1 {
+		t.Fatal("expected tried bucket to contain exactly one element")
+	}
+	if n.addrTried[0][0].na.Key() != addrAKey {
+		t.Fatalf("expected address %s to exist in tried bucket", addrAKey)
+	}
+
 	// Flagging the second address as good should cause it to move from the new
 	// bucket to the tried bucket. It should also cause the first address to be
 	// evicted from the tried bucket and move back to the new bucket since the
@@ -504,6 +645,23 @@ func TestGood(t *testing.T) {
 	if _, exists := n.addrNew[0][addrAKey]; !exists {
 		t.Fatalf("expected address %s to exist in the new bucket after being "+
 			"evicted from the tried bucket", addrAKey)
+	}
+
+	// Phase 3: Test trying to mark an address as good without first adding it
+	// to the new bucket
+	n = New("testgood_not_new", lookupFunc)
+	// Directly add an address to the address index without adding it to New
+	n.addrIndex[addrAKey] = &KnownAddress{na: addrA, srcAddr: srcAddr, tried: false}
+	// Try to mark the address as good
+	err := n.Good(addrA)
+	if err == nil {
+		t.Fatal("expected an error when trying to mark an address as good" +
+			"before adding it to the new bucket")
+	}
+
+	expectedErrMsg := fmt.Sprintf("%s is not marked as a new address", addrA)
+	if err.Error() != expectedErrMsg {
+		t.Fatalf("unexpected error str: got %s, want %s", err.Error(), expectedErrMsg)
 	}
 }
 
@@ -555,6 +713,9 @@ func TestSetServices(t *testing.T) {
 	}
 }
 
+// TestAddLocalAddress tests multiple different test cases for adding a local
+// address, and ensures that nodes won't accidentally add a non-routable address
+// as their local address.
 func TestAddLocalAddress(t *testing.T) {
 	var tests = []struct {
 		name     string
@@ -562,7 +723,7 @@ func TestAddLocalAddress(t *testing.T) {
 		priority AddressPriority
 		valid    bool
 	}{{
-		name:     "unroutable local IPv4 address",
+		name:     "non-routable local IPv4 address",
 		ip:       net.ParseIP("192.168.0.100"),
 		priority: InterfacePrio,
 		valid:    false,
@@ -577,12 +738,12 @@ func TestAddLocalAddress(t *testing.T) {
 		priority: BoundPrio,
 		valid:    true,
 	}, {
-		name:     "unroutable local IPv6 address",
+		name:     "non-routable local IPv6 address",
 		ip:       net.ParseIP("::1"),
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
-		name:     "unroutable local IPv6 address 2",
+		name:     "non-routable local IPv6 address 2",
 		ip:       net.ParseIP("fe80::1"),
 		priority: InterfacePrio,
 		valid:    false,
