@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -32,57 +32,6 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 	ip := net.ParseIP(addr)
 	na := NewNetAddressIPPort(ip, port, 0)
 	a.addOrUpdateAddress(na, na)
-}
-
-// TestStartStop tests the behavior of the address manager when it is started
-// and stopped.
-func TestStartStop(t *testing.T) {
-	dir := t.TempDir()
-
-	// Ensure the peers file does not exist before starting the address manager.
-	peersFile := filepath.Join(dir, peersFilename)
-	if _, err := os.Stat(peersFile); !os.IsNotExist(err) {
-		t.Fatalf("peers file exists though it should not: %s", peersFile)
-	}
-
-	amgr := New(dir, nil)
-	amgr.Start()
-
-	// Add single network address to the address manager.
-	amgr.addAddressByIP(someIP, 8333)
-
-	// Stop the address manager to force the known addresses to be flushed
-	// to the peers file.
-	if err := amgr.Stop(); err != nil {
-		t.Fatalf("address manager failed to stop: %v", err)
-	}
-
-	// Verify that the peers file has been written to.
-	if _, err := os.Stat(peersFile); err != nil {
-		t.Fatalf("peers file does not exist: %s", peersFile)
-	}
-
-	// Start a new address manager, which initializes it from the peers file.
-	amgr = New(dir, nil)
-	amgr.Start()
-
-	knownAddress := amgr.GetAddress()
-	if knownAddress == nil {
-		t.Fatal("address manager should contain known address")
-	}
-
-	// Verify that the known address matches what was added to the address
-	// manager previously.
-	wantNetAddrKey := net.JoinHostPort(someIP, "8333")
-	gotNetAddrKey := knownAddress.na.Key()
-	if gotNetAddrKey != wantNetAddrKey {
-		t.Fatalf("address manager does not contain expected address - "+
-			"got %v, want %v", gotNetAddrKey, wantNetAddrKey)
-	}
-
-	if err := amgr.Stop(); err != nil {
-		t.Fatalf("address manager failed to stop: %v", err)
-	}
 }
 
 func TestAddOrUpdateAddress(t *testing.T) {
@@ -144,84 +93,239 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 }
 
-func TestAddLocalAddress(t *testing.T) {
-	var tests = []struct {
-		name     string
-		ip       net.IP
-		priority AddressPriority
-		valid    bool
-	}{{
-		name:     "unroutable local IPv4 address",
-		ip:       net.ParseIP("192.168.0.100"),
-		priority: InterfacePrio,
-		valid:    false,
-	}, {
-		name:     "routable IPv4 address",
-		ip:       net.ParseIP("204.124.1.1"),
-		priority: InterfacePrio,
-		valid:    true,
-	}, {
-		name:     "routable IPv4 address with bound priority",
-		ip:       net.ParseIP("204.124.1.1"),
-		priority: BoundPrio,
-		valid:    true,
-	}, {
-		name:     "unroutable local IPv6 address",
-		ip:       net.ParseIP("::1"),
-		priority: InterfacePrio,
-		valid:    false,
-	}, {
-		name:     "unroutable local IPv6 address 2",
-		ip:       net.ParseIP("fe80::1"),
-		priority: InterfacePrio,
-		valid:    false,
-	}, {
-		name:     "routable IPv6 address",
-		ip:       net.ParseIP("2620:100::1"),
-		priority: InterfacePrio,
-		valid:    true,
-	}}
+func TestCorruptPeersFile(t *testing.T) {
+	dir := t.TempDir()
+	peersFile := filepath.Join(dir, peersFilename)
+	// create corrupt (empty) peers file
+	fp, err := os.Create(peersFile)
+	if err != nil {
+		t.Fatalf("Could not create empty peers file: %s", peersFile)
+	}
+	if err := fp.Close(); err != nil {
+		t.Fatalf("Could not write empty peers file: %s", peersFile)
+	}
+	amgr := New(dir, nil)
+	amgr.Start()
+	amgr.Stop()
+	if _, err := os.Stat(peersFile); err != nil {
+		t.Fatalf("Corrupt peers file has not been removed: %s", peersFile)
+	}
+}
 
-	const testPort = 8333
-	const testServices = wire.SFNodeNetwork
+// TestStartStop tests the behavior of the address manager when it is started
+// and stopped.
+func TestStartStop(t *testing.T) {
+	dir := t.TempDir()
 
-	amgr := New("testaddlocaladdress", nil)
-	validLocalAddresses := make(map[string]struct{})
-	for _, test := range tests {
-		netAddr := NewNetAddressIPPort(test.ip, testPort, testServices)
-		result := amgr.AddLocalAddress(netAddr, test.priority)
-		if result == nil && !test.valid {
-			t.Errorf("%q: address should have been accepted", test.name)
-			continue
-		}
-		if result != nil && test.valid {
-			t.Errorf("%q: address should not have been accepted", test.name)
-			continue
-		}
-		if test.valid && !amgr.HasLocalAddress(netAddr) {
-			t.Errorf("%q: expected to have local address", test.name)
-			continue
-		}
-		if !test.valid && amgr.HasLocalAddress(netAddr) {
-			t.Errorf("%q: expected to not have local address", test.name)
-			continue
-		}
-		if test.valid {
-			// Set up data to test behavior of a call to LocalAddresses() for
-			// addresses that were added to the local address manager.
-			validLocalAddresses[netAddr.Key()] = struct{}{}
-		}
+	// Ensure the peers file does not exist before starting the address manager.
+	peersFile := filepath.Join(dir, peersFilename)
+	if _, err := os.Stat(peersFile); !os.IsNotExist(err) {
+		t.Fatalf("peers file exists though it should not: %s", peersFile)
 	}
 
-	// Ensure that all of the addresses that were expected to be added to the
-	// address manager are also returned from a call to LocalAddresses.
-	for _, localAddr := range amgr.LocalAddresses() {
-		localAddrIP := net.ParseIP(localAddr.Address)
-		netAddr := NewNetAddressIPPort(localAddrIP, testPort, testServices)
-		netAddrKey := netAddr.Key()
-		if _, ok := validLocalAddresses[netAddrKey]; !ok {
-			t.Errorf("expected to find local address with key %v", netAddrKey)
+	amgr := New(dir, nil)
+	amgr.Start()
+
+	// Add single network address to the address manager.
+	amgr.addAddressByIP(someIP, 8333)
+
+	// Stop the address manager to force the known addresses to be flushed
+	// to the peers file.
+	if err := amgr.Stop(); err != nil {
+		t.Fatalf("address manager failed to stop: %v", err)
+	}
+
+	// Verify that the peers file has been written to.
+	if _, err := os.Stat(peersFile); err != nil {
+		t.Fatalf("peers file does not exist: %s", peersFile)
+	}
+
+	// Start a new address manager, which initializes it from the peers file.
+	amgr = New(dir, nil)
+	amgr.Start()
+
+	knownAddress := amgr.GetAddress()
+	if knownAddress == nil {
+		t.Fatal("address manager should contain known address")
+	}
+
+	// Verify that the known address matches what was added to the address
+	// manager previously.
+	wantNetAddrKey := net.JoinHostPort(someIP, "8333")
+	gotNetAddrKey := knownAddress.na.Key()
+	if gotNetAddrKey != wantNetAddrKey {
+		t.Fatalf("address manager does not contain expected address - "+
+			"got %v, want %v", gotNetAddrKey, wantNetAddrKey)
+	}
+
+	if err := amgr.Stop(); err != nil {
+		t.Fatalf("address manager failed to stop: %v", err)
+	}
+}
+
+func TestNeedMoreAddresses(t *testing.T) {
+	n := New("testneedmoreaddresses", lookupFunc)
+	addrsToAdd := needAddressThreshold
+	b := n.NeedMoreAddresses()
+	if !b {
+		t.Fatal("expected the address manager to need more addresses")
+	}
+	addrs := make([]*NetAddress, addrsToAdd)
+
+	for i := 0; i < addrsToAdd; i++ {
+		s := fmt.Sprintf("%d.%d.173.147", i/128+60, i%128+60)
+		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
+	}
+
+	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
+
+	n.AddAddresses(addrs, srcAddr)
+	numAddrs := n.numAddresses()
+	if numAddrs > addrsToAdd {
+		t.Fatalf("number of addresses is too many %d vs %d", numAddrs,
+			addrsToAdd)
+	}
+
+	b = n.NeedMoreAddresses()
+	if b {
+		t.Fatal("expected address manager to not need more addresses")
+	}
+}
+
+// TestHostToNetAddress ensures that HostToNetAddress behaves as expected
+// given valid and invalid host name arguments.
+func TestHostToNetAddress(t *testing.T) {
+	// Define a hostname that will cause a lookup to be performed using the
+	// lookupFunc provided to the address manager instance for each test.
+	const hostnameForLookup = "hostname.test"
+	const services = wire.SFNodeNetwork
+
+	tests := []struct {
+		name       string
+		host       string
+		port       uint16
+		lookupFunc func(host string) ([]net.IP, error)
+		wantErr    bool
+		want       *NetAddress
+	}{{
+		name:       "valid onion address",
+		host:       "a5ccbdkubbr2jlcp.onion",
+		port:       8333,
+		lookupFunc: nil,
+		wantErr:    false,
+		want: NewNetAddressIPPort(
+			net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
+			services),
+	}, {
+		name:       "invalid onion address",
+		host:       "0000000000000000.onion",
+		port:       8333,
+		lookupFunc: nil,
+		wantErr:    true,
+		want:       nil,
+	}, {
+		name: "unresolvable host name",
+		host: hostnameForLookup,
+		port: 8333,
+		lookupFunc: func(host string) ([]net.IP, error) {
+			return nil, fmt.Errorf("unresolvable host %v", host)
+		},
+		wantErr: true,
+		want:    nil,
+	}, {
+		name: "not resolved host name",
+		host: hostnameForLookup,
+		port: 8333,
+		lookupFunc: func(host string) ([]net.IP, error) {
+			return nil, nil
+		},
+		wantErr: true,
+		want:    nil,
+	}, {
+		name: "resolved host name",
+		host: hostnameForLookup,
+		port: 8333,
+		lookupFunc: func(host string) ([]net.IP, error) {
+			return []net.IP{net.ParseIP("127.0.0.1")}, nil
+		},
+		wantErr: false,
+		want: NewNetAddressIPPort(net.ParseIP("127.0.0.1"), 8333,
+			services),
+	}, {
+		name:       "valid ip address",
+		host:       "12.1.2.3",
+		port:       8333,
+		lookupFunc: nil,
+		wantErr:    false,
+		want: NewNetAddressIPPort(net.ParseIP("12.1.2.3"), 8333,
+			services),
+	}}
+
+	for _, test := range tests {
+		addrManager := New("testHostToNetAddress", test.lookupFunc)
+		result, err := addrManager.HostToNetAddress(test.host, test.port,
+			services)
+		if test.wantErr == true && err == nil {
+			t.Errorf("%q: expected error but one was not returned", test.name)
 		}
+		if !reflect.DeepEqual(result, test.want) {
+			t.Errorf("%q: unexpected result - got %v, want %v", test.name,
+				result, test.want)
+		}
+	}
+}
+
+func TestGetAddress(t *testing.T) {
+	n := New("testgetaddress", lookupFunc)
+
+	// Get an address from an empty set (should error)
+	if rv := n.GetAddress(); rv != nil {
+		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
+	}
+
+	// Add a new address and get it.
+	n.addAddressByIP(someIP, 8333)
+	ka := n.GetAddress()
+	if ka == nil {
+		t.Fatal("did not get an address where there is one in the pool")
+	}
+
+	ipStringA := ka.NetAddress().String()
+	someIPKey := net.JoinHostPort(someIP, "8333")
+	if ipStringA != someIPKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringA, someIPKey)
+	}
+
+	// Mark this as a good address and get it.
+	err := n.Good(ka.NetAddress())
+	if err != nil {
+		t.Fatalf("marking address as good failed: %v", err)
+	}
+
+	// Verify that the previously added address still exists in the address
+	// manager after being marked as good.
+	ka = n.GetAddress()
+	if ka == nil {
+		t.Fatal("did not get an address when one was expected")
+	}
+
+	ipStringB := ka.NetAddress().String()
+	if ipStringB != someIPKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringB, someIPKey)
+	}
+
+	numAddrs := n.numAddresses()
+	if numAddrs != 1 {
+		t.Fatalf("unexpected number of addresses - got %d, want 1", numAddrs)
+	}
+
+	// Attempting to mark an unknown address as good should return an error.
+	unknownIP := net.ParseIP("1.2.3.4")
+	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
+	err = n.Good(unknownNetAddress)
+	if err == nil {
+		t.Fatal("attempting to mark unknown address as good should have " +
+			"returned an error")
 	}
 }
 
@@ -282,35 +386,6 @@ func TestConnected(t *testing.T) {
 	if err == nil {
 		t.Fatal("attempting to mark unknown address as connected should have " +
 			"returned an error")
-	}
-}
-
-func TestNeedMoreAddresses(t *testing.T) {
-	n := New("testneedmoreaddresses", lookupFunc)
-	addrsToAdd := needAddressThreshold
-	b := n.NeedMoreAddresses()
-	if !b {
-		t.Fatal("expected the address manager to need more addresses")
-	}
-	addrs := make([]*NetAddress, addrsToAdd)
-
-	for i := 0; i < addrsToAdd; i++ {
-		s := fmt.Sprintf("%d.%d.173.147", i/128+60, i%128+60)
-		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
-	}
-
-	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
-
-	n.AddAddresses(addrs, srcAddr)
-	numAddrs := n.numAddresses()
-	if numAddrs > addrsToAdd {
-		t.Fatalf("number of addresses is too many %d vs %d", numAddrs,
-			addrsToAdd)
-	}
-
-	b = n.NeedMoreAddresses()
-	if b {
-		t.Fatal("expected address manager to not need more addresses")
 	}
 }
 
@@ -432,57 +507,132 @@ func TestGood(t *testing.T) {
 	}
 }
 
-func TestGetAddress(t *testing.T) {
-	n := New("testgetaddress", lookupFunc)
+// TestSetServices ensures that a known address' services are updated as
+// expected and that the services field is not mutated when new services are
+// added.
+func TestSetServices(t *testing.T) {
+	addressManager := New("testSetServices", nil)
+	const services = wire.SFNodeNetwork
 
-	// Get an address from an empty set (should error)
-	if rv := n.GetAddress(); rv != nil {
-		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
-	}
-
-	// Add a new address and get it.
-	n.addAddressByIP(someIP, 8333)
-	ka := n.GetAddress()
-	if ka == nil {
-		t.Fatal("did not get an address where there is one in the pool")
-	}
-
-	ipStringA := ka.NetAddress().String()
-	someIPKey := net.JoinHostPort(someIP, "8333")
-	if ipStringA != someIPKey {
-		t.Fatalf("unexpected ip - got %s, want %s", ipStringA, someIPKey)
-	}
-
-	// Mark this as a good address and get it.
-	err := n.Good(ka.NetAddress())
-	if err != nil {
-		t.Fatalf("marking address as good failed: %v", err)
-	}
-
-	// Verify that the previously added address still exists in the address
-	// manager after being marked as good.
-	ka = n.GetAddress()
-	if ka == nil {
-		t.Fatal("did not get an address when one was expected")
-	}
-
-	ipStringB := ka.NetAddress().String()
-	if ipStringB != someIPKey {
-		t.Fatalf("unexpected ip - got %s, want %s", ipStringB, someIPKey)
-	}
-
-	numAddrs := n.numAddresses()
-	if numAddrs != 1 {
-		t.Fatalf("unexpected number of addresses - got %d, want 1", numAddrs)
-	}
-
-	// Attempting to mark an unknown address as good should return an error.
-	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
-	err = n.Good(unknownNetAddress)
+	// Attempt to set services for an address not known to the address manager.
+	notKnownAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
+	err := addressManager.SetServices(notKnownAddr, services)
 	if err == nil {
-		t.Fatal("attempting to mark unknown address as good should have " +
-			"returned an error")
+		t.Fatal("setting services for unknown address should return error")
+	}
+
+	// Add a new address to the address manager.
+	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
+	srcAddr := NewNetAddressIPPort(net.ParseIP("5.6.7.8"), 8333, services)
+	addressManager.addOrUpdateAddress(netAddr, srcAddr)
+
+	// Ensure that the services field for a network address returned from the
+	// address manager is not mutated by a call to SetServices.
+	knownAddress := addressManager.GetAddress()
+	if knownAddress == nil {
+		t.Fatal("expected known address, got nil")
+	}
+	netAddrA := knownAddress.na
+	if netAddrA.Services != services {
+		t.Fatalf("unexpected network address services - got %x, want %x",
+			netAddrA.Services, services)
+	}
+
+	// Set the new services for the network address and verify that the
+	// previously seen network address netAddrA's services are not modified.
+	const newServiceFlags = services << 1
+	addressManager.SetServices(netAddr, newServiceFlags)
+	netAddrB := knownAddress.na
+	if netAddrA == netAddrB {
+		t.Fatal("expected known address to have new network address reference")
+	}
+	if netAddrA.Services != services {
+		t.Fatal("netAddrA services flag was mutated")
+	}
+	if netAddrB.Services != newServiceFlags {
+		t.Fatalf("netAddrB has invalid services - got %x, want %x",
+			netAddrB.Services, newServiceFlags)
+	}
+}
+
+func TestAddLocalAddress(t *testing.T) {
+	var tests = []struct {
+		name     string
+		ip       net.IP
+		priority AddressPriority
+		valid    bool
+	}{{
+		name:     "unroutable local IPv4 address",
+		ip:       net.ParseIP("192.168.0.100"),
+		priority: InterfacePrio,
+		valid:    false,
+	}, {
+		name:     "routable IPv4 address",
+		ip:       net.ParseIP("204.124.1.1"),
+		priority: InterfacePrio,
+		valid:    true,
+	}, {
+		name:     "routable IPv4 address with bound priority",
+		ip:       net.ParseIP("204.124.1.1"),
+		priority: BoundPrio,
+		valid:    true,
+	}, {
+		name:     "unroutable local IPv6 address",
+		ip:       net.ParseIP("::1"),
+		priority: InterfacePrio,
+		valid:    false,
+	}, {
+		name:     "unroutable local IPv6 address 2",
+		ip:       net.ParseIP("fe80::1"),
+		priority: InterfacePrio,
+		valid:    false,
+	}, {
+		name:     "routable IPv6 address",
+		ip:       net.ParseIP("2620:100::1"),
+		priority: InterfacePrio,
+		valid:    true,
+	}}
+
+	const testPort = 8333
+	const testServices = wire.SFNodeNetwork
+
+	amgr := New("testaddlocaladdress", nil)
+	validLocalAddresses := make(map[string]struct{})
+	for _, test := range tests {
+		netAddr := NewNetAddressIPPort(test.ip, testPort, testServices)
+		result := amgr.AddLocalAddress(netAddr, test.priority)
+		if result == nil && !test.valid {
+			t.Errorf("%q: address should have been accepted", test.name)
+			continue
+		}
+		if result != nil && test.valid {
+			t.Errorf("%q: address should not have been accepted", test.name)
+			continue
+		}
+		if test.valid && !amgr.HasLocalAddress(netAddr) {
+			t.Errorf("%q: expected to have local address", test.name)
+			continue
+		}
+		if !test.valid && amgr.HasLocalAddress(netAddr) {
+			t.Errorf("%q: expected to not have local address", test.name)
+			continue
+		}
+		if test.valid {
+			// Set up data to test behavior of a call to LocalAddresses() for
+			// addresses that were added to the local address manager.
+			validLocalAddresses[netAddr.Key()] = struct{}{}
+		}
+	}
+
+	// Ensure that all of the addresses that were expected to be added to the
+	// address manager are also returned from a call to LocalAddresses.
+	for _, localAddr := range amgr.LocalAddresses() {
+		localAddrIP := net.ParseIP(localAddr.Address)
+		netAddr := NewNetAddressIPPort(localAddrIP, testPort, testServices)
+		netAddrKey := netAddr.Key()
+		if _, ok := validLocalAddresses[netAddrKey]; !ok {
+			t.Errorf("expected to find local address with key %v", netAddrKey)
+		}
 	}
 }
 
@@ -582,25 +732,6 @@ func TestGetBestLocalAddress(t *testing.T) {
 			}
 		}
 	*/
-}
-
-func TestCorruptPeersFile(t *testing.T) {
-	dir := t.TempDir()
-	peersFile := filepath.Join(dir, peersFilename)
-	// create corrupt (empty) peers file
-	fp, err := os.Create(peersFile)
-	if err != nil {
-		t.Fatalf("Could not create empty peers file: %s", peersFile)
-	}
-	if err := fp.Close(); err != nil {
-		t.Fatalf("Could not write empty peers file: %s", peersFile)
-	}
-	amgr := New(dir, nil)
-	amgr.Start()
-	amgr.Stop()
-	if _, err := os.Stat(peersFile); err != nil {
-		t.Fatalf("Corrupt peers file has not been removed: %s", peersFile)
-	}
 }
 
 // TestValidatePeerNa tests whether a remote address is considered reachable
@@ -761,136 +892,5 @@ func TestValidatePeerNa(t *testing.T) {
 			t.Errorf("%q: unexpected return value for reach - want '%v', "+
 				"got '%v'", test.name, test.reach, reach)
 		}
-	}
-}
-
-// TestHostToNetAddress ensures that HostToNetAddress behaves as expected
-// given valid and invalid host name arguments.
-func TestHostToNetAddress(t *testing.T) {
-	// Define a hostname that will cause a lookup to be performed using the
-	// lookupFunc provided to the address manager instance for each test.
-	const hostnameForLookup = "hostname.test"
-	const services = wire.SFNodeNetwork
-
-	tests := []struct {
-		name       string
-		host       string
-		port       uint16
-		lookupFunc func(host string) ([]net.IP, error)
-		wantErr    bool
-		want       *NetAddress
-	}{{
-		name:       "valid onion address",
-		host:       "a5ccbdkubbr2jlcp.onion",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    false,
-		want: NewNetAddressIPPort(
-			net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
-			services),
-	}, {
-		name:       "invalid onion address",
-		host:       "0000000000000000.onion",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    true,
-		want:       nil,
-	}, {
-		name: "unresolvable host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return nil, fmt.Errorf("unresolvable host %v", host)
-		},
-		wantErr: true,
-		want:    nil,
-	}, {
-		name: "not resolved host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return nil, nil
-		},
-		wantErr: true,
-		want:    nil,
-	}, {
-		name: "resolved host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return []net.IP{net.ParseIP("127.0.0.1")}, nil
-		},
-		wantErr: false,
-		want: NewNetAddressIPPort(net.ParseIP("127.0.0.1"), 8333,
-			services),
-	}, {
-		name:       "valid ip address",
-		host:       "12.1.2.3",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    false,
-		want: NewNetAddressIPPort(net.ParseIP("12.1.2.3"), 8333,
-			services),
-	}}
-
-	for _, test := range tests {
-		addrManager := New("testHostToNetAddress", test.lookupFunc)
-		result, err := addrManager.HostToNetAddress(test.host, test.port,
-			services)
-		if test.wantErr == true && err == nil {
-			t.Errorf("%q: expected error but one was not returned", test.name)
-		}
-		if !reflect.DeepEqual(result, test.want) {
-			t.Errorf("%q: unexpected result - got %v, want %v", test.name,
-				result, test.want)
-		}
-	}
-}
-
-// TestSetServices ensures that a known address' services are updated as
-// expected and that the services field is not mutated when new services are
-// added.
-func TestSetServices(t *testing.T) {
-	addressManager := New("testSetServices", nil)
-	const services = wire.SFNodeNetwork
-
-	// Attempt to set services for an address not known to the address manager.
-	notKnownAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
-	err := addressManager.SetServices(notKnownAddr, services)
-	if err == nil {
-		t.Fatal("setting services for unknown address should return error")
-	}
-
-	// Add a new address to the address manager.
-	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
-	srcAddr := NewNetAddressIPPort(net.ParseIP("5.6.7.8"), 8333, services)
-	addressManager.addOrUpdateAddress(netAddr, srcAddr)
-
-	// Ensure that the services field for a network address returned from the
-	// address manager is not mutated by a call to SetServices.
-	knownAddress := addressManager.GetAddress()
-	if knownAddress == nil {
-		t.Fatal("expected known address, got nil")
-	}
-	netAddrA := knownAddress.na
-	if netAddrA.Services != services {
-		t.Fatalf("unexpected network address services - got %x, want %x",
-			netAddrA.Services, services)
-	}
-
-	// Set the new services for the network address and verify that the
-	// previously seen network address netAddrA's services are not modified.
-	const newServiceFlags = services << 1
-	addressManager.SetServices(netAddr, newServiceFlags)
-	netAddrB := knownAddress.na
-	if netAddrA == netAddrB {
-		t.Fatal("expected known address to have new network address reference")
-	}
-	if netAddrA.Services != services {
-		t.Fatal("netAddrA services flag was mutated")
-	}
-	if netAddrB.Services != newServiceFlags {
-		t.Fatalf("netAddrB has invalid services - got %x, want %x",
-			netAddrB.Services, newServiceFlags)
 	}
 }
