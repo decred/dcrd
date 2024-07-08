@@ -1908,17 +1908,17 @@ func (c *Client) alternateSession(pairing []byte, prs []*wire.MsgMixPairReq, d *
 	kes := c.mixpool.ReceiveKEsByPairing(pairing, unixEpoch)
 
 	// Sort KEs by identity first (just to group these together) followed
-	// by the total referenced PR counts in decreasing order.
-	// When ranging over KEs below, this will allow us to consider the
-	// order in which other peers created their KEs, and how they are
-	// forming their sessions.
+	// by the total referenced PR counts in increasing order (most recent
+	// KEs first).  When ranging over KEs below, this will allow us to
+	// consider the order in which other peers created their KEs, and how
+	// they are forming their sessions.
 	sort.Slice(kes, func(i, j int) bool {
 		a := kes[i]
 		b := kes[j]
 		if bytes.Compare(a.Identity[:], b.Identity[:]) == -1 {
 			return true
 		}
-		if len(a.SeenPRs) > len(b.SeenPRs) {
+		if len(a.SeenPRs) < len(b.SeenPRs) {
 			return true
 		}
 		return false
@@ -1931,7 +1931,7 @@ func (c *Client) alternateSession(pairing []byte, prs []*wire.MsgMixPairReq, d *
 		prHashByIdentity[pr.Identity] = pr.Hash()
 	}
 
-	// Only one KE per peer identity (the KE that references the most PR
+	// Only one KE per peer identity (the KE that references the least PR
 	// hashes) is used for determining session agreement.
 	type peerMsgs struct {
 		pr *wire.MsgMixPairReq
