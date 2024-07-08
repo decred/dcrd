@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"decred.org/cspp/v2/solverrpc"
 	"github.com/davecgh/go-spew/spew"
@@ -255,7 +256,7 @@ func TestAccept(t *testing.T) {
 
 	var (
 		seenPRs               = []chainhash.Hash{pr.Hash()}
-		epoch      uint64     = 0
+		epoch      uint64     = uint64(time.Now().Unix())
 		sid        [32]byte   = mixing.SortPRsForSession([]*wire.MsgMixPairReq{pr}, epoch)
 		run        uint32     = 0
 		pos        uint32     = 0

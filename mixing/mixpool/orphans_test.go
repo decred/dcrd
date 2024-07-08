@@ -8,6 +8,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -65,7 +66,7 @@ func TestOrphans(t *testing.T) {
 	pr.WriteHash(h)
 
 	prs := []*wire.MsgMixPairReq{pr}
-	epoch := uint64(1704067200)
+	epoch := uint64(time.Now().Unix())
 	sid := mixing.SortPRsForSession(prs, epoch)
 	ke := &wire.MsgMixKeyExchange{
 		Identity: id,

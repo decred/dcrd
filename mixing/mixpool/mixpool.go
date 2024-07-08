@@ -28,6 +28,7 @@ import (
 
 const minconf = 1
 const feeRate = 0.0001e8
+const earlyKEDuration = 5 * time.Second
 
 type idPubKey = [33]byte
 
@@ -1392,6 +1393,13 @@ func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
 
 	if ke.Pos >= uint32(len(ke.SeenPRs)) {
 		return ruleError(ErrPeerPositionOutOfBounds)
+	}
+
+	now := time.Now()
+	keEpoch := time.Unix(int64(ke.Epoch), 0)
+	if now.Add(earlyKEDuration).Before(keEpoch) {
+		err := fmt.Errorf("KE received too early for stated epoch")
+		return ruleError(err)
 	}
 
 	return nil
