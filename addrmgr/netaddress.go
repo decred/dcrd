@@ -5,11 +5,9 @@
 package addrmgr
 
 import (
-	"encoding/base32"
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/decred/dcrd/wire"
@@ -42,16 +40,10 @@ func (netAddr *NetAddress) IsRoutable() bool {
 }
 
 // ipString returns a string representation of the network address' IP field.
-// If the ip is in the range used for TORv2 addresses then it will be
-// transformed into the respective .onion address.  It does not include the
-// port.
+// It does not include the port.
 func (netAddr *NetAddress) ipString() string {
 	netIP := netAddr.IP
 	switch netAddr.Type {
-	case TORV2Address:
-		// We know now that na.IP is long enough.
-		base32 := base32.StdEncoding.EncodeToString(netIP[6:])
-		return strings.ToLower(base32) + ".onion"
 	case IPv6Address:
 		return net.IP(netIP).String()
 	case IPv4Address:

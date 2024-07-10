@@ -6,14 +6,12 @@
 package addrmgr
 
 import (
-	"encoding/base32"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -741,27 +739,15 @@ func (a *AddrManager) reset() {
 }
 
 // HostToNetAddress parses and returns a network address given a hostname in a
-// supported format (IPv4, IPv6, TORv2).  If the hostname cannot be immediately
+// supported format (IPv4, IPv6).  If the hostname cannot be immediately
 // converted from a known address format, it will be resolved using the lookup
 // function provided to the address manager.  If it cannot be resolved, an error
 // is returned.
 //
 // This function is safe for concurrent access.
 func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.ServiceFlag) (*NetAddress, error) {
-	// Tor address is 16 char base32 + ".onion"
 	var ip net.IP
-	if len(host) == 22 && host[16:] == ".onion" {
-		// go base32 encoding uses capitals (as does the rfc
-		// but Tor and bitcoind tend to user lowercase, so we switch
-		// case here.
-		data, err := base32.StdEncoding.DecodeString(
-			strings.ToUpper(host[:16]))
-		if err != nil {
-			return nil, err
-		}
-		prefix := []byte{0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43}
-		ip = net.IP(append(prefix, data...))
-	} else if ip = net.ParseIP(host); ip == nil {
+	if ip = net.ParseIP(host); ip == nil {
 		ips, err := a.lookupFunc(host)
 		if err != nil {
 			return nil, err
@@ -1101,9 +1087,6 @@ const (
 
 	// Ipv6Strong represents a connection state between two IPv6 addresses.
 	Ipv6Strong
-
-	// Private represents a connection state connect between two Tor addresses.
-	Private
 )
 
 // getRemoteReachabilityFromLocal returns the type of connection reachability
@@ -1114,16 +1097,6 @@ func getRemoteReachabilityFromLocal(localAddr, remoteAddr *NetAddress) NetAddres
 	switch {
 	case !remoteAddr.IsRoutable():
 		return Unreachable
-
-	case isOnionCatTor(remoteAddr.IP):
-		switch {
-		case isOnionCatTor(localAddr.IP):
-			return Private
-		case localAddr.IsRoutable() && localAddr.Type == IPv4Address:
-			return Ipv4
-		default:
-			return Default
-		}
 
 	case isRFC4380(remoteAddr.IP):
 		switch {
@@ -1196,7 +1169,7 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 
 		// Send something unroutable if nothing suitable.
 		var ip net.IP
-		if remoteAddr.Type != IPv4Address && remoteAddr.Type != TORV2Address {
+		if remoteAddr.Type != IPv4Address {
 			ip = net.IPv6zero
 		} else {
 			ip = net.IPv4zero
