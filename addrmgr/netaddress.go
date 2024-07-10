@@ -112,9 +112,42 @@ func canonicalizeIP(addrType NetAddressType, addrBytes []byte) []byte {
 	return addrBytes
 }
 
-// newNetAddressFromString creates a new address manager network address from the
-// provided string.  The address is expected to be provided in the format
-// host:port.
+// checkNetAddressType returns an error if the suggested address type does not
+// appear to match the provided address.
+func checkNetAddressType(addrType NetAddressType, addrBytes []byte) error {
+	derivedAddressType, err := deriveNetAddressType(addrBytes)
+	if err != nil {
+		return err
+	}
+	if addrType != derivedAddressType {
+		str := fmt.Sprintf("derived address type does not match expected value"+
+			" (got %v, expected %v, address bytes %v).", derivedAddressType,
+			addrType, addrBytes)
+		return makeError(ErrMismatchedAddressType, str)
+	}
+	return nil
+}
+
+// NewNetAddressFromParams creates a new network address from the given
+// parameters. If the provided address type does not appear to match the
+// address, an error is returned.
+func NewNetAddressFromParams(netAddressType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services wire.ServiceFlag) (*NetAddress, error) {
+	canonicalizedIP := canonicalizeIP(netAddressType, addrBytes)
+	err := checkNetAddressType(netAddressType, canonicalizedIP)
+	if err != nil {
+		return nil, err
+	}
+	return &NetAddress{
+		Type:      netAddressType,
+		IP:        canonicalizedIP,
+		Port:      port,
+		Services:  services,
+		Timestamp: timestamp,
+	}, nil
+}
+
+// newNetAddressFromString creates a new network address from the given string.
+// The address string is expected to be provided in the format "host:port".
 func (a *AddrManager) newNetAddressFromString(addr string) (*NetAddress, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -124,8 +157,14 @@ func (a *AddrManager) newNetAddressFromString(addr string) (*NetAddress, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	return a.HostToNetAddress(host, uint16(port), wire.SFNodeNetwork)
+	addrType, addrBytes := EncodeHost(host)
+	if addrType == UnknownAddressType {
+		str := fmt.Sprintf("failed to deserialize address %s", addr)
+		return nil, makeError(ErrUnknownAddressType, str)
+	}
+	timestamp := time.Unix(time.Now().Unix(), 0)
+	return NewNetAddressFromParams(addrType, addrBytes, uint16(port), timestamp,
+		wire.SFNodeNetwork)
 }
 
 // NewNetAddressFromIPPort creates a new network address given an ip, port, and

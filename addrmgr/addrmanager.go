@@ -738,6 +738,23 @@ func (a *AddrManager) reset() {
 	}
 }
 
+// EncodeHost attempts to identify the given host address as a supported network
+// address type, converts it to a unique encoding based on that type, and
+// returns the result.  If the host string is not recognized as any known type,
+// then an unknown address type is returned without error.
+func EncodeHost(host string) (NetAddressType, []byte) {
+	// Look for IPv4 or IPv6 addresses
+	if ip := net.ParseIP(host); ip != nil {
+		if isIPv4(ip) {
+			return IPv4Address, ip.To4()
+		}
+		return IPv6Address, ip
+	}
+
+	// The given host address could not be recognized
+	return UnknownAddressType, nil
+}
+
 // HostToNetAddress parses and returns a network address given a hostname in a
 // supported format (IPv4, IPv6).  If the hostname cannot be immediately
 // converted from a known address format, it will be resolved using the lookup
@@ -746,19 +763,22 @@ func (a *AddrManager) reset() {
 //
 // This function is safe for concurrent access.
 func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.ServiceFlag) (*NetAddress, error) {
-	var ip net.IP
-	if ip = net.ParseIP(host); ip == nil {
-		ips, err := a.lookupFunc(host)
-		if err != nil {
-			return nil, err
-		}
-		if len(ips) == 0 {
-			return nil, fmt.Errorf("no addresses found for %s", host)
-		}
-		ip = ips[0]
+	addrType, addrBytes := EncodeHost(host)
+	if addrType != UnknownAddressType {
+		// Since the host type has been successfully recognized and encoded,
+		// there is no need to perform a DNS lookup.
+		now := time.Unix(time.Now().Unix(), 0)
+		return NewNetAddressFromParams(addrType, addrBytes, port, now, services)
 	}
-
-	return NewNetAddressFromIPPort(ip, port, services), nil
+	// Cannot determine the host address type. Must use DNS.
+	ips, err := a.lookupFunc(host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no addresses found for %s", host)
+	}
+	return NewNetAddressFromIPPort(ips[0], port, services), nil
 }
 
 // GetAddress returns a single address that should be routable.  It picks a

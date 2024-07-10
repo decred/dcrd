@@ -25,6 +25,11 @@ func TestErrors(t *testing.T) {
 		errorKind:   ErrUnknownAddressType,
 		description: "unknown address type",
 		wantErr:     ErrUnknownAddressType,
+	}, {
+		name:        "ErrMismatchedAddressType",
+		errorKind:   ErrMismatchedAddressType,
+		description: "mismatched address type",
+		wantErr:     ErrMismatchedAddressType,
 	}}
 
 	for _, test := range tests {
