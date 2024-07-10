@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -191,7 +191,7 @@ func TestGroupKey(t *testing.T) {
 
 	for i, test := range tests {
 		nip := net.ParseIP(test.ip)
-		na := NewNetAddressIPPort(nip, 8333, wire.SFNodeNetwork)
+		na := NewNetAddressFromIPPort(nip, 8333, wire.SFNodeNetwork)
 		if key := na.GroupKey(); key != test.expected {
 			t.Errorf("TestGroupKey #%d (%s): unexpected group key "+
 				"- got '%s', want '%s'", i, test.name, key, test.expected)

@@ -73,7 +73,7 @@ var (
 	// onionCatNet defines the IPv6 address block used to support Tor.
 	// bitcoind encodes a .onion address as a 16 byte number by decoding the
 	// address prior to the .onion (i.e. the key hash) base32 into a ten
-	// byte number. It then stores the first 6 bytes of the address as
+	// byte number.  It then stores the first 6 bytes of the address as
 	// 0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43.
 	//
 	// This is the same range used by OnionCat, which is part of the
@@ -120,29 +120,15 @@ func isOnionCatTor(netIP net.IP) bool {
 // to.
 type NetAddressType uint8
 
+// NOTE: This specifically does not use iota since the NetAddressType is used in
+// serialization.  These constants cannot be changed or re-used if new items are
+// added.
 const (
-	LocalAddress NetAddressType = iota
-	IPv4Address
-	IPv6Address
-	TORv2Address
+	UnknownAddressType NetAddressType = 0
+	IPv4Address        NetAddressType = 1
+	IPv6Address        NetAddressType = 2
+	TORV2Address       NetAddressType = 3
 )
-
-// addressType returns the network address type of the provided network address.
-func addressType(netIP net.IP) NetAddressType {
-	switch {
-	case isLocal(netIP):
-		return LocalAddress
-
-	case isIPv4(netIP):
-		return IPv4Address
-
-	case isOnionCatTor(netIP):
-		return TORv2Address
-
-	default:
-		return IPv6Address
-	}
-}
 
 // isRFC1918 returns whether or not the passed address is part of the IPv4
 // private network address space as defined by RFC1918 (10.0.0.0/8,
@@ -269,7 +255,7 @@ func (na *NetAddress) GroupKey() string {
 	if !IsRoutable(netIP) {
 		return "unroutable"
 	}
-	if isIPv4(netIP) {
+	if na.Type == IPv4Address {
 		return netIP.Mask(net.CIDRMask(16, 32)).String()
 	}
 	if isRFC6145(netIP) || isRFC6052(netIP) {
@@ -296,7 +282,7 @@ func (na *NetAddress) GroupKey() string {
 		return fmt.Sprintf("tor:%d", netIP[6]&((1<<4)-1))
 	}
 
-	// OK, so now we know ourselves to be a IPv6 address.
+	// If none of the previous conditions were true, then it must be IPv6.
 	// bitcoind uses /32 for everything, except for Hurricane Electric's
 	// (he.net) IP range, which it uses /36 for.
 	bits := 32

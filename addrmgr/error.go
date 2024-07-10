@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,6 +14,10 @@ const (
 	// ErrAddressNotFound indicates that an operation in the address manager
 	// failed due to an address lookup failure.
 	ErrAddressNotFound = ErrorKind("ErrAddressNotFound")
+
+	// ErrUnknownAddressType indicates that the network address type could not
+	// be determined from a network address' bytes.
+	ErrUnknownAddressType = ErrorKind("ErrUnknownAddressType")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -21,7 +25,7 @@ func (e ErrorKind) Error() string {
 	return string(e)
 }
 
-// Error identifies an address manager error. It has full support for
+// Error identifies an address manager error.  It has full support for
 // errors.Is and errors.As, so the caller can ascertain the specific reason
 // for the error by checking the underlying error.
 type Error struct {

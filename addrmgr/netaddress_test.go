@@ -1,16 +1,39 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package addrmgr
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/wire"
 )
+
+// TestIpString verifies that IpString will correctly return the string
+// representation of a NetAddress' IP field.
+func TestIpString(t *testing.T) {
+	// This test only has one test case: for when the NetAddress cannot be
+	// represented as a string.
+	unsupportedAddr := NetAddress{
+		Type:      UnknownAddressType,
+		IP:        []byte{0x00},
+		Port:      uint16(0),
+		Timestamp: time.Now(),
+		Services:  wire.SFNodeNetwork,
+	}
+
+	addrStr := unsupportedAddr.ipString()
+	wantStr := fmt.Sprintf("unsupported IP type %d, %s, %x",
+		UnknownAddressType, []byte{0x00}, []byte{0x00})
+	if addrStr != wantStr {
+		t.Fatalf("problem: %q", addrStr)
+	}
+}
 
 // TestKey verifies that Key converts a network address to an expected string
 // value.
@@ -77,13 +100,10 @@ func TestKey(t *testing.T) {
 		{ip: "fed1::2:2", port: 8334, want: "[fed1::2:2]:8334"},
 		{ip: "fee2::3:3", port: 8335, want: "[fee2::3:3]:8335"},
 		{ip: "fef3::4:4", port: 8336, want: "[fef3::4:4]:8336"},
-
-		// TORv2
-		{ip: "fd87:d87e:eb43::", port: 8333, want: "aaaaaaaaaaaaaaaa.onion:8333"},
 	}
 
 	for _, test := range tests {
-		netAddr := NewNetAddressIPPort(net.ParseIP(test.ip), test.port, wire.SFNodeNetwork)
+		netAddr := NewNetAddressFromIPPort(net.ParseIP(test.ip), test.port, wire.SFNodeNetwork)
 		key := netAddr.Key()
 		if key != test.want {
 			t.Errorf("unexpected network address key -- got %s, want %s",
@@ -97,7 +117,7 @@ func TestKey(t *testing.T) {
 // created when cloned.
 func TestClone(t *testing.T) {
 	const port = 0
-	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), port, wire.SFNodeNetwork)
+	netAddr := NewNetAddressFromIPPort(net.ParseIP("1.2.3.4"), port, wire.SFNodeNetwork)
 	netAddrClone := netAddr.Clone()
 
 	if netAddr == netAddrClone {
@@ -113,11 +133,58 @@ func TestClone(t *testing.T) {
 // network address instance.
 func TestAddService(t *testing.T) {
 	const port = 0
-	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), port, wire.SFNodeNetwork)
+	netAddr := NewNetAddressFromIPPort(net.ParseIP("1.2.3.4"), port, wire.SFNodeNetwork)
 	netAddr.AddService(wire.SFNodeNetwork)
 
 	if netAddr.Services != wire.SFNodeNetwork {
 		t.Fatalf("expected service flag to be set -- got %x, want %x",
 			netAddr.Services, wire.SFNodeNetwork)
+	}
+}
+
+// TestNewNetAddressFromString verifies that the newNetAddressFromString
+// constructor correctly creates a network address with expected field values.
+func TestNewNetAddressFromString(t *testing.T) {
+	amgr := New("TestNewNetAddressFromString", nil)
+	tests := []struct {
+		name          string
+		addrString    string
+		want          *NetAddress
+		errorExpected bool
+	}{{
+		name:          "Error: cannot split host:port",
+		addrString:    "1.2.3.4",
+		want:          nil,
+		errorExpected: true,
+	}, {
+		name:          "Error: cannot parse the port as a uint64",
+		addrString:    "1.2.3.4:abc",
+		want:          nil,
+		errorExpected: true,
+	},
+	// These tests will be added in a future commit, after a few changes to how hosts are parsed.
+	// {
+	// 	name:           "Error: ParseHost errored because the IP was not base32.StdEncoding",
+	// 	addrString:     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!@.onion:8345",
+	// 	want:           nil,
+	// 	errorExpected: true,
+	// },
+	// {
+	// 	name:           "Error: ParseHost did not error, but returned UnknownAddressType",
+	// 	addrString:     "abc:8345",
+	// 	want:           nil,
+	// 	errorExpected: true,
+	// },
+	}
+
+	for _, test := range tests {
+		addr, err := amgr.newNetAddressFromString(test.addrString)
+		if err != nil && test.errorExpected == false {
+			t.Fatalf("%q: unexpected error - %v", test.name, err)
+		}
+		if addr != test.want {
+			t.Errorf("%q: unexpected NetAddress - got %+v, want %+v",
+				test.name, addr, test.want)
+		}
 	}
 }

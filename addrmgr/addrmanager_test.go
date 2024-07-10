@@ -19,8 +19,11 @@ import (
 )
 
 const (
-	someIP        = "173.194.115.66" // An IP for convenience. Points to google.
-	nonRoutableIP = "255.255.255.255"
+	// Convenience IP strings.
+	routableIPv4Addr    = "173.194.115.66" // Points to google.
+	routableIPv6Addr    = "2003::"
+	nonRoutableIPv4Addr = "255.255.255.255"
+	nonRoutableIPv6Addr = "::1"
 )
 
 func lookupFunc(host string) ([]net.IP, error) {
@@ -32,7 +35,7 @@ func lookupFunc(host string) ([]net.IP, error) {
 // a port.
 func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 	ip := net.ParseIP(addr)
-	na := NewNetAddressIPPort(ip, port, 0)
+	na := NewNetAddressFromIPPort(ip, port, 0)
 	a.addOrUpdateAddress(na, na)
 }
 
@@ -47,22 +50,22 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 
 	// Attempt to add a non-routable address.
-	ip := net.ParseIP(nonRoutableIP)
+	ip := net.ParseIP(nonRoutableIPv4Addr)
 	if ip == nil {
-		t.Fatalf("invalid IP address %s", nonRoutableIP)
+		t.Fatalf("invalid IP address %s", nonRoutableIPv4Addr)
 	}
-	na := NewNetAddressIPPort(net.ParseIP(nonRoutableIP), 8333, 0)
+	na := NewNetAddressFromIPPort(net.ParseIP(nonRoutableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
 	if ka := amgr.GetAddress(); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
 
 	// Add a good address.
-	ip = net.ParseIP(someIP)
+	ip = net.ParseIP(routableIPv4Addr)
 	if ip == nil {
-		t.Fatalf("invalid IP address %s", someIP)
+		t.Fatalf("invalid IP address %s", routableIPv4Addr)
 	}
-	na = NewNetAddressIPPort(net.ParseIP(someIP), 8333, 0)
+	na = NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
 	ka := amgr.GetAddress()
 	newlyAddedAddr := ka.NetAddress()
@@ -205,7 +208,7 @@ func TestStartStop(t *testing.T) {
 	amgr.Start()
 
 	// Add single network address to the address manager.
-	amgr.addAddressByIP(someIP, 8333)
+	amgr.addAddressByIP(routableIPv4Addr, 8333)
 
 	// Stop the address manager to force the known addresses to be flushed
 	// to the peers file.
@@ -229,7 +232,7 @@ func TestStartStop(t *testing.T) {
 
 	// Verify that the known address matches what was added to the address
 	// manager previously.
-	wantNetAddrKey := net.JoinHostPort(someIP, "8333")
+	wantNetAddrKey := net.JoinHostPort(routableIPv4Addr, "8333")
 	gotNetAddrKey := knownAddress.na.Key()
 	if gotNetAddrKey != wantNetAddrKey {
 		t.Fatalf("address manager does not contain expected address - "+
@@ -254,10 +257,10 @@ func TestNeedMoreAddresses(t *testing.T) {
 
 	for i := 0; i < addrsToAdd; i++ {
 		s := fmt.Sprintf("%d.%d.173.147", i/128+60, i%128+60)
-		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
+		addrs[i] = NewNetAddressFromIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
 	}
 
-	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
+	srcAddr := NewNetAddressFromIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
 
 	n.AddAddresses(addrs, srcAddr)
 	numAddrs := n.numAddresses()
@@ -284,10 +287,11 @@ func TestAddressCache(t *testing.T) {
 
 	// Test that bad and never-attempted addresses aren't shared.
 	n = New("testaddresscachewithbad", nil)
-	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
+	srcAddr := NewNetAddressFromIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
 	// Create and add a bad address from the future.
 	futureTime := time.Now().AddDate(0, 1, 0)
 	badAddr := NetAddress{
+		Type:      IPv4Address,
 		IP:        net.ParseIP("6.6.6.6"),
 		Port:      uint16(8333),
 		Timestamp: time.Unix(futureTime.Unix(), 0),
@@ -298,7 +302,7 @@ func TestAddressCache(t *testing.T) {
 	n.AddAddresses(badAddrSlice, srcAddr)
 	// Create and add a good address, but don't mark it as attempted.
 	goodAddrSlice := make([]*NetAddress, 1)
-	goodAddrSlice[0] = NewNetAddressIPPort(net.ParseIP("1.1.1.1"), 8333, wire.SFNodeNetwork)
+	goodAddrSlice[0] = NewNetAddressFromIPPort(net.ParseIP("1.1.1.1"), 8333, wire.SFNodeNetwork)
 	n.AddAddresses(goodAddrSlice, srcAddr)
 	// Neither address should be returned.
 	addrList = n.AddressCache()
@@ -328,7 +332,7 @@ func TestHostToNetAddress(t *testing.T) {
 		port:       8333,
 		lookupFunc: nil,
 		wantErr:    false,
-		want: NewNetAddressIPPort(
+		want: NewNetAddressFromIPPort(
 			net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
 			services),
 	}, {
@@ -364,7 +368,7 @@ func TestHostToNetAddress(t *testing.T) {
 			return []net.IP{net.ParseIP("127.0.0.1")}, nil
 		},
 		wantErr: false,
-		want: NewNetAddressIPPort(net.ParseIP("127.0.0.1"), 8333,
+		want: NewNetAddressFromIPPort(net.ParseIP("127.0.0.1"), 8333,
 			services),
 	}, {
 		name:       "valid ip address",
@@ -372,7 +376,7 @@ func TestHostToNetAddress(t *testing.T) {
 		port:       8333,
 		lookupFunc: nil,
 		wantErr:    false,
-		want: NewNetAddressIPPort(net.ParseIP("12.1.2.3"), 8333,
+		want: NewNetAddressFromIPPort(net.ParseIP("12.1.2.3"), 8333,
 			services),
 	}}
 
@@ -399,16 +403,16 @@ func TestGetAddress(t *testing.T) {
 	}
 
 	// Add a new address and get it.
-	n.addAddressByIP(someIP, 8333)
+	n.addAddressByIP(routableIPv4Addr, 8333)
 	ka := n.GetAddress()
 	if ka == nil {
 		t.Fatal("did not get an address where there is one in the pool")
 	}
 
 	ipStringA := ka.NetAddress().String()
-	someIPKey := net.JoinHostPort(someIP, "8333")
-	if ipStringA != someIPKey {
-		t.Fatalf("unexpected ip - got %s, want %s", ipStringA, someIPKey)
+	ipKey := net.JoinHostPort(routableIPv4Addr, "8333")
+	if ipStringA != ipKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringA, ipKey)
 	}
 
 	// Mark this as a good address and get it.
@@ -425,8 +429,8 @@ func TestGetAddress(t *testing.T) {
 	}
 
 	ipStringB := ka.NetAddress().String()
-	if ipStringB != someIPKey {
-		t.Fatalf("unexpected ip - got %s, want %s", ipStringB, someIPKey)
+	if ipStringB != ipKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringB, ipKey)
 	}
 
 	numAddrs := n.numAddresses()
@@ -436,7 +440,7 @@ func TestGetAddress(t *testing.T) {
 
 	// Attempting to mark an unknown address as good should return an error.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressFromIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Good(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting to mark unknown address as good should have " +
@@ -449,7 +453,7 @@ func TestAttempt(t *testing.T) {
 	n := New("testattempt", lookupFunc)
 
 	// Add a new address and get it.
-	n.addAddressByIP(someIP, 8333)
+	n.addAddressByIP(routableIPv4Addr, 8333)
 	ka := n.GetAddress()
 
 	if !ka.LastAttempt().IsZero() {
@@ -468,7 +472,7 @@ func TestAttempt(t *testing.T) {
 
 	// Attempt an ip not known to the address manager.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressFromIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Attempt(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting unknown address should have returned an error")
@@ -480,7 +484,7 @@ func TestConnected(t *testing.T) {
 	n := New("testconnected", lookupFunc)
 
 	// Add a new address and get it
-	n.addAddressByIP(someIP, 8333)
+	n.addAddressByIP(routableIPv4Addr, 8333)
 	ka := n.GetAddress()
 	na := ka.NetAddress()
 	// make it an hour ago
@@ -498,7 +502,7 @@ func TestConnected(t *testing.T) {
 	// Attempt to flag an ip address not known to the address manager as
 	// connected.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressFromIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Connected(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting to mark unknown address as connected should have " +
@@ -510,8 +514,8 @@ func TestConnected(t *testing.T) {
 // Phase 1 generates 4096 new addresses and tests adding them to the address
 // manager, ensuring they are correctly added and marked as good.
 // Phase 2 tests the internal behavior of address management between the "new"
-// and "tried" address buckets. It ensures that when an address is marked as
-// good, it is then moved from the new bucket into the tried bucket. It also
+// and "tried" address buckets.  It ensures that when an address is marked as
+// good, it is then moved from the new bucket into the tried bucket.  It also
 // ensures that Good correctly handles the case when the tried bucket overflows.
 // Phase 3 tests that Good will correctly error when trying to mark an address
 // as good if it hasn't first been added to a new bucket.
@@ -523,10 +527,10 @@ func TestGood(t *testing.T) {
 
 	for i := 0; i < addrsToAdd; i++ {
 		s := fmt.Sprintf("%d.173.147.%d", i/64+60, i%64+60)
-		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
+		addrs[i] = NewNetAddressFromIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
 	}
 
-	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, wire.SFNodeNetwork)
+	srcAddr := NewNetAddressFromIPPort(net.ParseIP("173.144.173.111"), 8333, wire.SFNodeNetwork)
 
 	n.AddAddresses(addrs, srcAddr)
 	for _, addr := range addrs {
@@ -547,10 +551,10 @@ func TestGood(t *testing.T) {
 
 	// Phase 2:
 	// Test internal behavior of how addresses are managed between the new and
-	// tried address buckets. When an address is initially added it should enter
-	// the new bucket, and when marked good it should move to the tried bucket.
-	// If the tried bucket is full then it should make room for the newly tried
-	// address by moving the old one back to the new bucket.
+	// tried address buckets.  When an address is initially added it should
+	// enter the new bucket, and when marked good it should move to the tried
+	// bucket.  If the tried bucket is full then it should make room for the
+	// newly tried address by moving the old one back to the new bucket.
 	n = New("testgood_tried_overflow", lookupFunc)
 	n.triedBucketSize = 1
 	n.getNewBucket = func(netAddr, srcAddr *NetAddress) int {
@@ -560,13 +564,13 @@ func TestGood(t *testing.T) {
 		return 0
 	}
 
-	addrA := NewNetAddressIPPort(net.ParseIP("173.144.173.1"), 8333, 0)
-	addrB := NewNetAddressIPPort(net.ParseIP("173.144.173.2"), 8333, 0)
+	addrA := NewNetAddressFromIPPort(net.ParseIP("173.144.173.1"), 8333, 0)
+	addrB := NewNetAddressFromIPPort(net.ParseIP("173.144.173.2"), 8333, 0)
 	addrAKey := addrA.Key()
 	addrBKey := addrB.Key()
 
 	// Neither address should exist in the address index prior to being
-	// added to the address manager. The new and tried buckets should also be
+	// added to the address manager.  The new and tried buckets should also be
 	// empty.
 	if len(n.addrIndex) > 0 {
 		t.Fatal("expected address index to be empty prior to adding addresses" +
@@ -614,7 +618,7 @@ func TestGood(t *testing.T) {
 		t.Fatalf("expected address %s to exist in tried bucket", addrAKey)
 	}
 
-	// Flagging the first address as good again should do nothing. It should
+	// Flagging the first address as good again should do nothing.  It should
 	// remain in the tried bucket.
 	n.Good(addrA)
 	if _, exists := n.addrNew[0][addrAKey]; exists {
@@ -628,7 +632,7 @@ func TestGood(t *testing.T) {
 	}
 
 	// Flagging the second address as good should cause it to move from the new
-	// bucket to the tried bucket. It should also cause the first address to be
+	// bucket to the tried bucket.  It should also cause the first address to be
 	// evicted from the tried bucket and move back to the new bucket since the
 	// tried bucket has been limited in capacity to one element.
 	n.Good(addrB)
@@ -673,15 +677,15 @@ func TestSetServices(t *testing.T) {
 	const services = wire.SFNodeNetwork
 
 	// Attempt to set services for an address not known to the address manager.
-	notKnownAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
+	notKnownAddr := NewNetAddressFromIPPort(net.ParseIP("1.2.3.4"), 8333, services)
 	err := addressManager.SetServices(notKnownAddr, services)
 	if err == nil {
 		t.Fatal("setting services for unknown address should return error")
 	}
 
 	// Add a new address to the address manager.
-	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
-	srcAddr := NewNetAddressIPPort(net.ParseIP("5.6.7.8"), 8333, services)
+	netAddr := NewNetAddressFromIPPort(net.ParseIP("1.2.3.4"), 8333, services)
+	srcAddr := NewNetAddressFromIPPort(net.ParseIP("5.6.7.8"), 8333, services)
 	addressManager.addOrUpdateAddress(netAddr, srcAddr)
 
 	// Ensure that the services field for a network address returned from the
@@ -760,7 +764,7 @@ func TestAddLocalAddress(t *testing.T) {
 	amgr := New("testaddlocaladdress", nil)
 	validLocalAddresses := make(map[string]struct{})
 	for _, test := range tests {
-		netAddr := NewNetAddressIPPort(test.ip, testPort, testServices)
+		netAddr := NewNetAddressFromIPPort(test.ip, testPort, testServices)
 		result := amgr.AddLocalAddress(netAddr, test.priority)
 		if result == nil && !test.valid {
 			t.Errorf("%q: address should have been accepted", test.name)
@@ -789,7 +793,7 @@ func TestAddLocalAddress(t *testing.T) {
 	// address manager are also returned from a call to LocalAddresses.
 	for _, localAddr := range amgr.LocalAddresses() {
 		localAddrIP := net.ParseIP(localAddr.Address)
-		netAddr := NewNetAddressIPPort(localAddrIP, testPort, testServices)
+		netAddr := NewNetAddressFromIPPort(localAddrIP, testPort, testServices)
 		netAddrKey := netAddr.Key()
 		if _, ok := validLocalAddresses[netAddrKey]; !ok {
 			t.Errorf("expected to find local address with key %v", netAddrKey)
@@ -800,7 +804,7 @@ func TestAddLocalAddress(t *testing.T) {
 func TestGetBestLocalAddress(t *testing.T) {
 	newAddressFromIP := func(ip net.IP) *NetAddress {
 		const port = 0
-		return NewNetAddressIPPort(ip, port, wire.SFNodeNetwork)
+		return NewNetAddressFromIPPort(ip, port, wire.SFNodeNetwork)
 	}
 
 	localAddrs := []*NetAddress{
@@ -895,13 +899,12 @@ func TestGetBestLocalAddress(t *testing.T) {
 	*/
 }
 
-// TestValidatePeerNa tests whether a remote address is considered reachable
-// from a local address.
-func TestValidatePeerNa(t *testing.T) {
-	const unroutableIpv4Address = "0.0.0.0"
-	const unroutableIpv6Address = "::1"
-	const routableIpv4Address = "12.1.2.3"
-	const routableIpv6Address = "2003::"
+// TestIsExternalAddrCandidate makes sure that when a remote peer suggests that
+// this node has a certain localAddr, that this function can correctly identify
+// if that localAddr is a good candidate to be our public net address.
+// IsExternalAddrCandidate should return the expected boolean, as well as the
+// expected reach the localAddr has to the remoteAddr.
+func TestIsExternalAddrCandidate(t *testing.T) {
 	onionCatTorV2Address := onionCatNet.IP.String()
 	rfc4380IPAddress := rfc4380Net.IP.String()
 	rfc3964IPAddress := rfc3964Net.IP.String()
@@ -910,148 +913,155 @@ func TestValidatePeerNa(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		localAddress  string
-		remoteAddress string
-		valid         bool
-		reach         NetAddressReach
+		localAddr     string
+		remoteAddr    string
+		expectedBool  bool
+		expectedReach NetAddressReach
 	}{{
 		name:          "torv2 to torv2",
-		localAddress:  onionCatTorV2Address,
-		remoteAddress: onionCatTorV2Address,
-		valid:         false,
-		reach:         Private,
+		localAddr:     onionCatTorV2Address,
+		remoteAddr:    onionCatTorV2Address,
+		expectedBool:  false,
+		expectedReach: Private,
 	}, {
 		name:          "routable ipv4 to torv2",
-		localAddress:  routableIpv4Address,
-		remoteAddress: onionCatTorV2Address,
-		valid:         true,
-		reach:         Ipv4,
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    onionCatTorV2Address,
+		expectedBool:  true,
+		expectedReach: Ipv4,
 	}, {
 		name:          "unroutable ipv4 to torv2",
-		localAddress:  unroutableIpv4Address,
-		remoteAddress: onionCatTorV2Address,
-		valid:         false,
-		reach:         Default,
+		localAddr:     nonRoutableIPv4Addr,
+		remoteAddr:    onionCatTorV2Address,
+		expectedBool:  false,
+		expectedReach: Default,
 	}, {
-		name:          "routable ipv6 to torv2",
-		localAddress:  routableIpv6Address,
-		remoteAddress: onionCatTorV2Address,
-		valid:         false,
-		reach:         Default,
-	}, {
+		// This test case wasn't possible before, but will be once TorV3 is added.
+		// 	name:          "routable ipv6 to torv2",
+		// 	localAddr:     routableIPv6Addr,
+		// 	remoteAddr:    onionCatTorV2Address,
+		// 	expectedBool:  false,
+		// 	expectedReach: Default,
+		// }, {
 		name:          "unroutable ipv6 to torv2",
-		localAddress:  unroutableIpv6Address,
-		remoteAddress: onionCatTorV2Address,
-		valid:         false,
-		reach:         Default,
+		localAddr:     nonRoutableIPv6Addr,
+		remoteAddr:    onionCatTorV2Address,
+		expectedBool:  false,
+		expectedReach: Default,
+	}, {
+		name:          "remote peer suggested a local address",
+		localAddr:     "127.0.0.1",
+		remoteAddr:    routableIPv4Addr,
+		expectedBool:  false,
+		expectedReach: Unreachable,
 	}, {
 		name:          "rfc4380 to rfc4380",
-		localAddress:  rfc4380IPAddress,
-		remoteAddress: rfc4380IPAddress,
-		valid:         true,
-		reach:         Teredo,
+		localAddr:     rfc4380IPAddress,
+		remoteAddr:    rfc4380IPAddress,
+		expectedBool:  true,
+		expectedReach: Teredo,
 	}, {
-		name:          "unroutable ipv4 to rfc4380",
-		localAddress:  unroutableIpv4Address,
-		remoteAddress: rfc4380IPAddress,
-		valid:         false,
-		reach:         Default,
+		name:          "non-routable ipv4 to rfc4380",
+		localAddr:     nonRoutableIPv4Addr,
+		remoteAddr:    rfc4380IPAddress,
+		expectedBool:  false,
+		expectedReach: Default,
 	}, {
 		name:          "routable ipv4 to rfc4380",
-		localAddress:  routableIpv4Address,
-		remoteAddress: rfc4380IPAddress,
-		valid:         true,
-		reach:         Ipv4,
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    rfc4380IPAddress,
+		expectedBool:  true,
+		expectedReach: Ipv4,
 	}, {
 		name:          "routable ipv6 to rfc4380",
-		localAddress:  routableIpv6Address,
-		remoteAddress: rfc4380IPAddress,
-		valid:         true,
-		reach:         Ipv6Weak,
+		localAddr:     routableIPv6Addr,
+		remoteAddr:    rfc4380IPAddress,
+		expectedBool:  true,
+		expectedReach: Ipv6Weak,
 	}, {
 		name:          "routable ipv4 to routable ipv4",
-		localAddress:  routableIpv4Address,
-		remoteAddress: routableIpv4Address,
-		valid:         true,
-		reach:         Ipv4,
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    routableIPv4Addr,
+		expectedBool:  true,
+		expectedReach: Ipv4,
 	}, {
 		name:          "routable ipv6 to routable ipv4",
-		localAddress:  routableIpv6Address,
-		remoteAddress: routableIpv4Address,
-		valid:         false,
-		reach:         Unreachable,
+		localAddr:     routableIPv6Addr,
+		remoteAddr:    routableIPv4Addr,
+		expectedBool:  false,
+		expectedReach: Unreachable,
 	}, {
-		name:          "unroutable ipv4 to routable ipv6",
-		localAddress:  unroutableIpv4Address,
-		remoteAddress: routableIpv6Address,
-		valid:         false,
-		reach:         Default,
+		name:          "non-routable ipv4 to routable ipv6",
+		localAddr:     nonRoutableIPv4Addr,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  false,
+		expectedReach: Default,
 	}, {
-		name:          "unroutable ipv6 to routable ipv6",
-		localAddress:  unroutableIpv6Address,
-		remoteAddress: routableIpv6Address,
-		valid:         false,
-		reach:         Default,
+		name:          "non-routable ipv6 to routable ipv6",
+		localAddr:     nonRoutableIPv6Addr,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  false,
+		expectedReach: Default,
 	}, {
-		name:          "unroutable ipv4 to routable ipv6",
-		localAddress:  unroutableIpv4Address,
-		remoteAddress: routableIpv6Address,
-		valid:         false,
-		reach:         Default,
+		name:          "non-routable ipv4 to routable ipv6",
+		localAddr:     nonRoutableIPv4Addr,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  false,
+		expectedReach: Default,
 	}, {
-		name:          "routable ipv4 to unroutable ipv6",
-		localAddress:  routableIpv4Address,
-		remoteAddress: unroutableIpv6Address,
-		valid:         false,
-		reach:         Unreachable,
+		name:          "routable ipv4 to non-routable ipv6",
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    nonRoutableIPv6Addr,
+		expectedBool:  false,
+		expectedReach: Unreachable,
 	}, {
 		name:          "routable ivp6 rfc4380 to routable ipv6",
-		localAddress:  rfc4380IPAddress,
-		remoteAddress: routableIpv6Address,
-		valid:         true,
-		reach:         Teredo,
+		localAddr:     rfc4380IPAddress,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  true,
+		expectedReach: Teredo,
 	}, {
 		name:          "routable ipv4 to routable ipv6",
-		localAddress:  routableIpv4Address,
-		remoteAddress: routableIpv6Address,
-		valid:         true,
-		reach:         Ipv4,
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  true,
+		expectedReach: Ipv4,
 	}, {
 		name:          "tunnelled ipv6 rfc3964 to routable ipv6",
-		localAddress:  rfc3964IPAddress,
-		remoteAddress: routableIpv6Address,
-		valid:         true,
-		reach:         Ipv6Weak,
+		localAddr:     rfc3964IPAddress,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  true,
+		expectedReach: Ipv6Weak,
 	}, {
 		name:          "tunnelled ipv6 rfc6052 to routable ipv6",
-		localAddress:  rfc6052IPAddress,
-		remoteAddress: routableIpv6Address,
-		valid:         true,
-		reach:         Ipv6Weak,
+		localAddr:     rfc6052IPAddress,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  true,
+		expectedReach: Ipv6Weak,
 	}, {
 		name:          "tunnelled ipv6 rfc6145 to routable ipv6",
-		localAddress:  rfc6145IPAddress,
-		remoteAddress: routableIpv6Address,
-		valid:         true,
-		reach:         Ipv6Weak,
+		localAddr:     rfc6145IPAddress,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  true,
+		expectedReach: Ipv6Weak,
 	}}
 
-	addressManager := New("testValidatePeerNa", nil)
+	addressManager := New("TestIsExternalAddrCandidate", nil)
 	for _, test := range tests {
-		localIP := net.ParseIP(test.localAddress)
-		remoteIP := net.ParseIP(test.remoteAddress)
-		localNa := NewNetAddressIPPort(localIP, 8333, wire.SFNodeNetwork)
-		remoteNa := NewNetAddressIPPort(remoteIP, 8333, wire.SFNodeNetwork)
+		localIP := net.ParseIP(test.localAddr)
+		remoteIP := net.ParseIP(test.remoteAddr)
+		localNa := NewNetAddressFromIPPort(localIP, 8333, wire.SFNodeNetwork)
+		remoteNa := NewNetAddressFromIPPort(remoteIP, 8333, wire.SFNodeNetwork)
 
-		valid, reach := addressManager.ValidatePeerNa(localNa, remoteNa)
-		if valid != test.valid {
-			t.Errorf("%q: unexpected return value for valid - want '%v', "+
-				"got '%v'", test.name, test.valid, valid)
+		goodReach, reach := addressManager.IsExternalAddrCandidate(localNa, remoteNa)
+		if goodReach != test.expectedBool {
+			t.Errorf("%q: unexpected return value for bool - want '%v', got '%v'",
+				test.name, test.expectedBool, goodReach)
 			continue
 		}
-		if reach != test.reach {
-			t.Errorf("%q: unexpected return value for reach - want '%v', "+
-				"got '%v'", test.name, test.reach, reach)
+		if reach != test.expectedReach {
+			t.Errorf("%q: unexpected return value for reach - want '%v', got '%v'",
+				test.name, test.expectedReach, reach)
 		}
 	}
 }
