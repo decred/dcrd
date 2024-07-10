@@ -103,10 +103,19 @@ func TestKey(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		netAddr := NewNetAddressFromIPPort(net.ParseIP(test.ip), test.port, wire.SFNodeNetwork)
+		host_ip := test.ip
+		addrType, addrBytes := EncodeHost(host_ip)
+
+		netAddr, err := NewNetAddressFromParams(addrType, addrBytes, test.port,
+			time.Now(), wire.SFNodeNetwork)
+		if err != nil {
+			t.Fatalf("failed to construct net address from host %q: %v",
+				host_ip, err)
+		}
+
 		key := netAddr.Key()
 		if key != test.want {
-			t.Errorf("unexpected network address key -- got %s, want %s",
+			t.Errorf("unexpected network address key -- got %q, want %q",
 				key, test.want)
 			continue
 		}
@@ -139,6 +148,96 @@ func TestAddService(t *testing.T) {
 	if netAddr.Services != wire.SFNodeNetwork {
 		t.Fatalf("expected service flag to be set -- got %x, want %x",
 			netAddr.Services, wire.SFNodeNetwork)
+	}
+}
+
+// TestNewNetAddressFromParams verifies that the NewNetAddressFromParams
+// constructor correctly creates a network address with expected field values.
+func TestNewNetAddressFromParams(t *testing.T) {
+	const port = 8345
+	const services = wire.SFNodeNetwork
+	timestamp := time.Unix(time.Now().Unix(), 0)
+
+	tests := []struct {
+		name           string
+		addrType       NetAddressType
+		addrBytes      []byte
+		want           *NetAddress
+		error_expected bool
+	}{
+		{
+			name:      "4 byte ipv4 address stored as 4 byte ip",
+			addrType:  IPv4Address,
+			addrBytes: net.ParseIP("127.0.0.1").To4(),
+			want: &NetAddress{
+				IP:        []byte{0x7f, 0x00, 0x00, 0x01},
+				Port:      port,
+				Services:  services,
+				Timestamp: timestamp,
+				Type:      IPv4Address,
+			},
+			error_expected: false,
+		},
+		{
+			name:      "16 byte ipv4 address stored as 4 byte ip",
+			addrType:  IPv4Address,
+			addrBytes: net.ParseIP("127.0.0.1").To16(),
+			want: &NetAddress{
+				IP:        []byte{0x7f, 0x00, 0x00, 0x01},
+				Port:      port,
+				Services:  services,
+				Timestamp: timestamp,
+				Type:      IPv4Address,
+			},
+			error_expected: false,
+		},
+		{
+			name:      "16 byte ipv6 address stored in 16 bytes",
+			addrType:  IPv6Address,
+			addrBytes: net.ParseIP("::1"),
+			want: &NetAddress{
+				IP: []byte{
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+				Port:      port,
+				Services:  services,
+				Timestamp: timestamp,
+				Type:      IPv6Address,
+			},
+			error_expected: false,
+		},
+		{
+			name:           "Error: Cannot derive net address type",
+			addrType:       UnknownAddressType,
+			addrBytes:      []byte{0x01, 0x02, 0x03},
+			want:           nil,
+			error_expected: true,
+		},
+		{
+			name:           "Error: the provided type doesn't match the bytes",
+			addrType:       IPv6Address,
+			addrBytes:      net.ParseIP("127.0.0.1").To4(),
+			want:           nil,
+			error_expected: true,
+		},
+		{
+			name:           "Error: no address bytes were provided",
+			addrType:       UnknownAddressType,
+			addrBytes:      nil,
+			want:           nil,
+			error_expected: true,
+		}}
+
+	for _, test := range tests {
+		addr, err := NewNetAddressFromParams(test.addrType, test.addrBytes,
+			port, timestamp, services)
+		if err != nil && test.error_expected == false {
+			t.Fatalf("%q: unexpected error - %v", test.name, err)
+		}
+		if !reflect.DeepEqual(addr, test.want) {
+			t.Errorf("%q: mismatched entries\ngot  %+v\nwant %+v", test.name,
+				addr, test.want)
+		}
 	}
 }
 
