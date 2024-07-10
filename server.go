@@ -955,7 +955,8 @@ func (sp *serverPeer) addressKnown(na *addrmgr.NetAddress) bool {
 // wireToAddrmgrNetAddress converts a wire NetAddress to an address manager
 // NetAddress.
 func wireToAddrmgrNetAddress(netAddr *wire.NetAddress) *addrmgr.NetAddress {
-	newNetAddr := addrmgr.NewNetAddressIPPort(netAddr.IP, netAddr.Port, netAddr.Services)
+	newNetAddr := addrmgr.NewNetAddressFromIPPort(netAddr.IP, netAddr.Port,
+		netAddr.Services)
 	newNetAddr.Timestamp = netAddr.Timestamp
 	return newNetAddr
 }
@@ -2466,8 +2467,9 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		}
 
 		localAddr := wireToAddrmgrNetAddress(na)
-		valid, reach := s.addrManager.ValidatePeerNa(localAddr, remoteAddr)
-		if !valid {
+		good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
+			remoteAddr)
+		if !good {
 			return true
 		}
 
@@ -3212,7 +3214,7 @@ func (s *server) querySeeders(ctx context.Context) {
 		srcIPs, err := dcrdLookup(seeder)
 		if err == nil && len(srcIPs) > 0 {
 			const httpsPort = 443
-			srcAddr = addrmgr.NewNetAddressIPPort(srcIPs[0], httpsPort, 0)
+			srcAddr = addrmgr.NewNetAddressFromIPPort(srcIPs[0], httpsPort, 0)
 		}
 		addresses := wireToAddrmgrNetAddresses(addrs)
 		s.addrManager.AddAddresses(addresses, srcAddr)
@@ -3401,7 +3403,7 @@ out:
 					srvrLog.Warnf("UPnP can't get external address: %v", err)
 					continue out
 				}
-				localAddr := addrmgr.NewNetAddressIPPort(externalip,
+				localAddr := addrmgr.NewNetAddressFromIPPort(externalip,
 					uint16(listenPort), s.services)
 				err = s.addrManager.AddLocalAddress(localAddr, addrmgr.UpnpPrio)
 				if err != nil {
@@ -4424,7 +4426,7 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 				continue
 			}
 
-			netAddr := addrmgr.NewNetAddressIPPort(ifaceIP, uint16(port),
+			netAddr := addrmgr.NewNetAddressFromIPPort(ifaceIP, uint16(port),
 				services)
 			addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
 		}

@@ -228,8 +228,8 @@ const (
 // addOrUpdateAddress is a helper function to either update an address already known
 // to the address manager, or to add the address if not already known.
 func (a *AddrManager) addOrUpdateAddress(netAddr, srcAddr *NetAddress) {
-	// Filter out non-routable addresses. Note that non-routable
-	// also includes invalid and local addresses.
+	// Filter out non-routable addresses.  Note that non-routable also includes
+	// invalid and local addresses.
 	if !netAddr.IsRoutable() {
 		return
 	}
@@ -308,10 +308,10 @@ func (a *AddrManager) addOrUpdateAddress(netAddr, srcAddr *NetAddress) {
 // If no bad entries are available we look at a few and remove the oldest.
 func (a *AddrManager) expireNew(bucket int) {
 	// First see if there are any entries that are so bad we can just throw
-	// them away. otherwise we throw away the oldest entry in the cache.
-	// Bitcoind here chooses four random and just throws the oldest of
-	// those away, but we keep track of oldest in the initial traversal and
-	// use that information instead.
+	// them away.  Otherwise we throw away the oldest entry in the cache.
+	// Bitcoind here chooses four random and just throws the oldest of those
+	// away, but we keep track of oldest in the initial traversal and use that
+	// information instead.
 	var oldest *KnownAddress
 	for k, v := range a.addrNew[bucket] {
 		if v.isBad() {
@@ -541,12 +541,12 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 	copy(a.key[:], sam.Key[:])
 
 	for _, v := range sam.Addresses {
-		netAddr, err := a.newAddressFromString(v.Addr)
+		netAddr, err := a.newNetAddressFromString(v.Addr)
 		if err != nil {
 			return fmt.Errorf("failed to deserialize netaddress %s: %w", v.Addr,
 				err)
 		}
-		srcAddr, err := a.newAddressFromString(v.Src)
+		srcAddr, err := a.newNetAddressFromString(v.Src)
 		if err != nil {
 			return fmt.Errorf("failed to deserialize netaddress %s: %w", v.Src,
 				err)
@@ -743,7 +743,7 @@ func (a *AddrManager) reset() {
 // HostToNetAddress parses and returns a network address given a hostname in a
 // supported format (IPv4, IPv6, TORv2).  If the hostname cannot be immediately
 // converted from a known address format, it will be resolved using the lookup
-// function provided to the address manager. If it cannot be resolved, an error
+// function provided to the address manager.  If it cannot be resolved, an error
 // is returned.
 //
 // This function is safe for concurrent access.
@@ -772,7 +772,7 @@ func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.S
 		ip = ips[0]
 	}
 
-	return NewNetAddressIPPort(ip, port, services), nil
+	return NewNetAddressFromIPPort(ip, port, services), nil
 }
 
 // GetAddress returns a single address that should be routable.  It picks a
@@ -846,7 +846,7 @@ func (a *AddrManager) find(addr *NetAddress) *KnownAddress {
 }
 
 // Attempt increases the provided known address' attempt counter and updates
-// the last attempt time. If the address is unknown then an error is returned.
+// the last attempt time.  If the address is unknown then an error is returned.
 //
 // This function is safe for concurrent access.
 func (a *AddrManager) Attempt(addr *NetAddress) error {
@@ -920,10 +920,10 @@ func (a *AddrManager) Good(addr *NetAddress) error {
 	ka.attempts = 0
 
 	// If the address is already tried then return since it's already good.
-	// Otherwise, move it to a tried bucket. If the target tried bucket is full,
-	// then room will be made by evicting the oldest address in that bucket and
-	// moving it to a new bucket. If the psuedorandomly selected new bucket is
-	// full, then swap the addresses' positions between tried and new.
+	// Otherwise, move it to a tried bucket.  If the target tried bucket is
+	// full, then room will be made by evicting the oldest address in that
+	// bucket and moving it to a new bucket.  If the psuedorandomly selected new
+	// bucket is full, then swap the addresses' positions between tried and new.
 	if ka.tried {
 		return nil
 	}
@@ -1087,96 +1087,85 @@ const (
 	// between two addresses.
 	Unreachable NetAddressReach = 0
 
-	// Default represents the default connection state between
-	// two addresses.
+	// Default represents the default connection state between two addresses.
 	Default NetAddressReach = iota
 
 	// Teredo represents a connection state between two RFC4380 addresses.
 	Teredo
 
-	// Ipv6Weak represents a weak IPV6 connection state between two
-	// addresses.
+	// Ipv6Weak represents a weak IPV6 connection state between two addresses.
 	Ipv6Weak
 
-	// Ipv4 represents an IPV4 connection state between two addresses.
+	// Ipv4 represents a connection state between two IPv4 addresses.
 	Ipv4
 
-	// Ipv6Strong represents a connection state between two IPV6 addresses.
+	// Ipv6Strong represents a connection state between two IPv6 addresses.
 	Ipv6Strong
 
 	// Private represents a connection state connect between two Tor addresses.
 	Private
 )
 
-// getReachabilityFrom returns the relative reachability of the provided local
-// address to the provided remote address.
+// getRemoteReachabilityFromLocal returns the type of connection reachability
+// from a local address to a remote address.
 //
 // This function is safe for concurrent access.
-func getReachabilityFrom(localAddr, remoteAddr *NetAddress) NetAddressReach {
-	if !remoteAddr.IsRoutable() {
+func getRemoteReachabilityFromLocal(localAddr, remoteAddr *NetAddress) NetAddressReach {
+	switch {
+	case !remoteAddr.IsRoutable():
 		return Unreachable
-	}
 
-	if isOnionCatTor(remoteAddr.IP) {
-		if isOnionCatTor(localAddr.IP) {
+	case isOnionCatTor(remoteAddr.IP):
+		switch {
+		case isOnionCatTor(localAddr.IP):
 			return Private
-		}
-
-		if localAddr.IsRoutable() && isIPv4(localAddr.IP) {
+		case localAddr.IsRoutable() && localAddr.Type == IPv4Address:
 			return Ipv4
-		}
-
-		return Default
-	}
-
-	if isRFC4380(remoteAddr.IP) {
-		if !localAddr.IsRoutable() {
+		default:
 			return Default
 		}
 
-		if isRFC4380(localAddr.IP) {
+	case isRFC4380(remoteAddr.IP):
+		switch {
+		case !localAddr.IsRoutable():
+			return Default
+		case isRFC4380(localAddr.IP):
 			return Teredo
-		}
-
-		if isIPv4(localAddr.IP) {
+		case localAddr.Type == IPv4Address:
 			return Ipv4
+		default:
+			return Ipv6Weak
 		}
 
-		return Ipv6Weak
-	}
-
-	if isIPv4(remoteAddr.IP) {
-		if localAddr.IsRoutable() && isIPv4(localAddr.IP) {
+	case remoteAddr.Type == IPv4Address:
+		switch {
+		case localAddr.IsRoutable() && localAddr.Type == IPv4Address:
 			return Ipv4
+		default:
+			return Unreachable
 		}
-		return Unreachable
-	}
 
-	/* ipv6 */
-	var tunnelled bool
-	// Is our v6 tunnelled?
-	if isRFC3964(localAddr.IP) || isRFC6052(localAddr.IP) || isRFC6145(localAddr.IP) {
-		tunnelled = true
-	}
+	case remoteAddr.Type == IPv6Address:
+		switch {
+		case !localAddr.IsRoutable():
+			return Default
+		case isRFC4380(localAddr.IP):
+			return Teredo
+		case localAddr.Type == IPv4Address:
+			return Ipv4
 
-	if !localAddr.IsRoutable() {
+		// Is our IPv6 tunneled?
+		case isRFC3964(localAddr.IP) || isRFC6052(localAddr.IP) ||
+			isRFC6145(localAddr.IP):
+			// only prioritize ipv6 if we aren't tunnelling it.
+			return Ipv6Weak
+		default:
+			return Ipv6Strong
+		}
+
+	default:
 		return Default
 	}
-
-	if isRFC4380(localAddr.IP) {
-		return Teredo
-	}
-
-	if isIPv4(localAddr.IP) {
-		return Ipv4
-	}
-
-	if tunnelled {
-		// only prioritise ipv6 if we aren't tunnelling it.
-		return Ipv6Weak
-	}
-
-	return Ipv6Strong
 }
 
 // GetBestLocalAddress returns the most appropriate local address to use
@@ -1191,7 +1180,7 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 	var bestscore AddressPriority
 	var bestAddress *NetAddress
 	for _, la := range a.localAddresses {
-		reach := getReachabilityFrom(la.na, remoteAddr)
+		reach := getRemoteReachabilityFromLocal(la.na, remoteAddr)
 		if reach > bestreach ||
 			(reach == bestreach && la.score > bestscore) {
 			bestreach = reach
@@ -1207,28 +1196,48 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *NetAddress) *NetAddress {
 
 		// Send something unroutable if nothing suitable.
 		var ip net.IP
-		if !isIPv4(remoteAddr.IP) && !isOnionCatTor(remoteAddr.IP) {
+		if remoteAddr.Type != IPv4Address && remoteAddr.Type != TORV2Address {
 			ip = net.IPv6zero
 		} else {
 			ip = net.IPv4zero
 		}
-		bestAddress = NewNetAddressIPPort(ip, 0, wire.SFNodeNetwork)
+		bestAddress = NewNetAddressFromIPPort(ip, 0, wire.SFNodeNetwork)
 	}
 
 	return bestAddress
 }
 
-// ValidatePeerNa returns the validity and reachability of the
-// provided local address based on its routablility and reachability
-// from the peer that suggested it.
+// IsExternalAddrCandidate returns a boolean indicating whether a suggested Net
+// address from a remote peer is a good candidate for this local node's public
+// external Net address.  Additionally, IsExternalAddrCandidate provides the
+// type of reachability that the suggested localAddr has to the remoteAddr.
+// This function is crucial because nodes need to know their own public Net
+// addresses, but cannot determine this on their own.  To avoid having to ask
+// a centralized server, nodes listen to what remote peers say they see them as.
 //
 // This function is safe for concurrent access.
-func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *NetAddress) (bool, NetAddressReach) {
-	net := addressType(localAddr.IP)
-	reach := getReachabilityFrom(localAddr, remoteAddr)
-	valid := (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
-		(reach == Ipv6Weak || reach == Ipv6Strong || reach == Teredo))
-	return valid, reach
+func (a *AddrManager) IsExternalAddrCandidate(localAddr, remoteAddr *NetAddress) (bool, NetAddressReach) {
+	// localAddr represents what the remote peer says they see as the address
+	// for this node.  It is not necessarily trustworthy.
+
+	// Get the reachability from our node's potential localAddr to the remote.
+	reach := getRemoteReachabilityFromLocal(localAddr, remoteAddr)
+
+	// Return early with reach if the remote peer suggested a local address.
+	if isLocal(localAddr.IP) {
+		return false, reach
+	}
+
+	net := localAddr.Type
+
+	// Good reach means the local address can reach the remote address.
+	localIPv4WithGoodReach := (net == IPv4Address && (reach == Ipv4))
+	localIPv6WithGoodReach := (net == IPv6Address && (reach == Ipv6Weak ||
+		reach == Ipv6Strong || reach == Teredo || reach == Default))
+
+	goodReach := localIPv4WithGoodReach || localIPv6WithGoodReach
+
+	return goodReach, reach
 }
 
 // New constructs a new address manager instance.

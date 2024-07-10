@@ -59,7 +59,7 @@ func TestChance(t *testing.T) {
 	for i, test := range tests {
 		chance := test.addr.chance()
 		if math.Abs(test.expected-chance) >= err {
-			t.Errorf("case %d: got %f, expected %f", i, chance, test.expected)
+			t.Errorf("case %d: got %f, want %f", i, chance, test.expected)
 		}
 	}
 }
