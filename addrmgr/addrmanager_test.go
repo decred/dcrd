@@ -327,22 +327,22 @@ func TestHostToNetAddress(t *testing.T) {
 		wantErr    bool
 		want       *NetAddress
 	}{{
-		name:       "valid onion address",
-		host:       "a5ccbdkubbr2jlcp.onion",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    false,
-		want: NewNetAddressFromIPPort(
-			net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
-			services),
-	}, {
-		name:       "invalid onion address",
-		host:       "0000000000000000.onion",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    true,
-		want:       nil,
-	}, {
+		// 	name:       "valid onion address",
+		// 	host:       "a5ccbdkubbr2jlcp.onion",
+		// 	port:       8333,
+		// 	lookupFunc: nil,
+		// 	wantErr:    false,
+		// 	want: NewNetAddressFromIPPort(
+		// 		net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
+		// 		services),
+		// }, {
+		// 	name:       "invalid onion address",
+		// 	host:       "0000000000000000.onion",
+		// 	port:       8333,
+		// 	lookupFunc: nil,
+		// 	wantErr:    true,
+		// 	want:       nil,
+		// }, {
 		name: "unresolvable host name",
 		host: hostnameForLookup,
 		port: 8333,
@@ -905,7 +905,6 @@ func TestGetBestLocalAddress(t *testing.T) {
 // IsExternalAddrCandidate should return the expected boolean, as well as the
 // expected reach the localAddr has to the remoteAddr.
 func TestIsExternalAddrCandidate(t *testing.T) {
-	onionCatTorV2Address := onionCatNet.IP.String()
 	rfc4380IPAddress := rfc4380Net.IP.String()
 	rfc3964IPAddress := rfc3964Net.IP.String()
 	rfc6052IPAddress := rfc6052Net.IP.String()
@@ -918,37 +917,6 @@ func TestIsExternalAddrCandidate(t *testing.T) {
 		expectedBool  bool
 		expectedReach NetAddressReach
 	}{{
-		name:          "torv2 to torv2",
-		localAddr:     onionCatTorV2Address,
-		remoteAddr:    onionCatTorV2Address,
-		expectedBool:  false,
-		expectedReach: Private,
-	}, {
-		name:          "routable ipv4 to torv2",
-		localAddr:     routableIPv4Addr,
-		remoteAddr:    onionCatTorV2Address,
-		expectedBool:  true,
-		expectedReach: Ipv4,
-	}, {
-		name:          "unroutable ipv4 to torv2",
-		localAddr:     nonRoutableIPv4Addr,
-		remoteAddr:    onionCatTorV2Address,
-		expectedBool:  false,
-		expectedReach: Default,
-	}, {
-		// This test case wasn't possible before, but will be once TorV3 is added.
-		// 	name:          "routable ipv6 to torv2",
-		// 	localAddr:     routableIPv6Addr,
-		// 	remoteAddr:    onionCatTorV2Address,
-		// 	expectedBool:  false,
-		// 	expectedReach: Default,
-		// }, {
-		name:          "unroutable ipv6 to torv2",
-		localAddr:     nonRoutableIPv6Addr,
-		remoteAddr:    onionCatTorV2Address,
-		expectedBool:  false,
-		expectedReach: Default,
-	}, {
 		name:          "remote peer suggested a local address",
 		localAddr:     "127.0.0.1",
 		remoteAddr:    routableIPv4Addr,

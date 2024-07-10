@@ -6,7 +6,6 @@
 package addrmgr
 
 import (
-	"fmt"
 	"net"
 )
 
@@ -70,19 +69,6 @@ var (
 	// rfc6598Net specifies the IPv4 block as defined by RFC6598 (100.64.0.0/10).
 	rfc6598Net = ipNet("100.64.0.0", 10, 32)
 
-	// onionCatNet defines the IPv6 address block used to support Tor.
-	// bitcoind encodes a .onion address as a 16 byte number by decoding the
-	// address prior to the .onion (i.e. the key hash) base32 into a ten
-	// byte number.  It then stores the first 6 bytes of the address as
-	// 0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43.
-	//
-	// This is the same range used by OnionCat, which is part of the
-	// RFC4193 unique local IPv6 range.
-	//
-	// In summary the format is:
-	// { magic 6 bytes, 10 bytes base32 decode of key hash }
-	onionCatNet = ipNet("fd87:d87e:eb43::", 48, 128)
-
 	// zero4Net defines the IPv4 address block for address staring with 0
 	// (0.0.0.0/8).
 	zero4Net = ipNet("0.0.0.0", 8, 32)
@@ -108,16 +94,7 @@ func isLocal(netIP net.IP) bool {
 	return netIP.IsLoopback() || zero4Net.Contains(netIP)
 }
 
-// isOnionCatTor returns whether or not the passed address is in the IPv6 range
-// used by bitcoin to support Tor (fd87:d87e:eb43::/48).  Note that this range
-// is the same range used by OnionCat, which is part of the RFC4193 unique local
-// IPv6 range.
-func isOnionCatTor(netIP net.IP) bool {
-	return onionCatNet.Contains(netIP)
-}
-
-// NetAddressType is used to indicate which network a network address belongs
-// to.
+// NetAddressType represents the type of an address (IPv4, IPv6, Tor, etc.).
 type NetAddressType uint8
 
 // NOTE: This specifically does not use iota since the NetAddressType is used in
@@ -127,7 +104,7 @@ const (
 	UnknownAddressType NetAddressType = 0
 	IPv4Address        NetAddressType = 1
 	IPv6Address        NetAddressType = 2
-	TORV2Address       NetAddressType = 3
+	// TorV2Address       NetAddressType = 3  // No longer supported
 )
 
 // isRFC1918 returns whether or not the passed address is part of the IPv4
@@ -239,13 +216,12 @@ func IsRoutable(netIP net.IP) bool {
 	return isValid(netIP) && !(isRFC1918(netIP) || isRFC2544(netIP) ||
 		isRFC3927(netIP) || isRFC4862(netIP) || isRFC3849(netIP) ||
 		isRFC4843(netIP) || isRFC5737(netIP) || isRFC6598(netIP) ||
-		isLocal(netIP) || (isRFC4193(netIP) && !isOnionCatTor(netIP)))
+		isLocal(netIP) || isRFC4193(netIP))
 }
 
 // GroupKey returns a string representing the network group an address is part
 // of.  This is the /16 for IPv4, the /32 (/36 for he.net) for IPv6, the string
-// "local" for a local address, the string "tor:key" where key is the /4 of the
-// onion address for Tor address, and the string "unroutable" for an unroutable
+// "local" for a local address, and the string "unroutable" for an unroutable
 // address.
 func (na *NetAddress) GroupKey() string {
 	netIP := net.IP(na.IP)
@@ -276,10 +252,6 @@ func (na *NetAddress) GroupKey() string {
 			newIP[i] = byte ^ 0xff
 		}
 		return newIP.Mask(net.CIDRMask(16, 32)).String()
-	}
-	if isOnionCatTor(netIP) {
-		// group is keyed off the first 4 bits of the actual onion key.
-		return fmt.Sprintf("tor:%d", netIP[6]&((1<<4)-1))
 	}
 
 	// If none of the previous conditions were true, then it must be IPv6.
