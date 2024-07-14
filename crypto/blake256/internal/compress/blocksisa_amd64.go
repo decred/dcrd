@@ -24,7 +24,7 @@ package compress
 func Blocks(state *State, msg []byte, counter uint64) {
 	switch {
 	case hasAVX:
-		fallthrough
+		blocksAVX(state, msg, counter)
 	case hasSSE41:
 		blocksSSE41(state, msg, counter)
 	case hasSSE2:

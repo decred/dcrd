@@ -2912,3 +2912,1161 @@ done:
 	MOVOU X7, (AX)
 	MOVOU X8, 16(AX)
 	RET
+
+// func blocksAVX(state *State, msg []byte, counter uint64)
+// Requires: AVX
+TEXT ·blocksAVX(SB), NOSPLIT, $0-40
+	MOVQ state+0(FP), AX
+	MOVQ counter+32(FP), CX
+	MOVQ msg_base+8(FP), DX
+	MOVQ msg_len+16(FP), BX
+
+	// Populate registers for fast right rotations.
+	VMOVDQU shuffle_rotr8_4x32<>+0(SB), X4
+	VMOVDQU shuffle_rotr16_4x32<>+0(SB), X5
+
+	// Convert message len to number of blocks for loop counter.
+	SHRQ $0x06, BX
+
+	// Initialize state matrix.
+	// row0 = |v0  v1  v2  v3|   |  h0     h1     h2     h3 |
+	// row1 = |v4  v5  v6  v7|   |  h4     h5     h6     h7 |
+	VMOVDQU 32(AX), X6
+	VMOVDQU (AX), X7
+	VMOVDQU 16(AX), X8
+
+compressLoop:
+	// row2 = |v8  v9  va  vb| = |s0^c0  s1^c1  s2^c2  s3^c3|
+	// row3 = |vc  vd  ve  vf|   |t0^c4  t0^c5  t1^c6  t1^c7|
+	VMOVDQU first_8_blake_consts<>+0(SB), X9
+	VPXOR   X6, X9, X9
+	VMOVQ   CX, X10
+	VPSHUFD $0x50, X10, X10
+	VPXOR   first_8_blake_consts<>+16(SB), X10, X10
+	VMOVDQA X7, X11
+	VMOVDQA X8, X12
+
+	// Convert message to big endian.
+	VMOVDQU shuffle_le_to_be_4x32<>+0(SB), X13
+	VMOVDQU (DX), X0
+	VPSHUFB X13, X0, X0
+	VMOVDQU 16(DX), X1
+	VPSHUFB X13, X1, X1
+	VMOVDQU 32(DX), X2
+	VPSHUFB X13, X2, X2
+	VMOVDQU 48(DX), X3
+	VPSHUFB X13, X3, X3
+
+	// Round 1 column step.
+	VPSHUFD  $0x08, X0, X14
+	VPSHUFD  $0x80, X1, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+0(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x0d, X0, X14
+	VPSHUFD  $0xd0, X1, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+16(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 1 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 1 diagonal step part 2: column step.
+	VPSHUFD  $0x08, X2, X14
+	VPSHUFD  $0x80, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+32(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x0d, X2, X14
+	VPSHUFD  $0xd0, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+48(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 1 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 2 column step.
+	VPSHUFD  $0x00, X1, X14
+	VPSHUFD  $0x10, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x42, X3, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+64(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x80, X1, X14
+	VPSHUFD  $0x02, X2, X13
+	VPBLENDW $0x0f, X13, X14, X14
+	VPSHUFD  $0x30, X3, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+80(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 2 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 2 diagonal step part 2: column step.
+	VPSHUFD  $0x01, X0, X14
+	VPSHUFD  $0x40, X1, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x30, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+96(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0xc8, X0, X14
+	VPSHUFD  $0x30, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x00, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+112(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 2 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 3 column step.
+	VPSHUFD  $0x10, X1, X14
+	VPSHUFD  $0x03, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0xc0, X3, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+128(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x20, X0, X14
+	VPSHUFD  $0x00, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x40, X3, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+144(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 3 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 3 diagonal step part 2: column step.
+	VPSHUFD  $0x0c, X0, X14
+	VPSHUFD  $0x30, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x42, X2, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+160(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x10, X0, X14
+	VPSHUFD  $0x08, X1, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VPSHUFD  $0x02, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+176(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 3 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 4 column step.
+	VPSHUFD  $0x0c, X0, X14
+	VPSHUFD  $0x03, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0xc0, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x10, X3, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+192(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x04, X0, X14
+	VPSHUFD  $0x01, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x80, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+208(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 4 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 4 diagonal step part 2: column step.
+	VPSHUFD  $0x02, X0, X14
+	VPSHUFD  $0x04, X1, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VPSHUFD  $0xc0, X3, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+224(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x02, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x08, X2, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+240(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 4 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 5 column step.
+	VPSHUFD  $0x20, X0, X14
+	VPSHUFD  $0x04, X1, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x81, X2, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+256(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x0c, X1, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VPSHUFD  $0xc0, X3, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+272(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 5 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 5 diagonal step part 2: column step.
+	VPSHUFD  $0xc0, X0, X14
+	VPSHUFD  $0x20, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x0c, X2, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x02, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+288(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x01, X0, X14
+	VPSHUFD  $0x00, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x40, X3, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+304(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 5 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 6 column step.
+	VPSHUFD  $0x02, X0, X14
+	VPSHUFD  $0x08, X1, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x00, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+320(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0xc0, X0, X14
+	VPSHUFD  $0x38, X2, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VPSHUFD  $0x00, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+336(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 6 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 6 diagonal step part 2: column step.
+	VPSHUFD  $0x40, X0, X14
+	VPSHUFD  $0x0c, X1, X13
+	VPBLENDW $0x0f, X13, X14, X14
+	VPSHUFD  $0x30, X3, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+352(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x04, X1, X14
+	VPSHUFD  $0x40, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x21, X3, X13
+	VPBLENDW $0x33, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+368(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 6 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 7 column step.
+	VPSHUFD  $0x04, X0, X14
+	VPSHUFD  $0x00, X1, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x20, X3, X13
+	VPBLENDW $0x33, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+384(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x01, X1, X14
+	VPSHUFD  $0x80, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x1c, X3, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+400(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 7 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 7 diagonal step part 2: column step.
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x08, X1, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x10, X2, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+416(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x2c, X0, X14
+	VPSHUFD  $0x03, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0xc0, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+432(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 7 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 8 column step.
+	VPSHUFD  $0xc0, X0, X14
+	VPSHUFD  $0x0c, X1, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x01, X3, X13
+	VPBLENDW $0x33, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+448(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x10, X0, X14
+	VPSHUFD  $0x43, X2, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VPSHUFD  $0x08, X3, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+464(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 8 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 8 diagonal step part 2: column step.
+	VPSHUFD  $0x80, X0, X14
+	VPSHUFD  $0x01, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x00, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x0c, X3, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+480(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x20, X1, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VPSHUFD  $0x80, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+496(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 8 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 9 column step.
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x02, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x30, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x08, X3, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+512(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x30, X0, X14
+	VPSHUFD  $0x04, X2, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VPSHUFD  $0x03, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+528(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 9 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 9 diagonal step part 2: column step.
+	VPSHUFD  $0x10, X0, X14
+	VPSHUFD  $0x80, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x04, X3, X13
+	VPBLENDW $0x0f, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+544(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x02, X0, X14
+	VPSHUFD  $0x4c, X1, X13
+	VPBLENDW $0xfc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+560(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 9 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 10 column step.
+	VPSHUFD  $0x40, X0, X14
+	VPSHUFD  $0x30, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x02, X2, X13
+	VPBLENDW $0x0f, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+576(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x02, X0, X14
+	VPSHUFD  $0x60, X1, X13
+	VPBLENDW $0xfc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+592(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 10 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 10 diagonal step part 2: column step.
+	VPSHUFD  $0x30, X0, X14
+	VPSHUFD  $0x04, X2, X13
+	VPBLENDW $0x0c, X13, X14, X14
+	VPSHUFD  $0x43, X3, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+608(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x03, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x08, X3, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+624(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 10 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 11 column step.
+	VPSHUFD  $0x08, X0, X14
+	VPSHUFD  $0x80, X1, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+0(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x0d, X0, X14
+	VPSHUFD  $0xd0, X1, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+16(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 11 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 11 diagonal step part 2: column step.
+	VPSHUFD  $0x08, X2, X14
+	VPSHUFD  $0x80, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+32(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x0d, X2, X14
+	VPSHUFD  $0xd0, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+48(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 11 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 12 column step.
+	VPSHUFD  $0x00, X1, X14
+	VPSHUFD  $0x10, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x42, X3, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+64(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x80, X1, X14
+	VPSHUFD  $0x02, X2, X13
+	VPBLENDW $0x0f, X13, X14, X14
+	VPSHUFD  $0x30, X3, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+80(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 12 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 12 diagonal step part 2: column step.
+	VPSHUFD  $0x01, X0, X14
+	VPSHUFD  $0x40, X1, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x30, X2, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+96(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0xc8, X0, X14
+	VPSHUFD  $0x30, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x00, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+112(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 12 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 13 column step.
+	VPSHUFD  $0x10, X1, X14
+	VPSHUFD  $0x03, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0xc0, X3, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+128(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x20, X0, X14
+	VPSHUFD  $0x00, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x40, X3, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+144(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 13 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 13 diagonal step part 2: column step.
+	VPSHUFD  $0x0c, X0, X14
+	VPSHUFD  $0x30, X1, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VPSHUFD  $0x42, X2, X13
+	VPBLENDW $0xc3, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+160(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x10, X0, X14
+	VPSHUFD  $0x08, X1, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VPSHUFD  $0x02, X3, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+176(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 13 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Round 14 column step.
+	VPSHUFD  $0x0c, X0, X14
+	VPSHUFD  $0x03, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0xc0, X2, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VPSHUFD  $0x10, X3, X13
+	VPBLENDW $0x30, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+192(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x04, X0, X14
+	VPSHUFD  $0x01, X2, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x80, X3, X13
+	VPBLENDW $0xf0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+208(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 14 diagonal step part 1: diagonalize.
+	VPSHUFD $0x39, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x93, X10, X10
+
+	// Round 14 diagonal step part 2: column step.
+	VPSHUFD  $0x02, X0, X14
+	VPSHUFD  $0x04, X1, X13
+	VPBLENDW $0x3c, X13, X14, X14
+	VPSHUFD  $0xc0, X3, X13
+	VPBLENDW $0xc0, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+224(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X15, X7, X7
+	VPSHUFD  $0x00, X0, X14
+	VPSHUFD  $0x02, X1, X13
+	VPBLENDW $0x03, X13, X14, X14
+	VPSHUFD  $0x08, X2, X13
+	VPBLENDW $0xcc, X13, X14, X14
+	VMOVDQU  permuted_blake_consts<>+240(SB), X15
+	VPXOR    X14, X15, X15
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X5, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x0c, X8, X13
+	VPSLLD   $0x14, X8, X8
+	VPXOR    X13, X8, X8
+	VPADDD   X15, X7, X7
+	VPADDD   X8, X7, X7
+	VPXOR    X7, X10, X10
+	VPSHUFB  X4, X10, X10
+	VPADDD   X10, X9, X9
+	VPXOR    X9, X8, X8
+	VPSRLD   $0x07, X8, X13
+	VPSLLD   $0x19, X8, X8
+	VPXOR    X13, X8, X8
+
+	// Round 14 diagonal step part 3: undiagonalize.
+	VPSHUFD $0x93, X8, X8
+	VPSHUFD $0x4e, X9, X9
+	VPSHUFD $0x39, X10, X10
+
+	// Finally the chain value is defined as:
+	// h'0 = h0^s0^v0^v8
+	// h'1 = h1^s1^v1^v9
+	// h'2 = h2^s2^v2^va
+	// h'3 = h3^s3^v3^vb
+	// h'4 = h4^s0^v4^vc
+	// h'5 = h5^s1^v5^vd
+	// h'6 = h6^s2^v6^ve
+	// h'7 = h7^s3^v7^vf
+	VPXOR X11, X7, X7
+	VPXOR X6, X7, X7
+	VPXOR X9, X7, X7
+	VPXOR X12, X8, X8
+	VPXOR X6, X8, X8
+	VPXOR X10, X8, X8
+
+	// Either terminate the loop when there are no more full blocks
+	// to compress or move the message pointer to the next block of
+	// bytes to compress, increment the message bits counter
+	// accordingly, and loop back around to compress it.
+	DECQ BX
+	JZ   done
+	LEAQ 64(DX), DX
+	ADDQ $0x00000200, CX
+	JMP  compressLoop
+
+done:
+	// Output the resulting chain value.
+	VMOVDQU X7, (AX)
+	VMOVDQU X8, 16(AX)
+	RET

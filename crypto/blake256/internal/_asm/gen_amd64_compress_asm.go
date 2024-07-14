@@ -430,6 +430,22 @@ func shuffle4x32SSE2(z, y, x, w uint8, src, dest reg.Register) {
 	build.PSHUFD(operand.U8(order), src, dest)
 }
 
+// shuffle4x32AVX performs a 4-way 32-bit shuffle of the given registers as
+// described by [shuffle4x32SSE2] using the AVX VPSHUFD opcode.
+func shuffle4x32AVX(z, y, x, w uint8, src, dest reg.Register) {
+	if src.Size() != 16 || dest.Size() != 16 {
+		panic("src and dest must be XMM registers for this implementation")
+	}
+	if z > 3 || y > 3 || x > 3 || w > 3 {
+		panic("src position parameters must not exceed 3 for a 4-way " +
+			"32-bit shuffle")
+	}
+	// VPSHUFD expects the lanes to be numbered from right to left, so reverse
+	// the params and encode accordingly.
+	order := uint8(w<<6 | x<<4 | y<<2 | z)
+	build.VPSHUFD(operand.U8(order), src, dest)
+}
+
 // set4x32SSE2 packs the 4 provided 32-bit unsigned integers into the
 // destination vector register using opcodes limited to SSE2.
 //
@@ -477,6 +493,19 @@ func blend4x32SSE41(z, y, x, w bool, src, dest reg.Register) {
 	build.PBLENDW(operand.U8(mask), src, dest)
 }
 
+// blend4x32AVX performs a 4-way 32-bit blend of the given source and
+// destination registers as described by [blend4x32SSE41] using the AVX VPBLENDW
+// opcode.
+func blend4x32AVX(z, y, x, w bool, src, dest reg.Register) {
+	var mask uint8
+	for colIdx, selected := range []bool{z, y, x, w} {
+		if selected {
+			mask |= 0x03 << (colIdx * 2)
+		}
+	}
+	build.VPBLENDW(operand.U8(mask), src, dest, dest)
+}
+
 // diagonalizeSSE2 shifts each of the rows in order to prepare the state matrix
 // for performing the diagonal step via a column step using opcodes limited to
 // SSE2.
@@ -494,6 +523,25 @@ func undiagonalizeSSE2(rows []reg.VecVirtual) {
 	shuffle4x32SSE2(3, 0, 1, 2, rows[1], rows[1])
 	shuffle4x32SSE2(2, 3, 0, 1, rows[2], rows[2])
 	shuffle4x32SSE2(1, 2, 3, 0, rows[3], rows[3])
+}
+
+// diagonalizeAVX shifts each of the rows in order to prepare the state matrix
+// for performing the diagonal step via a column step using opcodes limited to
+// AVX.
+//
+// See [blocksCompressor.diagonalizeFn] for more details.
+func diagonalizeAVX(rows []reg.VecVirtual) {
+	shuffle4x32AVX(1, 2, 3, 0, rows[1], rows[1])
+	shuffle4x32AVX(2, 3, 0, 1, rows[2], rows[2])
+	shuffle4x32AVX(3, 0, 1, 2, rows[3], rows[3])
+}
+
+// undiagonalizeAVX undoes the transformation discuseed by [diagonalizeAVX]
+// using only opcodes limited to AVX.
+func undiagonalizeAVX(rows []reg.VecVirtual) {
+	shuffle4x32AVX(3, 0, 1, 2, rows[1], rows[1])
+	shuffle4x32AVX(2, 3, 0, 1, rows[2], rows[2])
+	shuffle4x32AVX(1, 2, 3, 0, rows[3], rows[3])
 }
 
 // msgRowByIdx returns which row a given message index is in given a row
@@ -860,6 +908,191 @@ func blocksSSE41() {
 	build.RET()
 }
 
+// blocksAVX generates the BLAKE-224 and BLAKE-256 block compression function
+// accelerated by AVX.
+func blocksAVX() {
+	build.TEXT("blocksAVX", attr.NOSPLIT, "func(state *State, msg []byte, counter uint64)")
+	build.Doc("blocksAVX performs BLAKE-224 and BLAKE-256 block compression",
+		"using AVX extensions.  See [Blocks] in blocksisa_amd64.go for",
+		"parameter details.")
+	build.Pragma("noescape")
+
+	// Load / dereference function params.
+	state := build.Dereference(build.Param("state"))
+	h := state.Field("CV")
+	s := state.Field("S")
+	counter := build.Load(build.Param("counter"), build.GP64())
+	msgPtr := build.Load(build.Param("msg").Base(), build.GP64())
+	msgLen := build.Load(build.Param("msg").Len(), build.GP64())
+
+	// XMM registers used for operation.
+	//
+	//    msg: Holds the big endian message.
+	//  rotr8: Holds shuffle pattern for 4x32 8 bit right rotations.
+	// rotr16: Holds shuffle pattern for 4x32 16 bit right rotations.
+	//     sr: Holds the salt passed to the function.
+	//   rows: Holds the state matrix.
+	//     hr: Holds the chain value.
+	//   shuf: Used to perform temp shuffles.
+	//    imr: Holds temp intermediate results.
+	msg := []reg.VecVirtual{build.XMM(), build.XMM(), build.XMM(), build.XMM()}
+	rotr8, rotr16 := build.XMM(), build.XMM()
+	sr := build.XMM()
+	rows := []reg.VecVirtual{build.XMM(), build.XMM(), build.XMM(), build.XMM()}
+	hr := []reg.VecVirtual{build.XMM(), build.XMM()}
+	shuf := build.XMM()
+	imr := []reg.VecVirtual{build.XMM(), build.XMM()}
+
+	// rotateRight4x32AVX performs a 4-way 32-bit right rotation of the provided
+	// vector register by the given number of bits using opcodes limited to AVX.
+	//
+	// Notably, it takes advantage of the AVX VPSHUFB opcode to accelarate right
+	// shifts by 8 and 16 bits.
+	build.Comment("Populate registers for fast right rotations.")
+	build.VMOVDQU(globals.rotr8b4x32, rotr8)
+	build.VMOVDQU(globals.rotr16b4x32, rotr16)
+	rotateRight4x32AVX := func(bits uint8, dest reg.Register) {
+		switch bits {
+		case 8:
+			build.VPSHUFB(rotr8, dest, dest)
+		case 16:
+			build.VPSHUFB(rotr16, dest, dest)
+		default:
+			build.VPSRLD(operand.U8(bits), dest, shuf)
+			build.VPSLLD(operand.U8(32-bits), dest, dest)
+			build.VPXOR(shuf, dest, dest)
+		}
+	}
+
+	// loadMsg4x32 loads the permuted message words for the given parameters
+	// into the provided register as 4 packed uint32s.
+	//
+	// This takes advantage of AVX VPBLENDW and VPSHUFD along with storing the
+	// message in XMM registers to permute and blend the message words into the
+	// correct positions using only registers which provides a significant
+	// speedup by avoiding memory access.
+	loadMsg4x32 := func(round uint8, isDiagStep, isFirstMsg bool, dest reg.Register) {
+		const numRows = 4
+		const numCols = 4
+		neededMsgIdxs := determineMsgIdxs(round, isDiagStep, isFirstMsg)
+		var needsBlend bool
+		for msgRowNum := uint8(0); msgRowNum < numRows; msgRowNum++ {
+			// Nothing to do for unneeded rows.
+			if !msgRowNeeded(msgRowNum, numCols, neededMsgIdxs[:]) {
+				continue
+			}
+
+			// Determine which columns to permute and blend for this row.
+			cols := make([]uint8, numCols)
+			blend := make([]bool, numCols)
+			for sourceColIdx, neededIdx := range neededMsgIdxs {
+				if msgRowByIdx(neededIdx, numCols) == msgRowNum {
+					cols[sourceColIdx] = msgColByIdx(neededIdx, numCols)
+					blend[sourceColIdx] = true
+				}
+			}
+
+			// Permute the needed words for the row to their final position and
+			// blend them as needed into the result.
+			row := msg[msgRowNum]
+			if !needsBlend {
+				shuffle4x32AVX(cols[0], cols[1], cols[2], cols[3], row, dest)
+				needsBlend = true
+			} else {
+				shuffle4x32AVX(cols[0], cols[1], cols[2], cols[3], row, shuf)
+				blend4x32AVX(blend[0], blend[1], blend[2], blend[3], shuf, dest)
+			}
+		}
+	}
+
+	// Instantiate an instance of the blocks compression generator with the
+	// various state transformation functions implemented such that they only
+	// make use of the capabilities (e.g. opcodes and registers) available to
+	// AVX and perform the generation.
+	//
+	// See the comments of [blocksCompressor] for an overview of the overall
+	// methodology and what each function does.
+	compressor := blocksCompressor{
+		msgLen:  msgLen,
+		msgPtr:  msgPtr,
+		counter: counter,
+		initSMChainValueFn: func() {
+			build.VMOVDQU(mustAddr(s.Index(0)), sr)      //   sr  = s0 s1 s2 s3
+			build.VMOVDQU(mustAddr(h.Index(0)), rows[0]) // row0  = h0 h1 h2 h3
+			build.VMOVDQU(mustAddr(h.Index(4)), rows[1]) // row1  = h4 h5 h6 h7
+		},
+		initSMLowerHalfFn: func() {
+			consts := globals.consts
+			build.VMOVDQU(consts.Offset(0), rows[2])         // row2  = c0 c1 c2 c3
+			build.VPXOR(sr, rows[2], rows[2])                // row2 ^= s0 s1 s2 s3
+			build.VMOVQ(counter, rows[3])                    // row3  = t0 t1 0  0
+			shuffle4x32AVX(0, 0, 1, 1, rows[3], rows[3])     // row3  = t0 t0 t1 t1
+			build.VPXOR(consts.Offset(16), rows[3], rows[3]) // row3 ^= c4 c5 c6 c7
+			build.VMOVDQA(rows[0], hr[0])                    //  hr0  = h0 h1 h2 h3
+			build.VMOVDQA(rows[1], hr[1])                    //  hr1  = h4 h5 h6 h7
+		},
+		convertMsgFn: func() {
+			// The message is stored in the XMM registers as:
+			// msg0 = |m0  m1  m2  m3|
+			// msg1 = |m4  m5  m6  m7|
+			// msg2 = |m8  m9  ma  mb|
+			// msg3 = |mc  md  me  mf|
+			build.VMOVDQU(globals.leToBe4x32, shuf)
+			for i := 0; i < 4; i++ {
+				build.VMOVDQU(memOffset(msgPtr, i*16), msg[i])
+				build.VPSHUFB(shuf, msg[i], msg[i])
+			}
+		},
+		columnStepFn: func(round uint8, isDiagStep bool) {
+			// Determine the memory offsets for the permuted constants for this
+			// round and column/diagonal step.
+			baseConstsOffset := int(round%10) * 64
+			if isDiagStep {
+				baseConstsOffset += 32
+			}
+			cxOffset := globals.permutedConsts.Offset(baseConstsOffset)
+			cyOffset := globals.permutedConsts.Offset(baseConstsOffset + 16)
+
+			loadMsg4x32(round, isDiagStep, true, imr[0])  // imr0 = mx (for G[i]..G[i+3])
+			build.VMOVDQU(cxOffset, imr[1])               // imr1 = cx (for G[i]..G[i+3])
+			build.VPXOR(imr[0], imr[1], imr[1])           // imr1 = mx^cx
+			build.VPADDD(imr[1], rows[0], rows[0])        // row0 += imr1 (mx^cx)
+			loadMsg4x32(round, isDiagStep, false, imr[0]) // imr0 = my (for G[i]..G[i+3])
+			build.VMOVDQU(cyOffset, imr[1])               // imr1 = cy (for G[i]..G[i+3])
+			build.VPXOR(imr[0], imr[1], imr[1])           // imr1 = my^cy
+			build.VPADDD(rows[1], rows[0], rows[0])       // row0 += row1
+			build.VPXOR(rows[0], rows[3], rows[3])        // row3 ^= row0
+			rotateRight4x32AVX(16, rows[3])               // row3 >>>= 16
+			build.VPADDD(rows[3], rows[2], rows[2])       // row2 += row3
+			build.VPXOR(rows[2], rows[1], rows[1])        // row1 ^= row2
+			rotateRight4x32AVX(12, rows[1])               // row1 >>>= 12
+			build.VPADDD(imr[1], rows[0], rows[0])        // row1 += imr1 (my^cy)
+			build.VPADDD(rows[1], rows[0], rows[0])       // row0 += row1
+			build.VPXOR(rows[0], rows[3], rows[3])        // row3 ^= row0
+			rotateRight4x32AVX(8, rows[3])                // row3 >>>= 8
+			build.VPADDD(rows[3], rows[2], rows[2])       // row2 += row3
+			build.VPXOR(rows[2], rows[1], rows[1])        // row1 ^= row2
+			rotateRight4x32AVX(7, rows[1])                // row1 >>>= 7
+		},
+		diagonalizeFn:   diagonalizeAVX,
+		undiagonalizeFn: undiagonalizeAVX,
+		finalizeFn: func() {
+			build.VPXOR(hr[0], rows[0], rows[0])   // row0 ^= h0 h1 h2 h3
+			build.VPXOR(sr, rows[0], rows[0])      // row0 ^= s0 s1 s2 s3
+			build.VPXOR(rows[2], rows[0], rows[0]) // row0 ^= v8 v9 va vb
+			build.VPXOR(hr[1], rows[1], rows[1])   // row1 ^= h4 h5 h6 h7
+			build.VPXOR(sr, rows[1], rows[1])      // row1 ^= s0 s1 s2 s3
+			build.VPXOR(rows[3], rows[1], rows[1]) // row1 ^= vc vd ve vf
+		},
+		outputChainValueFn: func() {
+			build.VMOVDQU(rows[0], mustAddr(h.Index(0))) // h0 h1 h2 h3 = row0
+			build.VMOVDQU(rows[1], mustAddr(h.Index(4))) // h4 h5 h6 h7 = row1
+		},
+	}
+	compressor.generate(rows)
+	build.RET()
+}
+
 func main() {
 	// Ideally this would just reference the compress package with the struct
 	// definition, but avo doesn't seem to have a way to specify a build tag
@@ -872,5 +1105,6 @@ func main() {
 	globalData()
 	blocksSSE2()
 	blocksSSE41()
+	blocksAVX()
 	build.Generate()
 }

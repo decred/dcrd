@@ -17,3 +17,10 @@ func blocksSSE2(state *State, msg []byte, counter uint64)
 //
 //go:noescape
 func blocksSSE41(state *State, msg []byte, counter uint64)
+
+// blocksAVX performs BLAKE-224 and BLAKE-256 block compression
+// using AVX extensions.  See [Blocks] in blocksisa_amd64.go for
+// parameter details.
+//
+//go:noescape
+func blocksAVX(state *State, msg []byte, counter uint64)
