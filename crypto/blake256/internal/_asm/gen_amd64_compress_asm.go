@@ -1094,6 +1094,18 @@ func blocksAVX() {
 }
 
 func main() {
+	// -------------------------------------------------------------------------
+	// NOTE: Various attempts to optimize using the larger 256-bit registers
+	// provided by AVX2 were made, but since only 4 columns can be computed in
+	// parallel, it turns out that the extra overhead of shuffling data around
+	// offsets any gains made by the few places that the larger registers are
+	// able to speed up.  That includes things such as converting the message to
+	// big endian using 2x256-bit registers and freeing up registers by packing
+	// more data into the larger registers and then making use of the extra
+	// freed up registers to cache the results of xoring the message and
+	// constants to reuse in final rounds where they are the same.
+	// -------------------------------------------------------------------------
+
 	// Ideally this would just reference the compress package with the struct
 	// definition, but avo doesn't seem to have a way to specify a build tag
 	// for this statement and the compress package is unable to build before the
