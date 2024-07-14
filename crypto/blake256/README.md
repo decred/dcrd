@@ -29,10 +29,14 @@ is generated with Go via [avo](https://github.com/mmcloughlin/avo).
 
 [Show me the benchmarks already](#benchmarks)!
 
+[Example Usage?](#examples)
+
 ## Hashing Data
 
 The simplest way to hash data that is already serialized into bytes is via the
-global `Sum224` (BLAKE-224) or `Sum256` (BLAKE-256) functions.
+global `Sum224` (BLAKE-224) or `Sum256` (BLAKE-256) functions.  This is
+demonstrated for BLAKE-256 via the "Basic Usage" example linked in the
+[Examples](#examples) section.
 
 However, since hashing typically involves writing various pieces of information
 that aren't already serialized, this package provides `NewHasher224` (BLAKE-224)
@@ -139,6 +143,12 @@ interface.
 ------------|-----------------|-------------|---------------------------
 Time / Op   | 40.6ns ± 1%     | 16.0ns ± 0% | -60.60% (p=0.000 n=10+10)
 Allocs / Op | 1               | 0           | -100.00% (p=0.000 n=10+10)
+
+## Examples
+
+* [Basic Usage](https://pkg.go.dev/github.com/decred/dcrd/crypto/blake256#example-package-BasicUsage)  
+  Demonstrates the simplest method of hashing an existing serialized data buffer
+  with BLAKE-256.
 
 ## Installation and Updating
 
