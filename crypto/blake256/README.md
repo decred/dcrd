@@ -66,7 +66,9 @@ the shared prefix so that all future hashes can resume from that midstate and
 thereby avoid redoing work.
 
 To that end, the aforementioned rolling hasher instances support being copied to
-save and restore the current midstate within the same process.
+save and restore the current midstate within the same process.  This is
+demonstrated via the "Same Process Save and Restore" example linked in the
+[Examples](#examples) section.
 
 Alternatively, when a simple copy of the instance is not possible, such as when
 the midstate is needed among multiple processes, perhaps on entirely different
@@ -156,6 +158,11 @@ Allocs / Op | 1               | 0           | -100.00% (p=0.000 n=10+10)
   Demonstrates creating a rolling BLAKE-256 hasher, writing various data types
   to it, computing the hash, writing more data, and finally computing the
   cumulative hash.
+* [Same Process Save and Restore](https://pkg.go.dev/github.com/decred/dcrd/crypto/blake256#example-package-SameProcessSaveRestore)  
+  Demonstrates creating a rolling BLAKE-256 hasher, writing some data to it,
+  making a copy of the intermediate state, restoring the intermediate state in
+  multiple goroutines, writing more data to each of those restored copies, and
+  computing the final hashes.
 
 ## Installation and Updating
 
