@@ -53,6 +53,9 @@ byte sequence to the rolling hash.
 The hash is then obtained via the `Sum224` (BLAKE-224) or `Sum256` (BLAKE-256)
 method on the respective hasher instance.
 
+See the "Rolling Hasher Usage" example linked in the [Examples](#examples)
+section to see rolling hashing in action.
+
 ## Saving and Resuming Intermediate States
 
 Many applications involve hashing data that always starts with the same sequence
@@ -149,6 +152,10 @@ Allocs / Op | 1               | 0           | -100.00% (p=0.000 n=10+10)
 * [Basic Usage](https://pkg.go.dev/github.com/decred/dcrd/crypto/blake256#example-package-BasicUsage)  
   Demonstrates the simplest method of hashing an existing serialized data buffer
   with BLAKE-256.
+* [Rolling Hasher Usage](https://pkg.go.dev/github.com/decred/dcrd/crypto/blake256#example-package-RollingHasherUsage)  
+  Demonstrates creating a rolling BLAKE-256 hasher, writing various data types
+  to it, computing the hash, writing more data, and finally computing the
+  cumulative hash.
 
 ## Installation and Updating
 
