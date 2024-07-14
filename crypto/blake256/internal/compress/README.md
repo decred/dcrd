@@ -19,7 +19,18 @@ extensions that are not disabled.
 ## Tests and Benchmarks
 
 The package also provides full tests for all implementations as well as
-benchmarks.
+benchmarks.  However, do note that since the specialized implementations require
+hardware support, the tests and benchmarks for them will be skipped when running
+on hardware that does not support the required extensions.
+
+It is possible to test all implementations without hardware support by using
+software such as the [Intel Software Development Emulator](https://www.intel.com/content/www/us/en/developer/articles/tool/software-development-emulator.html).
+
+Some relevant flags for testing purposes with the Intel SDE are:
+
+* SSE2:  `-p4p  Set chip-check and CPUID for Intel(R) Pentium4 Prescott CPU`
+* SSE41: `-pnr  Set chip-check and CPUID for Intel(R) Penryn CPU`
+* AVX:   `-snb  Set chip-check and CPUID for Intel(R) Sandy Bridge CPU`
 
 ## Disabling Assembler Optimizations
 
