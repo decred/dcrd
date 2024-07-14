@@ -28,7 +28,7 @@ func Blocks(state *State, msg []byte, counter uint64) {
 	case hasSSE41:
 		fallthrough
 	case hasSSE2:
-		fallthrough
+		blocksSSE2(state, msg, counter)
 	default:
 		blocksGeneric(state, msg, counter)
 	}

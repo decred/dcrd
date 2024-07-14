@@ -8,8 +8,8 @@ blake256
 ## Overview
 
 Package `blake256` implements the [BLAKE-256 and BLAKE-224 cryptographic hash
-functions](https://www.aumasson.jp/blake/blake.pdf) (SHA-3 candidate) in pure
-Go.
+functions](https://www.aumasson.jp/blake/blake.pdf) (SHA-3 candidate) in pure Go
+along with highly optimized SSE2 acceleration.
 
 It provides an API that enables zero allocations and the ability to save and
 restore the intermediate state (also often called the midstate).  The design
@@ -100,42 +100,42 @@ performance is that the final output is 4 bytes shorter.
 The following results demonstrate the performance of hashing various amounts of
 data for both small and larger inputs with the `Sum256` method.
 
-Operation        |   Pure Go
------------------|-------------
-`Sum256` (32b)   | 168MB/s ± 1%
-`Sum256` (64b)   | 187MB/s ± 0%
-`Sum256` (1KiB)  | 378MB/s ± 1%
-`Sum256` (8KiB)  | 405MB/s ± 1%
-`Sum256` (16KiB) | 402MB/s ± 1%
+Operation        |   Pure Go    |     SSE2
+-----------------|--------------|-------------
+`Sum256` (32b)   | 168MB/s ± 1% | 188MB/s ± 1%
+`Sum256` (64b)   | 187MB/s ± 0% | 208MB/s ± 0%
+`Sum256` (1KiB)  | 378MB/s ± 1% | 421MB/s ± 1%
+`Sum256` (8KiB)  | 405MB/s ± 1% | 448MB/s ± 0%
+`Sum256` (16KiB) | 402MB/s ± 1% | 449MB/s ± 0%
 
-Operation        |   Pure Go   | Allocs / Op
------------------|-------------|------------
-`Sum256` (32b)   | 190ns ± 1%  | 0
-`Sum256` (64b)   | 342ns ± 0%  | 0
-`Sum256` (1KiB)  | 2.71µs ± 1% | 0
-`Sum256` (8KiB)  | 20.2µs ± 1% | 0
-`Sum256` (16KiB) | 40.8µs ± 1% | 0
+Operation        |   Pure Go   |    SSE2     | Allocs / Op
+-----------------|-------------|-------------|------------
+`Sum256` (32b)   | 190ns ± 1%  |  170ns ± 1% | 0
+`Sum256` (64b)   | 342ns ± 0%  |  308ns ± 0% | 0
+`Sum256` (1KiB)  | 2.71µs ± 1% | 2.43µs ± 1% | 0
+`Sum256` (8KiB)  | 20.2µs ± 1% | 18.3µs ± 0% | 0
+`Sum256` (16KiB) | 40.8µs ± 1% | 36.5µs ± 0% | 0
 
 ### BLAKE-224 Hashing Benchmarks
 
 The following results demonstrate the performance of hashing various amounts of
 data for both small and larger inputs with the `Sum224` method.
 
-Operation        |   Pure Go
------------------|-------------
-`Sum224` (32b)   | 171MB/s ± 1%
-`Sum224` (64b)   | 187MB/s ± 2%
-`Sum224` (1KiB)  | 378MB/s ± 1%
-`Sum224` (8KiB)  | 404MB/s ± 1%
-`Sum224` (16KiB) | 401MB/s ± 1%
+Operation        |   Pure Go    |     SSE2
+-----------------|--------------|-------------
+`Sum224` (32b)   | 171MB/s ± 1% | 188MB/s ± 1%
+`Sum224` (64b)   | 187MB/s ± 2% | 209MB/s ± 1%
+`Sum224` (1KiB)  | 378MB/s ± 1% | 423MB/s ± 1%
+`Sum224` (8KiB)  | 404MB/s ± 1% | 447MB/s ± 1%
+`Sum224` (16KiB) | 401MB/s ± 1% | 453MB/s ± 0%
 
-Operation        |   Pure Go   | Allocs / Op
------------------|-------------|------------
-`Sum224` (32b)   |  187ns ± 1% | 0
-`Sum224` (64b)   |  342ns ± 2% | 0
-`Sum224` (1KiB)  | 2.71µs ± 1% | 0
-`Sum224` (8KiB)  | 20.3µs ± 1% | 0
-`Sum224` (16KiB) | 40.9µs ± 1% | 0
+Operation        |   Pure Go   |    SSE2     | Allocs / Op
+-----------------|-------------|-------------|------------
+`Sum224` (32b)   |  187ns ± 1% |  170ns ± 1% | 0
+`Sum224` (64b)   |  342ns ± 2% |  306ns ± 1% | 0
+`Sum224` (1KiB)  | 2.71µs ± 1% | 2.42µs ± 1% | 0
+`Sum224` (8KiB)  | 20.3µs ± 1% | 18.3µs ± 1% | 0
+`Sum224` (16KiB) | 40.9µs ± 1% | 36.2µs ± 0% | 0
 
 ### State Serialization Benchmarks
 

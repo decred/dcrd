@@ -25,6 +25,7 @@ func BenchmarkBlocksAMD64(b *testing.B) {
 		supported bool
 	}{
 		{name: "Pure Go", fn: blocksGeneric, supported: true},
+		{name: "SSE2", fn: blocksSSE2, supported: hasSSE2},
 	}
 
 	var state State

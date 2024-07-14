@@ -9,7 +9,7 @@ set -ex
 go version
 
 # loop all modules
-MODULES=$(find . -name go.mod -not -path "./playground/*")
+MODULES=$(find . -name go.mod -not -path "./playground/*" -not -path "./*/_asm/*")
 for module in $MODULES; do
   # determine module name/directory
   MODNAME=$(echo $module | sed -E -e 's,/go\.mod$,,' -e 's,^./,,')

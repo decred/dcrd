@@ -5,7 +5,8 @@
 // Main Go code originally written and optimized by Dave Collins May 2020.
 // Additional cleanup and comments added July 2024.
 
-// Package blake256 implements BLAKE-256 and BLAKE-224 with zero allocations.
+// Package blake256 implements BLAKE-256 and BLAKE-224 with SSE2 acceleration
+// and zero allocations.
 package blake256
 
 import (
