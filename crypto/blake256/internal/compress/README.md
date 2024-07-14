@@ -8,9 +8,9 @@ compress
 ## Overview
 
 Package `compress` implements the BLAKE-224 and BLAKE-256 block compression
-function.  It provides a pure Go implementation as well as a specialized
-implementation that takes advantage of vector extensions (SSE2) on the `amd64`
-architecture when it is supported.
+function.  It provides a pure Go implementation as well as specialized
+implementations that take advantage of vector extensions (SSE2 and SSE4.1) on the
+`amd64` architecture when they are supported.
 
 The package detects hardware support and arranges for the exported `Blocks`
 function to automatically use the fastest available supported hardware

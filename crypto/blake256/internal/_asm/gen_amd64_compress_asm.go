@@ -70,6 +70,19 @@ var globals struct {
 	// Since the round permutation schedule works mod 10, only the first 10
 	// rounds are stored and the remaining rounds are reused.
 	permutedConsts operand.Mem
+
+	// rotr8b4x32 houses the shuffle opcode sequence needed to perform a 4x32
+	// right rotation by 8 bits.
+	rotr8b4x32 operand.Mem
+
+	// rotr16b4x32 houses the shuffle opcode sequence needed to perform a 4x32
+	// right rotation by 16 bits.
+	rotr16b4x32 operand.Mem
+
+	// leToBe4x32 houses the shuffle opcode sequence needed to convert the
+	// message from little endian to a series of 32-bit unsigned big-endian
+	// integers 4 at a time (aka using 128-bit registers).
+	leToBe4x32 operand.Mem
 }
 
 // globalData generates a data segment to include and sets the fields in the
@@ -101,6 +114,18 @@ func globalData() {
 		ch, cl = blakeConsts[sig[round][14]], blakeConsts[sig[round][12]]
 		build.DATA(64*round+8*7, operand.U64(uint64(ch)<<32|uint64(cl)))
 	}
+
+	globals.rotr8b4x32 = build.GLOBL("shuffle_rotr8_4x32", attr.RODATA|attr.NOPTR)
+	build.DATA(0, operand.U64(0x0407060500030201))
+	build.DATA(8, operand.U64(0x0c0f0e0d080b0a09))
+
+	globals.rotr16b4x32 = build.GLOBL("shuffle_rotr16_4x32", attr.RODATA|attr.NOPTR)
+	build.DATA(0, operand.U64(0x0504070601000302))
+	build.DATA(8, operand.U64(0x0d0c0f0e09080b0a))
+
+	globals.leToBe4x32 = build.GLOBL("shuffle_le_to_be_4x32", attr.RODATA|attr.NOPTR)
+	build.DATA(0, operand.U64(0x0405060700010203))
+	build.DATA(8, operand.U64(0x0c0d0e0f08090a0b))
 }
 
 // blocksCompressor houses the state and specialized implementations for each
@@ -426,6 +451,32 @@ func set4x32SSE2(tmp0, tmp1 reg.Register, z, y, x, w operand.Op, dest reg.Regist
 	build.PUNPCKLQDQ(tmp1, dest)
 }
 
+// blend4x32SSE41 performs a 4-way 32-bit blend of the given source and
+// destination registers using the SSE4.1 PBLENDW opcode.
+//
+// The provided boolean arguments specify which lanes to copy to the destination
+// from the source when true.  The destination retains the value in the lanes
+// that are false.  They treat the 32-bit lanes as if they were numbered from
+// left to right.
+//
+// For example, consider 2 registers packed with 4 uint32s as follows:
+//
+//	 src: 0x88888888 0x99999999 0xaaaaaaaa 0xbbbbbbbb
+//	dest: 0xcccccccc 0xdddddddd 0xeeeeeeee 0xffffffff
+//
+// Then, specifying arguments (z,y,x,w) = (true,false,true,true) will result in:
+//
+//	dest: 0x88888888 0xdddddddd 0xaaaaaaaa 0xbbbbbbbb
+func blend4x32SSE41(z, y, x, w bool, src, dest reg.Register) {
+	var mask uint8
+	for colIdx, selected := range []bool{z, y, x, w} {
+		if selected {
+			mask |= 0x03 << (colIdx * 2)
+		}
+	}
+	build.PBLENDW(operand.U8(mask), src, dest)
+}
+
 // diagonalizeSSE2 shifts each of the rows in order to prepare the state matrix
 // for performing the diagonal step via a column step using opcodes limited to
 // SSE2.
@@ -443,6 +494,29 @@ func undiagonalizeSSE2(rows []reg.VecVirtual) {
 	shuffle4x32SSE2(3, 0, 1, 2, rows[1], rows[1])
 	shuffle4x32SSE2(2, 3, 0, 1, rows[2], rows[2])
 	shuffle4x32SSE2(1, 2, 3, 0, rows[3], rows[3])
+}
+
+// msgRowByIdx returns which row a given message index is in given a row
+// consists of the provided number of columns.
+func msgRowByIdx(msgIdx, numCols uint8) uint8 {
+	return msgIdx / numCols
+}
+
+// msgColByIdx returns the which column a given message index is in given it
+// consists of rows with the provided number of columns.
+func msgColByIdx(msgIdx, numCols uint8) uint8 {
+	return msgIdx % numCols
+}
+
+// msgRowNeeded returns whether or not a given row is needed by the provided
+// needed message idxs given the rows consist of the provided number of columns.
+func msgRowNeeded(msgRowNum, numCols uint8, neededMsgIdxs []uint8) bool {
+	for _, neededIdx := range neededMsgIdxs {
+		if msgRowByIdx(neededIdx, numCols) == msgRowNum {
+			return true
+		}
+	}
+	return false
 }
 
 // mustAddr is a convenience method to resolve an avo component to a memory
@@ -603,6 +677,189 @@ func blocksSSE2() {
 	build.RET()
 }
 
+// blocksSSE41 generates the BLAKE-224 and BLAKE-256 block compression function
+// accelerated by SSE4.1.
+func blocksSSE41() {
+	build.TEXT("blocksSSE41", attr.NOSPLIT, "func(state *State, msg []byte, counter uint64)")
+	build.Doc("blocksSSE41 performs BLAKE-224 and BLAKE-256 block compression",
+		"using SSE41 extensions.  See [Blocks] in blocksisa_amd64.go for",
+		"parameter details.  The scratch parameter is not used.")
+	build.Pragma("noescape")
+
+	// Load / dereference function params.
+	state := build.Dereference(build.Param("state"))
+	h := state.Field("CV")
+	s := state.Field("S")
+	counter := build.Load(build.Param("counter"), build.GP64())
+	msgPtr := build.Load(build.Param("msg").Base(), build.GP64())
+	msgLen := build.Load(build.Param("msg").Len(), build.GP64())
+
+	// XMM registers used for operation.
+	//
+	//    msg: Holds the big endian message.
+	//  rotr8: Holds shuffle pattern for 4x32 8 bit right rotations.
+	// rotr16: Holds shuffle pattern for 4x32 16 bit right rotations.
+	//     sr: Holds the salt passed to the function.
+	//   rows: Holds the state matrix.
+	//     hr: Holds the chain value.
+	//   shuf: Used to perform temp shuffles.
+	//    imr: Holds temp intermediate results.
+	msg := []reg.VecVirtual{build.XMM(), build.XMM(), build.XMM(), build.XMM()}
+	rotr8, rotr16 := build.XMM(), build.XMM()
+	sr := build.XMM()
+	rows := []reg.VecVirtual{build.XMM(), build.XMM(), build.XMM(), build.XMM()}
+	hr := []reg.VecVirtual{build.XMM(), build.XMM()}
+	shuf := build.XMM()
+	imr := []reg.VecVirtual{build.XMM(), build.XMM()}
+
+	// rotateRight4x32SSE41 performs a 4-way 32-bit right rotation of the
+	// provided vector register by the given number of bits using opcodes
+	// limited to SSE4.1.
+	//
+	// Notably, it takes advantage of the Supplemental SSE3 PSHUFB opcode to
+	// accelarate right shifts by 8 and 16 bits.
+	build.Comment("Populate registers for faster right rotations.")
+	build.MOVOU(globals.rotr8b4x32, rotr8)
+	build.MOVOU(globals.rotr16b4x32, rotr16)
+	rotateRight4x32SSE41 := func(bits uint8, dest reg.Register) {
+		switch bits {
+		case 8:
+			build.PSHUFB(rotr8, dest)
+		case 16:
+			build.PSHUFB(rotr16, dest)
+		default:
+			rotateRight4x32SSE2(shuf, bits, dest)
+		}
+	}
+
+	// loadMsg4x32 loads the permuted message words for the given parameters
+	// into the provided register as 4 packed uint32s.
+	//
+	// This takes advantage of SSE4.1 PBLENDW (and SSE2 PSHUFD) along with
+	// storing the message in XMM registers to permute and blend the message
+	// words into the correct positions using only registers.  This approach
+	// provides a significant speedup by avoiding memory access.
+	loadMsg4x32 := func(round uint8, isDiagStep, isFirstLoad bool, dest reg.Register) {
+		const numRows = 4
+		const numCols = 4
+		neededMsgIdxs := determineMsgIdxs(round, isDiagStep, isFirstLoad)
+		var needsBlend bool
+		for msgRowNum := uint8(0); msgRowNum < numRows; msgRowNum++ {
+			// Nothing to do for unneeded rows.
+			if !msgRowNeeded(msgRowNum, numCols, neededMsgIdxs[:]) {
+				continue
+			}
+
+			// Determine which columns to permute and blend for this row.
+			cols := make([]uint8, numCols)
+			blend := make([]bool, numCols)
+			for sourceColIdx, neededIdx := range neededMsgIdxs {
+				if msgRowByIdx(neededIdx, numCols) == msgRowNum {
+					cols[sourceColIdx] = msgColByIdx(neededIdx, numCols)
+					blend[sourceColIdx] = true
+				}
+			}
+
+			// Permute the needed words for the row to their final position and
+			// blend them as needed into the result.
+			row := msg[msgRowNum]
+			if !needsBlend {
+				shuffle4x32SSE2(cols[0], cols[1], cols[2], cols[3], row, dest)
+				needsBlend = true
+			} else {
+				shuffle4x32SSE2(cols[0], cols[1], cols[2], cols[3], row, shuf)
+				blend4x32SSE41(blend[0], blend[1], blend[2], blend[3], shuf, dest)
+			}
+		}
+	}
+
+	// Instantiate an instance of the blocks compression generator with the
+	// various state transformation functions implemented such that they only
+	// make use of the capabilities (e.g. opcodes and registers) available to
+	// SSE4.1 and perform the generation.
+	//
+	// See the comments of [blocksCompressor] for an overview of the overall
+	// methodology and what each function does.
+	compressor := blocksCompressor{
+		msgLen:  msgLen,
+		msgPtr:  msgPtr,
+		counter: counter,
+		initSMChainValueFn: func() {
+			build.MOVOU(mustAddr(s.Index(0)), sr)      //   sr  = s0 s1 s2 s3
+			build.MOVOU(mustAddr(h.Index(0)), rows[0]) // row0  = h0 h1 h2 h3
+			build.MOVOU(mustAddr(h.Index(4)), rows[1]) // row1  = h4 h5 h6 h7
+		},
+		initSMLowerHalfFn: func() {
+			build.MOVOU(globals.consts.Offset(0), rows[2]) // row2  = c0 c1 c2 c3
+			build.PXOR(sr, rows[2])                        // row2 ^= s0 s1 s2 s3
+			build.MOVD(counter, rows[3])                   // row3  = t0 t1 0  0
+			shuffle4x32SSE2(0, 0, 1, 1, rows[3], rows[3])  // row3  = t0 t0 t1 t1
+			build.PXOR(globals.consts.Offset(16), rows[3]) // row3 ^= c4 c5 c6 c7
+			build.MOVO(rows[0], hr[0])                     //  hr0  = h0 h1 h2 h3
+			build.MOVO(rows[1], hr[1])                     //  hr1  = h4 h5 h6 h7
+		},
+		convertMsgFn: func() {
+			// The message is stored in the XMM registers as:
+			// msg0 = |m0  m1  m2  m3|
+			// msg1 = |m4  m5  m6  m7|
+			// msg2 = |m8  m9  ma  mb|
+			// msg3 = |mc  md  me  mf|
+			build.MOVOU(globals.leToBe4x32, shuf)
+			for i := 0; i < 4; i++ {
+				build.MOVOU(memOffset(msgPtr, i*16), msg[i])
+				build.PSHUFB(shuf, msg[i])
+			}
+		},
+		columnStepFn: func(round uint8, isDiagStep bool) {
+			// Determine the memory offsets for the permuted constants for this
+			// round and column/diagonal step.
+			baseConstsOffset := int(round%10) * 64
+			if isDiagStep {
+				baseConstsOffset += 32
+			}
+			cxOffset := globals.permutedConsts.Offset(baseConstsOffset)
+			cyOffset := globals.permutedConsts.Offset(baseConstsOffset + 16)
+
+			loadMsg4x32(round, isDiagStep, true, imr[0])  // imr0 = mx (for G[i]..G[i+3])
+			build.MOVOU(cxOffset, imr[1])                 // imr1 = cx (for G[i]..G[i+3])
+			build.PXOR(imr[0], imr[1])                    // imr1 = mx^cx
+			build.PADDD(imr[1], rows[0])                  // row0 += imr1 (mx^cx)
+			loadMsg4x32(round, isDiagStep, false, imr[0]) // imr0 = my (for G[i]..G[i+3])
+			build.MOVOU(cyOffset, imr[1])                 // imr1 = cy (for G[i]..G[i+3])
+			build.PXOR(imr[0], imr[1])                    // imr1 = my^cy
+			build.PADDD(rows[1], rows[0])                 // row0 += row1
+			build.PXOR(rows[0], rows[3])                  // row3 ^= row0
+			rotateRight4x32SSE41(16, rows[3])             // row3 >>>= 16
+			build.PADDD(rows[3], rows[2])                 // row2 += row3
+			build.PXOR(rows[2], rows[1])                  // row1 ^= row2
+			rotateRight4x32SSE41(12, rows[1])             // row1 >>>= 12
+			build.PADDD(imr[1], rows[0])                  // row0 += imr1 (my^cy)
+			build.PADDD(rows[1], rows[0])                 // row0 += row1
+			build.PXOR(rows[0], rows[3])                  // row3 ^= row0
+			rotateRight4x32SSE41(8, rows[3])              // row3 >>>= 8
+			build.PADDD(rows[3], rows[2])                 // row2 += row3
+			build.PXOR(rows[2], rows[1])                  // row1 ^= row2
+			rotateRight4x32SSE41(7, rows[1])              // row1 >>>= 7
+		},
+		diagonalizeFn:   diagonalizeSSE2,
+		undiagonalizeFn: undiagonalizeSSE2,
+		finalizeFn: func() {
+			build.PXOR(hr[0], rows[0])   // row0 ^= h0 h1 h2 h3
+			build.PXOR(sr, rows[0])      // row0 ^= s0 s1 s2 s3
+			build.PXOR(rows[2], rows[0]) // row0 ^= v8 v9 va vb
+			build.PXOR(hr[1], rows[1])   // row1 ^= h4 h5 h6 h7
+			build.PXOR(sr, rows[1])      // row1 ^= s0 s1 s2 s3
+			build.PXOR(rows[3], rows[1]) // row1 ^= vc vd ve vf
+		},
+		outputChainValueFn: func() {
+			build.MOVOU(rows[0], mustAddr(h.Index(0))) // h0 h1 h2 h3 = row0
+			build.MOVOU(rows[1], mustAddr(h.Index(4))) // h4 h5 h6 h7 = row1
+		},
+	}
+	compressor.generate(rows)
+	build.RET()
+}
+
 func main() {
 	// Ideally this would just reference the compress package with the struct
 	// definition, but avo doesn't seem to have a way to specify a build tag
@@ -614,5 +871,6 @@ func main() {
 	build.ConstraintExpr("!purego")
 	globalData()
 	blocksSSE2()
+	blocksSSE41()
 	build.Generate()
 }

@@ -92,6 +92,18 @@ DATA permuted_blake_consts<>+624(SB)/8, $0x38d01377b5470917
 DATA permuted_blake_consts<>+632(SB)/8, $0xc97c50dd03707344
 GLOBL permuted_blake_consts<>(SB), RODATA|NOPTR, $640
 
+DATA shuffle_rotr8_4x32<>+0(SB)/8, $0x0407060500030201
+DATA shuffle_rotr8_4x32<>+8(SB)/8, $0x0c0f0e0d080b0a09
+GLOBL shuffle_rotr8_4x32<>(SB), RODATA|NOPTR, $16
+
+DATA shuffle_rotr16_4x32<>+0(SB)/8, $0x0504070601000302
+DATA shuffle_rotr16_4x32<>+8(SB)/8, $0x0d0c0f0e09080b0a
+GLOBL shuffle_rotr16_4x32<>(SB), RODATA|NOPTR, $16
+
+DATA shuffle_le_to_be_4x32<>+0(SB)/8, $0x0405060700010203
+DATA shuffle_le_to_be_4x32<>+8(SB)/8, $0x0c0d0e0f08090a0b
+GLOBL shuffle_le_to_be_4x32<>(SB), RODATA|NOPTR, $16
+
 // func blocksSSE2(state *State, msg []byte, counter uint64)
 // Requires: SSE2
 TEXT ·blocksSSE2(SB), $64-40
@@ -1685,4 +1697,1218 @@ done:
 	// Output the resulting chain value.
 	MOVOU X1, (AX)
 	MOVOU X2, 16(AX)
+	RET
+
+// func blocksSSE41(state *State, msg []byte, counter uint64)
+// Requires: SSE2, SSE4.1, SSSE3
+TEXT ·blocksSSE41(SB), NOSPLIT, $0-40
+	MOVQ state+0(FP), AX
+	MOVQ counter+32(FP), CX
+	MOVQ msg_base+8(FP), DX
+	MOVQ msg_len+16(FP), BX
+
+	// Populate registers for faster right rotations.
+	MOVOU shuffle_rotr8_4x32<>+0(SB), X4
+	MOVOU shuffle_rotr16_4x32<>+0(SB), X5
+
+	// Convert message len to number of blocks for loop counter.
+	SHRQ $0x06, BX
+
+	// Initialize state matrix.
+	// row0 = |v0  v1  v2  v3|   |  h0     h1     h2     h3 |
+	// row1 = |v4  v5  v6  v7|   |  h4     h5     h6     h7 |
+	MOVOU 32(AX), X6
+	MOVOU (AX), X7
+	MOVOU 16(AX), X8
+
+compressLoop:
+	// row2 = |v8  v9  va  vb| = |s0^c0  s1^c1  s2^c2  s3^c3|
+	// row3 = |vc  vd  ve  vf|   |t0^c4  t0^c5  t1^c6  t1^c7|
+	MOVOU  first_8_blake_consts<>+0(SB), X9
+	PXOR   X6, X9
+	MOVD   CX, X10
+	PSHUFD $0x50, X10, X10
+	PXOR   first_8_blake_consts<>+16(SB), X10
+	MOVO   X7, X11
+	MOVO   X8, X12
+
+	// Convert message to big endian.
+	MOVOU  shuffle_le_to_be_4x32<>+0(SB), X13
+	MOVOU  (DX), X0
+	PSHUFB X13, X0
+	MOVOU  16(DX), X1
+	PSHUFB X13, X1
+	MOVOU  32(DX), X2
+	PSHUFB X13, X2
+	MOVOU  48(DX), X3
+	PSHUFB X13, X3
+
+	// Round 1 column step.
+	PSHUFD  $0x08, X0, X14
+	PSHUFD  $0x80, X1, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+0(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x0d, X0, X14
+	PSHUFD  $0xd0, X1, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+16(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 1 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 1 diagonal step part 2: column step.
+	PSHUFD  $0x08, X2, X14
+	PSHUFD  $0x80, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+32(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x0d, X2, X14
+	PSHUFD  $0xd0, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+48(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 1 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 2 column step.
+	PSHUFD  $0x00, X1, X14
+	PSHUFD  $0x10, X2, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x42, X3, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+64(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x80, X1, X14
+	PSHUFD  $0x02, X2, X13
+	PBLENDW $0x0f, X13, X14
+	PSHUFD  $0x30, X3, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+80(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 2 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 2 diagonal step part 2: column step.
+	PSHUFD  $0x01, X0, X14
+	PSHUFD  $0x40, X1, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x30, X2, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+96(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0xc8, X0, X14
+	PSHUFD  $0x30, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x00, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+112(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 2 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 3 column step.
+	PSHUFD  $0x10, X1, X14
+	PSHUFD  $0x03, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0xc0, X3, X13
+	PBLENDW $0xcc, X13, X14
+	MOVOU   permuted_blake_consts<>+128(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x20, X0, X14
+	PSHUFD  $0x00, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x40, X3, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+144(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 3 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 3 diagonal step part 2: column step.
+	PSHUFD  $0x0c, X0, X14
+	PSHUFD  $0x30, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x42, X2, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+160(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x10, X0, X14
+	PSHUFD  $0x08, X1, X13
+	PBLENDW $0xcc, X13, X14
+	PSHUFD  $0x02, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+176(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 3 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 4 column step.
+	PSHUFD  $0x0c, X0, X14
+	PSHUFD  $0x03, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0xc0, X2, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x10, X3, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+192(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x04, X0, X14
+	PSHUFD  $0x01, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x80, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+208(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 4 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 4 diagonal step part 2: column step.
+	PSHUFD  $0x02, X0, X14
+	PSHUFD  $0x04, X1, X13
+	PBLENDW $0x3c, X13, X14
+	PSHUFD  $0xc0, X3, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+224(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x02, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x08, X2, X13
+	PBLENDW $0xcc, X13, X14
+	MOVOU   permuted_blake_consts<>+240(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 4 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 5 column step.
+	PSHUFD  $0x20, X0, X14
+	PSHUFD  $0x04, X1, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x81, X2, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+256(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x0c, X1, X13
+	PBLENDW $0x3c, X13, X14
+	PSHUFD  $0xc0, X3, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+272(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 5 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 5 diagonal step part 2: column step.
+	PSHUFD  $0xc0, X0, X14
+	PSHUFD  $0x20, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x0c, X2, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x02, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+288(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x01, X0, X14
+	PSHUFD  $0x00, X2, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x40, X3, X13
+	PBLENDW $0xcc, X13, X14
+	MOVOU   permuted_blake_consts<>+304(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 5 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 6 column step.
+	PSHUFD  $0x02, X0, X14
+	PSHUFD  $0x08, X1, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x00, X2, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+320(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0xc0, X0, X14
+	PSHUFD  $0x38, X2, X13
+	PBLENDW $0x3c, X13, X14
+	PSHUFD  $0x00, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+336(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 6 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 6 diagonal step part 2: column step.
+	PSHUFD  $0x40, X0, X14
+	PSHUFD  $0x0c, X1, X13
+	PBLENDW $0x0f, X13, X14
+	PSHUFD  $0x30, X3, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+352(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x04, X1, X14
+	PSHUFD  $0x40, X2, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x21, X3, X13
+	PBLENDW $0x33, X13, X14
+	MOVOU   permuted_blake_consts<>+368(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 6 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 7 column step.
+	PSHUFD  $0x04, X0, X14
+	PSHUFD  $0x00, X1, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x20, X3, X13
+	PBLENDW $0x33, X13, X14
+	MOVOU   permuted_blake_consts<>+384(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x01, X1, X14
+	PSHUFD  $0x80, X2, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x1c, X3, X13
+	PBLENDW $0x3c, X13, X14
+	MOVOU   permuted_blake_consts<>+400(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 7 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 7 diagonal step part 2: column step.
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x08, X1, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x10, X2, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+416(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x2c, X0, X14
+	PSHUFD  $0x03, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0xc0, X2, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+432(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 7 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 8 column step.
+	PSHUFD  $0xc0, X0, X14
+	PSHUFD  $0x0c, X1, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x01, X3, X13
+	PBLENDW $0x33, X13, X14
+	MOVOU   permuted_blake_consts<>+448(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x10, X0, X14
+	PSHUFD  $0x43, X2, X13
+	PBLENDW $0xc3, X13, X14
+	PSHUFD  $0x08, X3, X13
+	PBLENDW $0x0c, X13, X14
+	MOVOU   permuted_blake_consts<>+464(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 8 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 8 diagonal step part 2: column step.
+	PSHUFD  $0x80, X0, X14
+	PSHUFD  $0x01, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x00, X2, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x0c, X3, X13
+	PBLENDW $0x0c, X13, X14
+	MOVOU   permuted_blake_consts<>+480(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x20, X1, X13
+	PBLENDW $0x3c, X13, X14
+	PSHUFD  $0x80, X2, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+496(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 8 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 9 column step.
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x02, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x30, X2, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x08, X3, X13
+	PBLENDW $0x0c, X13, X14
+	MOVOU   permuted_blake_consts<>+512(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x30, X0, X14
+	PSHUFD  $0x04, X2, X13
+	PBLENDW $0xcc, X13, X14
+	PSHUFD  $0x03, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+528(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 9 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 9 diagonal step part 2: column step.
+	PSHUFD  $0x10, X0, X14
+	PSHUFD  $0x80, X2, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x04, X3, X13
+	PBLENDW $0x0f, X13, X14
+	MOVOU   permuted_blake_consts<>+544(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x02, X0, X14
+	PSHUFD  $0x4c, X1, X13
+	PBLENDW $0xfc, X13, X14
+	MOVOU   permuted_blake_consts<>+560(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 9 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 10 column step.
+	PSHUFD  $0x40, X0, X14
+	PSHUFD  $0x30, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x02, X2, X13
+	PBLENDW $0x0f, X13, X14
+	MOVOU   permuted_blake_consts<>+576(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x02, X0, X14
+	PSHUFD  $0x60, X1, X13
+	PBLENDW $0xfc, X13, X14
+	MOVOU   permuted_blake_consts<>+592(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 10 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 10 diagonal step part 2: column step.
+	PSHUFD  $0x30, X0, X14
+	PSHUFD  $0x04, X2, X13
+	PBLENDW $0x0c, X13, X14
+	PSHUFD  $0x43, X3, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+608(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x03, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x08, X3, X13
+	PBLENDW $0x3c, X13, X14
+	MOVOU   permuted_blake_consts<>+624(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 10 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 11 column step.
+	PSHUFD  $0x08, X0, X14
+	PSHUFD  $0x80, X1, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+0(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x0d, X0, X14
+	PSHUFD  $0xd0, X1, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+16(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 11 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 11 diagonal step part 2: column step.
+	PSHUFD  $0x08, X2, X14
+	PSHUFD  $0x80, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+32(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x0d, X2, X14
+	PSHUFD  $0xd0, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+48(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 11 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 12 column step.
+	PSHUFD  $0x00, X1, X14
+	PSHUFD  $0x10, X2, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x42, X3, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+64(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x80, X1, X14
+	PSHUFD  $0x02, X2, X13
+	PBLENDW $0x0f, X13, X14
+	PSHUFD  $0x30, X3, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+80(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 12 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 12 diagonal step part 2: column step.
+	PSHUFD  $0x01, X0, X14
+	PSHUFD  $0x40, X1, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x30, X2, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+96(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0xc8, X0, X14
+	PSHUFD  $0x30, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x00, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+112(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 12 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 13 column step.
+	PSHUFD  $0x10, X1, X14
+	PSHUFD  $0x03, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0xc0, X3, X13
+	PBLENDW $0xcc, X13, X14
+	MOVOU   permuted_blake_consts<>+128(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x20, X0, X14
+	PSHUFD  $0x00, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x40, X3, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+144(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 13 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 13 diagonal step part 2: column step.
+	PSHUFD  $0x0c, X0, X14
+	PSHUFD  $0x30, X1, X13
+	PBLENDW $0x30, X13, X14
+	PSHUFD  $0x42, X2, X13
+	PBLENDW $0xc3, X13, X14
+	MOVOU   permuted_blake_consts<>+160(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x10, X0, X14
+	PSHUFD  $0x08, X1, X13
+	PBLENDW $0xcc, X13, X14
+	PSHUFD  $0x02, X3, X13
+	PBLENDW $0x03, X13, X14
+	MOVOU   permuted_blake_consts<>+176(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 13 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Round 14 column step.
+	PSHUFD  $0x0c, X0, X14
+	PSHUFD  $0x03, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0xc0, X2, X13
+	PBLENDW $0xc0, X13, X14
+	PSHUFD  $0x10, X3, X13
+	PBLENDW $0x30, X13, X14
+	MOVOU   permuted_blake_consts<>+192(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x04, X0, X14
+	PSHUFD  $0x01, X2, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x80, X3, X13
+	PBLENDW $0xf0, X13, X14
+	MOVOU   permuted_blake_consts<>+208(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 14 diagonal step part 1: diagonalize.
+	PSHUFD $0x39, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x93, X10, X10
+
+	// Round 14 diagonal step part 2: column step.
+	PSHUFD  $0x02, X0, X14
+	PSHUFD  $0x04, X1, X13
+	PBLENDW $0x3c, X13, X14
+	PSHUFD  $0xc0, X3, X13
+	PBLENDW $0xc0, X13, X14
+	MOVOU   permuted_blake_consts<>+224(SB), X15
+	PXOR    X14, X15
+	PADDD   X15, X7
+	PSHUFD  $0x00, X0, X14
+	PSHUFD  $0x02, X1, X13
+	PBLENDW $0x03, X13, X14
+	PSHUFD  $0x08, X2, X13
+	PBLENDW $0xcc, X13, X14
+	MOVOU   permuted_blake_consts<>+240(SB), X15
+	PXOR    X14, X15
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X5, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x0c, X13
+	PSLLL   $0x14, X8
+	PXOR    X13, X8
+	PADDD   X15, X7
+	PADDD   X8, X7
+	PXOR    X7, X10
+	PSHUFB  X4, X10
+	PADDD   X10, X9
+	PXOR    X9, X8
+	MOVO    X8, X13
+	PSRLL   $0x07, X13
+	PSLLL   $0x19, X8
+	PXOR    X13, X8
+
+	// Round 14 diagonal step part 3: undiagonalize.
+	PSHUFD $0x93, X8, X8
+	PSHUFD $0x4e, X9, X9
+	PSHUFD $0x39, X10, X10
+
+	// Finally the chain value is defined as:
+	// h'0 = h0^s0^v0^v8
+	// h'1 = h1^s1^v1^v9
+	// h'2 = h2^s2^v2^va
+	// h'3 = h3^s3^v3^vb
+	// h'4 = h4^s0^v4^vc
+	// h'5 = h5^s1^v5^vd
+	// h'6 = h6^s2^v6^ve
+	// h'7 = h7^s3^v7^vf
+	PXOR X11, X7
+	PXOR X6, X7
+	PXOR X9, X7
+	PXOR X12, X8
+	PXOR X6, X8
+	PXOR X10, X8
+
+	// Either terminate the loop when there are no more full blocks
+	// to compress or move the message pointer to the next block of
+	// bytes to compress, increment the message bits counter
+	// accordingly, and loop back around to compress it.
+	DECQ BX
+	JZ   done
+	LEAQ 64(DX), DX
+	ADDQ $0x00000200, CX
+	JMP  compressLoop
+
+done:
+	// Output the resulting chain value.
+	MOVOU X7, (AX)
+	MOVOU X8, 16(AX)
 	RET

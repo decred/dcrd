@@ -10,3 +10,10 @@ package compress
 //
 //go:noescape
 func blocksSSE2(state *State, msg []byte, counter uint64)
+
+// blocksSSE41 performs BLAKE-224 and BLAKE-256 block compression
+// using SSE41 extensions.  See [Blocks] in blocksisa_amd64.go for
+// parameter details.  The scratch parameter is not used.
+//
+//go:noescape
+func blocksSSE41(state *State, msg []byte, counter uint64)
