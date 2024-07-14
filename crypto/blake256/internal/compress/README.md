@@ -12,10 +12,26 @@ function.  It only provides a pure Go implementation currently, but it will be
 updated to provided several specialized implementations that take advantage of
 vector extensions in the future.
 
+The package detects hardware support and arranges for the exported `Blocks`
+function to automatically use the fastest available supported hardware
+extensions that are not disabled.
+
 ## Tests and Benchmarks
 
 The package also provides full tests for all implementations as well as
 benchmarks.
+
+## Disabling Assembler Optimizations
+
+The `purego` build tag may be used to disable all assembly code.
+
+Additionally, when built normally without the `purego` build tag, the assembly
+optimizations for each of the supported vector extensions can individually be
+disabled at runtime by setting the following environment variables to `1`.
+
+* `BLAKE256_DISABLE_AVX=1`: Disable Advanced Vector Extensions (AVX) optimizations
+* `BLAKE256_DISABLE_SSE41=1`: Disable Streaming SIMD Extensions 4.1 (SSE4.1) optimizations
+* `BLAKE256_DISABLE_SSE2=1`: Disable Streaming SIMD Extensions 2 (SSE2) optimizations
 
 ## Installation and Updating
 

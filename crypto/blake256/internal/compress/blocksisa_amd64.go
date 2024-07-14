@@ -4,12 +4,13 @@
 //
 // Automatic selection originally written by Dave Collins July 2024.
 
-//go:build !amd64 || purego
+//go:build !purego
 
 package compress
 
-// Blocks performs BLAKE-224 and BLAKE-256 block compression using pure Go.  It
-// will compress as many full blocks as are available in the provided message.
+// Blocks performs BLAKE-224 and BLAKE-256 block compression using processor
+// specific vector extensions when available.  It will compress as many full
+// blocks as are available in the provided message.
 //
 // The parameters are:
 //
@@ -21,5 +22,14 @@ package compress
 //
 // The chain value in the passed state is updated in place.
 func Blocks(state *State, msg []byte, counter uint64) {
-	blocksGeneric(state, msg, counter)
+	switch {
+	case hasAVX:
+		fallthrough
+	case hasSSE41:
+		fallthrough
+	case hasSSE2:
+		fallthrough
+	default:
+		blocksGeneric(state, msg, counter)
+	}
 }

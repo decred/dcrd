@@ -149,6 +149,21 @@ interface.
 Time / Op   | 40.6ns ± 1%     | 16.0ns ± 0% | -60.60% (p=0.000 n=10+10)
 Allocs / Op | 1               | 0           | -100.00% (p=0.000 n=10+10)
 
+## Disabling Assembler Optimizations
+
+The `purego` build tag may be used to disable all assembly code.
+
+Additionally, when built normally without the `purego` build tag, the assembly
+optimizations for each of the supported vector extensions can individually be
+disabled at runtime by setting the following environment variables to `1`.
+
+* `BLAKE256_DISABLE_AVX=1`: Disable Advanced Vector Extensions (AVX) optimizations
+* `BLAKE256_DISABLE_SSE41=1`: Disable Streaming SIMD Extensions 4.1 (SSE4.1) optimizations
+* `BLAKE256_DISABLE_SSE2=1`: Disable Streaming SIMD Extensions 2 (SSE2) optimizations
+
+The package will automatically use the fastest available extensions that are not
+disabled.
+
 ## Examples
 
 * [Basic Usage](https://pkg.go.dev/github.com/decred/dcrd/crypto/blake256#example-package-BasicUsage)  
