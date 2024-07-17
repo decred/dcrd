@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -36,7 +36,7 @@ func (e ErrorKind) Error() string {
 	return string(e)
 }
 
-// Error identifies an script-related error.
+// Error identifies a script-related error.
 //
 // It has full support for errors.Is and errors.As, so the caller can ascertain
 // the specific reason for the error by checking the underlying error.
