@@ -432,6 +432,35 @@ func (ps *peerState) connectionsWithIP(ip net.IP) int {
 	return total
 }
 
+type resolveIPFn func(string) ([]net.IP, error)
+
+// hostToNetAddress parses and returns an address manager network address given
+// a hostname in a supported format (IPv4, IPv6).  If the hostname cannot be
+// immediately converted from a known address format, it will be resolved using
+// the provided DNS resolver function.  If it cannot be resolved, an error is
+// returned.
+//
+// This function is safe for concurrent access.
+func hostToNetAddress(host string, port uint16, services wire.ServiceFlag, resolver resolveIPFn) (*addrmgr.NetAddress, error) {
+	addrType, addrBytes := addrmgr.EncodeHost(host)
+	if addrType != addrmgr.UnknownAddressType {
+		// Since the host type has been successfully recognized and encoded,
+		// there is no need to perform a DNS lookup.
+		now := time.Unix(time.Now().Unix(), 0)
+		return addrmgr.NewNetAddressFromParams(addrType, addrBytes, port, now, services)
+	}
+	// Cannot determine the host address type. Must use DNS.
+	ips, err := resolver(host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no addresses found for %s", host)
+	}
+	na := addrmgr.NewNetAddressFromIPPort(ips[0], port, services)
+	return na, nil
+}
+
 // ResolveLocalAddress picks the best suggested network address from available
 // options, per the network interface key provided. The best suggestion, if
 // found, is added as a local address.
@@ -456,7 +485,7 @@ func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr
 	}
 
 	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
-		na, err := addrMgr.HostToNetAddress(bestSuggestion, port, services)
+		na, err := hostToNetAddress(bestSuggestion, port, services, dcrdLookup)
 		if err != nil {
 			amgrLog.Errorf("unable to generate network address using host %v: "+
 				"%v", bestSuggestion, err)
@@ -1142,8 +1171,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// known tip.
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
-			addrTypeFilter := natfSupported(
-				uint32(msg.ProtocolVersion))
+			addrTypeFilter := natfSupported(uint32(msg.ProtocolVersion))
 			lna := addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
 			if lna.IsRoutable() {
 				// Filter addresses the peer already knows about.
@@ -1950,7 +1978,7 @@ func (s *server) attemptDcrdDial(ctx context.Context, network, addr string) (net
 		if err != nil {
 			return nil, err
 		}
-		remoteAddr, err := s.addrManager.HostToNetAddress(host, uint16(port), 0)
+		remoteAddr, err := hostToNetAddress(host, uint16(port), 0, dcrdLookup)
 		if err != nil {
 			return nil, err
 		}
@@ -2267,7 +2295,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 		},
 		NewestBlock: sp.newestBlock,
 		HostToNetAddress: func(host string, port uint16, services wire.ServiceFlag) (*wire.NetAddress, error) {
-			address, err := sp.server.addrManager.HostToNetAddress(host, port, services)
+			address, err := hostToNetAddress(host, port, services, dcrdLookup)
 			if err != nil {
 				return nil, err
 			}
@@ -3800,7 +3828,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 	listenAddrs []string, db database.DB, utxoDb *leveldb.DB,
 	chainParams *chaincfg.Params, dataDir string) (*server, error) {
 
-	amgr := addrmgr.New(cfg.DataDir, dcrdLookup)
+	amgr := addrmgr.New(cfg.DataDir)
 	services := defaultServices
 
 	var listeners []net.Listener
@@ -4349,7 +4377,7 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 				eport = uint16(port)
 			}
 
-			na, err := amgr.HostToNetAddress(host, eport, services)
+			na, err := hostToNetAddress(host, eport, services, dcrdLookup)
 			if err != nil {
 				srvrLog.Warnf("Not adding %s as externalip: %v", sip, err)
 				continue
@@ -4450,7 +4478,8 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 			addrMgr.AddLocalAddress(netAddr, addrmgr.BoundPrio)
 		}
 	} else {
-		netAddr, err := addrMgr.HostToNetAddress(host, uint16(port), services)
+		netAddr, err := hostToNetAddress(host, uint16(port), services,
+			dcrdLookup)
 		if err != nil {
 			return err
 		}

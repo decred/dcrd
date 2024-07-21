@@ -1372,7 +1372,7 @@ func dcrdDial(ctx context.Context, network, addr string) (net.Conn, error) {
 	return cfg.dial(ctx, network, addr)
 }
 
-// dcrdLookup returns the correct DNS lookup function to use depending on the
+// dcrdLookup invokes the correct DNS lookup function to use depending on the
 // passed host and configuration options.  For example, .onion addresses will be
 // resolved using the onion specific proxy if one was specified, but will
 // otherwise treat the normal proxy as tor unless --noonion was specified in

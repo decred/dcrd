@@ -6,7 +6,6 @@
 package addrmgr
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -36,10 +35,6 @@ func natfOnlyIPv6(addrType NetAddressType) bool {
 	return addrType == IPv6Address
 }
 
-func lookupFunc(host string) ([]net.IP, error) {
-	return nil, errors.New("not implemented")
-}
-
 // addAddressByIP is a convenience function that adds an address to the
 // address manager given a valid string representation of an ip address and
 // a port.
@@ -53,7 +48,7 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 // that addresses are correctly added and/or updated, and that tried addresses
 // are not re-added.
 func TestAddOrUpdateAddress(t *testing.T) {
-	amgr := New("testaddaddressupdate", nil)
+	amgr := New("testaddaddressupdate")
 	amgr.Start()
 	if ka := amgr.GetAddress(); ka != nil {
 		t.Fatal("address manager should contain no addresses")
@@ -139,7 +134,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 
 // TestExpireNew ensures that expireNew will correctly throw away bad addresses.
 func TestExpireNew(t *testing.T) {
-	n := New("testexpirenew", nil)
+	n := New("testexpirenew")
 
 	now := time.Now()
 
@@ -195,7 +190,7 @@ func TestLoadPeersWithCorruptPeersFile(t *testing.T) {
 	if err := fp.Close(); err != nil {
 		t.Fatalf("Could not write empty peers file: %s", peersFile)
 	}
-	amgr := New(dir, nil)
+	amgr := New(dir)
 	amgr.Start()
 	amgr.Stop()
 	if _, err := os.Stat(peersFile); err != nil {
@@ -214,7 +209,7 @@ func TestStartStop(t *testing.T) {
 		t.Fatalf("peers file exists though it should not: %s", peersFile)
 	}
 
-	amgr := New(dir, nil)
+	amgr := New(dir)
 	amgr.Start()
 
 	// Add single network address to the address manager.
@@ -232,7 +227,7 @@ func TestStartStop(t *testing.T) {
 	}
 
 	// Start a new address manager, which initializes it from the peers file.
-	amgr = New(dir, nil)
+	amgr = New(dir)
 	amgr.Start()
 
 	knownAddress := amgr.GetAddress()
@@ -257,7 +252,7 @@ func TestStartStop(t *testing.T) {
 // TestNeedMoreAddresses adds 1000 addresses and then checks to see if
 // NeedMoreAddresses correctly determines that no more addresses are needed.
 func TestNeedMoreAddresses(t *testing.T) {
-	n := New("testneedmoreaddresses", lookupFunc)
+	n := New("testneedmoreaddresses")
 	addrsToAdd := needAddressThreshold
 	b := n.NeedMoreAddresses()
 	if !b {
@@ -289,14 +284,14 @@ func TestNeedMoreAddresses(t *testing.T) {
 // never-attempted addresses, or addresses which don't match the given filter.
 func TestAddressCache(t *testing.T) {
 	// Test that the randomized subset is nil if no addresses are known.
-	n := New("testaddresscacheisempty", nil)
+	n := New("testaddresscacheisempty")
 	addrList := n.AddressCache(natfAny)
 	if addrList != nil {
 		t.Fatalf("expected empty AddressCache. Got %v", addrList)
 	}
 
 	// Test that bad and never-attempted addresses aren't shared.
-	n = New("testaddresscachewithbad", nil)
+	n = New("testaddresscachewithbad")
 	srcAddr := NewNetAddressFromIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
 	// Create and add a bad address from the future.
 	futureTime := time.Now().AddDate(0, 1, 0)
@@ -321,7 +316,7 @@ func TestAddressCache(t *testing.T) {
 	}
 
 	// Test that a filter will prevent certain addresses from being shared.
-	n = New("testaddresscachewithfilter", nil)
+	n = New("testaddresscachewithfilter")
 	goodIPv4 := NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 0, wire.SFNodeNetwork)
 	goodIPv6 := NewNetAddressFromIPPort(net.ParseIP(routableIPv6Addr), 0, wire.SFNodeNetwork)
 	n.addOrUpdateAddress(goodIPv4, srcAddr)
@@ -339,91 +334,8 @@ func TestAddressCache(t *testing.T) {
 	}
 }
 
-// TestHostToNetAddress ensures that HostToNetAddress behaves as expected
-// given valid and invalid host name arguments.
-func TestHostToNetAddress(t *testing.T) {
-	// Define a hostname that will cause a lookup to be performed using the
-	// lookupFunc provided to the address manager instance for each test.
-	const hostnameForLookup = "hostname.test"
-	const services = wire.SFNodeNetwork
-
-	tests := []struct {
-		name       string
-		host       string
-		port       uint16
-		lookupFunc func(host string) ([]net.IP, error)
-		wantErr    bool
-		want       *NetAddress
-	}{{
-		// 	name:       "valid onion address",
-		// 	host:       "a5ccbdkubbr2jlcp.onion",
-		// 	port:       8333,
-		// 	lookupFunc: nil,
-		// 	wantErr:    false,
-		// 	want: NewNetAddressFromIPPort(
-		// 		net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
-		// 		services),
-		// }, {
-		// 	name:       "invalid onion address",
-		// 	host:       "0000000000000000.onion",
-		// 	port:       8333,
-		// 	lookupFunc: nil,
-		// 	wantErr:    true,
-		// 	want:       nil,
-		// }, {
-		name: "unresolvable host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return nil, fmt.Errorf("unresolvable host %v", host)
-		},
-		wantErr: true,
-		want:    nil,
-	}, {
-		name: "not resolved host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return nil, nil
-		},
-		wantErr: true,
-		want:    nil,
-	}, {
-		name: "resolved host name",
-		host: hostnameForLookup,
-		port: 8333,
-		lookupFunc: func(host string) ([]net.IP, error) {
-			return []net.IP{net.ParseIP("127.0.0.1")}, nil
-		},
-		wantErr: false,
-		want: NewNetAddressFromIPPort(net.ParseIP("127.0.0.1"), 8333,
-			services),
-	}, {
-		name:       "valid ip address",
-		host:       "12.1.2.3",
-		port:       8333,
-		lookupFunc: nil,
-		wantErr:    false,
-		want: NewNetAddressFromIPPort(net.ParseIP("12.1.2.3"), 8333,
-			services),
-	}}
-
-	for _, test := range tests {
-		addrManager := New("testHostToNetAddress", test.lookupFunc)
-		result, err := addrManager.HostToNetAddress(test.host, test.port,
-			services)
-		if test.wantErr == true && err == nil {
-			t.Errorf("%q: expected error but one was not returned", test.name)
-		}
-		if !reflect.DeepEqual(result, test.want) {
-			t.Errorf("%q: unexpected result - got %v, want %v", test.name,
-				result, test.want)
-		}
-	}
-}
-
 func TestGetAddress(t *testing.T) {
-	n := New("testgetaddress", lookupFunc)
+	n := New("testgetaddress")
 
 	// Get an address from an empty set (should error).
 	if rv := n.GetAddress(); rv != nil {
@@ -478,7 +390,7 @@ func TestGetAddress(t *testing.T) {
 
 // TestAttempt ensures that Attempt will correctly update the lastAttempt time.
 func TestAttempt(t *testing.T) {
-	n := New("testattempt", lookupFunc)
+	n := New("testattempt")
 
 	// Add a new address and get it.
 	n.addAddressByIP(routableIPv4Addr, 8333)
@@ -509,7 +421,7 @@ func TestAttempt(t *testing.T) {
 
 // TestConnected ensures that Connected will correctly update the connected timestamp.
 func TestConnected(t *testing.T) {
-	n := New("testconnected", lookupFunc)
+	n := New("testconnected")
 
 	// Add a new address and get it
 	n.addAddressByIP(routableIPv4Addr, 8333)
@@ -549,7 +461,7 @@ func TestConnected(t *testing.T) {
 // as good if it hasn't first been added to a new bucket.
 func TestGood(t *testing.T) {
 	// Phase 1: test adding addresses and marking them good.
-	n := New("testgood", lookupFunc)
+	n := New("testgood")
 	addrsToAdd := 64 * 64
 	addrs := make([]*NetAddress, addrsToAdd)
 
@@ -583,7 +495,7 @@ func TestGood(t *testing.T) {
 	// enter the new bucket, and when marked good it should move to the tried
 	// bucket.  If the tried bucket is full then it should make room for the
 	// newly tried address by moving the old one back to the new bucket.
-	n = New("testgood_tried_overflow", lookupFunc)
+	n = New("testgood_tried_overflow")
 	n.triedBucketSize = 1
 	n.getNewBucket = func(netAddr, srcAddr *NetAddress) int {
 		return 0
@@ -681,7 +593,7 @@ func TestGood(t *testing.T) {
 
 	// Phase 3: Test trying to mark an address as good without first adding it
 	// to the new bucket
-	n = New("testgood_not_new", lookupFunc)
+	n = New("testgood_not_new")
 	// Directly add an address to the address index without adding it to New
 	n.addrIndex[addrAKey] = &KnownAddress{na: addrA, srcAddr: srcAddr, tried: false}
 	// Try to mark the address as good
@@ -701,7 +613,7 @@ func TestGood(t *testing.T) {
 // expected and that the services field is not mutated when new services are
 // added.
 func TestSetServices(t *testing.T) {
-	addressManager := New("testSetServices", nil)
+	addressManager := New("testSetServices")
 	const services = wire.SFNodeNetwork
 
 	// Attempt to set services for an address not known to the address manager.
@@ -789,7 +701,7 @@ func TestAddLocalAddress(t *testing.T) {
 	const testPort = 8333
 	const testServices = wire.SFNodeNetwork
 
-	amgr := New("testaddlocaladdress", nil)
+	amgr := New("testaddlocaladdress")
 	validLocalAddresses := make(map[string]struct{})
 	for _, test := range tests {
 		netAddr := NewNetAddressFromIPPort(test.ip, testPort, testServices)
@@ -877,7 +789,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}}
 
-	amgr := New("testgetbestlocaladdress", nil)
+	amgr := New("testgetbestlocaladdress")
 
 	// Test0: Default response (non-routable) when there's no stored addresses.
 	for x, test := range tests {
@@ -1072,7 +984,7 @@ func TestIsExternalAddrCandidate(t *testing.T) {
 		expectedReach: Ipv6Weak,
 	}}
 
-	addressManager := New("TestIsExternalAddrCandidate", nil)
+	addressManager := New("TestIsExternalAddrCandidate")
 	for _, test := range tests {
 		localIP := net.ParseIP(test.localAddr)
 		remoteIP := net.ParseIP(test.remoteAddr)
