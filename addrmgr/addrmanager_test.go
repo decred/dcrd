@@ -26,6 +26,16 @@ const (
 	nonRoutableIPv6Addr = "::1"
 )
 
+// natfAny defines a filter that will allow network addresses of any type.
+func natfAny(addrType NetAddressType) bool {
+	return true
+}
+
+// natfOnlyIPv6 defines a filter that will only allow IPv6 netAddrs.
+func natfOnlyIPv6(addrType NetAddressType) bool {
+	return addrType == IPv6Address
+}
+
 func lookupFunc(host string) ([]net.IP, error) {
 	return nil, errors.New("not implemented")
 }
@@ -275,12 +285,12 @@ func TestNeedMoreAddresses(t *testing.T) {
 	}
 }
 
-// TestAddressCache ensures that AddressCache doesn't return bad or
-// never-attempted addresses.
+// TestAddressCache ensures that AddressCache doesn't return bad addresses,
+// never-attempted addresses, or addresses which don't match the given filter.
 func TestAddressCache(t *testing.T) {
 	// Test that the randomized subset is nil if no addresses are known.
 	n := New("testaddresscacheisempty", nil)
-	addrList := n.AddressCache()
+	addrList := n.AddressCache(natfAny)
 	if addrList != nil {
 		t.Fatalf("expected empty AddressCache. Got %v", addrList)
 	}
@@ -305,9 +315,27 @@ func TestAddressCache(t *testing.T) {
 	goodAddrSlice[0] = NewNetAddressFromIPPort(net.ParseIP("1.1.1.1"), 8333, wire.SFNodeNetwork)
 	n.AddAddresses(goodAddrSlice, srcAddr)
 	// Neither address should be returned.
-	addrList = n.AddressCache()
+	addrList = n.AddressCache(natfAny)
 	if len(addrList) != 0 {
 		t.Fatalf("expected empty AddressCache. Got %v", addrList)
+	}
+
+	// Test that a filter will prevent certain addresses from being shared.
+	n = New("testaddresscachewithfilter", nil)
+	goodIPv4 := NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 0, wire.SFNodeNetwork)
+	goodIPv6 := NewNetAddressFromIPPort(net.ParseIP(routableIPv6Addr), 0, wire.SFNodeNetwork)
+	n.addOrUpdateAddress(goodIPv4, srcAddr)
+	n.addOrUpdateAddress(goodIPv6, srcAddr)
+	// Mark them both as Good.
+	n.Good(goodIPv4)
+	n.Good(goodIPv6)
+	// Only the IPv6 address should be returned.
+	addrList = n.AddressCache(natfOnlyIPv6)
+	if len(addrList) != 1 {
+		t.Fatalf("expected only 1 address in the cache. Got %d", len(addrList))
+	}
+	if !reflect.DeepEqual(addrList[0].IP, goodIPv6.IP) {
+		t.Fatalf("expected only the IPv6 address. Got %s", net.IP(addrList[0].IP))
 	}
 }
 
@@ -543,7 +571,7 @@ func TestGood(t *testing.T) {
 			addrsToAdd)
 	}
 
-	numCache := len(n.AddressCache())
+	numCache := len(n.AddressCache(natfAny))
 	if numCache >= numAddrs/4 {
 		t.Fatalf("Number of addresses in cache: got %d, want %d", numCache,
 			numAddrs/4)
@@ -807,10 +835,16 @@ func TestGetBestLocalAddress(t *testing.T) {
 		return NewNetAddressFromIPPort(ip, port, wire.SFNodeNetwork)
 	}
 
-	localAddrs := []*NetAddress{
+	// Not publicly routable.
+	privateLocalAddrs := []*NetAddress{
 		newAddressFromIP(net.ParseIP("192.168.0.100")),
 		newAddressFromIP(net.ParseIP("::1")),
 		newAddressFromIP(net.ParseIP("fe80::1")),
+	}
+
+	// Publicly routable.
+	publicLocalAddrs := []*NetAddress{
+		newAddressFromIP(net.ParseIP("204.124.8.100")),
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}
 
@@ -821,64 +855,88 @@ func TestGetBestLocalAddress(t *testing.T) {
 		want2      *NetAddress
 		want3      *NetAddress
 	}{{
-		// Remote connection from public IPv4
+		// Remote connection from public IPv4.
 		newAddressFromIP(net.ParseIP("204.124.8.1")),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.ParseIP("204.124.8.100")),
-		newAddressFromIP(net.ParseIP("fd87:d87e:eb43:25::1")),
+		newAddressFromIP(net.IPv4zero),
 	}, {
-		// Remote connection from private IPv4
+		// Remote connection from private IPv4.
 		newAddressFromIP(net.ParseIP("172.16.0.254")),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 	}, {
-		// Remote connection from public IPv6
+		// Remote connection from public IPv6.
 		newAddressFromIP(net.ParseIP("2602:100:abcd::102")),
 		newAddressFromIP(net.IPv6zero),
-		newAddressFromIP(net.ParseIP("2001:470::1")),
+		newAddressFromIP(net.IPv6zero),
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}}
 
 	amgr := New("testgetbestlocaladdress", nil)
 
-	// Test against default when there's no address
+	// Test0: Default response (non-routable) when there's no stored addresses.
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		got := amgr.GetBestLocalAddress(test.remoteAddr, natfAny)
 		if !reflect.DeepEqual(test.want0.IP, got.IP) {
-			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
-				x, test.remoteAddr.IP, test.want1.IP, got.IP)
+			remoteIP := net.IP(test.remoteAddr.IP)
+			wantIP := net.IP(test.want0.IP)
+			gotIP := net.IP(got.IP)
+			t.Errorf("TestGetBestLocalAddress test0 #%d failed for remote address %s: want %s got %s",
+				x, remoteIP, wantIP, gotIP)
 			continue
 		}
 	}
 
-	for _, localAddr := range localAddrs {
+	// Store some local addresses which are not publicly accessible.
+	for _, localAddr := range privateLocalAddrs {
 		amgr.AddLocalAddress(localAddr, InterfacePrio)
 	}
 
-	// Test against want1
+	// Test1: Only have private local addresses to share.
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		got := amgr.GetBestLocalAddress(test.remoteAddr, natfAny)
 		if !reflect.DeepEqual(test.want1.IP, got.IP) {
+			remoteIP := net.IP(test.remoteAddr.IP)
+			wantIP := net.IP(test.want1.IP)
+			gotIP := net.IP(got.IP)
 			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
-				x, test.remoteAddr.IP, test.want1.IP, got.IP)
+				x, remoteIP, wantIP, gotIP)
 			continue
 		}
 	}
 
-	// Add a public IP to the list of local addresses.
-	localAddr := newAddressFromIP(net.ParseIP("204.124.8.100"))
-	amgr.AddLocalAddress(localAddr, InterfacePrio)
+	// Store some local addresses which can be accessed by the public.
+	for _, localAddr := range publicLocalAddrs {
+		amgr.AddLocalAddress(localAddr, InterfacePrio)
+	}
 
-	// Test against want2
+	// Test2: Have some publicly accessible local addresses to share.
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		got := amgr.GetBestLocalAddress(test.remoteAddr, natfAny)
 		if !reflect.DeepEqual(test.want2.IP, got.IP) {
+			remoteIP := net.IP(test.remoteAddr.IP)
+			wantIP := net.IP(test.want2.IP)
+			gotIP := net.IP(got.IP)
 			t.Errorf("TestGetBestLocalAddress test2 #%d failed for remote address %s: want %s got %s",
-				x, test.remoteAddr.IP, test.want2.IP, got.IP)
+				x, remoteIP, wantIP, gotIP)
+			continue
+		}
+	}
+
+	// Test3: Test when there's a filter to prevent certain addresses being shared.
+	for x, test := range tests {
+		got := amgr.GetBestLocalAddress(test.remoteAddr, natfOnlyIPv6)
+		if !reflect.DeepEqual(test.want3.IP, got.IP) {
+			remoteIP := net.IP(test.remoteAddr.IP)
+			wantIP := net.IP(test.want3.IP)
+			gotIP := net.IP(got.IP)
+			t.Errorf("TestGetBestLocalAddress test3 #%d failed for remote address %s: want %s got %s",
+				x, remoteIP, wantIP, gotIP)
 			continue
 		}
 	}
