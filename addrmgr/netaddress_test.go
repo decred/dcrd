@@ -244,7 +244,7 @@ func TestNewNetAddressFromParams(t *testing.T) {
 // TestNewNetAddressFromString verifies that the newNetAddressFromString
 // constructor correctly creates a network address with expected field values.
 func TestNewNetAddressFromString(t *testing.T) {
-	amgr := New("TestNewNetAddressFromString", nil)
+	amgr := New("TestNewNetAddressFromString")
 	tests := []struct {
 		name          string
 		addrString    string

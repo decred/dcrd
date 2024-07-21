@@ -35,11 +35,6 @@ type AddrManager struct {
 	// is saved to and loaded from.
 	peersFile string
 
-	// lookupFunc is a function provided to the address manager that is used to
-	// perform DNS lookups for a given hostname.
-	// The provided function MUST be safe for concurrent access.
-	lookupFunc func(string) ([]net.IP, error)
-
 	// key is a random seed used to map addresses to new and tried buckets.
 	key [32]byte
 
@@ -762,32 +757,6 @@ func EncodeHost(host string) (NetAddressType, []byte) {
 	return UnknownAddressType, nil
 }
 
-// HostToNetAddress parses and returns a network address given a hostname in a
-// supported format (IPv4, IPv6).  If the hostname cannot be immediately
-// converted from a known address format, it will be resolved using the lookup
-// function provided to the address manager.  If it cannot be resolved, an error
-// is returned.
-//
-// This function is safe for concurrent access.
-func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.ServiceFlag) (*NetAddress, error) {
-	addrType, addrBytes := EncodeHost(host)
-	if addrType != UnknownAddressType {
-		// Since the host type has been successfully recognized and encoded,
-		// there is no need to perform a DNS lookup.
-		now := time.Unix(time.Now().Unix(), 0)
-		return NewNetAddressFromParams(addrType, addrBytes, port, now, services)
-	}
-	// Cannot determine the host address type. Must use DNS.
-	ips, err := a.lookupFunc(host)
-	if err != nil {
-		return nil, err
-	}
-	if len(ips) == 0 {
-		return nil, fmt.Errorf("no addresses found for %s", host)
-	}
-	return NewNetAddressFromIPPort(ips[0], port, services), nil
-}
-
 // GetAddress returns a single address that should be routable.  It picks a
 // random one from the possible addresses with preference given to ones that
 // have not been used recently and should not pick 'close' addresses
@@ -1246,11 +1215,9 @@ func (a *AddrManager) IsExternalAddrCandidate(localAddr, remoteAddr *NetAddress)
 
 // New constructs a new address manager instance.
 // Use Start to begin processing asynchronous address updates.
-// The address manager uses lookupFunc for necessary DNS lookups.
-func New(dataDir string, lookupFunc func(string) ([]net.IP, error)) *AddrManager {
+func New(dataDir string) *AddrManager {
 	am := AddrManager{
 		peersFile:       filepath.Join(dataDir, peersFilename),
-		lookupFunc:      lookupFunc,
 		quit:            make(chan struct{}),
 		localAddresses:  make(map[string]*localAddress),
 		triedBucketSize: defaultTriedBucketSize,
