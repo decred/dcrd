@@ -704,7 +704,9 @@ func (a *AddrManager) AddressCache() []*NetAddress {
 	// Adjust length, we only deal with high quality addresses now.
 	addrLen = len(allAddr)
 
-	numAddresses := addrLen * getKnownAddressPercentage / 100
+	// Calculate the number of addresses to be shared: a small subset of all
+	// known addresses.  If available, always return at least one address.
+	numAddresses := ((addrLen * getKnownAddressPercentage) + 99) / 100
 	if numAddresses > getKnownAddressLimit {
 		numAddresses = getKnownAddressLimit
 	}
