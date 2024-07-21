@@ -519,9 +519,8 @@ func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr
 
 		// Add a local address if the network address is a probable external
 		// endpoint of the listener.
-		lNa := wire.NewNetAddressIPPort(listenerIP, uint16(port), services)
 		lNet := addrmgr.IPv4Address
-		if lNa.IP.To4() == nil {
+		if listenerIP.To4() == nil {
 			lNet = addrmgr.IPv6Address
 		}
 
@@ -1045,6 +1044,18 @@ func hasServices(advertised, desired wire.ServiceFlag) bool {
 	return advertised&desired == desired
 }
 
+// isSupportedNetAddrTypeV1 is a filter which returns whether the provided
+// network address type is supported by the addr wire message.
+func isSupportedNetAddrTypeV1(addrType addrmgr.NetAddressType) bool {
+	return addrType == addrmgr.IPv4Address || addrType == addrmgr.IPv6Address
+}
+
+// natfSupported returns a filter for the address types supported by the
+// protocol version.
+func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
+	return isSupportedNetAddrTypeV1
+}
+
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
@@ -1131,7 +1142,9 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// known tip.
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
-			lna := addrManager.GetBestLocalAddress(remoteAddr)
+			addrTypeFilter := natfSupported(
+				uint32(msg.ProtocolVersion))
+			lna := addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
 			if lna.IsRoutable() {
 				// Filter addresses the peer already knows about.
 				addresses := []*addrmgr.NetAddress{lna}
@@ -1730,8 +1743,11 @@ func (sp *serverPeer) OnGetAddr(_ *peer.Peer, msg *wire.MsgGetAddr) {
 	}
 	sp.addrsSent = true
 
-	// Get the current known addresses from the address manager.
-	addrCache := sp.server.addrManager.AddressCache()
+	// Get a randomized subset of the current known addresses from the address
+	// manager which are supported by the negotiated protocol version.
+	pver := sp.ProtocolVersion()
+	addrTypeFilter := natfSupported(pver)
+	addrCache := sp.server.addrManager.AddressCache(addrTypeFilter)
 
 	// Push the addresses.
 	sp.pushAddrMsg(addrCache)
@@ -4125,6 +4141,9 @@ func newServer(ctx context.Context, profiler *profileServer,
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
 		newAddressFunc = func() (net.Addr, error) {
 			for tries := 0; tries < 100; tries++ {
+				// Note that this does not filter by address type.  Unsupported
+				// network address types should be pruned from the address
+				// manager's internal storage prior to calling this function.
 				addr := s.addrManager.GetAddress()
 				if addr == nil {
 					break
