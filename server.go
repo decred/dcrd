@@ -1472,28 +1472,22 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 		return
 	}
 
-	newInv := wire.NewMsgInvSizeHint(uint(len(msg.InvList)))
 	for _, invVect := range msg.InvList {
-		if invVect.Type == wire.InvTypeTx {
-			peerLog.Infof("Peer %v is announcing transactions -- disconnecting",
-				sp)
-			sp.Disconnect()
-			return
+		var typ string
+		switch invVect.Type {
+		case wire.InvTypeTx:
+			typ = "transactions"
+		case wire.InvTypeMix:
+			typ = "mix messages"
+		default:
+			continue
 		}
-		if invVect.Type == wire.InvTypeMix {
-			peerLog.Infof("Peer %v is announcing mix messages -- disconnecting",
-				sp)
-			sp.Disconnect()
-			return
-		}
-		err := newInv.AddInvVect(invVect)
-		if err != nil {
-			peerLog.Errorf("Failed to add inventory vector: %v", err)
-			break
-		}
+		peerLog.Infof("Peer %v is announcing %s -- disconnecting", sp, typ)
+		sp.Disconnect()
+		return
 	}
 
-	sp.server.syncManager.QueueInv(newInv, sp.syncMgrPeer)
+	sp.server.syncManager.QueueInv(msg, sp.syncMgrPeer)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
