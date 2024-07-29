@@ -2059,103 +2059,107 @@ func (s *server) maybeLogRecentlyAdvertisedNumEvicted() {
 	s.lastAdvertisedTxnsEvictedLogged = time.Now()
 }
 
+// handleRelayPeerInvMsg handles the relay of a message to a specific
+// serverPeer.
+func (s *server) handleRelayPeerInvMsg(msg relayMsg, sp *serverPeer) {
+	if !sp.Connected() {
+		return
+	}
+
+	// Ignore peers that do not have the required service flags.
+	if !hasServices(sp.Services(), msg.reqServices) {
+		return
+	}
+
+	// Filter duplicate block announcements.
+	iv := msg.invVect
+	isBlockAnnouncement := iv.Type == wire.InvTypeBlock
+	if isBlockAnnouncement {
+		if sp.announcedBlock != nil && *sp.announcedBlock == iv.Hash {
+			sp.announcedBlock = nil
+			return
+		}
+		sp.announcedBlock = &iv.Hash
+	}
+
+	// Generate and send a headers message instead of an inventory message
+	// for block announcements when the peer prefers headers.
+	if isBlockAnnouncement && sp.WantsHeaders() {
+		blockHeader, ok := msg.data.(wire.BlockHeader)
+		if !ok {
+			peerLog.Warn("Underlying data for headers is not a block header")
+			return
+		}
+		msgHeaders := wire.NewMsgHeaders()
+		if err := msgHeaders.AddBlockHeader(&blockHeader); err != nil {
+			peerLog.Errorf("Failed to add block header: %v", err)
+			return
+		}
+		sp.QueueMessage(msgHeaders, nil)
+		return
+	}
+
+	if iv.Type == wire.InvTypeTx {
+		// Don't relay the transaction to the peer when it has transaction
+		// relaying disabled.
+		if sp.disableRelayTx.Load() {
+			return
+		}
+
+		// Track advertised transactions for a period of time in order to
+		// increase the probability they are available to serve regardless
+		// of whether or not they are still in the mempool when a request
+		// for the advertisement arrives.  Note that it is still possible
+		// for the advertised transaction to not be available in the case it
+		// is later removed from the advertised transactions pool due to
+		// expiration and/or exceeding the maximum limits prior to the
+		// request for it arriving.  However, not only is that case
+		// extremely rare in practice, the transaction is also likely still
+		// in the mempool in that case and will be served from there given
+		// peers generally do not request transactions that have been
+		// recently confirmed.
+		tx, ok := msg.data.(*dcrutil.Tx)
+		if !ok {
+			peerLog.Warn("Underlying data for inventory vector is not a " +
+				"transaction")
+			return
+		}
+		numEvicted := s.recentlyAdvertisedTxns.Put(iv.Hash, tx)
+		s.totalAdvertisedTxnsEvicted += uint64(numEvicted)
+		s.maybeLogRecentlyAdvertisedNumEvicted()
+	}
+
+	if iv.Type == wire.InvTypeMix {
+		// Don't relay the mixing message to the peer when it has transaction
+		// relaying disabled.
+		if sp.disableRelayTx.Load() {
+			return
+		}
+
+		// Don't relay mix message inventory when unsupported
+		// by the negotiated protocol version.
+		if sp.ProtocolVersion() < wire.MixVersion {
+			return
+		}
+	}
+
+	// Either queue the inventory to be relayed immediately or with
+	// the next batch depending on the immediate flag.
+	//
+	// It will be ignored in either case if the peer is already
+	// known to have the inventory.
+	if msg.immediate {
+		sp.QueueInventoryImmediate(iv)
+	} else {
+		sp.QueueInventory(iv)
+	}
+}
+
 // handleRelayInvMsg deals with relaying inventory to peers that are not already
 // known to have it.  It is invoked from the peerHandler goroutine.
 func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 	state.ForAllPeers(func(sp *serverPeer) {
-		if !sp.Connected() {
-			return
-		}
-
-		// Ignore peers that do not have the required service flags.
-		if !hasServices(sp.Services(), msg.reqServices) {
-			return
-		}
-
-		// Filter duplicate block announcements.
-		iv := msg.invVect
-		isBlockAnnouncement := iv.Type == wire.InvTypeBlock
-		if isBlockAnnouncement {
-			if sp.announcedBlock != nil && *sp.announcedBlock == iv.Hash {
-				sp.announcedBlock = nil
-				return
-			}
-			sp.announcedBlock = &iv.Hash
-		}
-
-		// Generate and send a headers message instead of an inventory message
-		// for block announcements when the peer prefers headers.
-		if isBlockAnnouncement && sp.WantsHeaders() {
-			blockHeader, ok := msg.data.(wire.BlockHeader)
-			if !ok {
-				peerLog.Warnf("Underlying data for headers" +
-					" is not a block header")
-				return
-			}
-			msgHeaders := wire.NewMsgHeaders()
-			if err := msgHeaders.AddBlockHeader(&blockHeader); err != nil {
-				peerLog.Errorf("Failed to add block"+
-					" header: %v", err)
-				return
-			}
-			sp.QueueMessage(msgHeaders, nil)
-			return
-		}
-
-		if iv.Type == wire.InvTypeTx {
-			// Don't relay the transaction to the peer when it has transaction
-			// relaying disabled.
-			if sp.disableRelayTx.Load() {
-				return
-			}
-
-			// Track advertised transactions for a period of time in order to
-			// increase the probability they are available to serve regardless
-			// of whether or not they are still in the mempool when a request
-			// for the advertisement arrives.  Note that it is still possible
-			// for the advertised transaction to not be available in the case it
-			// is later removed from the advertised transactions pool due to
-			// expiration and/or exceeding the maximum limits prior to the
-			// request for it arriving.  However, not only is that case
-			// extremely rare in practice, the transaction is also likely still
-			// in the mempool in that case and will be served from there given
-			// peers generally do not request transactions that have been
-			// recently confirmed.
-			tx, ok := msg.data.(*dcrutil.Tx)
-			if !ok {
-				peerLog.Warnf("Underlying data for inventory vector is not a " +
-					" transaction")
-				return
-			}
-			numEvicted := s.recentlyAdvertisedTxns.Put(iv.Hash, tx)
-			s.totalAdvertisedTxnsEvicted += uint64(numEvicted)
-			s.maybeLogRecentlyAdvertisedNumEvicted()
-		}
-
-		if iv.Type == wire.InvTypeMix {
-			// Don't relay the mixing message to the peer when it has transaction
-			// relaying disabled.
-			if sp.disableRelayTx.Load() {
-				return
-			}
-
-			// Don't relay mix message inventory when unsupported
-			// by the negotiated protocol version.
-			if sp.ProtocolVersion() < wire.MixVersion {
-				return
-			}
-		}
-
-		// Either queue the inventory to be relayed immediately or with
-		// the next batch depending on the immediate flag.
-		//
-		// It will be ignored in either case if the peer is already
-		// known to have the inventory.
-		if msg.immediate {
-			sp.QueueInventoryImmediate(iv)
-		} else {
-			sp.QueueInventory(iv)
-		}
+		s.handleRelayPeerInvMsg(msg, sp)
 	})
 }
 
