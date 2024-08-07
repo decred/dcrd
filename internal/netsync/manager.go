@@ -638,7 +638,7 @@ func (m *SyncManager) onInitialChainSyncDone() {
 
 // handlePeerConnectedMsg deals with new peers that have signalled they may
 // be considered as a sync peer (they have already successfully negotiated).  It
-// also starts syncing if needed.  It is invoked from the syncHandler goroutine.
+// also starts syncing if needed.  It is invoked from the eventHandler goroutine.
 func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	select {
 	case <-ctx.Done():
@@ -665,7 +665,7 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 // handlePeerDisconnectedMsg deals with peers that have signalled they are done.
 // It removes the peer as a candidate for syncing and in the case where it was
 // the current sync peer, attempts to select a new best peer to sync from.  It
-// is invoked from the syncHandler goroutine.
+// is invoked from the eventHandler goroutine.
 func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
 	// Remove the peer from the list of candidate peers.
 	delete(m.peers, peer)
