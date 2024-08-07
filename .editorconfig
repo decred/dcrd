@@ -1,0 +1,17 @@
+# top-most EditorConfig file
+root = true
+
+[*.{go,gv,s}]
+indent_style = tab
+indent_size = 4
+charset = utf-8
+
+[*.py]
+indent_style = space
+indent_size = 4
+charset = utf-8
+
+[*.{js,json,sh,xml,yml}]
+indent_style = space
+indent_size = 2
+charset = utf-8
