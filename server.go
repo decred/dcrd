@@ -1469,7 +1469,7 @@ func (sp *serverPeer) OnTx(_ *peer.Peer, msg *wire.MsgTx) {
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.syncManager.QueueTx(tx, sp.syncMgrPeer, sp.txProcessed)
+	sp.server.syncManager.OnTx(tx, sp.syncMgrPeer, sp.txProcessed)
 	<-sp.txProcessed
 }
 
@@ -1492,7 +1492,7 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	// depended on by at least the block acceptance test tool as the reference
 	// implementation processes blocks in the same thread and therefore blocks
 	// further messages until the network block has been fully processed.
-	sp.server.syncManager.QueueBlock(block, sp.syncMgrPeer, sp.blockProcessed)
+	sp.server.syncManager.OnBlock(block, sp.syncMgrPeer, sp.blockProcessed)
 	<-sp.blockProcessed
 }
 
@@ -1509,7 +1509,7 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if !cfg.BlocksOnly {
-		sp.server.syncManager.QueueInv(msg, sp.syncMgrPeer)
+		sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
 		return
 	}
 
@@ -1528,13 +1528,13 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 		return
 	}
 
-	sp.server.syncManager.QueueInv(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.syncManager.QueueHeaders(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnHeaders(msg, sp.syncMgrPeer)
 }
 
 // OnGetData is invoked when a peer receives a getdata wire message and is used
@@ -1835,7 +1835,7 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 
 	// Queue the message to be handled by the net sync manager
 	// XXX: add ban score increases for non-instaban errors?
-	sp.server.syncManager.QueueMixMsg(msg, sp.syncMgrPeer, sp.mixMsgProcessed)
+	sp.server.syncManager.OnMixMsg(msg, sp.syncMgrPeer, sp.mixMsgProcessed)
 	err := <-sp.mixMsgProcessed
 	var missingOwnPRErr *mixpool.MissingOwnPRError
 	if errors.As(err, &missingOwnPRErr) {
@@ -1957,7 +1957,7 @@ func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
 			return
 		}
 	}
-	sp.server.syncManager.QueueNotFound(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnNotFound(msg, sp.syncMgrPeer)
 }
 
 // attemptDcrdDial is a wrapper function around dcrdDial which adds and marks

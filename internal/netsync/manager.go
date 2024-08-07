@@ -1706,9 +1706,9 @@ func (m *SyncManager) PeerConnected(peer *Peer) {
 	}
 }
 
-// QueueTx adds the passed transaction message and peer to the event handling
+// OnTx adds the passed transaction message and peer to the event handling
 // queue.
-func (m *SyncManager) QueueTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
+func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
 	select {
 	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
 	case <-m.quit:
@@ -1716,9 +1716,9 @@ func (m *SyncManager) QueueTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
 	}
 }
 
-// QueueBlock adds the passed block message and peer to the event handling
+// OnBlock adds the passed block message and peer to the event handling
 // queue.
-func (m *SyncManager) QueueBlock(block *dcrutil.Block, peer *Peer, done chan struct{}) {
+func (m *SyncManager) OnBlock(block *dcrutil.Block, peer *Peer, done chan struct{}) {
 	select {
 	case m.msgChan <- &blockMsg{block: block, peer: peer, reply: done}:
 	case <-m.quit:
@@ -1726,35 +1726,35 @@ func (m *SyncManager) QueueBlock(block *dcrutil.Block, peer *Peer, done chan str
 	}
 }
 
-// QueueInv adds the passed inv message and peer to the event handling queue.
-func (m *SyncManager) QueueInv(inv *wire.MsgInv, peer *Peer) {
+// OnInv adds the passed inv message and peer to the event handling queue.
+func (m *SyncManager) OnInv(inv *wire.MsgInv, peer *Peer) {
 	select {
 	case m.msgChan <- &invMsg{inv: inv, peer: peer}:
 	case <-m.quit:
 	}
 }
 
-// QueueHeaders adds the passed headers message and peer to the event handling
+// OnHeaders adds the passed headers message and peer to the event handling
 // queue.
-func (m *SyncManager) QueueHeaders(headers *wire.MsgHeaders, peer *Peer) {
+func (m *SyncManager) OnHeaders(headers *wire.MsgHeaders, peer *Peer) {
 	select {
 	case m.msgChan <- &headersMsg{headers: headers, peer: peer}:
 	case <-m.quit:
 	}
 }
 
-// QueueMixMsg adds the passed mixing message and peer to the event handling
+// OnMixMsg adds the passed mixing message and peer to the event handling
 // queue.
-func (m *SyncManager) QueueMixMsg(msg mixing.Message, peer *Peer, done chan error) {
+func (m *SyncManager) OnMixMsg(msg mixing.Message, peer *Peer, done chan error) {
 	select {
 	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
 	case <-m.quit:
 	}
 }
 
-// QueueNotFound adds the passed notfound message and peer to the event handling
+// OnNotFound adds the passed notfound message and peer to the event handling
 // queue.
-func (m *SyncManager) QueueNotFound(notFound *wire.MsgNotFound, peer *Peer) {
+func (m *SyncManager) OnNotFound(notFound *wire.MsgNotFound, peer *Peer) {
 	select {
 	case m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}:
 	case <-m.quit:
