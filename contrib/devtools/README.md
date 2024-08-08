@@ -39,3 +39,10 @@ add every module.
 Do note, however, that workspaces are local, so final submissions to the
 repository will still require the appropriate changes to the relevant `go.mod`
 files to ensure resolution outside of the workspace.
+
+### Docker Image Version Bump Script
+
+The [bump_docker.sh](./bump_docker.sh) script creates a `git` commit on a new
+branch that updates the [Dockerfile](../docker/Dockerfile) to the provided image
+and digest.  The commit description includes the relevant details and
+instructions for others to verify the digest.
