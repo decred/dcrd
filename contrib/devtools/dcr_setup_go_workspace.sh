@@ -9,11 +9,11 @@
 
 set -e
 
-# Ensure the script is run from either the root of the repo or the contrib dir
+# Ensure the script is run from either the root of the repo or the devtools dir
 SCRIPT=$(basename $0)
 MAIN_CODE_FILE="dcrd.go"
-if [ -f "../${MAIN_CODE_FILE}" ]; then
-  cd ..
+if [ -f "../../${MAIN_CODE_FILE}" ]; then
+  cd ../..
 fi
 if [ ! -f "${MAIN_CODE_FILE}" ]; then
   echo "$SCRIPT: error: ${MAIN_CODE_FILE} not found in the current directory"
