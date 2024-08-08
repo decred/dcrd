@@ -46,3 +46,17 @@ The [bump_docker.sh](./bump_docker.sh) script creates a `git` commit on a new
 branch that updates the [Dockerfile](../docker/Dockerfile) to the provided image
 and digest.  The commit description includes the relevant details and
 instructions for others to verify the digest.
+
+### Assumed Valid Block Bump Script
+
+The [bump_assumevalid.sh](./bump_assumevalid.sh) script queries the main and
+test networks with `dcrctl` to determine suitable updated blocks to use for
+their assumevalid block and then creates a `git` commit on a new branch that
+updates the [chaincfg/mainnetparams.go](../../chaincfg/mainnetparams.go) and
+[chaincfg/testnetparams.go](../../chaincfg/testnetparams.go) files accordingly.
+The commit description includes the relevant details and instructions for others
+to verify the results.
+
+**NOTE**: This script requires `dcrctl` to be configured such that `dcrctl` and
+`dcrctl --testnet` connect to up-to-date main and test network instances,
+respectively.
