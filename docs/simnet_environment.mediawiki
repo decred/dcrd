@@ -41,7 +41,7 @@ it from the main network:
 
 The easiest way to get started using the simulation network is to make use of
 the preconfigured simnet environment setup shell script that is
-[[../contrib/dcr_tmux_simnet_setup.sh|provided in the repository at contrib/dcr_tmux_simnet_setup.sh]].
+[[../contrib/devtools/dcr_tmux_simnet_setup.sh|provided in the repository at contrib/devtools/dcr_tmux_simnet_setup.sh]].
 
 This script makes use of [https://github.com/tmux/tmux tmux], which is
 typically readily available on Unix and Linux platforms, to setup a
