@@ -823,7 +823,7 @@ func splitK(k *ModNScalar) (ModNScalar, ModNScalar) {
 	//
 	// Finally, consider the vector u:
 	//
-	// u  = <k, 0> - v
+	// u = <k, 0> - v
 	//
 	// It follows that f(u) = k and thus the two components of vector u satisfy
 	// the required equation:
@@ -891,10 +891,10 @@ func splitK(k *ModNScalar) (ModNScalar, ModNScalar) {
 	//    Therefore, the computation of va can be avoided to save two
 	//    field multiplications and a field addition.
 	//
-	// 2) Since k1 = k - k2*λ = k + k2*(-λ), an additional field negation is
+	// 2) Since k1 ≡ k - k2*λ ≡ k + k2*(-λ), an additional field negation is
 	//    saved by storing and using the negative version of λ.
 	//
-	// 3) Since k2 = -vb = -(c1*b1 + c2*b2) = c1*(-b1) + c2*(-b2), one more
+	// 3) Since k2 ≡ -vb ≡ -(c1*b1 + c2*b2) ≡ c1*(-b1) + c2*(-b2), one more
 	//    field negation is saved by storing and using the negative versions of
 	//    b1 and b2.
 	//

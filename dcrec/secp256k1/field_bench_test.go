@@ -26,7 +26,7 @@ func BenchmarkFieldNormalize(b *testing.B) {
 }
 
 // BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
-// 256-bit big-endian integer modulo the field prime  with the specialized type.
+// 256-bit big-endian integer modulo the field prime with the specialized type.
 func BenchmarkFieldSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
@@ -43,7 +43,6 @@ func BenchmarkFieldSqrt(b *testing.B) {
 // BenchmarkBigSqrt benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
 func BenchmarkBigSqrt(b *testing.B) {
-	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
 	val, ok := new(big.Int).SetString(valHex, 16)
 	if !ok {
