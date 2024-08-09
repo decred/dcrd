@@ -528,7 +528,7 @@ func TestFieldIsOne(t *testing.T) {
 // TestFieldStringer ensures the stringer returns the appropriate hex string.
 func TestFieldStringer(t *testing.T) {
 	tests := []struct {
-		name     string //test description
+		name     string // test description
 		in       string // hex encoded test value
 		expected string // expected result
 	}{{

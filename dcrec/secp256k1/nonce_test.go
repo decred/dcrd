@@ -150,7 +150,7 @@ func TestNonceRFC6979(t *testing.T) {
 		wantNonce := hexToBytes(test.expected)
 
 		// Ensure deterministically generated nonce is the expected value.
-		gotNonce := NonceRFC6979(privKey, hash[:], extraData, version,
+		gotNonce := NonceRFC6979(privKey, hash, extraData, version,
 			test.iterations)
 		gotNonceBytes := gotNonce.Bytes()
 		if !bytes.Equal(gotNonceBytes[:], wantNonce) {

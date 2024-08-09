@@ -166,7 +166,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
 	var commitmentInput [scalarSize * 2]byte
 	sig.r.PutBytesUnchecked(commitmentInput[0:scalarSize])
-	copy(commitmentInput[scalarSize:], hash[:])
+	copy(commitmentInput[scalarSize:], hash)
 	commitment := blake256.Sum256(commitmentInput[:])
 
 	// Step 6.
@@ -293,7 +293,7 @@ func schnorrSign(privKey, nonce *secp256k1.ModNScalar, hash []byte) (*Signature,
 	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
 	var commitmentInput [scalarSize * 2]byte
 	r.PutBytesUnchecked(commitmentInput[0:scalarSize])
-	copy(commitmentInput[scalarSize:], hash[:])
+	copy(commitmentInput[scalarSize:], hash)
 	commitment := blake256.Sum256(commitmentInput[:])
 
 	// Step 8.

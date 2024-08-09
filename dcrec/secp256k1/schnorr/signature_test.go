@@ -382,7 +382,7 @@ func TestSchnorrSignAndVerifyRandom(t *testing.T) {
 		randByte = rng.Intn(len(badHash))
 		randBit = rng.Intn(7)
 		badHash[randByte] ^= 1 << randBit
-		if sig.Verify(badHash[:], pubKey) {
+		if sig.Verify(badHash, pubKey) {
 			t.Fatalf("verified signature for bad hash\nsig: %x\nhash: %x\n"+
 				"pubkey: %x", sig.Serialize(), badHash,
 				pubKey.SerializeCompressed())
