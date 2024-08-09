@@ -60,3 +60,18 @@ to verify the results.
 **NOTE**: This script requires `dcrctl` to be configured such that `dcrctl` and
 `dcrctl --testnet` connect to up-to-date main and test network instances,
 respectively.
+
+### Minimum Known Chain Work Bump Script
+
+The [bump_minknownchainwork.sh](./bump_minknownchainwork.sh) script queries the
+main and test networks with `dcrctl` and `jq` to determine their current best
+known chain work values and then creates a `git` commit on a new branch that
+updates the [chaincfg/mainnetparams.go](../../chaincfg/mainnetparams.go) and
+[chaincfg/testnetparams.go](../../chaincfg/testnetparams.go) files accordingly.
+The commit description includes the relevant details and instructions for others
+to verify the results.
+
+**NOTE**: This script requires `dcrctl` to be configured such that `dcrctl` and
+`dcrctl --testnet` connect to up-to-date main and test network instances,
+respectively.  It also requires the [jq](https://jqlang.github.io/jq/) utility
+to be available in the system path.
