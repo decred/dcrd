@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -53,6 +53,37 @@ func BenchmarkBigSqrt(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = new(big.Int).ModSqrt(val, curveParams.P)
+	}
+}
+
+// BenchmarkFieldInverse calculating the multiplicative inverse of an unsigned
+// 256-bit big-endian integer modulo the field prime with the specialized type.
+func BenchmarkFieldInverse(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := new(FieldVal).SetHex(valHex).Normalize()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Inverse()
+	}
+}
+
+// BenchmarkBigInverse benchmarks calculating the multiplicative inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with stdlib big
+// integers.
+func BenchmarkBigInverse(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	val, ok := new(big.Int).SetString(valHex, 16)
+	if !ok {
+		b.Fatalf("failed to parse hex %s", valHex)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = new(big.Int).ModInverse(val, curveParams.P)
 	}
 }
 
