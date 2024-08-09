@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
-// Copyright (c) 2013-2023 Dave Collins
+// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2013-2024 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1508,107 +1508,121 @@ func (f *FieldVal) SquareVal(val *FieldVal) *FieldVal {
 //	Output Normalized: No
 //	Output Max Magnitude: 1
 func (f *FieldVal) Inverse() *FieldVal {
-	// Fermat's little theorem states that for a nonzero number a and prime
-	// p, a^(p-1) ≡ 1 (mod p).  Since the multiplicative inverse is
-	// a*b ≡ 1 (mod p), it follows that b ≡ a*a^(p-2) ≡ a^(p-1) ≡ 1 (mod p).
-	// Thus, a^(p-2) is the multiplicative inverse.
+	// Fermat's little theorem states that for a nonzero number 'a' and prime
+	// 'p', a^(p-1) ≡ 1 (mod p).  Multiplying both sides of the equation by the
+	// multiplicative inverse a^-1 yields a^(p-2) ≡ a^-1 (mod p).  Thus, a^(p-2)
+	// is the multiplicative inverse.
 	//
-	// In order to efficiently compute a^(p-2), p-2 needs to be split into
-	// a sequence of squares and multiplications that minimizes the number
-	// of multiplications needed (since they are more costly than
-	// squarings). Intermediate results are saved and reused as well.
+	// In order to efficiently compute a^(p-2), p-2 needs to be split into a
+	// sequence of squares and multiplications that minimizes the number of
+	// multiplications needed (since they are more costly than squarings).
+	// Intermediate results are saved and reused as well.
 	//
-	// The secp256k1 prime - 2 is 2^256 - 4294968275.
+	// The secp256k1 prime - 2 is 2^256 - 4294968275.  In binary, that is:
 	//
-	// This has a cost of 258 field squarings and 33 field multiplications.
-	var a2, a3, a4, a10, a11, a21, a42, a45, a63, a1019, a1023 FieldVal
-	a2.SquareVal(f)
-	a3.Mul2(&a2, f)
-	a4.SquareVal(&a2)
-	a10.SquareVal(&a4).Mul(&a2)
-	a11.Mul2(&a10, f)
-	a21.Mul2(&a10, &a11)
-	a42.SquareVal(&a21)
-	a45.Mul2(&a42, &a3)
-	a63.Mul2(&a42, &a21)
-	a1019.SquareVal(&a63).Square().Square().Square().Mul(&a11)
-	a1023.Mul2(&a1019, &a4)
-	f.Set(&a63)                                    // f = a^(2^6 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^11 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^16 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^16 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^21 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^26 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^26 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^31 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^36 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^36 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^41 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^46 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^46 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^51 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^56 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^56 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^61 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^66 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^66 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^71 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^76 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^76 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^81 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^86 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^86 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^91 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^96 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^96 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^101 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^106 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^106 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^111 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^116 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^116 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^121 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^126 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^126 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^131 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^136 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^136 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^141 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^146 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^146 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^151 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^156 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^156 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^161 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^166 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^166 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^171 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^176 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^176 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^181 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^186 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^186 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^191 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^196 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^196 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^201 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^206 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^206 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^211 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^216 - 1024)
-	f.Mul(&a1023)                                  // f = a^(2^216 - 1)
-	f.Square().Square().Square().Square().Square() // f = a^(2^221 - 32)
-	f.Square().Square().Square().Square().Square() // f = a^(2^226 - 1024)
-	f.Mul(&a1019)                                  // f = a^(2^226 - 5)
-	f.Square().Square().Square().Square().Square() // f = a^(2^231 - 160)
-	f.Square().Square().Square().Square().Square() // f = a^(2^236 - 5120)
-	f.Mul(&a1023)                                  // f = a^(2^236 - 4097)
-	f.Square().Square().Square().Square().Square() // f = a^(2^241 - 131104)
-	f.Square().Square().Square().Square().Square() // f = a^(2^246 - 4195328)
-	f.Mul(&a1023)                                  // f = a^(2^246 - 4194305)
-	f.Square().Square().Square().Square().Square() // f = a^(2^251 - 134217760)
-	f.Square().Square().Square().Square().Square() // f = a^(2^256 - 4294968320)
-	return f.Mul(&a45)                             // f = a^(2^256 - 4294968275) = a^(p-2)
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111110
+	// 11111111 11111111 11111100 00101101
+	//
+	// Notice that can be broken up into five windows of consecutive 1s (in
+	// order of least to most significant) as:
+	//
+	//   2-bit window with 1 bit set (bit 1 unset)
+	//   3-bit window with 2 bits set (bit 4 unset)
+	//   5-bit window with 1 bit set (bits 6, 7, 8, 9 unset)
+	//   23-bit window with 22 bits set (bit 32 unset)
+	//   223-bit window with all 223 bits set
+	//
+	// Thus, the groups of 1 bits in each window forms the set:
+	// S = {1, 2, 22, 223}.
+	//
+	// The strategy is to calculate a^(2^n - 1) for each grouping via an
+	// addition chain with a sliding window.
+	//
+	// The addition chain used is (credits to Peter Dettman):
+	// (0,0),(1,0),(2,2),(3,2),(4,1),(5,5),(6,6),(7,7),(8,8),(9,7),(10,2)
+	// => 2^[1] 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
+	//
+	// This has a cost of 255 field squarings and 15 field multiplications.
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal
+	a.Set(f)
+	a2.SquareVal(&a).Mul(&a)                                  // a2  = a^(2^2 - 1)
+	a3.SquareVal(&a2).Mul(&a)                                 // a3  = a^(2^3 - 1)
+	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
+	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
+	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
+	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
+	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
+	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
+	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
+	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
+	a22.Square()                                              // a22 = a^(2^22 - 2^11)
+	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
+	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
+	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
+	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
+	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
+	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
+	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
+	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
+	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
+	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
+	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
+	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
+	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
+	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
+	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
+
+	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
+	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
+	f.Mul(&a22)                                            // f = a^(2^246 - 4194305)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 134217760)
+	f.Mul(&a)                                              // f = a^(2^251 - 134217759)
+	f.Square().Square().Square()                           // f = a^(2^254 - 1073742072)
+	f.Mul(&a2)                                             // f = a^(2^254 - 1073742069)
+	f.Square().Square()                                    // f = a^(2^256 - 4294968276)
+	return f.Mul(&a)                                       // f = a^(2^256 - 4294968275) = a^(p-2)
 }
 
 // IsGtOrEqPrimeMinusOrder returns whether or not the field value exceeds the
