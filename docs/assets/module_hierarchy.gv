@@ -16,6 +16,7 @@ digraph {
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
 	secp256k1 [label="dcrec/secp256k1/v4" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil/v4" fillcolor=burlywood]
+	mixing [label="mixing" fillcolor=lawngreen]
 	database [label="database/v3" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
 	txscript [label="txscript/v4" fillcolor=mediumspringgreen]
@@ -34,7 +35,7 @@ digraph {
 
 	{rank=same blake256 chainhash}
 	{rank=same dcrec secp256k1}
-	{rank=same certgen bech32 apbf uint256}
+	{rank=same certgen bech32 apbf uint256 mixing}
 	{rank=same addrmgr connmgr hdkeychain peer blockchain standalone rpcclient}
 
 	certgen
@@ -57,6 +58,7 @@ digraph {
 	txscript -> peer [dir=back color=mediumspringgreen]
 	dcrutil -> blockchain [dir=back color=burlywood]
 	dcrutil -> database [dir=back color=burlywood]
+	dcrutil -> mixing [dir=back color=burlywood]
 	database -> stake [dir=back color=dodgerblue]
 	stake -> gcs [dir=back color=bisque]
 	gcs -> rpcclient [dir=back color=gold]
@@ -67,6 +69,7 @@ digraph {
 
 	rand -> dcrd [dir=back color=lavender]
 	blockchain -> dcrd [dir=back color=orchid]
+	mixing -> dcrd [dir=back color=lawngreen]
 	standalone -> dcrd [dir=back color=firebrick]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	bech32 -> dcrd [dir=back color=antiquewhite3]
