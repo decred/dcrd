@@ -236,6 +236,8 @@ The following versioned modules are provided by dcrd repository:
 * [math/uint256](https://github.com/decred/dcrd/tree/master/math/uint256) -
   Implements highly optimized fixed precision unsigned 256-bit integer
   arithmetic
+* [mixing](https://github.com/decred/dcrd/tree/master/mixing) - Provides
+  infrastructure for Decred's StakeShuffle decentralized mixing
 
 <a name="ModuleHierarchy" />
 
