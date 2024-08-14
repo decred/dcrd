@@ -3,13 +3,13 @@
 ###############
 
 # Basic Go environment with git, SSL CA certs, and upx.
-# The image below is golang:1.22.6-alpine3.20 (linux/amd64)
+# The image below is golang:1.23.0-alpine3.20 (linux/amd64)
 # It's pulled by the digest (immutable id) to avoid supply-chain attacks.
 # Maintainer Note:
 #    To update to a new digest, you must first manually pull the new image:
 #    `docker pull golang:<new version>`
 #    Docker will print the digest of the new image after the pull has finished.
-FROM golang@sha256:1a478681b671001b7f029f94b5016aed984a23ad99c707f6a0ab6563860ae2f3 AS builder
+FROM golang@sha256:d0b31558e6b3e4cc59f6011d79905835108c919143ebecc58f35965bf79948f4 AS builder
 RUN apk add --no-cache git ca-certificates upx
 
 # Empty directory to be copied into place in the production image since it will
