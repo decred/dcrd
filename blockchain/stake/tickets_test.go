@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -314,7 +314,7 @@ func TestTicketDBLongChain(t *testing.T) {
 			ticketsSpentInBlock(block), revokedTicketsInBlock(block),
 			ticketsToAdd)
 		if err != nil {
-			t.Fatalf("couldn't connect node: %v", err.Error())
+			t.Fatalf("couldn't connect node: %v", err)
 		}
 
 		// UndoTicketDataSlice tests
@@ -409,7 +409,7 @@ func TestTicketDBLongChain(t *testing.T) {
 		bestNode, err = bestNode.DisconnectNode(lotteryIV, blockUndoData,
 			ticketsToAdd, nil)
 		if err != nil {
-			t.Errorf(err.Error())
+			t.Error(err)
 		}
 	}
 
@@ -417,7 +417,7 @@ func TestTicketDBLongChain(t *testing.T) {
 	accessoryTestNode := nodesForward[450]
 	exists := accessoryTestNode.ExistsLiveTicket(accessoryTestNode.nextWinners[0])
 	if !exists {
-		t.Errorf("expected winner to exist in node live tickets")
+		t.Error("expected winner to exist in node live tickets")
 	}
 	missedExp := make([]chainhash.Hash, 0)
 	accessoryTestNode.missedTickets.ForEach(func(k tickettreap.Key,
@@ -490,7 +490,7 @@ func TestTicketDBLongChain(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		// Cache all of our nodes so that we can check them when we start
@@ -522,7 +522,7 @@ func TestTicketDBLongChain(t *testing.T) {
 					ticketsSpentInBlock(block), revokedTicketsInBlock(block),
 					ticketsToAdd)
 				if err != nil {
-					return fmt.Errorf("couldn't connect node: %v", err.Error())
+					return fmt.Errorf("couldn't connect node: %v", err)
 				}
 
 				// Write the new node to db.
@@ -530,8 +530,7 @@ func TestTicketDBLongChain(t *testing.T) {
 				blockHash := block.Hash()
 				err := WriteConnectedBestNode(dbTx, bestNode, *blockHash)
 				if err != nil {
-					return fmt.Errorf("failure writing the best node: %v",
-						err.Error())
+					return fmt.Errorf("failure writing the best node: %v", err)
 				}
 
 				// Reload the node from DB and make sure it's the same.
@@ -539,13 +538,12 @@ func TestTicketDBLongChain(t *testing.T) {
 				loadedNode, err := LoadBestNode(dbTx, bestNode.Height(),
 					*blockHash, header, params)
 				if err != nil {
-					return fmt.Errorf("failed to load the best node: %v",
-						err.Error())
+					return fmt.Errorf("failed to load the best node: %v", err)
 				}
 				err = nodesEqual(loadedNode, bestNode)
 				if err != nil {
 					return fmt.Errorf("loaded best node was not same as "+
-						"in memory best node: %v", err.Error())
+						"in memory best node: %v", err)
 				}
 				loadedNodesForward[i] = loadedNode
 			}
@@ -553,7 +551,7 @@ func TestTicketDBLongChain(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		nodesBackward := make([]*Node, testBCHeight+1)
@@ -573,12 +571,12 @@ func TestTicketDBLongChain(t *testing.T) {
 			bestNode, err = bestNode.DisconnectNode(header, blockUndoData,
 				ticketsToAdd, nil)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Error(err)
 			}
 
 			err = nodesEqual(bestNode, nodesForward[i-1])
 			if err != nil {
-				t.Errorf("non-equiv stake nodes at height %v: %v", i-1, err.Error())
+				t.Errorf("non-equiv stake nodes at height %v: %v", i-1, err)
 			}
 
 			// Try again using the database instead of the in memory
@@ -594,13 +592,12 @@ func TestTicketDBLongChain(t *testing.T) {
 				return nil
 			})
 			if err != nil {
-				t.Errorf("couldn't disconnect using the database: %v",
-					err.Error())
+				t.Errorf("couldn't disconnect using the database: %v", err)
 			}
 			err = nodesEqual(bestNode, bestNodeUsingDB)
 			if err != nil {
 				t.Errorf("non-equiv stake nodes using db when disconnecting: %v",
-					err.Error())
+					err)
 			}
 
 			// Write the new best node to the database.
@@ -611,14 +608,13 @@ func TestTicketDBLongChain(t *testing.T) {
 				err := WriteDisconnectedBestNode(dbTx, bestNode,
 					*parentBlockHash, formerBestNode.UndoData())
 				if err != nil {
-					return fmt.Errorf("failure writing the best node: %v",
-						err.Error())
+					return fmt.Errorf("failure writing the best node: %v", err)
 				}
 
 				return nil
 			})
 			if err != nil {
-				t.Errorf("%s", err.Error())
+				t.Error(err)
 			}
 
 			// Check the best node against the loaded best node from
@@ -628,24 +624,23 @@ func TestTicketDBLongChain(t *testing.T) {
 				loadedNode, err := LoadBestNode(dbTx, bestNode.Height(),
 					*parentBlockHash, header, params)
 				if err != nil {
-					return fmt.Errorf("failed to load the best node: %v",
-						err.Error())
+					return fmt.Errorf("failed to load the best node: %v", err)
 				}
 				err = nodesEqual(loadedNode, bestNode)
 				if err != nil {
 					return fmt.Errorf("loaded best node %v was not same as "+
-						"in memory best node: %v", loadedNode.Height(), err.Error())
+						"in memory best node: %v", loadedNode.Height(), err)
 				}
 				err = nodesEqual(loadedNode, loadedNodesForward[i-1])
 				if err != nil {
 					return fmt.Errorf("loaded best node %v was not same as "+
-						"cached best node: %v", loadedNode.Height(), err.Error())
+						"cached best node: %v", loadedNode.Height(), err)
 				}
 
 				return nil
 			})
 			if err != nil {
-				t.Errorf("%s", err.Error())
+				t.Error(err)
 			}
 		}
 	*/
@@ -701,7 +696,7 @@ func TestTicketDBGeneral(t *testing.T) {
 		return errLocal
 	})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	// Cache all of our nodes so that we can check them when we start
@@ -760,7 +755,7 @@ func TestTicketDBGeneral(t *testing.T) {
 			err = nodesEqual(loadedNode, bestNode)
 			if err != nil {
 				return fmt.Errorf("loaded best node was not same as "+
-					"in memory best node: %v", err.Error())
+					"in memory best node: %v", err)
 			}
 			loadedNodesForward[i] = loadedNode
 		}
@@ -768,7 +763,7 @@ func TestTicketDBGeneral(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	nodesBackward := make([]*Node, testBCHeight+1)
@@ -792,12 +787,12 @@ func TestTicketDBGeneral(t *testing.T) {
 		bestNode, err = bestNode.DisconnectNode(lotteryIV, blockUndoData,
 			ticketsToAdd, nil)
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		err = nodesEqual(bestNode, nodesForward[i-1])
 		if err != nil {
-			t.Errorf("non-equiv stake nodes at height %v: %v", i-1, err.Error())
+			t.Errorf("non-equiv stake nodes at height %v: %v", i-1, err)
 		}
 
 		// Try again using the database instead of the in memory
@@ -821,13 +816,12 @@ func TestTicketDBGeneral(t *testing.T) {
 			return err
 		})
 		if err != nil {
-			t.Errorf("couldn't disconnect using the database: %v",
-				err.Error())
+			t.Errorf("couldn't disconnect using the database: %v", err)
 		}
 		err = nodesEqual(bestNode, bestNodeUsingDB)
 		if err != nil {
 			t.Errorf("non-equiv stake nodes using db when disconnecting: %v",
-				err.Error())
+				err)
 		}
 
 		// Write the new best node to the database.
@@ -845,7 +839,7 @@ func TestTicketDBGeneral(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Errorf("%s", err.Error())
+			t.Error(err)
 		}
 
 		// Check the best node against the loaded best node from
@@ -861,18 +855,18 @@ func TestTicketDBGeneral(t *testing.T) {
 			err = nodesEqual(loadedNode, bestNode)
 			if err != nil {
 				return fmt.Errorf("loaded best node was not same as "+
-					"in memory best node: %v", err.Error())
+					"in memory best node: %v", err)
 			}
 			err = nodesEqual(loadedNode, loadedNodesForward[i-1])
 			if err != nil {
 				return fmt.Errorf("loaded best node was not same as "+
-					"previously cached node: %v", err.Error())
+					"previously cached node: %v", err)
 			}
 
 			return nil
 		})
 		if err != nil {
-			t.Errorf("%s", err.Error())
+			t.Error(err)
 		}
 	}
 

@@ -757,15 +757,14 @@ func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 
 		if !(input.Tree == wire.TxTreeRegular ||
 			input.Tree == wire.TxTreeStake) {
-			return nil, rpcInvalidError("Tx tree must be regular " +
-				"or stake")
+			return nil, rpcInvalidError("Tx tree must be regular or stake")
 		}
 
 		prevOutV := wire.NullValueIn
 		if input.Amount > 0 {
 			amt, err := dcrutil.NewAmount(input.Amount)
 			if err != nil {
-				return nil, rpcInvalidError(err.Error())
+				return nil, rpcInvalidError("%v", err)
 			}
 			prevOutV = int64(amt)
 		}
@@ -1043,7 +1042,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	ticketSubmissionAmount := dcrutil.Amount(ticketSubmission.Value)
 	inputAmount, err := dcrutil.NewAmount(input.Amount)
 	if err != nil {
-		return nil, rpcInvalidError(err.Error())
+		return nil, rpcInvalidError("%v", err)
 	}
 	if inputAmount != ticketSubmissionAmount {
 		return nil, rpcInvalidError("Input amount %v is not equal to ticket "+
@@ -1093,7 +1092,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		revocationTxVersion, s.cfg.ChainParams, prevHeaderBytes,
 		isAutoRevocationsEnabled)
 	if err != nil {
-		return nil, rpcInvalidError(err.Error(), "Invalid SSRtx")
+		return nil, rpcInvalidError("Invalid SSRtx: %v", err)
 	}
 
 	// Check to make sure our SSRtx was created correctly.

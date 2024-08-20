@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -10,6 +10,7 @@ package stake
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -513,8 +514,8 @@ func SStxNullOutputAmounts(amounts []int64,
 	lengthAmounts := len(amounts)
 
 	if lengthAmounts != len(changeAmounts) {
-		str := "amounts was not equal in length to change amounts!"
-		return 0, nil, fmt.Errorf(str)
+		const str = "amounts was not equal in length to change amounts!"
+		return 0, nil, errors.New(str)
 	}
 
 	if amountTicket <= 0 {
