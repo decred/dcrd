@@ -25,6 +25,7 @@ linters:
     - nosprintfhostport
     - reassign
     - rowserrcheck
+    - tenv
     - tparallel
     - typecheck
     - unconvert

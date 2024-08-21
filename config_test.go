@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2023 The Decred developers
+// Copyright (c) 2018-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -61,7 +61,7 @@ func TestDefaultAltDNSNames(t *testing.T) {
 func TestAltDNSNamesWithEnv(t *testing.T) {
 	appName := filepath.Base(os.Args[0])
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	os.Setenv("DCRD_ALT_DNSNAMES", "hostname1,hostname2")
+	t.Setenv("DCRD_ALT_DNSNAMES", "hostname1,hostname2")
 	cfg, _, err := loadConfig(appName)
 	if err != nil {
 		t.Fatalf("Failed to load dcrd config: %s", err)
