@@ -20,9 +20,11 @@ import (
 	"net"
 	"os"
 	"time"
+	"unicode"
 
 	"github.com/decred/dcrd/crypto/rand"
 	flags "github.com/jessevdk/go-flags"
+	"golang.org/x/net/idna"
 )
 
 func fatalf(format string, args ...interface{}) {
@@ -212,6 +214,15 @@ type certWithPEM struct {
 	Cert     *x509.Certificate
 }
 
+func isASCII(s string) bool {
+	for _, c := range s {
+		if c > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
 func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certificate, error) {
 	now := time.Now()
 	if validUntil.After(endOfTime) {
@@ -229,11 +240,26 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	var hostnames []string
 	var ips []net.IP
 	for _, h := range hosts {
+		if !isASCII(h) {
+			var err error
+			h, err = idna.ToASCII(h)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if ip := net.ParseIP(h); ip != nil {
 			ips = append(ips, ip)
 			continue
 		}
 		hostnames = append(hostnames, h)
+	}
+
+	if !isASCII(cn) {
+		var err error
+		cn, err = idna.ToASCII(cn)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	template := &x509.Certificate{
