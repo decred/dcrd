@@ -187,7 +187,7 @@ func BenchmarkModNScalarMul(b *testing.B) {
 }
 
 // BenchmarkBigIntSquareModN benchmarks squaring an unsigned 256-bit big-endian
-// integer modulo the group order is zero with stdlib big integers.
+// integer modulo the group order with stdlib big integers.
 func BenchmarkBigIntSquareModN(b *testing.B) {
 	v1 := new(big.Int).SetBytes(benchmarkVals()[0])
 
@@ -200,7 +200,7 @@ func BenchmarkBigIntSquareModN(b *testing.B) {
 }
 
 // BenchmarkModNScalarSquare benchmarks squaring an unsigned 256-bit big-endian
-// integer modulo the group order is zero with the specialized type.
+// integer modulo the group order with the specialized type.
 func BenchmarkModNScalarSquare(b *testing.B) {
 	var s1 ModNScalar
 	s1.SetByteSlice(benchmarkVals()[0])
@@ -213,7 +213,7 @@ func BenchmarkModNScalarSquare(b *testing.B) {
 }
 
 // BenchmarkBigIntNegateModN benchmarks negating an unsigned 256-bit big-endian
-// integer modulo the group order is zero with stdlib big integers.
+// integer modulo the group order with stdlib big integers.
 func BenchmarkBigIntNegateModN(b *testing.B) {
 	v1 := new(big.Int).SetBytes(benchmarkVals()[0])
 
@@ -226,7 +226,7 @@ func BenchmarkBigIntNegateModN(b *testing.B) {
 }
 
 // BenchmarkModNScalarNegate benchmarks negating an unsigned 256-bit big-endian
-// integer modulo the group order is zero with the specialized type.
+// integer modulo the group order with the specialized type.
 func BenchmarkModNScalarNegate(b *testing.B) {
 	var s1 ModNScalar
 	s1.SetByteSlice(benchmarkVals()[0])
@@ -239,8 +239,8 @@ func BenchmarkModNScalarNegate(b *testing.B) {
 }
 
 // BenchmarkBigIntInverseModN benchmarks calculating the multiplicative inverse
-// of an unsigned 256-bit big-endian integer modulo the group order is zero with
-// stdlib big integers.
+// of an unsigned 256-bit big-endian integer modulo the group order with stdlib
+// big integers.
 func BenchmarkBigIntInverseModN(b *testing.B) {
 	v1 := new(big.Int).SetBytes(benchmarkVals()[0])
 
@@ -252,8 +252,8 @@ func BenchmarkBigIntInverseModN(b *testing.B) {
 }
 
 // BenchmarkModNScalarInverse benchmarks calculating the multiplicative inverse
-// of an unsigned 256-bit big-endian integer modulo the group order is zero with
-// the specialized type.
+// of an unsigned 256-bit big-endian integer modulo the group order with the
+// specialized type.
 func BenchmarkModNScalarInverse(b *testing.B) {
 	var s1 ModNScalar
 	s1.SetByteSlice(benchmarkVals()[0])
