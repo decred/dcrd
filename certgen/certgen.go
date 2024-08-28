@@ -20,7 +20,19 @@ import (
 	"net"
 	"os"
 	"time"
+	"unicode"
+
+	"golang.org/x/net/idna"
 )
+
+func isASCII(s string) bool {
+	for _, c := range s {
+		if c > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
 
 // NewTLSCertPair returns a new PEM-encoded x.509 certificate pair with new
 // ECDSA keys.  The machine's local interface addresses and all variants of IPv4
@@ -52,6 +64,12 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	if err != nil {
 		return nil, nil, err
 	}
+	if !isASCII(host) {
+		host, err = idna.ToASCII(host)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 
 	ipAddresses := []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
 	dnsNames := []string{host}
@@ -70,6 +88,13 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	addHost := func(host string) {
 		for _, dnsName := range dnsNames {
 			if host == dnsName {
+				return
+			}
+		}
+		if !isASCII(host) {
+			var err error
+			host, err = idna.ToASCII(host)
+			if err != nil {
 				return
 			}
 		}
