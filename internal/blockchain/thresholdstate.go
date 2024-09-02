@@ -511,6 +511,48 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID strin
 	return state, nil
 }
 
+// isActiveFn represents a function used to determine whether or not an agenda
+// is active from the point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// The function will only be invoked with block nodes which can be validated as
+// determined by [blockIndex.CanValidate].
+//
+// The function will be invoked with the chain state lock held (for writes).
+type isActiveFn func(prevNode *blockNode) (bool, error)
+
+// isAgendaActiveByHash attempts to determine whether or not an agenda is active
+// for the block AFTER the given block hash.
+//
+// The primary goal is to consolidate the logic that is the same for all agendas
+// which only have a single valid choice when they are active.
+//
+// Note that it will always return false for the genesis block since agendas
+// are never active for it.
+//
+// This function is safe for concurrent access and takes the chain state lock
+// (for writes).
+func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn isActiveFn) (bool, error) {
+	// Agendas are never active for the genesis block.
+	if *prevHash == *zeroHash {
+		return false, nil
+	}
+
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
+		return false, unknownBlockError(prevHash)
+	}
+
+	b.chainLock.Lock()
+	isActive, err := isActiveFn(prevNode)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
 // isLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
 // as defined in DCP0002 and DCP0003 has passed and is now active from the point
 // of view of the passed block node.
@@ -544,15 +586,7 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isLNFeaturesAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isLNFeaturesAgendaActive)
 }
 
 // isHeaderCommitmentsAgendaActive returns whether or not the header commitments
@@ -588,15 +622,7 @@ func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool,
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	node := b.index.LookupNode(prevHash)
-	if node == nil || !b.index.CanValidate(node) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isHeaderCommitmentsAgendaActive(node)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isHeaderCommitmentsAgendaActive)
 }
 
 // isTreasuryAgendaActive returns whether or not the treasury agenda, as defined
@@ -637,20 +663,7 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The treasury agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isTreasuryAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isTreasuryAgendaActive)
 }
 
 // isRevertTreasuryPolicyActive returns whether or not the revert treasury
@@ -686,15 +699,7 @@ func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, er
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (bool, error) {
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isRevertTreasuryPolicyActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isRevertTreasuryPolicyActive)
 }
 
 // isExplicitVerUpgradesAgendaActive returns whether or not the explicit version
@@ -730,20 +735,7 @@ func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (boo
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isExplicitVerUpgradesAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isExplicitVerUpgradesAgendaActive)
 }
 
 // isAutoRevocationsAgendaActive returns whether or not the automatic ticket
@@ -779,20 +771,7 @@ func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, e
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The auto revocations agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isAutoRevocationsAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isAutoRevocationsAgendaActive)
 }
 
 // isSubsidySplitAgendaActive returns whether or not the agenda to change the
@@ -828,20 +807,7 @@ func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, erro
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isSubsidySplitAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isSubsidySplitAgendaActive)
 }
 
 // isBlake3PowAgendaForcedActive returns whether or not the agenda to change the
@@ -889,20 +855,7 @@ func (b *BlockChain) isBlake3PowAgendaActive(prevNode *blockNode) (bool, error) 
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsBlake3PowAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isBlake3PowAgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isBlake3PowAgendaActive)
 }
 
 // isSubsidySplitR2AgendaActive returns whether or not the agenda to change the
