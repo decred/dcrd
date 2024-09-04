@@ -56,6 +56,18 @@ func jacobianPointFromHex(x, y, z string) JacobianPoint {
 	return p
 }
 
+// isSameAffinePoint returns whether or not the two Jacobian points represent
+// the same affine point without modifying the provided points.  It converts the
+// points to affine to perform the equality check.
+func isSameAffinePoint(p1, p2 *JacobianPoint) bool {
+	var p1Affine, p2Affine JacobianPoint
+	p1Affine.Set(p1)
+	p1Affine.ToAffine()
+	p2Affine.Set(p2)
+	p2Affine.ToAffine()
+	return p1Affine.IsStrictlyEqual(&p2Affine)
+}
+
 // IsStrictlyEqual returns whether or not the two Jacobian points are strictly
 // equal for use in the tests.  Recall that several Jacobian points can be equal
 // in affine coordinates, while not having the same coordinates in projective
@@ -771,17 +783,6 @@ func TestScalarMultJacobianRandom(t *testing.T) {
 		}
 	}(t, seed)
 
-	// isSamePoint returns whether or not the two Jacobian points represent the
-	// same affine point without modifying the provided points.
-	isSamePoint := func(p1, p2 *JacobianPoint) bool {
-		var p1Affine, p2Affine JacobianPoint
-		p1Affine.Set(p1)
-		p1Affine.ToAffine()
-		p2Affine.Set(p2)
-		p2Affine.ToAffine()
-		return p1Affine.IsStrictlyEqual(&p2Affine)
-	}
-
 	// The overall idea is to compute the same point different ways.  The
 	// strategy uses two properties:
 	//
@@ -827,7 +828,7 @@ func TestScalarMultJacobianRandom(t *testing.T) {
 
 		// Ensure kP + ((-k)P) = ∞.
 		AddNonConst(&chained, &negChained, &result)
-		if !isSamePoint(&result, &infinity) {
+		if !isSameAffinePoint(&result, &infinity) {
 			t.Fatalf("%d: expected point at infinity\ngot (%v, %v, %v)\n", i,
 				result.X, result.Y, result.Z)
 		}
@@ -838,14 +839,14 @@ func TestScalarMultJacobianRandom(t *testing.T) {
 	// Ensure the point calculated above matches the product of the scalars
 	// times the base point.
 	scalarBaseMultNonConstFast(product, &result)
-	if !isSamePoint(&chained, &result) {
+	if !isSameAffinePoint(&chained, &result) {
 		t.Fatalf("unexpected result \ngot (%v, %v, %v)\n"+
 			"want (%v, %v, %v)", chained.X, chained.Y, chained.Z, result.X,
 			result.Y, result.Z)
 	}
 
 	scalarBaseMultNonConstSlow(product, &result)
-	if !isSamePoint(&chained, &result) {
+	if !isSameAffinePoint(&chained, &result) {
 		t.Fatalf("unexpected result \ngot (%v, %v, %v)\n"+
 			"want (%v, %v, %v)", chained.X, chained.Y, chained.Z, result.X,
 			result.Y, result.Z)
