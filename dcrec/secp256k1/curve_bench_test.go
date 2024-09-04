@@ -186,6 +186,6 @@ func BenchmarkJacobianPointEquivalency(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		isSameAffinePoint(&point1, &point2)
+		point1.EquivalentNonConst(&point2)
 	}
 }

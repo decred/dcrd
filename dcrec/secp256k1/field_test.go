@@ -46,6 +46,7 @@ func randFieldVal(t *testing.T, rng *rand.Rand) *FieldVal {
 	// Create and return a field value.
 	var fv FieldVal
 	fv.SetBytes(&buf)
+	fv.Normalize()
 	return &fv
 }
 

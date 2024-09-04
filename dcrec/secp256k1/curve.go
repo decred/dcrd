@@ -149,6 +149,20 @@ func (p *JacobianPoint) ToAffine() {
 	p.Y.Normalize()
 }
 
+// EquivalentNonConst returns whether or not two Jacobian points represent the
+// same affine point in *non-constant* time.
+func (p *JacobianPoint) EquivalentNonConst(other *JacobianPoint) bool {
+	// Since the point at infinity is the identity element for the group, note
+	// that P = P + ∞ trivially implies that P - P = ∞.
+	//
+	// Use that fact to determine if the points represent the same affine point.
+	var result JacobianPoint
+	result.Set(p)
+	result.Y.Normalize().Negate(1).Normalize()
+	AddNonConst(&result, other, &result)
+	return (result.X.IsZero() && result.Y.IsZero()) || result.Z.IsZero()
+}
+
 // addZ1AndZ2EqualsOne adds two Jacobian points that are already known to have
 // z values of 1 and stores the result in the provided result param.  That is to
 // say result = p1 + p2.  It performs faster addition than the generic add
