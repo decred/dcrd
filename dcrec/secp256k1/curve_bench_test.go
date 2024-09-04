@@ -166,3 +166,26 @@ func BenchmarkNAF(b *testing.B) {
 		naf(kBytes)
 	}
 }
+
+// BenchmarkJacobianPointEquivalency benchmarks determining if two Jacobian
+// points represent the same affine point.
+func BenchmarkJacobianPointEquivalency(b *testing.B) {
+	// Create two Jacobian points with different Z values that represent the
+	// same affine point.
+	point1 := jacobianPointFromHex(
+		"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		"2",
+	)
+	point2 := jacobianPointFromHex(
+		"dcc3768780c74a0325e2851edad0dc8a566fa61a9e7fc4a34d13dcb509f99bc7",
+		"3503be6fb22abd76cb082f8aed63745b9149dd2b037728d32ebfebac99b51f17",
+		"3",
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		isSameAffinePoint(&point1, &point2)
+	}
+}
