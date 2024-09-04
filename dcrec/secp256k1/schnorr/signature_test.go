@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2024 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -261,6 +261,8 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		hash := hexToBytes(test.hash)
 		nonce := hexToModNScalar(test.nonce)
 		wantSig := hexToBytes(test.expected)
+		wantSigR := hexToFieldVal(test.expected[:64])
+		wantSigS := hexToModNScalar(test.expected[64:])
 
 		// Ensure the test data is sane by comparing the provided hashed message
 		// and nonce, in the case rfc6979 was used, to their calculated values.
@@ -299,6 +301,22 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		if !bytes.Equal(gotSigBytes, wantSig) {
 			t.Errorf("%s: unexpected signature -- got %x, want %x", test.name,
 				gotSigBytes, wantSig)
+			continue
+		}
+
+		// Ensure the R method returns the expected value.
+		gotSigR := gotSig.R()
+		if !gotSigR.Equals(wantSigR) {
+			t.Errorf("%s: unexpected R value -- got %064x, want %064x",
+				test.name, gotSigR.Bytes(), wantSigR.Bytes())
+			continue
+		}
+
+		// Ensure the S method returns the expected value.
+		gotSigS := gotSig.S()
+		if !gotSigS.Equals(wantSigS) {
+			t.Errorf("%s: unexpected S value -- got %064x, want %064x",
+				test.name, gotSigS.Bytes(), wantSigS.Bytes())
 			continue
 		}
 
