@@ -1625,8 +1625,9 @@ func (f *FieldVal) Inverse() *FieldVal {
 	return f.Mul(&a)                                       // f = a^(2^256 - 4294968275) = a^(p-2)
 }
 
-// IsGtOrEqPrimeMinusOrder returns whether or not the field value exceeds the
-// group order divided by 2 in constant time.
+// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
+// than or equal to the field prime minus the secp256k1 group order in constant
+// time.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
