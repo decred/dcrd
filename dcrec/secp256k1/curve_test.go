@@ -1194,7 +1194,6 @@ func TestDecompressY(t *testing.T) {
 		}
 
 		// Ensure the decompressed odd Y coordinate is the expected value.
-		oddY.Normalize()
 		wantOddY := new(FieldVal).SetHex(test.wantOddY)
 		if !wantOddY.Equals(&oddY) {
 			t.Errorf("%s: mismatched odd y\ngot: %v, want: %v", test.name,
@@ -1203,7 +1202,6 @@ func TestDecompressY(t *testing.T) {
 		}
 
 		// Ensure the decompressed even Y coordinate is the expected value.
-		evenY.Normalize()
 		wantEvenY := new(FieldVal).SetHex(test.wantEvenY)
 		if !wantEvenY.Equals(&evenY) {
 			t.Errorf("%s: mismatched even y\ngot: %v, want: %v", test.name,
@@ -1264,8 +1262,6 @@ func TestDecompressYRandom(t *testing.T) {
 
 		// Ensure that the resulting y coordinates match their respective
 		// expected oddness.
-		oddY.Normalize()
-		evenY.Normalize()
 		if !oddY.IsOdd() {
 			t.Fatalf("requested odd y is even for x = %v", x)
 		}

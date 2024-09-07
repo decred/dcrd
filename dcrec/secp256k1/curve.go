@@ -1285,8 +1285,13 @@ func isOnCurve(fx, fy *FieldVal) bool {
 // based on the desired oddness and returns whether or not it was successful
 // since not all X coordinates are valid.
 //
-// The magnitude of the provided X coordinate field val must be a max of 8 for a
-// correct result.  The resulting Y field val will have a max magnitude of 2.
+// The magnitude of the provided X coordinate field value must be a max of 8 for
+// a correct result.  The resulting Y field value will have a magnitude of 1.
+//
+//	Preconditions:
+//	  - The input field value MUST have a max magnitude of 8
+//	Output Normalized: Yes if the func returns true, no otherwise
+//	Output Max Magnitude: 1
 func DecompressY(x *FieldVal, odd bool, resultY *FieldVal) bool {
 	// The curve equation for secp256k1 is: y^2 = x^3 + 7.  Thus
 	// y = +-sqrt(x^3 + 7).
@@ -1299,7 +1304,7 @@ func DecompressY(x *FieldVal, odd bool, resultY *FieldVal) bool {
 		return false
 	}
 	if resultY.Normalize().IsOdd() != odd {
-		resultY.Negate(1)
+		resultY.Negate(1).Normalize()
 	}
 	return true
 }
