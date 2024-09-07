@@ -321,7 +321,6 @@ var rpcAskWallet = map[string]struct{}{
 	"signrawtransactions":       {},
 	"sweepaccount":              {},
 	"ticketinfo":                {},
-	"ticketsforaddress":         {},
 	"validatepredcp0005cf":      {},
 	"verifymessage":             {},
 	"walletinfo":                {},
