@@ -139,7 +139,7 @@ const (
 // and the caller MUST normalize the field value if a given operation would
 // cause the magnitude of the result to exceed the max allowed value.
 //
-// IMPORTANT: The max allowed magnitude of a field value is 64.
+// IMPORTANT: The max allowed magnitude of a field value is 32.
 type FieldVal struct {
 	// Each 256-bit value is represented as 10 32-bit integers in base 2^26.
 	// This provides 6 bits of overflow in each word (10 bits in the most
@@ -628,14 +628,14 @@ func (f *FieldVal) Equals(val *FieldVal) bool {
 }
 
 // NegateVal negates the passed value and stores the result in f in constant
-// time.  The caller must provide the magnitude of the passed value for a
-// correct result.
+// time.  The caller must provide the maximum magnitude of the passed value for
+// a correct result.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.NegateVal(f2).AddInt(1) so that f = -f2 + 1.
 //
 //	Preconditions:
-//	  - The max magnitude MUST be 63
+//	  - The max magnitude MUST be 31
 //	Output Normalized: No
 //	Output Max Magnitude: Input magnitude + 1
 func (f *FieldVal) NegateVal(val *FieldVal, magnitude uint32) *FieldVal {
@@ -672,14 +672,14 @@ func (f *FieldVal) NegateVal(val *FieldVal, magnitude uint32) *FieldVal {
 }
 
 // Negate negates the field value in constant time.  The existing field value is
-// modified.  The caller must provide the magnitude of the field value for a
-// correct result.
+// modified.  The caller must provide the maximum magnitude of the field value
+// for a correct result.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.Negate().AddInt(1) so that f = -f + 1.
 //
 //	Preconditions:
-//	  - The max magnitude MUST be 63
+//	  - The max magnitude MUST be 31
 //	Output Normalized: No
 //	Output Max Magnitude: Input magnitude + 1
 func (f *FieldVal) Negate(magnitude uint32) *FieldVal {
@@ -694,7 +694,8 @@ func (f *FieldVal) Negate(magnitude uint32) *FieldVal {
 // f.AddInt(1).Add(f2) so that f = f + 1 + f2.
 //
 //	Preconditions:
-//	  - The field value MUST have a max magnitude of 63
+//	  - The field value MUST have a max magnitude of 31
+//	  - The integer MUST be a max of 32767
 //	Output Normalized: No
 //	Output Max Magnitude: Existing field magnitude + 1
 func (f *FieldVal) AddInt(ui uint16) *FieldVal {
@@ -713,7 +714,7 @@ func (f *FieldVal) AddInt(ui uint16) *FieldVal {
 // f.Add(f2).AddInt(1) so that f = f + f2 + 1.
 //
 //	Preconditions:
-//	  - The sum of the magnitudes of the two field values MUST be a max of 64
+//	  - The sum of the magnitudes of the two field values MUST be a max of 32
 //	Output Normalized: No
 //	Output Max Magnitude: Sum of the magnitude of the two individual field values
 func (f *FieldVal) Add(val *FieldVal) *FieldVal {
@@ -742,7 +743,7 @@ func (f *FieldVal) Add(val *FieldVal) *FieldVal {
 // f3.Add2(f, f2).AddInt(1) so that f3 = f + f2 + 1.
 //
 //	Preconditions:
-//	  - The sum of the magnitudes of the two field values MUST be a max of 64
+//	  - The sum of the magnitudes of the two field values MUST be a max of 32
 //	Output Normalized: No
 //	Output Max Magnitude: Sum of the magnitude of the two field values
 func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
@@ -774,7 +775,7 @@ func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
 // f.MulInt(2).Add(f2) so that f = 2 * f + f2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by given val MUST be a max of 64
+//	  - The field value magnitude multiplied by given val MUST be a max of 32
 //	Output Normalized: No
 //	Output Max Magnitude: Existing field magnitude times the provided integer val
 func (f *FieldVal) MulInt(val uint8) *FieldVal {
