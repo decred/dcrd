@@ -1574,6 +1574,10 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 // evicting a random value if adding the new value would cause it to
 // overflow the maximum allowed.
 func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
+	// Nothing to do if entry is already in the map.
+	if _, exists := m[hash]; exists {
+		return
+	}
 	if len(m)+1 > limit {
 		// Remove a random entry from the map.  For most compilers, Go's
 		// range statement iterates starting at a random item although
