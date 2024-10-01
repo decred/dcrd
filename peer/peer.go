@@ -1128,6 +1128,7 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 		pendingResponses[wire.CmdMixCiphertexts] = deadline
 		pendingResponses[wire.CmdMixSlotReserve] = deadline
 		pendingResponses[wire.CmdMixDCNet] = deadline
+		pendingResponses[wire.CmdMixFactoredPoly] = deadline
 		pendingResponses[wire.CmdMixConfirm] = deadline
 		pendingResponses[wire.CmdMixSecrets] = deadline
 		pendingResponses[wire.CmdNotFound] = deadline
@@ -1203,6 +1204,8 @@ out:
 					fallthrough
 				case wire.CmdMixDCNet:
 					fallthrough
+				case wire.CmdMixFactoredPoly:
+					fallthrough
 				case wire.CmdMixConfirm:
 					fallthrough
 				case wire.CmdMixSecrets:
@@ -1215,6 +1218,7 @@ out:
 					delete(pendingResponses, wire.CmdMixCiphertexts)
 					delete(pendingResponses, wire.CmdMixSlotReserve)
 					delete(pendingResponses, wire.CmdMixDCNet)
+					delete(pendingResponses, wire.CmdMixFactoredPoly)
 					delete(pendingResponses, wire.CmdMixConfirm)
 					delete(pendingResponses, wire.CmdMixSecrets)
 					delete(pendingResponses, wire.CmdNotFound)
