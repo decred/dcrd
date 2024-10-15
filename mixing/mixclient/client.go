@@ -516,11 +516,11 @@ func (c *Client) prDelay(ctx context.Context, p *peer) error {
 	sendBefore := epoch.Add(-timeoutDuration - maxJitter)
 	sendAfter := epoch.Add(timeoutDuration)
 	var wait time.Duration
-	if now.After(sendBefore) {
+	if !now.Before(sendBefore) {
 		wait = sendAfter.Sub(now)
 		sendBefore = sendBefore.Add(c.epoch)
 	}
-	wait += p.msgJitter() + rand.Duration(time.Until(sendBefore))
+	wait += p.msgJitter() + rand.Duration(sendBefore.Sub(now))
 	timer := time.NewTimer(wait)
 	select {
 	case <-ctx.Done():
