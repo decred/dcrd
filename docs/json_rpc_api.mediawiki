@@ -2139,7 +2139,7 @@ of the best block.
 # <code>data</code>: <code>(string, optional)</code> The hex
 |-
 !Description
-|Returns information about a transaction given its hash.
+|Returns formatted hash data to work on or checks and submits solved data.
 |-
 !Notes
 |Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the <code>--miningaddr</code> option to provide which payment addresses to pay created blocks to for this RPC to function.
