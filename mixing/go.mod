@@ -3,7 +3,7 @@ module github.com/decred/dcrd/mixing
 go 1.18
 
 require (
-	decred.org/cspp/v2 v2.2.0
+	decred.org/cspp/v2 v2.3.0
 	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
