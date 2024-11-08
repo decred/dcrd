@@ -47,7 +47,7 @@ require (
 )
 
 require (
-	decred.org/cspp/v2 v2.2.0 // indirect
+	decred.org/cspp/v2 v2.3.0 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a // indirect
 	github.com/dchest/siphash v1.2.3 // indirect

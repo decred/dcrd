@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"decred.org/cspp/v2/solverrpc"
@@ -264,6 +265,9 @@ type queueWork struct {
 
 // Client manages local mixing client sessions.
 type Client struct {
+	// atomics
+	atomicPRFlags uint32
+
 	wallet  Wallet
 	mixpool *mixpool.Pool
 
@@ -281,8 +285,7 @@ type Client struct {
 	blake256Hasher   hash.Hash
 	blake256HasherMu sync.Mutex
 
-	epoch   time.Duration
-	prFlags byte
+	epoch time.Duration
 
 	logger slog.Logger
 
@@ -300,6 +303,7 @@ func NewClient(w Wallet) *Client {
 
 	height, _ := w.BestBlock()
 	return &Client{
+		atomicPRFlags:  uint32(prFlags),
 		wallet:         w,
 		mixpool:        w.Mixpool(),
 		pairings:       make(map[string]*pairedSessions),
@@ -307,7 +311,6 @@ func NewClient(w Wallet) *Client {
 		workQueue:      make(chan *queueWork, runtime.NumCPU()),
 		blake256Hasher: blake256.New(),
 		epoch:          w.Mixpool().Epoch(),
-		prFlags:        prFlags,
 		height:         height,
 	}
 }
@@ -718,10 +721,11 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		return err
 	}
 
+	prFlags := byte(atomic.LoadUint32(&c.atomicPRFlags))
 	pr, err := wire.NewMsgMixPairReq(*p.id, cj.prExpiry, cj.mixValue,
 		string(mixing.ScriptClassP2PKHv0), cj.tx.Version,
 		cj.tx.LockTime, cj.mcount, cj.inputValue, cj.prUTXOs,
-		cj.change, c.prFlags, pairingFlags)
+		cj.change, prFlags, pairingFlags)
 	if err != nil {
 		return err
 	}
@@ -1694,7 +1698,8 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions, madePairing *bool)
 }
 
 func (c *Client) solvesRoots() bool {
-	return c.prFlags&mixing.PRFlagCanSolveRoots != 0
+	prFlags := byte(atomic.LoadUint32(&c.atomicPRFlags))
+	return prFlags&mixing.PRFlagCanSolveRoots != 0
 }
 
 // roots returns the solutions to the slot reservation polynomial.  If the
@@ -1704,8 +1709,20 @@ func (c *Client) solvesRoots() bool {
 func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 	sesRun *sessionRun, a []*big.Int, F *big.Int, publishedRoots chan struct{}) ([]*big.Int, error) {
 
-	if c.solvesRoots() {
+	switch {
+	case c.solvesRoots():
 		roots, err := solverrpc.Roots(a, F)
+		if errors.Is(err, solverrpc.ErrSolverProcessExited) {
+			// Unset root-solving capability and future advertisement
+			prFlags := byte(atomic.LoadUint32(&c.atomicPRFlags))
+			prFlags &^= mixing.PRFlagCanSolveRoots
+			atomic.StoreUint32(&c.atomicPRFlags, uint32(prFlags))
+
+			// Wait for other peers to publish roots as a fallback
+			// in this run.  If we are the only solver, we will be
+			// blamed for not publishing any.
+			break
+		}
 		if err != nil || len(roots) != len(a)-1 {
 			c.forLocalPeers(ctx, sesRun, func(p *peer) error {
 				p.triggeredBlame = true
