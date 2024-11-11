@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/connmgr/v3 v3.1.2
 	github.com/decred/dcrd/container/apbf v1.0.1
 	github.com/decred/dcrd/container/lru v1.0.0
-	github.com/decred/dcrd/crypto/blake256 v1.0.1
+	github.com/decred/dcrd/crypto/blake256 v1.1.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.2
 	github.com/decred/dcrd/database/v3 v3.0.2
 	github.com/decred/dcrd/dcrec v1.0.1
@@ -27,7 +27,7 @@ require (
 	github.com/decred/dcrd/lru v1.1.2
 	github.com/decred/dcrd/math/uint256 v1.0.2
 	github.com/decred/dcrd/mixing v0.4.1
-	github.com/decred/dcrd/peer/v3 v3.1.2
+	github.com/decred/dcrd/peer/v3 v3.1.3
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0
 	github.com/decred/dcrd/rpcclient/v8 v8.0.1
 	github.com/decred/dcrd/txscript/v4 v4.1.1
