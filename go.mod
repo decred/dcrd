@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/connmgr/v3 v3.1.2
 	github.com/decred/dcrd/container/apbf v1.0.1
 	github.com/decred/dcrd/container/lru v1.0.0
-	github.com/decred/dcrd/crypto/blake256 v1.0.1
+	github.com/decred/dcrd/crypto/blake256 v1.1.0
 	github.com/decred/dcrd/crypto/rand v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.2
 	github.com/decred/dcrd/database/v3 v3.0.2
