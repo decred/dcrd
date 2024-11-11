@@ -37,7 +37,7 @@ import (
 // MinPeers is the minimum number of peers required for a mix run to proceed.
 const MinPeers = 4
 
-const pairingFlags byte = 0
+const pairingVersion byte = 1
 
 const (
 	timeoutDuration = 30 * time.Second
@@ -725,7 +725,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 	pr, err := wire.NewMsgMixPairReq(*p.id, cj.prExpiry, cj.mixValue,
 		string(mixing.ScriptClassP2PKHv0), cj.tx.Version,
 		cj.tx.LockTime, cj.mcount, cj.inputValue, cj.prUTXOs,
-		cj.change, prFlags, pairingFlags)
+		cj.change, prFlags, pairingVersion)
 	if err != nil {
 		return err
 	}
@@ -1731,6 +1731,9 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 			close(publishedRoots)
 			return nil, errTriggeredBlame
 		}
+		sort.Slice(roots, func(i, j int) bool {
+			return roots[i].Cmp(roots[j]) == -1
+		})
 		rootBytes := make([][]byte, len(roots))
 		for i, root := range roots {
 			rootBytes[i] = root.Bytes()
@@ -1801,6 +1804,12 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 					duplicateRoots[rootStr] = struct{}{}
 					roots = append(roots, root)
 				}
+			}
+			sorted := sort.SliceIsSorted(roots, func(i, j int) bool {
+				return roots[i].Cmp(roots[j]) == -1
+			})
+			if !sorted {
+				continue
 			}
 			if len(roots) == len(a)-1 {
 				return roots, nil
