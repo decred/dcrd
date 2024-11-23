@@ -16,7 +16,7 @@ type PeerNotifier interface {
 	// notifies websocket clients of the passed transactions.
 	AnnounceNewTransactions(txns []*dcrutil.Tx)
 
-	// AnnounceMixMessage generates and relays inventory vectors of the
+	// AnnounceMixMessages generates and relays inventory vectors of the
 	// passed messages.
 	AnnounceMixMessages(msgs []mixing.Message)
 }

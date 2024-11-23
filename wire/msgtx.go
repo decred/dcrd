@@ -1207,7 +1207,7 @@ func readTxInWitness(r io.Reader, pver uint32, version uint16, ti *TxIn) error {
 	return err
 }
 
-// writeTxInPrefixs encodes ti to the Decred protocol encoding for a transaction
+// writeTxInPrefix encodes ti to the Decred protocol encoding for a transaction
 // input (TxIn) prefix to w.
 func writeTxInPrefix(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
 	err := WriteOutPoint(w, pver, version, &ti.PreviousOutPoint)
@@ -1218,7 +1218,7 @@ func writeTxInPrefix(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
 	return binarySerializer.PutUint32(w, littleEndian, ti.Sequence)
 }
 
-// writeTxWitness encodes ti to the Decred protocol encoding for a transaction
+// writeTxInWitness encodes ti to the Decred protocol encoding for a transaction
 // input (TxIn) witness to w.
 func writeTxInWitness(w io.Writer, pver uint32, version uint16, ti *TxIn) error {
 	// ValueIn.
