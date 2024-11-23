@@ -15,7 +15,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
-// TestMsgGetCFilter tests the MsgGetCFilter API.
+// TestGetCFilter tests the MsgGetCFilter API.
 func TestGetCFilter(t *testing.T) {
 	pver := ProtocolVersion
 
