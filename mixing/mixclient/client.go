@@ -165,10 +165,6 @@ func (d *deadlines) shift() {
 	d.recvCM = d.recvCM.Add(timeoutDuration)
 }
 
-func (d *deadlines) restart() {
-	d.start(d.recvCM)
-}
-
 // peerRunState describes the peer state that changes across different
 // sessions/runs.
 type peerRunState struct {
@@ -1090,7 +1086,9 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 				return
 			}
 			requirePeerAgreement = true
-			err = nil
+			// err = nil would be an ineffectual assignment here;
+			// blamed is non-nil and the following if block will
+			// always be entered.
 		}
 
 		if blamed != nil || errors.As(err, &blamed) {
