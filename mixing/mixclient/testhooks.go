@@ -6,7 +6,7 @@ package mixclient
 
 type hook string
 
-type hookFunc func(*Client, *sessionRun, *peer)
+type hookFunc func(*Client, *pairedSessions, *sessionRun, *peer)
 
 const (
 	hookBeforeRun           hook = "before run"
