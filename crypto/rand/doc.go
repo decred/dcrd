@@ -10,4 +10,7 @@
 // The default global PRNG will never panic after package init and is safe for
 // concurrent access.  Additional PRNGs which avoid the locking overhead can
 // be created by calling NewPRNG.
+//
+// On select operating systems and Go versions, this package may fallback to
+// crypto/rand when it is already implemented by a fast userspace CSPRNG.
 package rand
