@@ -2,12 +2,15 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+//go:build !(openbsd && go1.24)
+
 package rand
 
 import (
 	cryptorand "crypto/rand"
 	"encoding/binary"
 	"math/bits"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/chacha20"
@@ -103,4 +106,24 @@ func (p *PRNG) Read(s []byte) (n int, err error) {
 	p.read += len(s)
 	n += len(s)
 	return
+}
+
+type lockingPRNG struct {
+	*PRNG
+	sync.Mutex
+}
+
+func init() {
+	p, err := NewPRNG()
+	if err != nil {
+		panic(err)
+	}
+	globalRand = &lockingPRNG{PRNG: p}
+}
+
+func (p *lockingPRNG) Read(s []byte) (n int, err error) {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.PRNG.Read(s)
 }
