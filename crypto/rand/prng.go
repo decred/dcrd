@@ -80,9 +80,15 @@ func (p *PRNG) seed() error {
 	return nil
 }
 
+var readCryptoRand = false
+
 // Read fills s with len(s) of cryptographically-secure random bytes.
 // Read never errors.
 func (p *PRNG) Read(s []byte) (n int, err error) {
+	if readCryptoRand {
+		return cryptorand.Read(s)
+	}
+
 	if time.Now().After(p.t) {
 		// Reseed the cipher.
 		// The panic will never be hit except by calling the Read
@@ -108,9 +114,10 @@ func (p *PRNG) Read(s []byte) (n int, err error) {
 	return
 }
 
+var globalMutex = new(sync.Mutex)
+
 type lockingPRNG struct {
 	*PRNG
-	sync.Mutex
 }
 
 func init() {
@@ -126,4 +133,16 @@ func (p *lockingPRNG) Read(s []byte) (n int, err error) {
 	defer p.Unlock()
 
 	return p.PRNG.Read(s)
+}
+
+func (p *lockingPRNG) Lock() {
+	if globalMutex != nil {
+		globalMutex.Lock()
+	}
+}
+
+func (p *lockingPRNG) Unlock() {
+	if globalMutex != nil {
+		globalMutex.Unlock()
+	}
 }
