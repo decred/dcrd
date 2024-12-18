@@ -267,8 +267,8 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	w := newTestWallet(bc)
 	c := newTestClient(w, l)
 	c.testHooks = map[hook]hookFunc{
-		hookBeforeRun: func(c *Client, s *sessionRun, _ *peer) {
-			s.deadlines.recvKE = time.Now().Add(5 * time.Second)
+		hookBeforeRun: func(c *Client, ps *pairedSessions, _ *sessionRun, _ *peer) {
+			ps.deadlines.recvKE = time.Now().Add(5 * time.Second)
 		},
 		h: f,
 	}
@@ -397,73 +397,78 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 
 func TestCTDisruption(t *testing.T) {
 	var misbehavingID identity
-	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if p.myVk != 0 {
-			return
-		}
-		if misbehavingID != [33]byte{} {
-			return
-		}
-		t.Logf("malicious peer %x: flipping CT bit", p.id[:])
-		misbehavingID = *p.id
-		p.ct.Ciphertexts[1][0] ^= 1
-	})
+	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish,
+		func(c *Client, ps *pairedSessions, s *sessionRun, p *peer) {
+			if p.myVk != 0 {
+				return
+			}
+			if misbehavingID != [33]byte{} {
+				return
+			}
+			t.Logf("malicious peer %x: flipping CT bit", p.id[:])
+			misbehavingID = *p.id
+			p.ct.Ciphertexts[1][0] ^= 1
+		})
 }
 
 func TestCTLength(t *testing.T) {
 	var misbehavingID identity
-	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if p.myVk != 0 {
-			return
-		}
-		if misbehavingID != [33]byte{} {
-			return
-		}
-		t.Logf("malicious peer %x: sending too few ciphertexts", p.id[:])
-		misbehavingID = *p.id
-		p.ct.Ciphertexts = p.ct.Ciphertexts[:len(p.ct.Ciphertexts)-1]
-	})
+	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish,
+		func(c *Client, ps *pairedSessions, s *sessionRun, p *peer) {
+			if p.myVk != 0 {
+				return
+			}
+			if misbehavingID != [33]byte{} {
+				return
+			}
+			t.Logf("malicious peer %x: sending too few ciphertexts", p.id[:])
+			misbehavingID = *p.id
+			p.ct.Ciphertexts = p.ct.Ciphertexts[:len(p.ct.Ciphertexts)-1]
+		})
 
 	misbehavingID = identity{}
-	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish, func(c *Client, s *sessionRun, p *peer) {
-		if p.myVk != 0 {
-			return
-		}
-		if misbehavingID != [33]byte{} {
-			return
-		}
-		t.Logf("malicious peer %x: sending too many ciphertexts", p.id[:])
-		misbehavingID = *p.id
-		p.ct.Ciphertexts = append(p.ct.Ciphertexts, p.ct.Ciphertexts[0])
-	})
+	testDisruption(t, &misbehavingID, hookBeforePeerCTPublish,
+		func(c *Client, ps *pairedSessions, s *sessionRun, p *peer) {
+			if p.myVk != 0 {
+				return
+			}
+			if misbehavingID != [33]byte{} {
+				return
+			}
+			t.Logf("malicious peer %x: sending too many ciphertexts", p.id[:])
+			misbehavingID = *p.id
+			p.ct.Ciphertexts = append(p.ct.Ciphertexts, p.ct.Ciphertexts[0])
+		})
 }
 
 func TestSRDisruption(t *testing.T) {
 	var misbehavingID identity
-	testDisruption(t, &misbehavingID, hookBeforePeerSRPublish, func(c *Client, s *sessionRun, p *peer) {
-		if p.myVk != 0 {
-			return
-		}
-		if misbehavingID != [33]byte{} {
-			return
-		}
-		t.Logf("malicious peer %x: flipping SR bit", p.id[:])
-		misbehavingID = *p.id
-		p.sr.DCMix[0][1][0] ^= 1
-	})
+	testDisruption(t, &misbehavingID, hookBeforePeerSRPublish,
+		func(c *Client, ps *pairedSessions, s *sessionRun, p *peer) {
+			if p.myVk != 0 {
+				return
+			}
+			if misbehavingID != [33]byte{} {
+				return
+			}
+			t.Logf("malicious peer %x: flipping SR bit", p.id[:])
+			misbehavingID = *p.id
+			p.sr.DCMix[0][1][0] ^= 1
+		})
 }
 
 func TestDCDisruption(t *testing.T) {
 	var misbehavingID identity
-	testDisruption(t, &misbehavingID, hookBeforePeerDCPublish, func(c *Client, s *sessionRun, p *peer) {
-		if p.myVk != 0 {
-			return
-		}
-		if misbehavingID != [33]byte{} {
-			return
-		}
-		t.Logf("malicious peer %x: flipping DC bit", p.id[:])
-		misbehavingID = *p.id
-		p.dc.DCNet[0][1][0] ^= 1
-	})
+	testDisruption(t, &misbehavingID, hookBeforePeerDCPublish,
+		func(c *Client, ps *pairedSessions, s *sessionRun, p *peer) {
+			if p.myVk != 0 {
+				return
+			}
+			if misbehavingID != [33]byte{} {
+				return
+			}
+			t.Logf("malicious peer %x: flipping DC bit", p.id[:])
+			misbehavingID = *p.id
+			p.dc.DCNet[0][1][0] ^= 1
+		})
 }
