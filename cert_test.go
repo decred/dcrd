@@ -15,14 +15,14 @@ import (
 // TestCertCreationWithHosts creates a certificate pair with extra hosts and
 // ensures the extra hosts are present in the generated files.
 func TestCertCreationWithHosts(t *testing.T) {
-	certFile, err := os.CreateTemp("", "certfile")
+	certFile, err := os.CreateTemp(t.TempDir(), "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
 	defer os.Remove(certFile.Name())
 
-	keyFile, err := os.CreateTemp("", "keyfile")
+	keyFile, err := os.CreateTemp(t.TempDir(), "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
@@ -57,14 +57,14 @@ func TestCertCreationWithHosts(t *testing.T) {
 // TestCertCreationWithOutHosts ensures the creating a certificate pair without
 // any hosts works as intended.
 func TestCertCreationWithOutHosts(t *testing.T) {
-	certFile, err := os.CreateTemp("", "certfile")
+	certFile, err := os.CreateTemp(t.TempDir(), "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
 	defer os.Remove(certFile.Name())
 
-	keyFile, err := os.CreateTemp("", "keyfile")
+	keyFile, err := os.CreateTemp(t.TempDir(), "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
