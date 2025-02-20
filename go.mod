@@ -41,8 +41,8 @@ require (
 	github.com/jrick/logrotate v1.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.28.0
-	golang.org/x/sys v0.23.0
-	golang.org/x/term v0.23.0
+	golang.org/x/sys v0.30.0
+	golang.org/x/term v0.29.0
 	lukechampine.com/blake3 v1.3.0
 )
 
@@ -55,9 +55,9 @@ require (
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 )
 
 replace (
@@ -73,6 +73,7 @@ replace (
 	github.com/decred/dcrd/container/apbf => ./container/apbf
 	github.com/decred/dcrd/container/lru => ./container/lru
 	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
+	github.com/decred/dcrd/crypto/rand => ./crypto/rand
 	github.com/decred/dcrd/crypto/ripemd160 => ./crypto/ripemd160
 	github.com/decred/dcrd/database/v3 => ./database
 	github.com/decred/dcrd/dcrec => ./dcrec
