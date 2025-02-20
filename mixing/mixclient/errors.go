@@ -10,6 +10,8 @@ var (
 	ErrTooFewPeers = errors.New("not enough peers required to mix")
 
 	ErrUnknownPRs = errors.New("unable to participate in reformed session referencing unknown PRs")
+
+	ErrStopping = errors.New("mixing client is stopping")
 )
 
 // testPeerBlamedError describes the error condition of a misbehaving peer
