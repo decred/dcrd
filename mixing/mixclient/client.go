@@ -198,7 +198,6 @@ type peerRunState struct {
 // Some fields only pertain to peers created by this wallet, while the rest
 // are used during blame assignment.
 type peer struct {
-	ctx    context.Context
 	client *Client
 	jitter time.Duration
 
@@ -329,7 +328,8 @@ type queueWork struct {
 // Client manages local mixing client sessions.
 type Client struct {
 	// atomics
-	atomicPRFlags uint32
+	atomicPRFlags  uint32
+	atomicStopping uint32
 
 	wallet  Wallet
 	mixpool *mixpool.Pool
@@ -344,11 +344,14 @@ type Client struct {
 	workQueue chan *queueWork
 
 	pairingWG sync.WaitGroup
+	runWG     sync.WaitGroup
 
 	blake256Hasher   hash.Hash
 	blake256HasherMu sync.Mutex
 
 	epoch time.Duration
+
+	stopping chan struct{}
 
 	logger slog.Logger
 
@@ -370,11 +373,12 @@ func NewClient(w Wallet) *Client {
 		wallet:          w,
 		mixpool:         w.Mixpool(),
 		pendingPairings: make(map[string]*pendingPairing),
+		height:          height,
 		warming:         make(chan struct{}),
 		workQueue:       make(chan *queueWork, runtime.NumCPU()),
 		blake256Hasher:  blake256.New(),
 		epoch:           w.Mixpool().Epoch(),
-		height:          height,
+		stopping:        make(chan struct{}),
 	}
 }
 
@@ -417,16 +421,44 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 	c.mu.Unlock()
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(context.Background())
 	g.Go(func() error {
-		return c.epochTicker(ctx)
+		<-ctx.Done()
+		c.stop()
+		return nil
+	})
+	g.Go(func() error {
+		return c.epochTicker(gctx)
 	})
 	for i := 0; i < runtime.NumCPU(); i++ {
 		g.Go(func() error {
-			return c.peerWorker(ctx)
+			return c.peerWorker(gctx)
 		})
 	}
-	return g.Wait()
+	err := g.Wait()
+
+	// Serve errors to all still managed local peers if they have not
+	// already received an error.
+	c.mu.Lock()
+	for _, p := range c.pendingPairings {
+		for _, lp := range p.localPeers {
+			select {
+			case lp.res <- ErrStopping:
+			default:
+			}
+		}
+	}
+	c.mu.Unlock()
+
+	return err
+}
+
+// stop requests clean shutdown of the client.  Any running mixes will be
+// completed before Run returns, and no more mixes will be started.
+func (c *Client) stop() {
+	if atomic.CompareAndSwapUint32(&c.atomicStopping, 0, 1) {
+		close(c.stopping)
+	}
 }
 
 func (c *Client) peerWorker(ctx context.Context) error {
@@ -483,7 +515,7 @@ func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *s
 
 	msgs := make([]delayedMsg, 0, len(s.peers)*bits.OnesCount(msgMask))
 	for _, p := range s.peers {
-		if p.remote || p.ctx.Err() != nil {
+		if p.remote {
 			continue
 		}
 		msg := delayedMsg{
@@ -593,6 +625,12 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 			<-timer.C
 		}
 		return epoch, ctx.Err()
+	case <-c.stopping:
+		if !timer.Stop() {
+			<-timer.C
+		}
+		c.runWG.Wait()
+		return epoch, ErrStopping
 	case <-c.testTickC:
 		if !timer.Stop() {
 			<-timer.C
@@ -663,7 +701,7 @@ func (p *peer) signAndHash(m mixing.Message) error {
 }
 
 func (p *peer) submit(deadline time.Time, m mixing.Message) error {
-	ctx, cancel := context.WithDeadline(p.ctx, deadline)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 	return p.client.wallet.SubmitMixMessage(ctx, m)
 }
@@ -743,7 +781,7 @@ func (c *Client) epochTicker(ctx context.Context) error {
 	for {
 		epoch, err := c.waitForEpoch(ctx)
 		if err != nil {
-			return ctx.Err()
+			return err
 		}
 
 		c.log("Epoch tick")
@@ -790,12 +828,16 @@ func (c *Client) epochTicker(ctx context.Context) error {
 			c.logf("Have %d compatible/%d local PRs waiting for pairing %x",
 				len(prs), len(localPeers), p.pairing)
 
-			// pairSession calls Done once the session is formed
-			// and the selected peers have been removed from then
-			// pending pairing.
+			// pairSession calls pairingWG.Done once the session
+			// is formed and the selected peers have been removed
+			// from then pending pairing.
 			c.pairingWG.Add(1)
+			c.runWG.Add(1)
 			ps := c.newPairedSessions(p.pairing, localPeers)
-			go c.pairSession(ctx, ps, prs, epoch)
+			go func() {
+				c.pairSession(ctx, ps, prs, epoch)
+				c.runWG.Done()
+			}()
 		}
 		c.mu.Unlock()
 	}
@@ -815,7 +857,6 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 	}
 
 	p := &peer{
-		ctx:      ctx,
 		client:   c,
 		jitter:   rand.Duration(peerJitter),
 		res:      make(chan error, 1),
@@ -871,12 +912,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		return err
 	}
 
-	select {
-	case res := <-p.res:
-		return res
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return <-p.res
 }
 
 // ExpireMessages will cause the removal all mixpool messages and sessions
@@ -971,7 +1007,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		} else {
 			for id, p := range ps.localPeers {
 				prHash := p.pr.Hash()
-				if p.ctx.Err() == nil && c.mixpool.HaveMessage(&prHash) {
+				if c.mixpool.HaveMessage(&prHash) {
 					pendingPairing.localPeers[id] = p.cloneLocalPeer(true)
 				}
 			}
@@ -1000,7 +1036,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			prHashes := make([]chainhash.Hash, len(prs))
 			newRun.localPeers = make(map[identity]*peer)
 			var m uint32
-			var localPeerCount, localUncancelledCount int
+			var localPeerCount int
 			for i, pr := range prs {
 				prHashes[i] = prs[i].Hash()
 
@@ -1015,9 +1051,6 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 				if p != nil {
 					p = p.cloneLocalPeer(newRun.freshGen)
 					localPeerCount++
-					if p.ctx.Err() == nil {
-						localUncancelledCount++
-					}
 					newRun.localPeers[*p.id] = p
 				} else {
 					p = newRemotePeer(pr)
@@ -1035,7 +1068,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			newRun.logf("created session for pairid=%x from %d total %d local PRs %s",
 				ps.pairing, len(prHashes), localPeerCount, prHashes)
 
-			if localUncancelledCount == 0 {
+			if localPeerCount == 0 {
 				newRun.logf("no more active local peers")
 				return
 			}
@@ -1959,7 +1992,9 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 	checkedFPByIdentity := make(map[identity]struct{})
 	for {
 		rcv.FPs = rcv.FPs[:0]
-		err := c.mixpool.Receive(ctx, rcv)
+		rcvCtx, rcvCtxCancel := context.WithDeadline(ctx, time.Now().Add(timeoutDuration))
+		err := c.mixpool.Receive(rcvCtx, rcv)
+		rcvCtxCancel()
 		if err != nil {
 			return nil, err
 		}
