@@ -41,8 +41,8 @@ require (
 	github.com/jrick/logrotate v1.0.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/net v0.28.0
-	golang.org/x/sys v0.23.0
-	golang.org/x/term v0.23.0
+	golang.org/x/sys v0.30.0
+	golang.org/x/term v0.29.0
 	lukechampine.com/blake3 v1.3.0
 )
 
@@ -51,12 +51,12 @@ require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
-	github.com/decred/dcrd/crypto/rand v1.0.0 // indirect
+	github.com/decred/dcrd/crypto/rand v1.0.1 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 )
