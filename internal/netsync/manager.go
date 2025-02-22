@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -213,9 +213,9 @@ type Peer struct {
 	requestedBlocks  map[chainhash.Hash]struct{}
 	requestedMixMsgs map[chainhash.Hash]struct{}
 
-	// initialStateRequested tracks whether or not the initial state data has
-	// been requested from the peer.
-	initialStateRequested bool
+	// requestInitialStateOnce is used to ensure the initial state data is only
+	// requested from the peer once.
+	requestInitialStateOnce sync.Once
 
 	// numConsecutiveOrphanHeaders tracks the number of consecutive header
 	// messages sent by the peer that contain headers which do not connect.  It
@@ -256,6 +256,49 @@ func NewPeer(peer *peerpkg.Peer) *Peer {
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
 		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
 	}
+}
+
+// maybeRequestInitialState potentially requests initial state information from
+// the peer by sending it an appropriate initial state sync message dependending
+// on the protocol version.
+//
+// The request will not be sent more than once or when the peer is in the
+// process of being removed.
+//
+// This function is safe for concurrent access.
+func (peer *Peer) maybeRequestInitialState(includeMiningState bool) {
+	// Don't request the initial state more than once or when the peer is in the
+	// process of being removed.
+	if !peer.Connected() {
+		return
+	}
+	peer.requestInitialStateOnce.Do(func() {
+		// Choose which initial state sync p2p messages to use based on the
+		// protocol version.
+		//
+		// Protocol versions prior to the init state version use getminingstate
+		// and miningstate while those after use getinitstate and initstate.
+		if peer.ProtocolVersion() < wire.InitStateVersion {
+			if includeMiningState {
+				peer.QueueMessage(wire.NewMsgGetMiningState(), nil)
+			}
+			return
+		}
+
+		// Always request treasury spends for newer protocol versions.
+		types := make([]string, 0, 3)
+		types = append(types, wire.InitStateTSpends)
+		if includeMiningState {
+			types = append(types, wire.InitStateHeadBlocks)
+			types = append(types, wire.InitStateHeadBlockVotes)
+		}
+		msg := wire.NewMsgGetInitState()
+		if err := msg.AddTypes(types...); err != nil {
+			log.Errorf("Failed to build getinitstate msg: %v", err)
+			return
+		}
+		peer.QueueMessage(msg, nil)
+	})
 }
 
 // headerSyncState houses the state used to track the header sync progress and
@@ -613,42 +656,6 @@ func (m *SyncManager) startSync() {
 	}
 }
 
-// maybeRequestInitialState potentially requests initial state information from
-// the provided peer by sending it an appropriate initial state sync message
-// dependending on the protocol version.
-//
-// The request will not be sent more than once or when the peer is in the
-// process of being removed.
-func maybeRequestInitialState(peer *Peer) {
-	// Don't request the initial state more than once or when the peer is in the
-	// process of being removed.
-	if peer.initialStateRequested || !peer.Connected() {
-		return
-	}
-
-	// Choose which initial state sync p2p messages to use based on the protocol
-	// version.  Protocol versions prior to the init state version use
-	// getminingstate and miningstate while those after use getinitstate and
-	// initstate.
-	var msg wire.Message
-	if peer.ProtocolVersion() < wire.InitStateVersion {
-		msg = wire.NewMsgGetMiningState()
-	} else {
-		m := wire.NewMsgGetInitState()
-		err := m.AddTypes(wire.InitStateHeadBlocks,
-			wire.InitStateHeadBlockVotes,
-			wire.InitStateTSpends)
-		if err != nil {
-			log.Errorf("Unexpected error building getinitstate msg: %v", err)
-			return
-		}
-		msg = m
-	}
-	peer.QueueMessage(msg, nil)
-
-	peer.initialStateRequested = true
-}
-
 // onInitialChainSyncDone is invoked when the initial chain sync process
 // completes.
 func (m *SyncManager) onInitialChainSyncDone() {
@@ -656,12 +663,10 @@ func (m *SyncManager) onInitialChainSyncDone() {
 	log.Infof("Initial chain sync complete (hash %s, height %d)",
 		best.Hash, best.Height)
 
-	// Request initial state from all peers that are marked as needing it now
-	// that the initial chain sync is done when enabled.
-	if !m.cfg.NoMiningStateSync {
-		for peer := range m.peers {
-			maybeRequestInitialState(peer)
-		}
+	// Request initial state from all peers that still need it now that the
+	// initial chain sync is done.
+	for peer := range m.peers {
+		peer.maybeRequestInitialState(!m.cfg.NoMiningStateSync)
 	}
 }
 
@@ -698,11 +703,11 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 		m.startSync()
 	}
 
-	// Request the initial state from this peer now when enabled and the manager
+	// Potentially request the initial state from this peer now when the manager
 	// believes the chain is fully synced.  Otherwise, it will be requested when
 	// the initial chain sync process is complete.
-	if !m.cfg.NoMiningStateSync && m.IsCurrent() {
-		maybeRequestInitialState(peer)
+	if m.IsCurrent() {
+		peer.maybeRequestInitialState(!m.cfg.NoMiningStateSync)
 	}
 }
 
