@@ -2484,14 +2484,14 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	// prevailing conditions to disable automatic network address discovery.
 	//
 	// The conditions to disable automatic network address discovery are:
-	//	- There is a proxy set (--proxy, --onion)
+	//  - There is a proxy set (--proxy, --onion)
 	//  - Automatic network address discovery is explicitly disabled
 	//    (--nodiscoverip)
-	//	- There is an external IP explicitly set (--externalip)
+	//  - There is an external IP explicitly set (--externalip)
 	//  - Listening has been disabled (--nolisten, listen disabled because of
 	//    --connect, etc)
-	//	- Universal Plug and Play is enabled (--upnp)
-	//	- The active network is simnet or regnet
+	//  - Universal Plug and Play is enabled (--upnp)
+	//  - The active network is simnet or regnet
 	if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
 		cfg.NoDiscoverIP ||
 		len(cfg.ExternalIPs) > 0 ||
