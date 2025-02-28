@@ -460,10 +460,10 @@ type Peer struct {
 	bytesSent     uint64
 	lastRecv      int64
 	lastSend      int64
-	connected     int32
 	disconnect    int32
 
-	conn net.Conn
+	conn    net.Conn
+	connMtx sync.Mutex
 
 	// blake256Hasher is the hash.Hash object that is used by readMessage
 	// to calculate the hash of read mixing messages.  Every peer's hasher
@@ -482,10 +482,10 @@ type Peer struct {
 	userAgent            string
 	services             wire.ServiceFlag
 	versionKnown         bool
+	handshakeCompleted   bool
 	advertisedProtoVer   uint32 // protocol version advertised by remote
 	protocolVersion      uint32 // negotiated protocol version
 	sendHeadersPreferred bool   // peer sent a sendheaders message
-	versionSent          bool
 	verAckReceived       bool
 
 	knownInventory     *lru.Set[wire.InvVect]
@@ -703,6 +703,18 @@ func (p *Peer) VersionKnown() bool {
 	p.flagsMtx.Unlock()
 
 	return versionKnown
+}
+
+// HandshakeCompleted returns whether initial version messages were sent and
+// received.
+//
+// This function is safe for concurrent access.
+func (p *Peer) HandshakeCompleted() bool {
+	p.flagsMtx.Lock()
+	handshakeCompleted := p.handshakeCompleted
+	p.flagsMtx.Unlock()
+
+	return handshakeCompleted
 }
 
 // VerAckReceived returns whether or not a verack message was received by the
@@ -1652,7 +1664,7 @@ out:
 
 		case iv := <-p.outputInvChan:
 			// No handshake?  They'll find out soon enough.
-			if p.VersionKnown() {
+			if p.HandshakeCompleted() {
 				invSendQueue = append(invSendQueue, iv)
 			}
 
@@ -1918,23 +1930,27 @@ func (p *Peer) QueueInventoryImmediate(invVect *wire.InvVect) {
 //
 // This function is safe for concurrent access.
 func (p *Peer) Connected() bool {
-	return atomic.LoadInt32(&p.connected) != 0 &&
-		atomic.LoadInt32(&p.disconnect) == 0
+	p.connMtx.Lock()
+	defer p.connMtx.Unlock()
+
+	return p.conn != nil && atomic.LoadInt32(&p.disconnect) == 0
 }
 
 // Disconnect disconnects the peer by closing the connection.  Calling this
 // function when the peer is already disconnected or in the process of
 // disconnecting will have no effect.
 func (p *Peer) Disconnect() {
-	if atomic.AddInt32(&p.disconnect, 1) != 1 {
-		return
-	}
+	p.connMtx.Lock()
+	defer p.connMtx.Unlock()
 
 	log.Tracef("Disconnecting %s", p)
-	if atomic.LoadInt32(&p.connected) != 0 {
+	if p.conn != nil {
 		p.conn.Close()
 	}
-	close(p.quit)
+
+	if atomic.CompareAndSwapInt32(&p.disconnect, 0, 1) {
+		close(p.quit)
+	}
 }
 
 // readRemoteVersionMsg waits for the next message to arrive from the remote
@@ -2076,9 +2092,6 @@ func (p *Peer) writeLocalVersionMsg() error {
 		return err
 	}
 
-	p.flagsMtx.Lock()
-	p.versionSent = true
-	p.flagsMtx.Unlock()
 	return nil
 }
 
@@ -2090,7 +2103,15 @@ func (p *Peer) negotiateInboundProtocol() error {
 		return err
 	}
 
-	return p.writeLocalVersionMsg()
+	if err := p.writeLocalVersionMsg(); err != nil {
+		return err
+	}
+
+	p.flagsMtx.Lock()
+	p.handshakeCompleted = true
+	p.flagsMtx.Unlock()
+
+	return nil
 }
 
 // negotiateOutboundProtocol sends our version message then waits to receive a
@@ -2101,7 +2122,15 @@ func (p *Peer) negotiateOutboundProtocol() error {
 		return err
 	}
 
-	return p.readRemoteVersionMsg()
+	if err := p.readRemoteVersionMsg(); err != nil {
+		return err
+	}
+
+	p.flagsMtx.Lock()
+	p.handshakeCompleted = true
+	p.flagsMtx.Unlock()
+
+	return nil
 }
 
 // start begins processing input and output messages.
@@ -2146,13 +2175,20 @@ func (p *Peer) start() error {
 // Calling this function when the peer is already connected will
 // have no effect.
 func (p *Peer) AssociateConnection(conn net.Conn) {
+	p.connMtx.Lock()
+
 	// Already connected?
-	if !atomic.CompareAndSwapInt32(&p.connected, 0, 1) {
+	if p.conn != nil {
+		p.connMtx.Unlock()
 		return
 	}
 
 	p.conn = conn
+	p.connMtx.Unlock()
+
+	p.statsMtx.Lock()
 	p.timeConnected = time.Now()
+	p.statsMtx.Unlock()
 
 	if p.inbound {
 		p.addr = p.conn.RemoteAddr().String()
@@ -2166,7 +2202,9 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 			p.Disconnect()
 			return
 		}
+		p.flagsMtx.Lock()
 		p.na = na
+		p.flagsMtx.Unlock()
 	}
 
 	go func(peer *Peer) {
