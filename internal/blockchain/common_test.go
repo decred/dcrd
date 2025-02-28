@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
-	mrand "math/rand"
 	"os"
 	"reflect"
 	"testing"
@@ -23,6 +22,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/database/v3"
 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -207,10 +207,6 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	}
 }
 
-// testNoncePrng provides a deterministic prng for the nonce in generated fake
-// nodes.  This ensures that the nodes have unique hashes.
-var testNoncePrng = mrand.New(mrand.NewSource(0))
-
 // newFakeNode creates a block node connected to the passed parent with the
 // provided fields populated and fake values for the other fields.
 func newFakeNode(parent *blockNode, blockVersion int32, stakeVersion uint32, bits uint32, timestamp time.Time) *blockNode {
@@ -228,7 +224,7 @@ func newFakeNode(parent *blockNode, blockVersion int32, stakeVersion uint32, bit
 		Bits:         bits,
 		Height:       height,
 		Timestamp:    timestamp,
-		Nonce:        testNoncePrng.Uint32(),
+		Nonce:        rand.Uint32(),
 		StakeVersion: stakeVersion,
 	}
 	node := newBlockNode(header, parent)
@@ -315,10 +311,7 @@ func newFakeCreateTSpend(privKey []byte, payouts []dcrutil.Amount, fee dcrutil.A
 	// that it becomes signed. This is consensus enforced.
 	var payload [32]byte
 	binary.LittleEndian.PutUint64(payload[0:8], uint64(valueIn))
-	_, err := mrand.Read(payload[8:])
-	if err != nil {
-		panic(err)
-	}
+	rand.Read(payload[8:])
 	builder := txscript.NewScriptBuilder()
 	builder.AddOp(txscript.OP_RETURN)
 	builder.AddData(payload[:])
