@@ -6,6 +6,7 @@ package mixing
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/decred/dcrd/mixing/internal/chacha20prng"
@@ -28,15 +29,7 @@ func randVec(n uint32, prng *chacha20prng.Reader) Vec {
 
 // Equals returns whether the two vectors have equal dimensions and data.
 func (v Vec) Equals(other Vec) bool {
-	if len(v) != len(other) {
-		return false
-	}
-	for i := range other {
-		if v[i] != other[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(other, v)
 }
 
 func (v Vec) String() string {
