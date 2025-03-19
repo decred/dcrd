@@ -319,6 +319,14 @@ func (s *sessionRun) logf(format string, args ...interface{}) {
 	s.logger.Debugf("sid=%x/%d "+format, append([]interface{}{s.sid[:], s.idx}, args...)...)
 }
 
+func (s *sessionRun) logerrf(format string, args ...interface{}) {
+	if s.logger == nil {
+		return
+	}
+
+	s.logger.Errorf("sid=%x/%d "+format, append([]interface{}{s.sid[:], s.idx}, args...)...)
+}
+
 type queueWork struct {
 	p   *peer
 	f   func(p *peer) error
@@ -1186,9 +1194,10 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			continue
 		}
 
-		// Any other run error is not actionable.
+		// Any other run error is not actionable.  Unexpected errors
+		// are logged at error level.
 		if err != nil {
-			r.logf("Run error: %v", err)
+			r.logerrf("Run error: %v", err)
 			return
 		}
 
@@ -1366,10 +1375,9 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 		return nil
 	})
 	if err != nil {
-		sesRun.logf("%v", err)
-	} else {
-		sesRun.freshGen = false
+		return nil, err
 	}
+	sesRun.freshGen = false
 	err = c.sendLocalPeerMsgs(ctx, ps.deadlines.recvKE, sesRun, msgKE)
 	if err != nil {
 		sesRun.logf("%v", err)
