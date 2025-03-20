@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -82,11 +82,26 @@ func dcrdMain() error {
 	//
 	// A limit of 1.8 GiB is used as a baseline, with an increase to the limit
 	// when the UTXO cache max size has been increased over the default.
+	//
+	// In addition, the system administrator may override the limit to increase
+	// it further by setting the GOMEMLIMIT environment variable.  In order to
+	// prevent extremely poor performance due to a limit that is unreasonably
+	// low, the environment variable will be ignored when it is configured with
+	// a value less than the minimum required amount as determined per the
+	// previous description.
 	const memLimitBase = (18 * (1 << 30)) / 10 // 1.8 GiB
 	softMemLimit := int64(memLimitBase)
 	if cfg.UtxoCacheMaxSize > defaultUtxoCacheMaxSize {
 		extra := int64(cfg.UtxoCacheMaxSize) - defaultUtxoCacheMaxSize
 		softMemLimit += extra * (1 << 20)
+	}
+	goMemLimit := debug.SetMemoryLimit(-1)
+	if goMemLimit < softMemLimit {
+		dcrdLog.Infof("Ignoring GOMEMLIMIT=%q since it is too low and would "+
+			"lead to extremely poor performance", humanizeBytes(goMemLimit))
+	}
+	if _, ok := os.LookupEnv("GOMEMLIMIT"); ok && goMemLimit > softMemLimit {
+		softMemLimit = goMemLimit
 	}
 	debug.SetMemoryLimit(softMemLimit)
 	dcrdLog.Infof("Soft memory limit: %s", humanizeBytes(softMemLimit))
