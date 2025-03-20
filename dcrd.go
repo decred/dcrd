@@ -75,16 +75,14 @@ func dcrdMain() error {
 	// limits the garbage collector from excessively overallocating during
 	// bursts.  It does this by tweaking the soft memory limit.
 	//
-	// A soft upper memory limit is imposed that leaves plenty of headroom
-	// for the minimum recommended value and the target GC percentage is
-	// left at the default value to significantly reduce the number of GC
-	// cycles thereby reducing the amount of CPU time spent doing garbage
-	// collection.
+	// A soft upper memory limit is imposed that leaves plenty of headroom for
+	// the minimum recommended value and the target GC percentage is left at the
+	// default value to significantly reduce the number of GC cycles thereby
+	// reducing the amount of CPU time spent doing garbage collection.
 	//
-	// A limit of 1.5 GiB is used as a baseline, with an increase to the
-	// limit when the UTXO cache max size has been increased over the
-	// default.
-	const memLimitBase = (15 * (1 << 30)) / 10 // 1.5 GiB
+	// A limit of 1.8 GiB is used as a baseline, with an increase to the limit
+	// when the UTXO cache max size has been increased over the default.
+	const memLimitBase = (18 * (1 << 30)) / 10 // 1.8 GiB
 	softMemLimit := int64(memLimitBase)
 	if cfg.UtxoCacheMaxSize > defaultUtxoCacheMaxSize {
 		extra := int64(cfg.UtxoCacheMaxSize) - defaultUtxoCacheMaxSize
