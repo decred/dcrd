@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -283,7 +283,7 @@ func (p *Pool) HaveMessage(query *chainhash.Hash) bool {
 	return ok
 }
 
-// RecentMessages attempts to find a message by its hash in both the mixing pool
+// RecentMessage attempts to find a message by its hash in both the mixing pool
 // that contains accepted messages as well as the cache of recently removed
 // messages.
 func (p *Pool) RecentMessage(query *chainhash.Hash) (mixing.Message, bool) {
@@ -1343,14 +1343,14 @@ func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
 		// Check proof of key ownership and ability to sign coinjoin
 		// inputs.
 		var extractPubKeyHash160 func([]byte) []byte
-		switch {
-		case utxo.Opcode == 0:
+		switch utxo.Opcode {
+		case 0:
 			extractPubKeyHash160 = stdscript.ExtractPubKeyHashV0
-		case utxo.Opcode == txscript.OP_SSGEN:
+		case txscript.OP_SSGEN:
 			extractPubKeyHash160 = stdscript.ExtractStakeGenPubKeyHashV0
-		case utxo.Opcode == txscript.OP_SSRTX:
+		case txscript.OP_SSRTX:
 			extractPubKeyHash160 = stdscript.ExtractStakeRevocationPubKeyHashV0
-		case utxo.Opcode == txscript.OP_TGEN:
+		case txscript.OP_TGEN:
 			extractPubKeyHash160 = stdscript.ExtractTreasuryGenPubKeyHashV0
 		default:
 			return ruleError(fmt.Errorf("unsupported output script for UTXO %s", &utxo.OutPoint))
