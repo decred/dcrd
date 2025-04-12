@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1331,11 +1331,11 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 				return err
 			}
 			if len(p.dcMsg) != int(p.pr.MessageCount) {
-				return errors.New("Gen returned wrong message count")
+				return errors.New("gen returned wrong message count")
 			}
 			for _, m := range p.dcMsg {
 				if len(m) != msize {
-					err := fmt.Errorf("Gen returned bad message "+
+					err := fmt.Errorf("gen returned bad message "+
 						"length [%v != %v]", len(m), msize)
 					return err
 				}
@@ -2202,7 +2202,7 @@ func (c *Client) alternateSession(ps *pairedSessions, prs []*wire.MsgMixPairReq)
 		}
 		pr := prsByHash[prHashByIdentity[ke.Identity]]
 		if pr == nil {
-			err := fmt.Errorf("Missing PR %s by %x, but have their KE %s",
+			err := fmt.Errorf("missing PR %s by %x, but have their KE %s",
 				prHashByIdentity[ke.Identity], ke.Identity[:], ke.Hash())
 			c.log(err)
 			continue

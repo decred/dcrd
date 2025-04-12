@@ -1,10 +1,10 @@
+version: "2"
 run:
-  deadline: 10m
+  timeout: 10m
   build-tags:
     - rpctest
-
 linters:
-  disable-all: true
+  default: none
   enable:
     - asciicheck
     - bidichk
@@ -13,9 +13,6 @@ linters:
     - durationcheck
     - errchkjson
     - errorlint
-    - gofmt
-    - goimports
-    - gosimple
     - govet
     - grouper
     - ineffassign
@@ -24,8 +21,16 @@ linters:
     - nosprintfhostport
     - reassign
     - rowserrcheck
+    - staticcheck
     - tparallel
-    - typecheck
     - unconvert
     - unused
     - usetesting
+  settings:
+    staticcheck:
+      checks:
+          - S1*
+formatters:
+  enable:
+    - gofmt
+    - goimports
