@@ -10,10 +10,10 @@ Package netsync implements a concurrency safe block syncing protocol.
 ## Overview
 
 The provided implementation of SyncManager communicates with connected peers to
-perform an initial block download, keep the chain in sync, and announce new
-blocks connected to the chain. Currently the sync manager selects a single sync
-peer that it downloads all blocks from until it is up to date with the longest
-chain the sync peer is aware of.
+perform an initial chain sync, keep the chain in sync, and announce new blocks
+connected to the chain. Currently the sync manager selects a single sync peer
+that it downloads all blocks from until it is up to date with the longest chain
+the sync peer is aware of.
 
 ## License
 
