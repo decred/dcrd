@@ -1094,10 +1094,10 @@ func (p *Peer) shouldHandleReadError(err error) bool {
 func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd string) {
 	// Setup a deadline for each message being sent that expects a response.
 	//
-	// NOTE: Pings are intentionally ignored here since they are typically
-	// sent asynchronously and as a result of a long backlog of messages,
-	// such as is typical in the case of initial block download, the
-	// response won't be received in time.
+	// NOTE: Pings are intentionally ignored here since they are typically sent
+	// asynchronously and as a result of a long backlog of messages, such as is
+	// typical in the case of the initial chain sync, the response won't be
+	// received in time.
 	//
 	// Also, getheaders is intentionally ignored since there is no guaranteed
 	// response if the remote peer does not have any headers for the locator.
