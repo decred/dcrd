@@ -1081,7 +1081,7 @@ of the best block.
 : <code>difficultyratio</code>: <code>(numeric)</code> The current proof-of-work difficulty as a multiple of the minimum difficulty.
 : <code>verificationprogress</code>: <code>(numeric)</code> The chain verification progress estimate.
 : <code>chainwork</code>: <code>(string)</code> Hex encoded total work done for the chain.
-: <code>initialblockdownload</code>: <code>(boolean)</code> Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind.
+: <code>initialblockdownload</code>: <code>(boolean)</code> Best guess of whether this node is in the initial chain sync mode used to catch up the chain when it is far behind.
 : <code>maxblocksize</code>: <code>(numeric)</code> The maximum allowed block size.
 : <code>deployments</code>: <code>(json array of objects)</code> Network consensus deployments.
 : <code>status</code>: <code>(string)</code> The deployment agenda's current status.
