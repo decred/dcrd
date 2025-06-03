@@ -246,7 +246,7 @@ var helpDescsEnUS = map[string]string{
 	"getblockchaininforesult-difficultyratio":      "The current proof-of-work difficulty as a multiple of the minimum difficulty.",
 	"getblockchaininforesult-verificationprogress": "The chain verification progress estimate.",
 	"getblockchaininforesult-chainwork":            "Hex encoded total work done for the chain.",
-	"getblockchaininforesult-initialblockdownload": "Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind",
+	"getblockchaininforesult-initialblockdownload": "Best guess of whether this node is in the initial chain sync mode used to catch up the chain when it is far behind",
 	"getblockchaininforesult-maxblocksize":         "The maximum allowed block size.",
 	"getblockchaininforesult-deployments":          "Network consensus deployments.",
 	"getblockchaininforesult-deployments--desc":    "Consensus deployment agendas.",
