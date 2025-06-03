@@ -53,7 +53,7 @@ const (
 	// periodicFlushInterval is the amount of time to wait before a periodic
 	// flush is required.
 	//
-	// The cache is flushed periodically during initial block download to avoid
+	// The cache is flushed periodically during the initial chain sync to avoid
 	// requiring a flush that would take a significant amount of time on
 	// shutdown (or, in the case of an unclean shutdown, a significant amount of
 	// time to initialize the cache when restarted).
@@ -113,7 +113,7 @@ type UtxoCacher interface {
 // UtxoCache is an unspent transaction output cache that sits on top of the
 // utxo set backend and provides significant runtime performance benefits at
 // the cost of some additional memory usage.  It drastically reduces the amount
-// of reading and writing to disk, especially during initial block download when
+// of reading and writing to disk, especially during the initial chain sync when
 // a very large number of blocks are being processed in quick succession.
 //
 // The UtxoCache is a read-through cache.  All utxo reads go through the cache.
@@ -162,7 +162,7 @@ type UtxoCache struct {
 
 	// lastFlushTime is the last time that the cache was flushed to the backend.
 	// It is used to determine when to periodically flush the cache to the
-	// backend during initial block download even if the cache isn't full to
+	// backend during the initial chain sync even if the cache isn't full to
 	// minimize the amount of progress lost if an unclean shutdown occurs.
 	lastFlushTime time.Time
 
@@ -1041,9 +1041,9 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 }
 
 // ShutdownUtxoCache flushes the utxo cache to the backend on shutdown.  Since
-// the cache is flushed periodically during initial block download and flushed
-// after every block is connected after initial block download is complete,
-// this flush that occurs during shutdown should finish relatively quickly.
+// the cache is flushed periodically during the initial chain sync and flushed
+// after every block is connected after the initial chain sync is complete, this
+// flush that occurs during shutdown should finish relatively quickly.
 //
 // Note that if an unclean shutdown occurs, the cache will still be initialized
 // properly when restarted as during initialization it will replay blocks to
