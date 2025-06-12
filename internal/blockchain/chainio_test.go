@@ -59,32 +59,26 @@ func hexToExtraData(s string) [32]byte {
 	return extraData
 }
 
-// isNotInMainChainErr returns whether or not the passed error is an
-// errNotInMainChain error.
-func isNotInMainChainErr(err error) bool {
-	var e errNotInMainChain
-	return errors.As(err, &e)
-}
-
-// TestErrNotInMainChain ensures the functions related to errNotInMainChain work
-// as expected.
+// TestErrNotInMainChain ensures the stringized output for the
+// [errNotInMainChainByHeight] and [errNotInMainChainByHash] errors works as
+// expected.
 func TestErrNotInMainChain(t *testing.T) {
-	const errStr = "no block at height 1 exists"
-	err := error(errNotInMainChain(errStr))
-
-	// Ensure the stringized output for the error is as expected.
-	if err.Error() != errStr {
-		t.Fatalf("errNotInMainChain returned unexpected error string - "+
-			"got %q, want %q", err, errStr)
+	// Ensure the stringized output for the by height error is as expected.
+	err1 := errNotInMainChainByHeight(1)
+	const err1Str = "no block at height 1 exists"
+	if err1.Error() != err1Str {
+		t.Fatalf("errNotInMainChainByHeight returned unexpected error string - "+
+			"got %q, want %q", err1, err1Str)
 	}
 
-	// Ensure error is detected as the correct type.
-	if !isNotInMainChainErr(err) {
-		t.Fatalf("isNotInMainChainErr did not detect as expected type")
-	}
-	err = errors.New("something else")
-	if isNotInMainChainErr(err) {
-		t.Fatalf("isNotInMainChainErr detected incorrect type")
+	// Ensure the stringized output for the by hash error is as expected.
+	const hashStr = "5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"
+	hash := *mustParseHash(hashStr)
+	err2 := errNotInMainChainByHash(hash)
+	const err2Str = "block " + hashStr + " is not in the main chain"
+	if err2.Error() != err2Str {
+		t.Fatalf("errNotInMainChainByHash returned unexpected error string - "+
+			"got %q, want %q", err2, err2Str)
 	}
 }
 

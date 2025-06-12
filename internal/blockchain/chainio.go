@@ -110,13 +110,24 @@ var (
 	treasuryTSpendBucketName = []byte("tspend")
 )
 
-// errNotInMainChain signifies that a block hash or height that is not in the
-// main chain was requested.
-type errNotInMainChain string
+// errNotInMainChainByHeight signifies a requested block height is not in the
+// main chain.
+type errNotInMainChainByHeight int64
 
 // Error implements the error interface.
-func (e errNotInMainChain) Error() string {
-	return string(e)
+func (e errNotInMainChainByHeight) Error() string {
+	return fmt.Sprintf("no block at height %d exists", int64(e))
+}
+
+// errNotInMainChainByHash signifies a block hash that is not in the main chain
+// was requested.  This also applies to the case when a requested block hash
+// does not exist at all since it most definitely is not in the main chain in
+// that case either.
+type errNotInMainChainByHash chainhash.Hash
+
+// Error implements the error interface.
+func (e errNotInMainChainByHash) Error() string {
+	return fmt.Sprintf("block %s is not in the main chain", chainhash.Hash(e))
 }
 
 // errDeserialize signifies that a problem was encountered when deserializing

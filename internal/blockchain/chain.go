@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -487,8 +487,7 @@ func (b *BlockChain) lookupRecentBlock(hash *chainhash.Hash) (*dcrutil.Block, bo
 func (b *BlockChain) fetchMainChainBlockByNode(node *blockNode) (*dcrutil.Block, error) {
 	// Ensure the block is in the main chain.
 	if !b.bestChain.Contains(node) {
-		str := fmt.Sprintf("block %s is not in the main chain", node.hash)
-		return nil, errNotInMainChain(str)
+		return nil, errNotInMainChainByHash(node.hash)
 	}
 
 	// Attempt to load the block from the recent block cache.
@@ -1687,8 +1686,7 @@ func (b *BlockChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error
 func (b *BlockChain) HeaderByHeight(height int64) (wire.BlockHeader, error) {
 	node := b.bestChain.NodeByHeight(height)
 	if node == nil {
-		str := fmt.Sprintf("no block at height %d exists", height)
-		return wire.BlockHeader{}, errNotInMainChain(str)
+		return wire.BlockHeader{}, errNotInMainChainByHeight(height)
 	}
 
 	return node.Header(), nil
@@ -1716,8 +1714,7 @@ func (b *BlockChain) BlockByHeight(height int64) (*dcrutil.Block, error) {
 	// Lookup the block height in the best chain.
 	node := b.bestChain.NodeByHeight(height)
 	if node == nil {
-		str := fmt.Sprintf("no block at height %d exists", height)
-		return nil, errNotInMainChain(str)
+		return nil, errNotInMainChainByHeight(height)
 	}
 
 	// Return the block from either cache or the database.  Note that this is
@@ -1755,8 +1752,7 @@ func (b *BlockChain) MedianTimeByHash(hash *chainhash.Hash) (time.Time, error) {
 func (b *BlockChain) BlockHeightByHash(hash *chainhash.Hash) (int64, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.bestChain.Contains(node) {
-		str := fmt.Sprintf("block %s is not in the main chain", hash)
-		return 0, errNotInMainChain(str)
+		return 0, errNotInMainChainByHash(*hash)
 	}
 
 	return node.height, nil
@@ -1769,8 +1765,7 @@ func (b *BlockChain) BlockHeightByHash(hash *chainhash.Hash) (int64, error) {
 func (b *BlockChain) BlockHashByHeight(height int64) (*chainhash.Hash, error) {
 	node := b.bestChain.NodeByHeight(height)
 	if node == nil {
-		str := fmt.Sprintf("no block at height %d exists", height)
-		return nil, errNotInMainChain(str)
+		return nil, errNotInMainChainByHeight(height)
 	}
 
 	return &node.hash, nil

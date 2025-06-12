@@ -115,8 +115,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 		for i := int64(2); i <= chain.bestChain.Tip().height; i++ {
 			node := chain.bestChain.NodeByHeight(i)
 			if node == nil {
-				str := fmt.Sprintf("no block at height %d exists", i)
-				return errNotInMainChain(str)
+				return errNotInMainChainByHeight(i)
 			}
 			block, err := dbFetchBlockByNode(dbTx, node)
 			if err != nil {
