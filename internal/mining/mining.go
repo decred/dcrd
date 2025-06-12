@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -931,7 +931,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		err = g.cfg.CheckConnectBlockTemplate(btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
-				"constructing a new parent", err.Error())
+				"constructing a new parent", err)
 			return nil, makeError(ErrCheckConnectBlock, str)
 		}
 
@@ -2186,7 +2186,7 @@ nextPriorityQueueItem:
 		view, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch utxo view for tx %v: %s",
-				tx.Hash(), err.Error())
+				tx.Hash(), err)
 			return nil, makeError(ErrFetchTxStore, str)
 		}
 

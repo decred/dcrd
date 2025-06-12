@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -102,13 +102,13 @@ func TestCalcSignatureHash(t *testing.T) {
 	// Test prefix caching.
 	msg1, err := CalcSignatureHash(script, SigHashAll, tx, 0, nil)
 	if err != nil {
-		t.Fatalf("unexpected error %v", err.Error())
+		t.Fatalf("unexpected error %v", err)
 	}
 
 	prefixHash := tx.TxHash()
 	msg2, err := CalcSignatureHash(script, SigHashAll, tx, 0, &prefixHash)
 	if err != nil {
-		t.Fatalf("unexpected error %v", err.Error())
+		t.Fatalf("unexpected error %v", err)
 	}
 
 	if !bytes.Equal(msg1, want) {
@@ -132,7 +132,7 @@ func TestCalcSignatureHash(t *testing.T) {
 	// using the same TxOuts.
 	msg3, err := CalcSignatureHash(script, SigHashAll, tx, 1, &prefixHash)
 	if err != nil {
-		t.Fatalf("unexpected error %v", err.Error())
+		t.Fatalf("unexpected error %v", err)
 	}
 
 	if bytes.Equal(msg1, msg3) {

@@ -1958,8 +1958,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
-				"for mining state block %v: %v",
-				bh, err.Error())
+				"for mining state block %v: %w", bh, err)
 		}
 
 		peer.requestedBlocks[*bh] = struct{}{}
@@ -2020,8 +2019,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 			err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
 			if err != nil {
 				return fmt.Errorf("unexpected error encountered building request "+
-					"for mining state vote %v: %v",
-					tx, err.Error())
+					"for mining state vote %v: %w", tx, err)
 			}
 
 			peer.requestedTxns[*tx] = struct{}{}
@@ -2061,8 +2059,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
-				"for inv vect mix hash %v: %v",
-				mh, err.Error())
+				"for inv vect mix hash %v: %w", mh, err)
 		}
 
 		peer.requestedMixMsgs[*mh] = struct{}{}

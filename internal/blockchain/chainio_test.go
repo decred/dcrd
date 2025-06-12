@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -69,13 +69,13 @@ func isNotInMainChainErr(err error) bool {
 // TestErrNotInMainChain ensures the functions related to errNotInMainChain work
 // as expected.
 func TestErrNotInMainChain(t *testing.T) {
-	errStr := "no block at height 1 exists"
+	const errStr = "no block at height 1 exists"
 	err := error(errNotInMainChain(errStr))
 
 	// Ensure the stringized output for the error is as expected.
 	if err.Error() != errStr {
 		t.Fatalf("errNotInMainChain returned unexpected error string - "+
-			"got %q, want %q", err.Error(), errStr)
+			"got %q, want %q", err, errStr)
 	}
 
 	// Ensure error is detected as the correct type.

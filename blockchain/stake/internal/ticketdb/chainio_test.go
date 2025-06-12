@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -398,7 +398,7 @@ func TestLiveDatabase(t *testing.T) {
 	// Initialize the database, then try to read the version.
 	err = testDb.Update(DbCreate)
 	if err != nil {
-		t.Fatalf("%v", err.Error())
+		t.Fatal(err)
 	}
 
 	var dbi *DatabaseInfo
@@ -407,7 +407,7 @@ func TestLiveDatabase(t *testing.T) {
 		return err
 	})
 	if err != nil {
-		t.Fatalf("%v", err.Error())
+		t.Fatal(err)
 	}
 	if dbi.Version != currentDatabaseVersion {
 		t.Fatalf("bad version after reading from DB; want %v, got %v",
@@ -442,7 +442,7 @@ func TestLiveDatabase(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("%v", err.Error())
+		t.Fatal(err)
 	}
 
 	var treap *tickettreap.Immutable
@@ -452,7 +452,7 @@ func TestLiveDatabase(t *testing.T) {
 		return err
 	})
 	if err != nil {
-		t.Fatalf("%v", err.Error())
+		t.Fatal(err)
 	}
 	treap.ForEach(func(k tickettreap.Key, v *tickettreap.Value) bool {
 		ticketMap2[k] = v
@@ -461,6 +461,6 @@ func TestLiveDatabase(t *testing.T) {
 	})
 
 	if !reflect.DeepEqual(ticketMap, ticketMap2) {
-		t.Fatalf("not same ticket maps")
+		t.Fatal("not same ticket maps")
 	}
 }

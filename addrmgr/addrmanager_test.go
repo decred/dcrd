@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -605,7 +605,7 @@ func TestGood(t *testing.T) {
 
 	expectedErrMsg := fmt.Sprintf("%s is not marked as a new address", addrA)
 	if err.Error() != expectedErrMsg {
-		t.Fatalf("unexpected error str: got %s, want %s", err.Error(), expectedErrMsg)
+		t.Fatalf("unexpected error str: got %s, want %s", err, expectedErrMsg)
 	}
 }
 

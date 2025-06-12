@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1287,8 +1287,8 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 	if best.Height < sp.server.chainParams.StakeValidationHeight-1 {
 		err := sp.pushMiningStateMsg(0, nil, nil)
 		if err != nil {
-			peerLog.Warnf("unexpected error while pushing data for "+
-				"mining state request: %v", err.Error())
+			peerLog.Warnf("unexpected error while pushing data for mining "+
+				"state request: %v", err)
 		}
 
 		return
@@ -1330,8 +1330,8 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 
 	err := sp.pushMiningStateMsg(uint32(best.Height), blockHashes, voteHashes)
 	if err != nil {
-		peerLog.Warnf("unexpected error while pushing data for "+
-			"mining state request: %v", err.Error())
+		peerLog.Warnf("unexpected error while pushing data for mining state "+
+			"request: %v", err)
 	}
 }
 
@@ -1355,8 +1355,7 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
 		voteHashes, nil, nil)
 	if err != nil {
-		peerLog.Warnf("couldn't handle mining state message: %v",
-			err.Error())
+		peerLog.Warnf("couldn't handle mining state message: %v", err)
 	}
 }
 
@@ -2840,7 +2839,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			wt, _, _, err := s.chain.LotteryDataForBlock(blockHash)
 			if err != nil {
 				syncLog.Errorf("Couldn't calculate winning tickets for "+
-					"accepted block %v: %v", blockHash, err.Error())
+					"accepted block %v: %v", blockHash, err)
 			} else {
 				// Notify registered websocket clients of newly eligible tickets
 				// to vote on.

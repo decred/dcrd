@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -331,19 +331,19 @@ func TestBlockchainFunctions(t *testing.T) {
 
 	// Decode the blockchain into the map.
 	if err := bcDecoder.Decode(&blockChain); err != nil {
-		t.Errorf("error decoding test blockchain: %v", err.Error())
+		t.Errorf("error decoding test blockchain: %v", err)
 	}
 
 	// Insert blocks 1 to 168 and perform various tests.
 	for i := 1; i <= 168; i++ {
 		bl, err := dcrutil.NewBlockFromBytes(blockChain[int64(i)])
 		if err != nil {
-			t.Errorf("NewBlockFromBytes error: %v", err.Error())
+			t.Errorf("NewBlockFromBytes error: %v", err)
 		}
 
 		_, err = chain.ProcessBlock(bl)
 		if err != nil {
-			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
+			t.Fatalf("ProcessBlock error at height %v: %v", i, err)
 		}
 	}
 

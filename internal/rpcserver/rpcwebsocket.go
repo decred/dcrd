@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1086,8 +1086,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		dcrutil.Amount(amount).ToCoin())
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
 	if err != nil {
-		log.Errorf("Failed to marshal tx notification: %s",
-			err.Error())
+		log.Errorf("Failed to marshal tx notification: %s", err)
 		return
 	}
 
@@ -1119,8 +1118,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 			marshalledJSONVerbose, err = dcrjson.MarshalCmd("1.0", nil,
 				verboseNtfn)
 			if err != nil {
-				log.Errorf("Failed to marshal verbose tx "+
-					"notification: %s", err.Error())
+				log.Errorf("Failed to marshal verbose tx notification: %v", err)
 				return
 			}
 			wsc.QueueNotification(marshalledJSONVerbose)
@@ -1501,8 +1499,7 @@ out:
 				// Marshal and send response.
 				reply, err = createMarshalledReply(cmd.jsonrpc, cmd.id, nil, nil)
 				if err != nil {
-					log.Errorf("Failed to marshal authenticate reply: "+
-						"%v", err.Error())
+					log.Errorf("Failed to marshal authenticate reply: %v", err)
 					continue
 				}
 				c.SendMessage(reply, nil)
@@ -1708,7 +1705,7 @@ out:
 							reply, err = createMarshalledReply(cmd.jsonrpc, cmd.id, nil, nil)
 							if err != nil {
 								log.Errorf("Failed to marshal authenticate reply: "+
-									"%v", err.Error())
+									"%v", err)
 								continue
 							}
 

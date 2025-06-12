@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -86,7 +86,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 
 	// Decode the blockchain into the map
 	if err := bcDecoder.Decode(&blockChain); err != nil {
-		t.Errorf("error decoding test blockchain: %v", err.Error())
+		t.Errorf("error decoding test blockchain: %v", err)
 	}
 
 	// Load up the short chain
@@ -94,12 +94,12 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	for i := 1; i < finalIdx1+1; i++ {
 		bl, err := dcrutil.NewBlockFromBytes(blockChain[int64(i)])
 		if err != nil {
-			t.Fatalf("NewBlockFromBytes error: %v", err.Error())
+			t.Fatalf("NewBlockFromBytes error: %v", err)
 		}
 
 		forkLen, err := chain.ProcessBlock(bl)
 		if err != nil {
-			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
+			t.Fatalf("ProcessBlock error at height %v: %v", i, err)
 		}
 		isMainChain := forkLen == 0
 		if !isMainChain {

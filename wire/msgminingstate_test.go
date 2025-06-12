@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -68,7 +68,7 @@ func TestMiningStateWire(t *testing.T) {
 		"433221144332211443322114433221144332211")
 	err := sampleMSMsg.AddBlockHash(fakeBlock)
 	if err != nil {
-		t.Errorf("unexpected error for AddBlockHash: %v", err.Error())
+		t.Errorf("unexpected error for AddBlockHash: %v", err)
 	}
 
 	fakeVote1, _ := chainhash.NewHashFromStr("2222111122221111222211112" +
@@ -79,15 +79,15 @@ func TestMiningStateWire(t *testing.T) {
 		"666555566665555666655556666555566665555")
 	err = sampleMSMsg.AddVoteHash(fakeVote1)
 	if err != nil {
-		t.Errorf("unexpected error for AddVoteHash 1: %v", err.Error())
+		t.Errorf("unexpected error for AddVoteHash 1: %v", err)
 	}
 	err = sampleMSMsg.AddVoteHash(fakeVote2)
 	if err != nil {
-		t.Errorf("unexpected error for AddVoteHash 2: %v", err.Error())
+		t.Errorf("unexpected error for AddVoteHash 2: %v", err)
 	}
 	err = sampleMSMsg.AddVoteHash(fakeVote3)
 	if err != nil {
-		t.Errorf("unexpected error for AddVoteHash 3: %v", err.Error())
+		t.Errorf("unexpected error for AddVoteHash 3: %v", err)
 	}
 
 	sampleMSMsgEncoded := []byte{

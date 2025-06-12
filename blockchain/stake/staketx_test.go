@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1163,8 +1163,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		amtTicket)
 
 	// len commit to amts != len change amts
-	lenErrStr := "amounts was not equal in length " +
-		"to change amounts!"
+	const lenErrStr = "amounts was not equal in length to change amounts!"
 	if err == nil || err.Error() != lenErrStr {
 		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
@@ -1174,7 +1173,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		commitAmts,
 		changeAmts,
 		int64(0x00000000))
-	tooSmallErrStr := "committed amount was too small!"
+	const tooSmallErrStr = "committed amount was too small!"
 	if err == nil || err.Error() != tooSmallErrStr {
 		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
