@@ -167,7 +167,7 @@ func TestProcessOrder(t *testing.T) {
 //
 // The generated blocks form a fairly complex overall block tree as follows:
 //
-//	'-' denotes invalid header
+//	'*' denotes invalid header
 //	'!' denotes invalid block prior to connection (e.g. vote from bad ticket)
 //	'@' denotes invalid block when connected (e.g. double spend)
 //	'bfb' is the required first block
