@@ -1551,14 +1551,11 @@ func (m *SyncManager) needMixMsg(hash *chainhash.Hash) bool {
 		return false
 	}
 
-	if m.cfg.MixPool.HaveMessage(hash) {
+	// No need for mix messages that are already available in the mixing pool or
+	// were recently removed.
+	if _, ok := m.cfg.MixPool.RecentMessage(hash); ok {
 		return false
 	}
-
-	// TODO: It would be ideal here to not 'need' previously-observed
-	// messages that are known/expected to fail validation, or messages
-	// that have already been removed from mixpool.  An LRU of recently
-	// removed mixpool messages may work well.
 
 	return true
 }
