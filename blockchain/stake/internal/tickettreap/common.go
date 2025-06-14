@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,8 +13,6 @@ import (
 
 const (
 	// ptrSize is the number of bytes in a native pointer.
-	//
-	// nolint: vet
 	ptrSize = 4 << (^uintptr(0) >> 63)
 
 	// staticDepth is the size of the static array to use for keeping track

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -63,6 +63,8 @@ func (h *Hasher224) Write(b []byte) (int, error) {
 }
 
 // WriteByte adds the given byte to the rolling hash.
+//
+// nolint: govet
 func (h *Hasher224) WriteByte(b byte) {
 	h.h.writeByte(b)
 }
@@ -71,6 +73,8 @@ func (h *Hasher224) WriteByte(b byte) {
 //
 // This method is identical to [Write] except it does not return an error in
 // order to make it clear that writing can never fail.
+//
+// nolint: govet
 func (h *Hasher224) WriteBytes(b []byte) {
 	h.h.write(b)
 }
