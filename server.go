@@ -700,10 +700,6 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// The following fields are used to synchronize the net sync manager and
-	// server.
-	mixMsgProcessed chan error
-
 	// peerNa is network address of the peer connected to.
 	peerNa atomic.Pointer[wire.NetAddress]
 
@@ -730,12 +726,11 @@ type serverPeer struct {
 // the caller.
 func newServerPeer(s *server, isPersistent bool) *serverPeer {
 	return &serverPeer{
-		server:          s,
-		persistent:      isPersistent,
-		knownAddresses:  apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
-		quit:            make(chan struct{}),
-		mixMsgProcessed: make(chan error, 1),
-		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
+		server:         s,
+		persistent:     isPersistent,
+		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
+		quit:           make(chan struct{}),
+		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
 
@@ -1829,15 +1824,29 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 	iv := wire.NewInvVect(wire.InvTypeMix, &hash)
 	sp.AddKnownInventory(iv)
 
-	// Queue the message to be handled by the net sync manager
+	// Handle the message with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the message is fully
+	// processed and known good or bad.  This helps prevent a malicious peer
+	// from queuing up a bunch of bad mix messages before disconnecting (or
+	// being disconnected) and wasting memory.
+	//
+	// Also, announce any accepted messages to the network and websocket
+	// clients.
+	//
+	// Finally, when the error is the result of an orphan KE with unknown PR,
+	// request the PR from the peer submitting the KE.  This is a normal
+	// occurrence.
+	//
 	// XXX: add ban score increases for non-instaban errors?
-	sp.server.syncManager.OnMixMsg(msg, sp.syncMgrPeer, sp.mixMsgProcessed)
-	err := <-sp.mixMsgProcessed
+	accepted, err := sp.server.syncManager.OnMixMsg(sp.syncMgrPeer, msg)
+	if len(accepted) > 0 {
+		sp.server.AnnounceMixMessages(accepted)
+	}
 	var missingOwnPRErr *mixpool.MissingOwnPRError
 	if errors.As(err, &missingOwnPRErr) {
 		mixHashes := []chainhash.Hash{missingOwnPRErr.MissingPR}
-		sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
-			nil, nil, nil, mixHashes)
+		sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, nil, nil, nil,
+			mixHashes)
 		return
 	}
 	if mixpool.IsBannable(err, sp.Services()) {
@@ -4052,7 +4061,6 @@ func newServer(ctx context.Context, profiler *profileServer,
 		targetOutbound = cfg.MaxPeers
 	}
 	s.syncManager = netsync.New(&netsync.Config{
-		PeerNotifier:          &s,
 		Chain:                 s.chain,
 		ChainParams:           s.chainParams,
 		TimeSource:            s.timeSource,
