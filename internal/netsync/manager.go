@@ -121,13 +121,6 @@ type invMsg struct {
 	peer *Peer
 }
 
-// headersMsg packages a Decred headers message and the peer it came from
-// together so the event handler has access to that information.
-type headersMsg struct {
-	headers *wire.MsgHeaders
-	peer    *Peer
-}
-
 // notFoundMsg packages a Decred notfound message and the peer it came from
 // together so the event handler has access to that information.
 type notFoundMsg struct {
@@ -1462,13 +1455,30 @@ func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64
 	}
 }
 
-// handleHeadersMsg handles headers messages from all peers.
-func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
-	peer := hmsg.peer
+// OnHeaders should be invoked with header messages that are received from
+// remote peers.
+//
+// Its primary purpose is processing headers by ensuring they properly connect,
+// adding them to the blockchain, and requesting more if needed.
+//
+// It also deals with some other things related to syncing such as determining
+// when the headers are initially synced, disconnecting outbound peers that have
+// less cumulative work compared to the known minimum work during the initial
+// chain sync, and requesting blocks associated with the announced headers.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
+	if m.shutdownRequested() {
+		return
+	}
 
 	// Nothing to do for an empty headers message as it means the sending peer
 	// does not have any additional headers for the requested block locator.
-	headers := hmsg.headers.Headers
+	headers := headersMsg.Headers
 	numHeaders := len(headers)
 	if numHeaders == 0 {
 		return
@@ -1987,9 +1997,6 @@ out:
 			case *invMsg:
 				m.handleInvMsg(msg)
 
-			case *headersMsg:
-				m.handleHeadersMsg(msg)
-
 			case *notFoundMsg:
 				m.handleNotFoundMsg(msg)
 
@@ -2081,15 +2088,6 @@ func (m *SyncManager) OnBlock(block *dcrutil.Block, peer *Peer, done chan struct
 func (m *SyncManager) OnInv(inv *wire.MsgInv, peer *Peer) {
 	select {
 	case m.msgChan <- &invMsg{inv: inv, peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// OnHeaders adds the passed headers message and peer to the event handling
-// queue.
-func (m *SyncManager) OnHeaders(headers *wire.MsgHeaders, peer *Peer) {
-	select {
-	case m.msgChan <- &headersMsg{headers: headers, peer: peer}:
 	case <-m.quit:
 	}
 }

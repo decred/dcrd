@@ -1533,7 +1533,7 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.syncManager.OnHeaders(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnHeaders(sp.syncMgrPeer, msg)
 }
 
 // OnGetData is invoked when a peer receives a getdata wire message and is used
