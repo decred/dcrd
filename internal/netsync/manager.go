@@ -376,6 +376,9 @@ type SyncManager struct {
 	// params should be updated to use the new type, but that will be a major
 	// version bump, so a one-time conversion is a good tradeoff in the mean
 	// time.
+	//
+	// This value is set during creation and is immutable making it safe for
+	// concurrent access.
 	minKnownWork *uint256.Uint256
 
 	rejectedTxns     *apbf.Filter
@@ -386,7 +389,11 @@ type SyncManager struct {
 	progressLogger   *progresslog.Logger
 	syncPeer         *Peer
 	msgChan          chan interface{}
-	peers            map[*Peer]struct{}
+
+	// The following fields are used to track the peers available to the sync
+	// manager.  The map is protected by the associated mutex.
+	peersMtx sync.Mutex
+	peers    map[*Peer]struct{}
 
 	// hdrSyncState houses the state used to track the initial header sync
 	// process and related stall handling.
@@ -552,6 +559,7 @@ func (m *SyncManager) fetchNextHeaders(peer *Peer) {
 func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 	// Determine the best sync peer.
 	var bestPeer *Peer
+	m.peersMtx.Lock()
 	for peer := range m.peers {
 		if !peer.syncCandidate {
 			continue
@@ -573,6 +581,7 @@ func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 			bestPeer = peer
 		}
 	}
+	m.peersMtx.Unlock()
 	m.syncPeer = bestPeer
 }
 
@@ -660,14 +669,16 @@ func (m *SyncManager) startSync() {
 // completes.
 func (m *SyncManager) onInitialChainSyncDone() {
 	best := m.cfg.Chain.BestSnapshot()
-	log.Infof("Initial chain sync complete (hash %s, height %d)",
-		best.Hash, best.Height)
+	log.Infof("Initial chain sync complete (hash %s, height %d)", best.Hash,
+		best.Height)
 
 	// Request initial state from all peers that still need it now that the
 	// initial chain sync is done.
+	m.peersMtx.Lock()
 	for peer := range m.peers {
 		peer.maybeRequestInitialState(!m.cfg.NoMiningStateSync)
 	}
+	m.peersMtx.Unlock()
 }
 
 // handlePeerConnectedMsg deals with new peers that have signalled they may
@@ -681,7 +692,9 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 
 	log.Infof("New valid peer %s (%s)", peer, peer.UserAgent())
 
+	m.peersMtx.Lock()
 	m.peers[peer] = struct{}{}
+	m.peersMtx.Unlock()
 
 	// Request headers starting from the parent of the best known header for the
 	// local chain immediately when the initial headers sync process is complete
@@ -717,7 +730,9 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 // is invoked from the eventHandler goroutine.
 func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
 	// Remove the peer from the list of candidate peers.
+	m.peersMtx.Lock()
 	delete(m.peers, peer)
+	m.peersMtx.Unlock()
 
 	// Re-request in-flight blocks and transactions that were not received
 	// by the disconnected peer if the data was announced by another peer.
@@ -729,6 +744,7 @@ func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
 TxHashes:
 	for txHash := range peer.requestedTxns {
 		inv.Hash = txHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
@@ -736,8 +752,10 @@ TxHashes:
 			invs := append(requestQueues[pp], inv)
 			requestQueues[pp] = invs
 			pp.requestedTxns[txHash] = struct{}{}
+			m.peersMtx.Unlock()
 			continue TxHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedTxns, txHash)
 	}
@@ -745,6 +763,7 @@ TxHashes:
 BlockHashes:
 	for blockHash := range peer.requestedBlocks {
 		inv.Hash = blockHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
@@ -752,8 +771,10 @@ BlockHashes:
 			invs := append(requestQueues[pp], inv)
 			requestQueues[pp] = invs
 			pp.requestedBlocks[blockHash] = struct{}{}
+			m.peersMtx.Unlock()
 			continue BlockHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedBlocks, blockHash)
 	}
@@ -761,6 +782,7 @@ BlockHashes:
 MixHashes:
 	for mixHash := range peer.requestedMixMsgs {
 		inv.Hash = mixHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
@@ -768,8 +790,10 @@ MixHashes:
 			invs := append(requestQueues[pp], inv)
 			requestQueues[pp] = invs
 			pp.requestedMixMsgs[mixHash] = struct{}{}
+			m.peersMtx.Unlock()
 			continue MixHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedMixMsgs, mixHash)
 	}
@@ -1094,11 +1118,13 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			m.maybeUpdateIsCurrent()
 			m.isCurrentMtx.Unlock()
 
+			m.peersMtx.Lock()
 			for peer := range m.peers {
 				if peer.syncCandidate {
 					m.fetchNextHeaders(peer)
 				}
 			}
+			m.peersMtx.Unlock()
 		}
 
 		return
@@ -1435,6 +1461,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// for the local chain from any sync candidates that have not yet
 			// had their best known block discovered now that the initial
 			// headers sync process is complete.
+			m.peersMtx.Lock()
 			for peer := range m.peers {
 				m.maybeResolveOrphanBlock(peer)
 				if !peer.syncCandidate || peer.bestAnnouncedBlock != nil {
@@ -1442,6 +1469,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 				}
 				m.fetchNextHeaders(peer)
 			}
+			m.peersMtx.Unlock()
 
 			// Potentially update whether the chain believes it is current now
 			// that the headers are synced.
