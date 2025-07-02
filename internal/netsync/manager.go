@@ -428,6 +428,12 @@ type SyncManager struct {
 	// process and related stall handling.
 	hdrSyncState headerSyncState
 
+	// The following fields are used to track the state of the initial chain
+	// sync process.  The flag and transition to the initial chain synced state
+	// is protected by the associated mutex.
+	initialChainSyncDoneMtx sync.Mutex
+	isInitialChainSyncDone  bool
+
 	// syncHeight tracks the height being synced to from peers.
 	syncHeight atomic.Int64
 
@@ -763,7 +769,24 @@ func (m *SyncManager) startChainSync() {
 
 // onInitialChainSyncDone is invoked when the initial chain sync process
 // completes.
+//
+// This function MUST be called with the initial sync done mutex held (writes).
 func (m *SyncManager) onInitialChainSyncDone() {
+	// This is typically only called once in practice currently due to the way
+	// the sync process is handled, but that might change in the future with
+	// parallel and out of order block processing or possibly parallel header
+	// syncing.  Be cautious and prevent multiple invocations just in case.
+	//
+	// A sync.Once is not used because other code needs to make decisions based
+	// on the flag.  It might also be useful in the future to allow the sync
+	// state to move back into initial chain sync mode if the chain falls too
+	// far behind, which, for example, could happen due to an extended network
+	// outage.
+	if m.isInitialChainSyncDone {
+		return
+	}
+	m.isInitialChainSyncDone = true
+
 	best := m.cfg.Chain.BestSnapshot()
 	log.Infof("Initial chain sync complete (hash %s, height %d)", best.Hash,
 		best.Height)
@@ -1207,12 +1230,9 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// Save whether or not the chain believes it is current prior to processing
-	// the block for use below in determining logging behavior.
+	// Save the current best header prior to processing the block for use below.
 	chain := m.cfg.Chain
-	wasChainCurrent := chain.IsCurrent()
 	curBestHeaderHash, _ := chain.BestHeader()
-	isBlockForBestHeader := curBestHeaderHash == *blockHash
 
 	// Process the block to include validation, best chain selection, etc.
 	//
@@ -1258,6 +1278,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// Also, reset the sync height to whatever the chain reports as the new
 		// best header height since it is now very likely less than the tip that
 		// was just rejected.
+		isBlockForBestHeader := curBestHeaderHash == *blockHash
 		if isBlockForBestHeader {
 			_, newBestHeaderHeight := chain.BestHeader()
 			m.syncHeight.Store(newBestHeaderHeight)
@@ -1276,16 +1297,26 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// Log information about the block.  Use the progress logger when the chain
-	// was not already current prior to processing the block to provide nicer
-	// periodic logging with a progress percentage.  Otherwise, log the block
-	// individually along with some stats.
+	// Log information about the block.  Use the progress logger when the
+	// initial chain sync is not done to provide nicer periodic logging with a
+	// progress percentage.  Otherwise, log the block individually along with
+	// some stats.
+	//
+	// Also, transition the initial chain sync state to done when the chain
+	// becomes current.
+	//
+	// Note that the entire logging sequence is protected by the initial chain
+	// sync done mutex to ensure proper ordering since it is also dependent on
+	// the state of the transition.  Namely, the periodic progress logger must
+	// no longer be used once the initial chain sync is done.
 	msgBlock := bmsg.block.MsgBlock()
 	header := &msgBlock.Header
-	if !wasChainCurrent {
-		forceLog := int64(header.Height) >= m.SyncHeight()
+	m.initialChainSyncDoneMtx.Lock()
+	if !m.isInitialChainSyncDone {
+		isCurrent := chain.IsCurrent()
+		forceLog := int64(header.Height) >= m.SyncHeight() || isCurrent
 		m.progressLogger.LogProgress(msgBlock, forceLog, chain.VerifyProgress)
-		if chain.IsCurrent() {
+		if isCurrent {
 			m.onInitialChainSyncDone()
 		}
 	} else {
@@ -1307,6 +1338,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			numRevokes, pickNoun(numRevokes, "revocation", "revocations"),
 			header.Height, interval)
 	}
+	m.initialChainSyncDoneMtx.Unlock()
 
 	// Perform some additional processing when the block extended the main
 	// chain.
@@ -1451,7 +1483,9 @@ func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64
 	chain := m.cfg.Chain
 	chain.MaybeUpdateIsCurrent()
 	if chain.IsCurrent() {
+		m.initialChainSyncDoneMtx.Lock()
 		m.onInitialChainSyncDone()
+		m.initialChainSyncDoneMtx.Unlock()
 	}
 }
 
