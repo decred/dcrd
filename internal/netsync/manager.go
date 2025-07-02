@@ -224,7 +224,8 @@ type Peer struct {
 
 	// These fields are used to track the best known block announced by the peer
 	// which in turn provides a means to discover which blocks are available to
-	// download from the peer.
+	// download from the peer.  They are protected by the associated best
+	// announced mutex.
 	//
 	// announcedOrphanBlock is the hash of the most recently announced block
 	// that did not connect to any headers known to the local chain at the time
@@ -239,6 +240,7 @@ type Peer struct {
 	//
 	// bestAnnouncedWork is the cumulative proof of work for the associated best
 	// announced block hash.
+	bestAnnouncedMtx     sync.Mutex
 	announcedOrphanBlock *chainhash.Hash
 	bestAnnouncedBlock   *chainhash.Hash
 	bestAnnouncedWork    *uint256.Uint256
@@ -1033,8 +1035,7 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 // cumulative proof of work that the given peer has announced which includes its
 // associated hash, cumulative work sum, and height.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the best announced mutex held (writes).
 func (m *SyncManager) maybeUpdateBestAnnouncedBlock(p *Peer, hash *chainhash.Hash, header *wire.BlockHeader) {
 	chain := m.cfg.Chain
 	workSum, err := chain.ChainWork(hash)
@@ -1057,8 +1058,7 @@ func (m *SyncManager) maybeUpdateBestAnnouncedBlock(p *Peer, hash *chainhash.Has
 // when it is, potentially making it the block with the most cumulative proof of
 // work announced by the peer if needed.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the best announced mutex held (writes).
 func (m *SyncManager) maybeResolveOrphanBlock(p *Peer) {
 	// Nothing to do if there isn't a pending orphan block announcement that has
 	// not yet been resolved or the block still isn't known.
@@ -1317,8 +1317,7 @@ func (m *SyncManager) headerSyncProgress() float64 {
 // onInitialHeaderSyncDone is invoked when the initial header sync process
 // completes.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function is safe for concurrent access.
 func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64) {
 	log.Infof("Initial headers sync complete (best header hash %s, height %d)",
 		hash, height)
@@ -1331,8 +1330,11 @@ func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64
 	// headers sync process is complete.
 	m.peersMtx.Lock()
 	for peer := range m.peers {
+		peer.bestAnnouncedMtx.Lock()
 		m.maybeResolveOrphanBlock(peer)
-		if !peer.servesData || peer.bestAnnouncedBlock != nil {
+		needsBestHeader := peer.servesData && peer.bestAnnouncedBlock == nil
+		peer.bestAnnouncedMtx.Unlock()
+		if !needsBestHeader {
 			continue
 		}
 		m.fetchNextHeaders(peer)
@@ -1401,10 +1403,12 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// block by the peer that does not connect to any headers known to
 			// the local chain since there is a good chance it will eventually
 			// become known either from this peer or others.
-			m.maybeResolveOrphanBlock(peer)
 			finalHeader := headers[len(headers)-1]
 			finalHeaderHash := finalHeader.BlockHash()
+			peer.bestAnnouncedMtx.Lock()
+			m.maybeResolveOrphanBlock(peer)
 			peer.announcedOrphanBlock = &finalHeaderHash
+			peer.bestAnnouncedMtx.Unlock()
 
 			// Update the latest block height for the peer to avoid stale
 			// heights when looking for future potential header sync node
@@ -1502,8 +1506,10 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// to the final announced header if needed.
 	finalHeader := headers[len(headers)-1]
 	finalReceivedHash := &headerHashes[len(headerHashes)-1]
+	peer.bestAnnouncedMtx.Lock()
 	m.maybeResolveOrphanBlock(peer)
 	m.maybeUpdateBestAnnouncedBlock(peer, finalReceivedHash, finalHeader)
+	peer.bestAnnouncedMtx.Unlock()
 
 	// Update the sync height if the new best known header height exceeds it.
 	m.maybeUpdateSyncHeight(newBestHeaderHeight)
@@ -1763,22 +1769,26 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 
 	if lastBlock != nil {
 		// Determine if the final announced block is already known to the local
-		// chain and then either track it as the most recently announced
-		// block by the peer that does not connect to any headers known to the
-		// local chain or potentially make it the block with the most cumulative
-		// proof of work announced by the peer when it is already known.
+		// chain and then either track it as the most recently announced block
+		// by the peer that does not connect to any headers known to the local
+		// chain or potentially make it the block with the most cumulative proof
+		// of work announced by the peer when it is already known.
 		if !m.cfg.Chain.HaveHeader(&lastBlock.Hash) {
 			// Notice a copy of the hash is made here to avoid keeping a
 			// reference into the inventory vector which would prevent it from
 			// being GCd.
 			lastBlockHash := lastBlock.Hash
+			peer.bestAnnouncedMtx.Lock()
 			m.maybeResolveOrphanBlock(peer)
 			peer.announcedOrphanBlock = &lastBlockHash
+			peer.bestAnnouncedMtx.Unlock()
 		} else {
 			header, err := m.cfg.Chain.HeaderByHash(&lastBlock.Hash)
 			if err == nil {
+				peer.bestAnnouncedMtx.Lock()
 				m.maybeResolveOrphanBlock(peer)
 				m.maybeUpdateBestAnnouncedBlock(peer, &lastBlock.Hash, &header)
+				peer.bestAnnouncedMtx.Unlock()
 			}
 		}
 	}
