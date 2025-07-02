@@ -410,10 +410,9 @@ type SyncManager struct {
 	// syncHeight tracks the height being synced to from peers.
 	syncHeight atomic.Int64
 
-	// The following fields are used to track whether or not the manager
-	// believes it is fully synced to the network.
-	isCurrentMtx sync.Mutex
-	isCurrent    bool
+	// isCurrent tracks whether or not the manager believes it is fully synced
+	// to the network.
+	isCurrent atomic.Bool
 
 	// The following fields are used to track the list of the next blocks to
 	// download in the branch leading up to the best known header.
@@ -624,9 +623,7 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 	// The chain is not synced whenever the current best height is not within a
 	// couple of blocks of the height to sync to.
 	if bestHeight+2 < syncHeight {
-		m.isCurrentMtx.Lock()
-		m.isCurrent = false
-		m.isCurrentMtx.Unlock()
+		m.isCurrent.Store(false)
 	}
 
 	// Request headers starting from the parent of the best known header for the
@@ -661,9 +658,7 @@ func (m *SyncManager) startSync(bestHeight int64) {
 	// Also, return now when there isn't a sync peer candidate as there is
 	// nothing more to do without one.
 	if m.syncPeer == nil {
-		m.isCurrentMtx.Lock()
-		m.isCurrent = m.cfg.Chain.IsCurrent()
-		m.isCurrentMtx.Unlock()
+		m.isCurrent.Store(m.cfg.Chain.IsCurrent())
 		log.Warnf("No sync peer candidates available")
 		return
 	}
@@ -969,10 +964,15 @@ func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
 // the chain is considered synced.
 //
-// This function MUST be called with the is current mutex held (for writes).
+// This function is safe for concurrent access.
 func (m *SyncManager) maybeUpdateIsCurrent() {
+	// Note that not protecting this entire sequence by a mutex doesn't present
+	// an overall logic problem because it only ever potentially updates the
+	// flag to true and whether or not the manager is considered current is
+	// fundamentally a transient property that can change at any time.
+
 	// Nothing to do when already considered synced.
-	if m.isCurrent {
+	if m.isCurrent.Load() {
 		return
 	}
 
@@ -981,7 +981,7 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 	best := m.cfg.Chain.BestSnapshot()
 	syncHeight := m.SyncHeight()
 	if best.Height >= syncHeight && m.cfg.Chain.IsCurrent() {
-		m.isCurrent = true
+		m.isCurrent.Store(true)
 	}
 }
 
@@ -1055,9 +1055,7 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 		m.maybeUpdateSyncHeight(int64(block.MsgBlock().Header.Height))
 	}
 
-	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
-	m.isCurrentMtx.Unlock()
 
 	return forkLen, nil
 }
@@ -1128,9 +1126,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			_, newBestHeaderHeight := chain.BestHeader()
 			m.syncHeight.Store(newBestHeaderHeight)
 
-			m.isCurrentMtx.Lock()
 			m.maybeUpdateIsCurrent()
-			m.isCurrentMtx.Unlock()
 
 			m.peersMtx.Lock()
 			for peer := range m.peers {
@@ -2141,11 +2137,8 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) IsCurrent() bool {
-	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
-	isCurrent := m.isCurrent
-	m.isCurrentMtx.Unlock()
-	return isCurrent
+	return m.isCurrent.Load()
 }
 
 // Run starts the sync manager and all other goroutines necessary for it to
@@ -2240,8 +2233,8 @@ func New(config *Config) *SyncManager {
 		progressLogger:   progresslog.New("Processed", log),
 		msgChan:          make(chan interface{}, config.MaxPeers*3),
 		quit:             make(chan struct{}),
-		isCurrent:        config.Chain.IsCurrent(),
 	}
 	mgr.syncHeight.Store(config.Chain.BestSnapshot().Height)
+	mgr.isCurrent.Store(config.Chain.IsCurrent())
 	return mgr
 }
