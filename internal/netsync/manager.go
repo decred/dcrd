@@ -106,13 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// invMsg packages a Decred inv message and the peer it came from together
-// so the event handler has access to that information.
-type invMsg struct {
-	inv  *wire.MsgInv
-	peer *Peer
-}
-
 // notFoundMsg packages a Decred notfound message and the peer it came from
 // together so the event handler has access to that information.
 type notFoundMsg struct {
@@ -1844,11 +1837,23 @@ func (m *SyncManager) needMixMsg(hash *chainhash.Hash) bool {
 	return true
 }
 
-// handleInvMsg handles inv messages from all peers.  This entails examining the
-// inventory advertised by the remote peer for block and transaction
-// announcements and acting accordingly.
-func (m *SyncManager) handleInvMsg(imsg *invMsg) {
-	peer := imsg.peer
+// OnInv should be invoked with inventory announcements that are received from
+// remote peers.
+//
+// Its primary purpose is to learn about the inventory advertised by the remote
+// peer and to use that information to guide decisions regarding whether or not
+// and when to request the relevant associated data from the peer.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnInv(peer *Peer, inv *wire.MsgInv) {
+	if m.shutdownRequested() {
+		return
+	}
+
 	isCurrent := m.IsCurrent()
 
 	// Update state information regarding per-peer known inventory and determine
@@ -1859,7 +1864,7 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 	// peer can be updated with that information accordingly.
 	var lastBlock *wire.InvVect
 	var requestQueue []*wire.InvVect
-	for _, iv := range imsg.inv.InvList {
+	for _, iv := range inv.InvList {
 		switch iv.Type {
 		case wire.InvTypeBlock:
 			// NOTE: All block announcements are now made via headers and the
@@ -2029,9 +2034,6 @@ out:
 				case <-ctx.Done():
 				}
 
-			case *invMsg:
-				m.handleInvMsg(msg)
-
 			case *notFoundMsg:
 				m.handleNotFoundMsg(msg)
 
@@ -2106,14 +2108,6 @@ func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
 	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
 	case <-m.quit:
 		done <- struct{}{}
-	}
-}
-
-// OnInv adds the passed inv message and peer to the event handling queue.
-func (m *SyncManager) OnInv(inv *wire.MsgInv, peer *Peer) {
-	select {
-	case m.msgChan <- &invMsg{inv: inv, peer: peer}:
-	case <-m.quit:
 	}
 }
 
