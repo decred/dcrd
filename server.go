@@ -702,7 +702,6 @@ type serverPeer struct {
 
 	// The following fields are used to synchronize the net sync manager and
 	// server.
-	txProcessed     chan struct{}
 	mixMsgProcessed chan error
 
 	// peerNa is network address of the peer connected to.
@@ -735,7 +734,6 @@ func newServerPeer(s *server, isPersistent bool) *serverPeer {
 		persistent:      isPersistent,
 		knownAddresses:  apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:            make(chan struct{}),
-		txProcessed:     make(chan struct{}, 1),
 		mixMsgProcessed: make(chan error, 1),
 		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
@@ -1461,13 +1459,18 @@ func (sp *serverPeer) OnTx(_ *peer.Peer, msg *wire.MsgTx) {
 	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 	sp.AddKnownInventory(iv)
 
-	// Queue the transaction up to be handled by the net sync manager and
-	// intentionally block further receives until the transaction is fully
+	// Handle the transaction with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the transaction is fully
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.syncManager.OnTx(tx, sp.syncMgrPeer, sp.txProcessed)
-	<-sp.txProcessed
+	//
+	// Also, announce any accepted transactions to the network and websocket
+	// clients.
+	acceptedTxns := sp.server.syncManager.OnTx(sp.syncMgrPeer, tx)
+	if len(acceptedTxns) > 0 {
+		sp.server.AnnounceNewTransactions(acceptedTxns)
+	}
 }
 
 // OnBlock is invoked when a peer receives a block wire message.  It blocks
