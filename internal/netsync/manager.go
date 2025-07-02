@@ -135,11 +135,6 @@ type notFoundMsg struct {
 	peer     *Peer
 }
 
-// peerDisconnectedMsg signifies a newly disconnected peer to the event handler.
-type peerDisconnectedMsg struct {
-	peer *Peer
-}
-
 // txMsg packages a Decred tx message and the peer it came from together
 // so the event handler has access to that information.
 type txMsg struct {
@@ -778,20 +773,26 @@ func (m *SyncManager) OnPeerConnected(peer *Peer) {
 	}
 }
 
-// handlePeerDisconnectedMsg deals with peers that have signalled they are done.
-// It removes the peer as a candidate for syncing and in the case where it was
-// the current sync peer, attempts to select a new best peer to sync from.  It
-// is invoked from the eventHandler goroutine.
-func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
+// OnPeerDisconnected should be invoked when peers the sync manager was
+// previously informed about have disconnected.  It removes the peer as a
+// candidate for syncing and, in the case it was the current sync peer, attempts
+// to select a new best peer to sync from.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnPeerDisconnected(peer *Peer) {
+	if m.shutdownRequested() {
+		return
+	}
+
 	// Remove the peer from the list of candidate peers.
 	m.peersMtx.Lock()
 	delete(m.peers, peer)
 	m.peersMtx.Unlock()
 
-	// Re-request in-flight blocks and transactions that were not received
-	// by the disconnected peer if the data was announced by another peer.
-	// Remove the data from the manager's requested data maps if no other
-	// peers have announced the data.
+	// Re-request in-flight blocks and transactions that were not received by
+	// the disconnected peer if the data was announced by another peer.  Remove
+	// the data from the manager's requested data maps if no other peers have
+	// announced the data.
 	requestQueues := make(map[*Peer][]wire.InvVect)
 	var inv wire.InvVect
 	inv.Type = wire.InvTypeTx
@@ -804,8 +805,7 @@ TxHashes:
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
+			requestQueues[pp] = append(requestQueues[pp], inv)
 			pp.requestedTxns[txHash] = struct{}{}
 			m.peersMtx.Unlock()
 			continue TxHashes
@@ -823,8 +823,7 @@ BlockHashes:
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
+			requestQueues[pp] = append(requestQueues[pp], inv)
 			pp.requestedBlocks[blockHash] = struct{}{}
 			m.peersMtx.Unlock()
 			continue BlockHashes
@@ -842,8 +841,7 @@ MixHashes:
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
+			requestQueues[pp] = append(requestQueues[pp], inv)
 			pp.requestedMixMsgs[mixHash] = struct{}{}
 			m.peersMtx.Unlock()
 			continue MixHashes
@@ -1873,9 +1871,6 @@ out:
 			case *notFoundMsg:
 				m.handleNotFoundMsg(msg)
 
-			case *peerDisconnectedMsg:
-				m.handlePeerDisconnectedMsg(msg.peer)
-
 			case getSyncPeerMsg:
 				m.syncPeerMtx.Lock()
 				syncPeer := m.syncPeer
@@ -1991,14 +1986,6 @@ func (m *SyncManager) OnMixMsg(msg mixing.Message, peer *Peer, done chan error) 
 func (m *SyncManager) OnNotFound(notFound *wire.MsgNotFound, peer *Peer) {
 	select {
 	case m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// PeerDisconnected informs the sync manager that a peer has disconnected.
-func (m *SyncManager) PeerDisconnected(peer *Peer) {
-	select {
-	case m.msgChan <- &peerDisconnectedMsg{peer: peer}:
 	case <-m.quit:
 	}
 }
