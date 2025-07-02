@@ -321,7 +321,6 @@ type SyncManager struct {
 	rejectedTxns    *apbf.Filter
 	rejectedMixMsgs *apbf.Filter
 	progressLogger  *progresslog.Logger
-	msgChan         chan interface{}
 
 	// These fields track pending requests for data from all peers.  They are
 	// protected by the request mutex.
@@ -2000,13 +1999,6 @@ func (m *SyncManager) eventHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		case data := <-m.msgChan:
-			switch msg := data.(type) {
-
-			default:
-				log.Warnf("Invalid message type in event handler: %T", msg)
-			}
-
 		case <-m.hdrSyncState.stallTimer.C:
 			// Disconnect the sync peer due to stalling the header sync process.
 			m.syncPeerMtx.Lock()
@@ -2324,7 +2316,6 @@ func New(config *Config) *SyncManager {
 		minKnownWork:     minKnownWork,
 		hdrSyncState:     makeHeaderSyncState(),
 		progressLogger:   progresslog.New("Processed", log),
-		msgChan:          make(chan interface{}, config.MaxPeers*3),
 		quit:             make(chan struct{}),
 	}
 	mgr.syncHeight.Store(config.Chain.BestSnapshot().Height)
