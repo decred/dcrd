@@ -317,18 +317,10 @@ type headerSyncState struct {
 	// that is recent enough to start downloading blocks.
 	headersSynced atomic.Bool
 
-	// These fields are used to implement a progress stall timeout that can be
+	// stallTimer is used to implement a progress stall timeout that can be
 	// reset at any time without needing to create a new one and the associated
 	// extra garbage.
-	//
-	// stallTimer is an underlying timer that is used to implement the timeout.
-	//
-	// stallChanDrained indicates whether or not the channel for the stall timer
-	// has already been read and is used when resetting the timer to ensure the
-	// channel is drained when the timer is stopped as described in the timer
-	// documentation.
-	stallTimer       *time.Timer
-	stallChanDrained bool
+	stallTimer *time.Timer
 }
 
 // makeHeaderSyncState returns a header sync state that is ready to use.
@@ -336,37 +328,45 @@ func makeHeaderSyncState() headerSyncState {
 	stallTimer := time.NewTimer(math.MaxInt64)
 	stallTimer.Stop()
 	return headerSyncState{
-		stallTimer:       stallTimer,
-		stallChanDrained: true,
+		stallTimer: stallTimer,
 	}
 }
 
-// stopStallTimeout stops the progress stall timer while ensuring to read from
-// the timer's channel in the case the timer already expired which can happen
-// due to the fact the stop happens in between channel reads.  This behavior is
-// well documented in the Timer docs.
+// StopStallTimeout makes a best effort attempt to prevent the progress stall
+// timer from firing.  It has no effect if the timer has already fired.
 //
-// NOTE: This function must not be called concurrent with any other receives on
-// the timer's channel.
-func (state *headerSyncState) stopStallTimeout() {
-	t := state.stallTimer
-	if !t.Stop() && !state.stallChanDrained {
-		<-t.C
-	}
-	state.stallChanDrained = true
+// It is only a best effort attempt because stopping the timer concurrently with
+// listening on its channel leaves the possibility for the timer to be in the
+// process of firing just as it's being stopped which can result in a stale
+// time value being delivered on the channel prior to Go 1.23.
+//
+// That possibility is not a concern because:
+//
+//	a) The stall timeout logic only depends on the event as opposed to the time
+//	   values
+//	b) The timeout is sufficiently long that it is almost never hit in practice
+//	c) It is even more rare that the timer would just happen to be in the
+//	   process of firing (sending to the channel) when data nearly
+//	   simultaneously arrives and resets the timer just before it actually fires
+//	d) Even if all of that were to happen, the only effect is the standard
+//	   stall timeout handling logic which means there are no adverse effects
+//
+// This function is safe for concurrent access.
+func (state *headerSyncState) StopStallTimeout() {
+	state.stallTimer.Stop()
 }
 
-// resetStallTimeout resets the progress stall timer while ensuring to read from
-// the timer's channel in the case the timer already expired which can happen
-// due to the fact the reset happens in between channel reads.  This behavior is
-// well documented in the Timer docs.
+// ResetStallTimeout resets the progress stall timer.  Note that resetting the
+// timer concurrently with listening on its channel leaves the possibility for
+// the timer to be in process of firing just as it's being reset which can
+// result in a stale time value being delivered on the channel prior to Go 1.23.
 //
-// NOTE: This function must not be called concurrent with any other receives on
-// the timer's channel.
-func (state *headerSyncState) resetStallTimeout() {
-	state.stopStallTimeout()
+// The aforementioned possibility is not a concern for the same reasons
+// discussed in [headerSyncState.StopStallTimeout].
+//
+// This function is safe for concurrent access.
+func (state *headerSyncState) ResetStallTimeout() {
 	state.stallTimer.Reset(headerSyncStallTimeoutSecs * time.Second)
-	state.stallChanDrained = false
 }
 
 // InitialHeaderSyncDone returns whether or not the initial header sync process
@@ -662,7 +662,7 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 	m.maybeUpdateSyncHeight(syncHeight)
 
 	// Start the header sync progress stall timeout.
-	m.hdrSyncState.resetStallTimeout()
+	m.hdrSyncState.ResetStallTimeout()
 }
 
 // startSync updates sync peer candidacy and kicks off the blockchain sync
@@ -1483,7 +1483,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	newBestHeaderHash, newBestHeaderHeight := chain.BestHeader()
 	if !headersSynced && isSyncPeer {
 		if newBestHeaderHeight > prevBestHeaderHeight {
-			m.hdrSyncState.resetStallTimeout()
+			m.hdrSyncState.ResetStallTimeout()
 		}
 	}
 
@@ -1540,7 +1540,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
 			m.hdrSyncState.headersSynced.Store(headersSynced)
-			m.hdrSyncState.stopStallTimeout()
+			m.hdrSyncState.StopStallTimeout()
 
 			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
 				headersSynced, m.headerSyncProgress)
@@ -1918,10 +1918,6 @@ out:
 			}
 
 		case <-m.hdrSyncState.stallTimer.C:
-			// Mark the timer's channel as having been drained so the timer can
-			// safely be reset.
-			m.hdrSyncState.stallChanDrained = true
-
 			// Disconnect the sync peer due to stalling the header sync process.
 			m.syncPeerMtx.Lock()
 			syncPeer := m.syncPeer
