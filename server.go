@@ -1502,7 +1502,7 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if !cfg.BlocksOnly {
-		sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
+		sp.server.syncManager.OnInv(sp.syncMgrPeer, msg)
 		return
 	}
 
@@ -1521,7 +1521,7 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 		return
 	}
 
-	sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnInv(sp.syncMgrPeer, msg)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
