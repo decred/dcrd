@@ -112,25 +112,6 @@ type getSyncPeerMsg struct {
 	reply chan int32
 }
 
-// requestFromPeerMsg is a message type to be sent across the message channel
-// for requesting either blocks or transactions from a given peer. It routes
-// this through the sync manager so the sync manager doesn't ban the peer
-// when it sends this information back.
-type requestFromPeerMsg struct {
-	peer         *Peer
-	blocks       []chainhash.Hash
-	voteHashes   []chainhash.Hash
-	tSpendHashes []chainhash.Hash
-	mixHashes    []chainhash.Hash
-	reply        chan requestFromPeerResponse
-}
-
-// requestFromPeerResponse is a response sent to the reply channel of a
-// requestFromPeerMsg query.
-type requestFromPeerResponse struct {
-	err error
-}
-
 // processBlockResponse is a response sent to the reply channel of a
 // processBlockMsg.
 type processBlockResponse struct {
@@ -2056,13 +2037,6 @@ out:
 				}
 				msg.reply <- peerID
 
-			case requestFromPeerMsg:
-				err := m.requestFromPeer(msg.peer, msg.blocks, msg.voteHashes,
-					msg.tSpendHashes, msg.mixHashes)
-				msg.reply <- requestFromPeerResponse{
-					err: err,
-				}
-
 			case processBlockMsg:
 				forkLen, err := m.processBlock(msg.block)
 				if err != nil {
@@ -2125,48 +2099,24 @@ func (m *SyncManager) SyncPeerID() int32 {
 	}
 }
 
-// RequestFromPeer allows an outside caller to request blocks or transactions
-// from a peer.  The requests are logged in the internal map of requests so the
-// peer is not later banned for sending the respective data.
-func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
-	tSpendHashes, mixHashes []chainhash.Hash) error {
-
-	reply := make(chan requestFromPeerResponse, 1)
-	request := requestFromPeerMsg{
-		peer:         p,
-		blocks:       blocks,
-		voteHashes:   voteHashes,
-		tSpendHashes: tSpendHashes,
-		mixHashes:    mixHashes,
-		reply:        reply,
-	}
-	select {
-	case m.msgChan <- request:
-	case <-m.quit:
-	}
-
-	select {
-	case response := <-reply:
-		return response.err
-	case <-m.quit:
-		return fmt.Errorf("sync manager stopped")
-	}
-}
-
-// requestFromPeer requests any combination of blocks, votes, treasury spends,
+// RequestFromPeer requests any combination of blocks, votes, treasury spends,
 // and mix messages from the given peer.  It ensures all of the requests are
 // tracked so the peer is not banned for sending unrequested data when it
 // responds.
 //
 // This function is safe for concurrent access.
-func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
+func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 	tSpendHashes, mixHashes []chainhash.Hash) error {
+
+	if m.shutdownRequested() {
+		return nil
+	}
 
 	defer m.requestMtx.Unlock()
 	m.requestMtx.Lock()
 
 	// Add the blocks to the request.
-	msgResp := wire.NewMsgGetData()
+	gdMsg := wire.NewMsgGetData()
 	for i := range blocks {
 		// Skip the block when it has already been requested.
 		bh := &blocks[i]
@@ -2179,7 +2129,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 			continue
 		}
 
-		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
+		err := gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
 				"for mining state block %v: %w", bh, err)
@@ -2240,7 +2190,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 				continue
 			}
 
-			err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
+			err = gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
 			if err != nil {
 				return fmt.Errorf("unexpected error encountered building request "+
 					"for mining state vote %v: %w", tx, err)
@@ -2280,7 +2230,7 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 			continue
 		}
 
-		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
+		err := gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
 				"for inv vect mix hash %v: %w", mh, err)
@@ -2290,8 +2240,8 @@ func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 		m.requestedMixMsgs[*mh] = struct{}{}
 	}
 
-	if len(msgResp.InvList) > 0 {
-		peer.QueueMessage(msgResp, nil)
+	if len(gdMsg.InvList) > 0 {
+		peer.QueueMessage(gdMsg, nil)
 	}
 
 	return nil
