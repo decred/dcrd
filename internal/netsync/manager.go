@@ -148,14 +148,6 @@ type processBlockMsg struct {
 	reply chan processBlockResponse
 }
 
-// mixMsg is a message type to be sent across the message channel for requesting
-// a message's acceptance to the mixing pool.
-type mixMsg struct {
-	msg   mixing.Message
-	peer  *Peer
-	reply chan error
-}
-
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
@@ -1045,21 +1037,40 @@ func (m *SyncManager) OnTx(peer *Peer, tx *dcrutil.Tx) []*dcrutil.Tx {
 	return acceptedTxns
 }
 
-// handleMixMsg handles mixing messages from all peers.
-func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
-	peer := mmsg.peer
+// OnMixMsg should be invoked with mix messages that are received from remote
+// peers.
+//
+// Its primary purpose is processing mix messages by validating them and adding
+// them to the mixpool along with any orphan messages that depend on them.
+//
+// It also deals with some other things related to syncing such as marking
+// in-flight messages as received and preventing multiple requests for invalid
+// messages.
+//
+// It returns a slice of messages added to the mixpool which might include the
+// passed message itself along with any additional orphan messages that were
+// added as a result of the passed one being accepted.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnMixMsg(peer *Peer, msg mixing.Message) ([]mixing.Message, error) {
+	if m.shutdownRequested() {
+		return nil, nil
+	}
 
-	mixHash := mmsg.msg.Hash()
-
-	// Ignore transactions that have already been rejected.  The transaction was
+	// Ignore mix messages that have already been rejected.  The message was
 	// unsolicited if it was already previously rejected.
+	mixHash := msg.Hash()
 	if m.rejectedMixMsgs.Contains(mixHash[:]) {
 		log.Debugf("Ignoring unsolicited previously rejected mix message %v "+
 			"from %s", &mixHash, peer)
-		return nil
+		return nil, nil
 	}
 
-	accepted, err := m.cfg.MixPool.AcceptMessage(mmsg.msg)
+	accepted, err := m.cfg.MixPool.AcceptMessage(msg)
 
 	// Remove message from request maps. Either the mixpool already knows
 	// about it and as such we shouldn't have any more instances of trying
@@ -1071,40 +1082,35 @@ func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
 	m.requestMtx.Unlock()
 
 	if err != nil {
-		// Do not request this message again until a new block has
-		// been processed.  If the message is an orphan KE, it is
-		// tracked internally by mixpool as an orphan; there is no
-		// need to request it again after requesting the unknown PR.
+		// Do not request this message again until a new block has been
+		// processed.  If the message is an orphan KE, it is tracked internally
+		// by mixpool as an orphan; there is no need to request it again after
+		// requesting the unknown PR.
 		m.rejectedMixMsgs.Add(mixHash[:])
 
-		// When the error is a rule error, it means the message was
-		// simply rejected as opposed to something actually going wrong,
-		// so log it as such.
+		// When the error is a rule error, it means the message was simply
+		// rejected as opposed to something actually going wrong, so log it as
+		// such.
 		//
 		// When the error is an orphan KE with unknown PR, the PR will be
 		// requested from the peer submitting the KE.  This is a normal
 		// occurrence, and will be logged at debug instead at error level.
 		//
-		// Otherwise, something really did go wrong, so log it as an
-		// actual error.
+		// Otherwise, something really did go wrong, so log it as an actual
+		// error.
 		var rErr *mixpool.RuleError
 		var missingPRErr *mixpool.MissingOwnPRError
 		if errors.As(err, &rErr) || errors.As(err, &missingPRErr) {
-			log.Debugf("Rejected %T mixing message %v from %s: %v",
-				mmsg.msg, &mixHash, peer, err)
+			log.Debugf("Rejected %T mixing message %v from %s: %v", msg,
+				&mixHash, peer, err)
 		} else {
-			log.Errorf("Failed to process %T mixing message %v: %v",
-				mmsg.msg, &mixHash, err)
+			log.Errorf("Failed to process %T mixing message %v: %v", msg,
+				&mixHash, err)
 		}
-		return err
+		return nil, err
 	}
 
-	if len(accepted) == 0 {
-		return nil
-	}
-
-	m.cfg.PeerNotifier.AnnounceMixMessages(accepted)
-	return nil
+	return accepted, nil
 }
 
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
@@ -2039,13 +2045,6 @@ out:
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
-			case *mixMsg:
-				err := m.handleMixMsg(msg)
-				select {
-				case msg.reply <- err:
-				case <-ctx.Done():
-				}
-
 			case getSyncPeerMsg:
 				m.syncPeerMtx.Lock()
 				syncPeer := m.syncPeer
@@ -2108,15 +2107,6 @@ out:
 	}
 
 	log.Trace("Sync manager event handler done")
-}
-
-// OnMixMsg adds the passed mixing message and peer to the event handling
-// queue.
-func (m *SyncManager) OnMixMsg(msg mixing.Message, peer *Peer, done chan error) {
-	select {
-	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
-	case <-m.quit:
-	}
 }
 
 // SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
@@ -2357,10 +2347,6 @@ func (m *SyncManager) Run(ctx context.Context) {
 // Config holds the configuration options related to the network chain
 // synchronization manager.
 type Config struct {
-	// PeerNotifier specifies an implementation to use for notifying peers of
-	// status changes related to blocks and transactions.
-	PeerNotifier PeerNotifier
-
 	// ChainParams identifies which chain parameters the manager is associated
 	// with.
 	ChainParams *chaincfg.Params
