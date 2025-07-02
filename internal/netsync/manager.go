@@ -106,14 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// blockMsg packages a Decred block message and the peer it came from together
-// so the event handler has access to that information.
-type blockMsg struct {
-	block *dcrutil.Block
-	peer  *Peer
-	reply chan struct{}
-}
-
 // invMsg packages a Decred inv message and the peer it came from together
 // so the event handler has access to that information.
 type invMsg struct {
@@ -1195,6 +1187,8 @@ func (m *SyncManager) maybeResolveOrphanBlock(p *Peer) {
 // the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.  Orphans are rejected and can be
 // detected by checking if the error is blockchain.ErrMissingParent.
+//
+// This function is safe for concurrent access.
 func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
 	forkLen, err := m.cfg.Chain.ProcessBlock(block)
@@ -1214,12 +1208,27 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	return forkLen, nil
 }
 
-// handleBlockMsg handles block messages from all peers.
-func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
-	peer := bmsg.peer
+// OnBlock should be invoked with blocks that are received from remote peers.
+//
+// Its primary purpose is processing blocks by validating them, adding them to
+// the blockchain, logging relevant information, and requesting more if needed.
+//
+// It also deals with some other things related to syncing such as participating
+// in determining when the blockchain is initially synced and removing the
+// transactions in the block from the transaction and mixing pools.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnBlock(peer *Peer, block *dcrutil.Block) {
+	if m.shutdownRequested() {
+		return
+	}
 
 	// The remote peer is misbehaving when the block was not requested.
-	blockHash := bmsg.block.Hash()
+	blockHash := block.Hash()
 	m.requestMtx.Lock()
 	_, exists := peer.requestedBlocks[*blockHash]
 	m.requestMtx.Unlock()
@@ -1239,7 +1248,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// Also, remove the block from the request maps once it has been processed.
 	// This ensures chain is aware of the block before it is removed from the
 	// maps in order to help prevent duplicate requests.
-	forkLen, err := m.processBlock(bmsg.block)
+	forkLen, err := m.processBlock(block)
 	m.requestMtx.Lock()
 	delete(peer.requestedBlocks, *blockHash)
 	delete(m.requestedBlocks, *blockHash)
@@ -1309,7 +1318,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// sync done mutex to ensure proper ordering since it is also dependent on
 	// the state of the transition.  Namely, the periodic progress logger must
 	// no longer be used once the initial chain sync is done.
-	msgBlock := bmsg.block.MsgBlock()
+	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	m.initialChainSyncDoneMtx.Lock()
 	if !m.isInitialChainSyncDone {
@@ -1352,8 +1361,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// Clear the rejected transactions.
 		m.rejectedTxns.Reset()
 
-		// Remove expired pair requests and completed mixes from
-		// mixpool.
+		// Remove expired pair requests and completed mixes from the mixpool.
 		m.cfg.MixPool.RemoveSpentPRs(msgBlock.Transactions)
 		m.cfg.MixPool.RemoveSpentPRs(msgBlock.STransactions)
 		m.cfg.MixPool.ExpireMessagesInBackground(header.Height)
@@ -2014,13 +2022,6 @@ out:
 				case <-ctx.Done():
 				}
 
-			case *blockMsg:
-				m.handleBlockMsg(msg)
-				select {
-				case msg.reply <- struct{}{}:
-				case <-ctx.Done():
-				}
-
 			case *mixMsg:
 				err := m.handleMixMsg(msg)
 				select {
@@ -2103,16 +2104,6 @@ out:
 func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
 	select {
 	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
-	case <-m.quit:
-		done <- struct{}{}
-	}
-}
-
-// OnBlock adds the passed block message and peer to the event handling
-// queue.
-func (m *SyncManager) OnBlock(block *dcrutil.Block, peer *Peer, done chan struct{}) {
-	select {
-	case m.msgChan <- &blockMsg{block: block, peer: peer, reply: done}:
 	case <-m.quit:
 		done <- struct{}{}
 	}

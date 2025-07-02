@@ -703,7 +703,6 @@ type serverPeer struct {
 	// The following fields are used to synchronize the net sync manager and
 	// server.
 	txProcessed     chan struct{}
-	blockProcessed  chan struct{}
 	mixMsgProcessed chan error
 
 	// peerNa is network address of the peer connected to.
@@ -737,7 +736,6 @@ func newServerPeer(s *server, isPersistent bool) *serverPeer {
 		knownAddresses:  apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:            make(chan struct{}),
 		txProcessed:     make(chan struct{}, 1),
-		blockProcessed:  make(chan struct{}, 1),
 		mixMsgProcessed: make(chan error, 1),
 		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
@@ -1483,16 +1481,12 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
 	sp.AddKnownInventory(iv)
 
-	// Queue the block up to be handled by the net sync manager and
-	// intentionally block further receives until the network block is fully
-	// processed and known good or bad.  This helps prevent a malicious peer
-	// from queuing up a bunch of bad blocks before disconnecting (or being
-	// disconnected) and wasting memory.  Additionally, this behavior is
-	// depended on by at least the block acceptance test tool as the reference
-	// implementation processes blocks in the same thread and therefore blocks
-	// further messages until the network block has been fully processed.
-	sp.server.syncManager.OnBlock(block, sp.syncMgrPeer, sp.blockProcessed)
-	<-sp.blockProcessed
+	// Handle the block with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the block is fully processed
+	// and known good or bad.  This helps prevent a malicious peer from queuing
+	// up a bunch of bad blocks before disconnecting (or being disconnected) and
+	// wasting memory.
+	sp.server.syncManager.OnBlock(sp.syncMgrPeer, block)
 }
 
 // OnInv is invoked when a peer receives an inv wire message and is used to
