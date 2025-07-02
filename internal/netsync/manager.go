@@ -401,8 +401,12 @@ type SyncManager struct {
 	requestedBlocks  map[chainhash.Hash]*Peer
 	requestedMixMsgs map[chainhash.Hash]struct{}
 	progressLogger   *progresslog.Logger
-	syncPeer         *Peer
 	msgChan          chan interface{}
+
+	// The following fields are used to track the current sync peer.  The peer
+	// is protected by the associated mutex.
+	syncPeerMtx sync.Mutex
+	syncPeer    *Peer
 
 	// The following fields are used to track the peers available to the sync
 	// manager.  The map is protected by the associated mutex.
@@ -597,6 +601,8 @@ func isSyncPeerCandidate(peer *Peer, bestHeight int64) bool {
 // updateSyncPeerState updates the sync peer to be the peer with the highest
 // known block height, and also marks peers as non sync candidates if their
 // chain heights have been surpassed.
+//
+// This function MUST be called with the sync peer mutex held (writes).
 func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 	// Determine the best sync peer.
 	var bestPeer *Peer
@@ -620,6 +626,8 @@ func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 // of downloading all headers that are not already known from the sync peer. As
 // the name implies, this assumes the initial header sync process is not already
 // done.
+//
+// This function MUST be called with the sync peer mutex held (reads).
 func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 	hdrSyncPeer := m.syncPeer
 	syncHeight := hdrSyncPeer.LastBlock()
@@ -653,6 +661,8 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 //
 // On the other hand, when the initial header sync process is complete, it
 // starts downloading any outstanding blocks that are still needed.
+//
+// This function MUST be called with the sync peer mutex held (writes).
 func (m *SyncManager) startSync(bestHeight int64) {
 	// Update sync peer candidacy and determine the best sync peer.
 	m.updateSyncPeerState(bestHeight)
@@ -734,9 +744,11 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 
 	// Start syncing by choosing the best candidate if needed.
 	bestHeight := m.cfg.Chain.BestSnapshot().Height
+	m.syncPeerMtx.Lock()
 	if m.syncPeer == nil && isSyncPeerCandidate(peer, bestHeight) {
 		m.startSync(bestHeight)
 	}
+	m.syncPeerMtx.Unlock()
 
 	// Potentially request the initial state from this peer now when the manager
 	// believes the chain is fully synced.  Otherwise, it will be requested when
@@ -845,10 +857,12 @@ MixHashes:
 
 	// Attempt to find a new peer to sync from when the quitting peer is the
 	// sync peer.
+	m.syncPeerMtx.Lock()
 	if m.syncPeer == peer {
 		m.syncPeer = nil
 		m.startSync(m.cfg.Chain.BestSnapshot().Height)
 	}
+	m.syncPeerMtx.Unlock()
 }
 
 // handleTxMsg handles transaction messages from all peers.
@@ -1199,7 +1213,10 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Request more blocks using the headers when the request queue is getting
 	// short.
-	if peer == m.syncPeer && len(peer.requestedBlocks) < minInFlightBlocks {
+	m.syncPeerMtx.Lock()
+	isSyncPeer := peer == m.syncPeer
+	m.syncPeerMtx.Unlock()
+	if isSyncPeer && len(peer.requestedBlocks) < minInFlightBlocks {
 		m.fetchNextBlocks(peer)
 	}
 }
@@ -1396,6 +1413,10 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		headerHashes = append(headerHashes, header.BlockHash())
 	}
 
+	m.syncPeerMtx.Lock()
+	isSyncPeer := peer == m.syncPeer
+	m.syncPeerMtx.Unlock()
+
 	// Save the current best known header height prior to processing the headers
 	// so the code later is able to determine if any new useful headers were
 	// provided.
@@ -1410,7 +1431,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// and thus whatever the best known good header is becomes the new
 			// sync height unless a better one is discovered from the new sync
 			// peer.
-			if peer == m.syncPeer && !headersSynced {
+			if !headersSynced && isSyncPeer {
 				_, newBestHeaderHeight := chain.BestHeader()
 				m.syncHeight.Store(newBestHeaderHeight)
 			}
@@ -1431,7 +1452,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// Reset the header sync progress stall timeout when the headers are not
 	// already synced and progress was made.
 	newBestHeaderHash, newBestHeaderHeight := chain.BestHeader()
-	if peer == m.syncPeer && !headersSynced {
+	if !headersSynced && isSyncPeer {
 		if newBestHeaderHeight > prevBestHeaderHeight {
 			m.hdrSyncState.resetStallTimeout()
 		}
@@ -1485,7 +1506,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 
 	// Consider the headers synced once the sync peer sends a message with a
 	// final header that is within a few blocks of the sync height.
-	if !headersSynced && peer == m.syncPeer {
+	if !headersSynced && isSyncPeer {
 		const syncHeightFetchOffset = 6
 		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
@@ -1541,8 +1562,13 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 
 	// Download any blocks needed to catch the local chain up to the best known
 	// header (if any) once the initial headers sync is done.
-	if headersSynced && m.syncPeer != nil {
-		m.fetchNextBlocks(m.syncPeer)
+	if headersSynced {
+		m.syncPeerMtx.Lock()
+		syncPeer := m.syncPeer
+		m.syncPeerMtx.Unlock()
+		if syncPeer != nil {
+			m.fetchNextBlocks(syncPeer)
+		}
 	}
 }
 
@@ -1810,9 +1836,13 @@ out:
 				m.handlePeerDisconnectedMsg(msg.peer)
 
 			case getSyncPeerMsg:
+				m.syncPeerMtx.Lock()
+				syncPeer := m.syncPeer
+				m.syncPeerMtx.Unlock()
+
 				var peerID int32
-				if m.syncPeer != nil {
-					peerID = m.syncPeer.ID()
+				if syncPeer != nil {
+					peerID = syncPeer.ID()
 				}
 				msg.reply <- peerID
 
@@ -1856,10 +1886,13 @@ out:
 			m.hdrSyncState.stallChanDrained = true
 
 			// Disconnect the sync peer due to stalling the header sync process.
-			if m.syncPeer != nil {
+			m.syncPeerMtx.Lock()
+			syncPeer := m.syncPeer
+			m.syncPeerMtx.Unlock()
+			if syncPeer != nil {
 				log.Debugf("Header sync progress stalled from peer %s -- "+
-					"disconnecting", m.syncPeer)
-				m.syncPeer.Disconnect()
+					"disconnecting", syncPeer)
+				syncPeer.Disconnect()
 			}
 
 		case <-ctx.Done():
