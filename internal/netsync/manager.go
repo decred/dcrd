@@ -106,13 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// notFoundMsg packages a Decred notfound message and the peer it came from
-// together so the event handler has access to that information.
-type notFoundMsg struct {
-	notFound *wire.MsgNotFound
-	peer     *Peer
-}
-
 // txMsg packages a Decred tx message and the peer it came from together
 // so the event handler has access to that information.
 type txMsg struct {
@@ -1771,14 +1764,28 @@ func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
 	}
 }
 
-// handleNotFoundMsg handles notfound messages from all peers.
-func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
-	peer := nfmsg.peer
+// OnNotFound should be invoked from the sync manager with notfound messages
+// that are received from remote peers.
+//
+// Currently, this primarily just removes the items from the request maps so
+// they can eventually be requested from elsewhere.  This could be improved in
+// the future to immediately request the reported items from another peer that
+// has announced them.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnNotFound(peer *Peer, notFound *wire.MsgNotFound) {
+	if m.shutdownRequested() {
+		return
+	}
 
 	m.requestMtx.Lock()
-	for _, inv := range nfmsg.notFound.InvList {
-		// verify the hash was actually announced by the peer
-		// before deleting from the global requested maps.
+	for _, inv := range notFound.InvList {
+		// Verify the hash was actually announced by the peer before deleting
+		// from the global requested maps.
 		switch inv.Type {
 		case wire.InvTypeBlock:
 			if _, exists := peer.requestedBlocks[inv.Hash]; exists {
@@ -2034,9 +2041,6 @@ out:
 				case <-ctx.Done():
 				}
 
-			case *notFoundMsg:
-				m.handleNotFoundMsg(msg)
-
 			case getSyncPeerMsg:
 				m.syncPeerMtx.Lock()
 				syncPeer := m.syncPeer
@@ -2116,15 +2120,6 @@ func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
 func (m *SyncManager) OnMixMsg(msg mixing.Message, peer *Peer, done chan error) {
 	select {
 	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
-	case <-m.quit:
-	}
-}
-
-// OnNotFound adds the passed notfound message and peer to the event handling
-// queue.
-func (m *SyncManager) OnNotFound(notFound *wire.MsgNotFound, peer *Peer) {
-	select {
-	case m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}:
 	case <-m.quit:
 	}
 }

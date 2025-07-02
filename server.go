@@ -1950,7 +1950,7 @@ func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
 			return
 		}
 	}
-	sp.server.syncManager.OnNotFound(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnNotFound(sp.syncMgrPeer, msg)
 }
 
 // attemptDcrdDial is a wrapper function around dcrdDial which adds and marks
