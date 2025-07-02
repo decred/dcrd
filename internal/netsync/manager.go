@@ -1990,13 +1990,11 @@ func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
 	m[hash] = struct{}{}
 }
 
-// eventHandler is the main handler for the sync manager.  It must be run as a
-// goroutine.  It processes block and inv messages in a separate goroutine from
-// the peer handlers so the block (MsgBlock) messages are handled by a single
-// thread without needing to lock memory data structures.  This is important
-// because the sync manager controls which blocks are needed and how the
-// fetching should proceed.
-func (m *SyncManager) eventHandler(ctx context.Context) {
+// stallHandler monitors the header sync process to detect stalls and disconnect
+// the sync peer which ensures clean recovery from stalls.
+//
+// It must be run as a goroutine.
+func (m *SyncManager) stallHandler(ctx context.Context) {
 out:
 	for {
 		select {
@@ -2016,7 +2014,7 @@ out:
 		}
 	}
 
-	log.Trace("Sync manager event handler done")
+	log.Trace("Sync manager stall handler done")
 }
 
 // SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
@@ -2231,11 +2229,11 @@ func (m *SyncManager) IsCurrent() bool {
 func (m *SyncManager) Run(ctx context.Context) {
 	log.Trace("Starting sync manager")
 
-	// Start the event handler goroutine.
+	// Start the stall handler goroutine.
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		m.eventHandler(ctx)
+		m.stallHandler(ctx)
 		wg.Done()
 	}()
 
