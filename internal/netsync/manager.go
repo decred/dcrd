@@ -208,7 +208,16 @@ type mixMsg struct {
 type Peer struct {
 	*peerpkg.Peer
 
-	syncCandidate    bool
+	syncCandidate bool
+
+	// This flag is set during creation based on information available from the
+	// embedded peer and is immutable making it safe for concurrent access.
+	//
+	// servesData indicates the peer is capable of serving data.  Currently,
+	// this effectively means it is a full node.
+	servesData bool
+
+	// These fields track pending requests for data from the peer.
 	requestedTxns    map[chainhash.Hash]struct{}
 	requestedBlocks  map[chainhash.Hash]struct{}
 	requestedMixMsgs map[chainhash.Hash]struct{}
@@ -248,10 +257,11 @@ type Peer struct {
 // NewPeer returns a new instance of a peer that wraps the provided underlying
 // common peer with additional state that is used throughout the package.
 func NewPeer(peer *peerpkg.Peer) *Peer {
-	isSyncCandidate := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
+	servesData := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
 		Peer:             peer,
-		syncCandidate:    isSyncCandidate,
+		syncCandidate:    servesData,
+		servesData:       servesData,
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
 		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
@@ -698,7 +708,7 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 
 	// Request headers starting from the parent of the best known header for the
 	// local chain immediately when the initial headers sync process is complete
-	// and the peer is a sync candidate.
+	// and the peer potentially serves useful data.
 	//
 	// This primarily serves two purposes:
 	//
@@ -707,7 +717,7 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	//
 	// Note that the parent is used because the request would otherwise result
 	// in an empty response when both the local and remote tips are the same.
-	if peer.syncCandidate && m.hdrSyncState.headersSynced {
+	if peer.servesData && m.hdrSyncState.headersSynced {
 		m.fetchNextHeaders(peer)
 	}
 
@@ -1120,7 +1130,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 			m.peersMtx.Lock()
 			for peer := range m.peers {
-				if peer.syncCandidate {
+				if peer.servesData {
 					m.fetchNextHeaders(peer)
 				}
 			}
@@ -1258,13 +1268,14 @@ func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64
 	log.Info("Performing initial chain sync...")
 	m.progressLogger.SetLastLogTime(time.Now())
 
-	// Request headers starting from the parent of the best known header from
-	// any sync candidates that have not yet had their best known block
-	// discovered now that the initial headers sync process is complete.
+	// Request headers starting from the parent of the best known header for the
+	// local chain from any peers that potentially serve useful data and have
+	// not yet had their best known block discovered now that the initial
+	// headers sync process is complete.
 	m.peersMtx.Lock()
 	for peer := range m.peers {
 		m.maybeResolveOrphanBlock(peer)
-		if !peer.syncCandidate || peer.bestAnnouncedBlock != nil {
+		if !peer.servesData || peer.bestAnnouncedBlock != nil {
 			continue
 		}
 		m.fetchNextHeaders(peer)
