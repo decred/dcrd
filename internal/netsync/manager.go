@@ -1247,6 +1247,39 @@ func (m *SyncManager) headerSyncProgress() float64 {
 	return math.Min(float64(header.Height)/float64(syncHeight), 1.0) * 100
 }
 
+// onInitialHeaderSyncDone is invoked when the initial header sync process
+// completes.
+//
+// This function is NOT safe for concurrent access.  It must be called from the
+// event handler goroutine.
+func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64) {
+	log.Infof("Initial headers sync complete (best header hash %s, height %d)",
+		hash, height)
+	log.Info("Performing initial chain sync...")
+	m.progressLogger.SetLastLogTime(time.Now())
+
+	// Request headers starting from the parent of the best known header from
+	// any sync candidates that have not yet had their best known block
+	// discovered now that the initial headers sync process is complete.
+	m.peersMtx.Lock()
+	for peer := range m.peers {
+		m.maybeResolveOrphanBlock(peer)
+		if !peer.syncCandidate || peer.bestAnnouncedBlock != nil {
+			continue
+		}
+		m.fetchNextHeaders(peer)
+	}
+	m.peersMtx.Unlock()
+
+	// Potentially update whether the chain believes it is current now that the
+	// headers are synced.
+	chain := m.cfg.Chain
+	chain.MaybeUpdateIsCurrent()
+	if chain.IsCurrent() {
+		m.onInitialChainSyncDone()
+	}
+}
+
 // handleHeadersMsg handles headers messages from all peers.
 func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	peer := hmsg.peer
@@ -1452,32 +1485,12 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 
 			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
 				headersSynced, m.headerSyncProgress)
-			log.Infof("Initial headers sync complete (best header hash %s, "+
-				"height %d)", newBestHeaderHash, newBestHeaderHeight)
-			log.Info("Syncing chain")
-			m.progressLogger.SetLastLogTime(time.Now())
+			m.onInitialHeaderSyncDone(&newBestHeaderHash, newBestHeaderHeight)
 
-			// Request headers starting from the parent of the best known header
-			// for the local chain from any sync candidates that have not yet
-			// had their best known block discovered now that the initial
-			// headers sync process is complete.
-			m.peersMtx.Lock()
-			for peer := range m.peers {
-				m.maybeResolveOrphanBlock(peer)
-				if !peer.syncCandidate || peer.bestAnnouncedBlock != nil {
-					continue
-				}
-				m.fetchNextHeaders(peer)
-			}
-			m.peersMtx.Unlock()
-
-			// Potentially update whether the chain believes it is current now
-			// that the headers are synced.
-			chain.MaybeUpdateIsCurrent()
+			// Update the local var that tracks whether the chain believes it is
+			// current since it might have been updated now that the headers are
+			// synced.
 			isChainCurrent = chain.IsCurrent()
-			if isChainCurrent {
-				m.onInitialChainSyncDone()
-			}
 		}
 	}
 
