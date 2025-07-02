@@ -106,14 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// txMsg packages a Decred tx message and the peer it came from together
-// so the event handler has access to that information.
-type txMsg struct {
-	tx    *dcrutil.Tx
-	peer  *Peer
-	reply chan struct{}
-}
-
 // getSyncPeerMsg is a message type to be sent across the message channel for
 // retrieving the current sync peer.
 type getSyncPeerMsg struct {
@@ -975,33 +967,53 @@ MixHashes:
 	m.syncPeerMtx.Unlock()
 }
 
-// handleTxMsg handles transaction messages from all peers.
-func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
-	peer := tmsg.peer
+// OnTx should be invoked with transactions that are received from remote peers.
+//
+// Its primary purpose is processing transactions by validating them and adding
+// them to the mempool along with any orphan transactions that depend on it.
+//
+// It also deals with some other things related to syncing such as marking
+// in-flight transactions as received and preventing multiple requests for
+// invalid transactions.
+//
+// It returns a slice of transactions added to the mempool which might include
+// the passed transaction itself along with any additional orphan transactions
+// that were added as a result of the passed one being accepted.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnTx(peer *Peer, tx *dcrutil.Tx) []*dcrutil.Tx {
+	if m.shutdownRequested() {
+		return nil
+	}
 
-	// NOTE:  BitcoinJ, and possibly other wallets, don't follow the spec of
-	// sending an inventory message and allowing the remote peer to decide
-	// whether or not they want to request the transaction via a getdata
-	// message.  Unfortunately, the reference implementation permits
-	// unrequested data, so it has allowed wallets that don't follow the
-	// spec to proliferate.  While this is not ideal, there is no check here
-	// to disconnect peers for sending unsolicited transactions to provide
-	// interoperability.
-	txHash := tmsg.tx.Hash()
+	// NOTE: The expected sequence of events for inventory propagation is
+	// technically sending an inventory message and allowing the remote peer to
+	// decide whether or not they want to request the transaction via a getdata
+	// message.
+	//
+	// However, primarily due to inherited legacy behavior, there is no check
+	// here to disconnect peers for sending unsolicited transactions.  This
+	// behavior is retained in order to provide interoperability since changing
+	// it now could potentially cause issues for any wallets that rely on it.
+	txHash := tx.Hash()
 
 	// Ignore transactions that have already been rejected.  The transaction was
 	// unsolicited if it was already previously rejected.
 	if m.rejectedTxns.Contains(txHash[:]) {
 		log.Debugf("Ignoring unsolicited previously rejected transaction %v "+
 			"from %s", txHash, peer)
-		return
+		return nil
 	}
 
-	// Process the transaction to include validation, insertion in the
-	// memory pool, orphan handling, etc.
+	// Process the transaction to include validation, insertion in the memory
+	// pool, orphan handling, etc.
 	allowOrphans := m.cfg.MaxOrphanTxs > 0
-	acceptedTxs, err := m.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
-		allowOrphans, true, mempool.Tag(peer.ID()))
+	acceptedTxns, err := m.cfg.TxMemPool.ProcessTransaction(tx, allowOrphans,
+		true, mempool.Tag(peer.ID()))
 
 	// Remove transaction from request maps. Either the mempool/chain
 	// already knows about it and as such we shouldn't have any more
@@ -1017,20 +1029,20 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 		// processed.
 		m.rejectedTxns.Add(txHash[:])
 
-		// When the error is a rule error, it means the transaction was
-		// simply rejected as opposed to something actually going wrong,
-		// so log it as such.  Otherwise, something really did go wrong,
-		// so log it as an actual error.
+		// When the error is a rule error, it means the transaction was simply
+		// rejected as opposed to something actually going wrong, so log it as
+		// such.  Otherwise, something really did go wrong, so log it as an
+		// actual error.
 		var rErr mempool.RuleError
 		if errors.As(err, &rErr) {
 			log.Debugf("Rejected transaction %v from %s: %v", txHash, peer, err)
 		} else {
 			log.Errorf("Failed to process transaction %v: %v", txHash, err)
 		}
-		return
+		return nil
 	}
 
-	m.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
+	return acceptedTxns
 }
 
 // handleMixMsg handles mixing messages from all peers.
@@ -2027,13 +2039,6 @@ out:
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
-			case *txMsg:
-				m.handleTxMsg(msg)
-				select {
-				case msg.reply <- struct{}{}:
-				case <-ctx.Done():
-				}
-
 			case *mixMsg:
 				err := m.handleMixMsg(msg)
 				select {
@@ -2103,16 +2108,6 @@ out:
 	}
 
 	log.Trace("Sync manager event handler done")
-}
-
-// OnTx adds the passed transaction message and peer to the event handling
-// queue.
-func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
-	select {
-	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
-	case <-m.quit:
-		done <- struct{}{}
-	}
 }
 
 // OnMixMsg adds the passed mixing message and peer to the event handling
