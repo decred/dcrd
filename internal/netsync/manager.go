@@ -208,8 +208,6 @@ type mixMsg struct {
 type Peer struct {
 	*peerpkg.Peer
 
-	syncCandidate bool
-
 	// This flag is set during creation based on information available from the
 	// embedded peer and is immutable making it safe for concurrent access.
 	//
@@ -260,7 +258,6 @@ func NewPeer(peer *peerpkg.Peer) *Peer {
 	servesData := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
 		Peer:             peer,
-		syncCandidate:    servesData,
 		servesData:       servesData,
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
@@ -563,26 +560,26 @@ func (m *SyncManager) fetchNextHeaders(peer *Peer) {
 	peer.PushGetHeadersMsg(locator, &zeroHash)
 }
 
-// updateSyncPeerState updates the sync peer to be the peer with the highest
-// known block height, and also marks peers as non sync candidates if their
-// chain heights have been surpassed.
+// isSyncPeerCandidate returns whether or not the given peer is a sync peer
+// candidate.
+//
+// Being a sync peer candidate has the following requirements:
+//   - The peer must serve data
+//   - The peer's latest known block height must be at least as high as the best
+//     known block height of the local chain
+func isSyncPeerCandidate(peer *Peer, bestHeight int64) bool {
+	return peer.servesData && peer.LastBlock() >= bestHeight
+}
+
+// updateSyncPeerState updates the sync peer to be the peer that is both a sync
+// candidate and has the highest known block height.
 func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 	// Determine the best sync peer.
 	var bestPeer *Peer
 	m.peersMtx.Lock()
 	for peer := range m.peers {
-		if !peer.syncCandidate {
-			continue
-		}
-
-		// Remove sync candidate peers that are no longer candidates due to
-		// passing their latest known block.  NOTE: The < is intentional as
-		// opposed to <=.  While technically the peer doesn't have a later block
-		// when it's equal, it will likely have one soon so it is a reasonable
-		// choice.  It also allows the case where both are at 0 such as during
-		// regression test.
-		if peer.LastBlock() < bestHeight {
-			peer.syncCandidate = false
+		// Skip peers that are not sync candidates.
+		if !isSyncPeerCandidate(peer, bestHeight) {
 			continue
 		}
 
@@ -638,11 +635,9 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 //
 // On the other hand, when the initial header sync process is complete, it
 // starts downloading any outstanding blocks that are still needed.
-func (m *SyncManager) startSync() {
+func (m *SyncManager) startSync(bestHeight int64) {
 	// Update sync peer candidacy and determine the best sync peer.
-	chain := m.cfg.Chain
-	best := chain.BestSnapshot()
-	m.updateSyncPeerState(best.Height)
+	m.updateSyncPeerState(bestHeight)
 
 	// Update the state of whether or not the manager believes the chain is
 	// fully synced to whatever the chain believes when there is no candidate
@@ -652,7 +647,7 @@ func (m *SyncManager) startSync() {
 	// nothing more to do without one.
 	if m.syncPeer == nil {
 		m.isCurrentMtx.Lock()
-		m.isCurrent = chain.IsCurrent()
+		m.isCurrent = m.cfg.Chain.IsCurrent()
 		m.isCurrentMtx.Unlock()
 		log.Warnf("No sync peer candidates available")
 		return
@@ -661,7 +656,7 @@ func (m *SyncManager) startSync() {
 	// Perform the initial header sync process as needed.
 	headersSynced := m.hdrSyncState.headersSynced
 	if !headersSynced {
-		m.startInitialHeaderSync(best.Height)
+		m.startInitialHeaderSync(bestHeight)
 	}
 
 	// Download any blocks needed to catch the local chain up to the best
@@ -722,8 +717,9 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	}
 
 	// Start syncing by choosing the best candidate if needed.
-	if peer.syncCandidate && m.syncPeer == nil {
-		m.startSync()
+	bestHeight := m.cfg.Chain.BestSnapshot().Height
+	if m.syncPeer == nil && isSyncPeerCandidate(peer, bestHeight) {
+		m.startSync(bestHeight)
 	}
 
 	// Potentially request the initial state from this peer now when the manager
@@ -835,7 +831,7 @@ MixHashes:
 	// sync peer.
 	if m.syncPeer == peer {
 		m.syncPeer = nil
-		m.startSync()
+		m.startSync(m.cfg.Chain.BestSnapshot().Height)
 	}
 }
 
