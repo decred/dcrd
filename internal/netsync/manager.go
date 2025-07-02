@@ -216,14 +216,15 @@ type Peer struct {
 	// this effectively means it is a full node.
 	servesData bool
 
-	// These fields track pending requests for data from the peer.
-	requestedTxns    map[chainhash.Hash]struct{}
-	requestedBlocks  map[chainhash.Hash]struct{}
-	requestedMixMsgs map[chainhash.Hash]struct{}
-
 	// requestInitialStateOnce is used to ensure the initial state data is only
 	// requested from the peer once.
 	requestInitialStateOnce sync.Once
+
+	// These fields track pending requests for data from the peer.  They are
+	// owned by the sync manager and protected by its request mutex.
+	requestedTxns    map[chainhash.Hash]struct{}
+	requestedBlocks  map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]struct{}
 
 	// numConsecutiveOrphanHeaders tracks the number of consecutive header
 	// messages sent by the peer that contain headers which do not connect.  It
@@ -395,13 +396,17 @@ type SyncManager struct {
 	// concurrent access.
 	minKnownWork *uint256.Uint256
 
-	rejectedTxns     *apbf.Filter
-	rejectedMixMsgs  *apbf.Filter
+	rejectedTxns    *apbf.Filter
+	rejectedMixMsgs *apbf.Filter
+	progressLogger  *progresslog.Logger
+	msgChan         chan interface{}
+
+	// These fields track pending requests for data from all peers.  They are
+	// protected by the request mutex.
+	requestMtx       sync.Mutex
 	requestedTxns    map[chainhash.Hash]struct{}
 	requestedBlocks  map[chainhash.Hash]*Peer
 	requestedMixMsgs map[chainhash.Hash]struct{}
-	progressLogger   *progresslog.Logger
-	msgChan          chan interface{}
 
 	// The following fields are used to track the current sync peer.  The peer
 	// is protected by the associated mutex.
@@ -511,8 +516,7 @@ func (m *SyncManager) maybeUpdateNextNeededBlocks() {
 // isRequestedBlock returns whether or not the given block hash has already been
 // requested from any remote peer.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the request mutex held (reads).
 func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 	_, ok := m.requestedBlocks[*hash]
 	return ok
@@ -520,10 +524,15 @@ func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 
 // fetchNextBlocks creates and sends a request to the provided peer for the next
 // blocks to be downloaded based on the current headers.
+//
+// This function is NOT safe for concurrent access.  It must be called from the
+// event handler goroutine.
 func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	// Nothing to do if the target maximum number of blocks to request from the
 	// peer at the same time are already in flight.
+	m.requestMtx.Lock()
 	numInFlight := len(peer.requestedBlocks)
+	m.requestMtx.Unlock()
 	if numInFlight >= maxInFlightBlocks {
 		return
 	}
@@ -542,6 +551,7 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 		numNeeded = maxNeeded
 	}
 	gdmsg := wire.NewMsgGetDataSizeHint(uint(numNeeded))
+	m.requestMtx.Lock()
 	for i := 0; i < numNeeded && len(gdmsg.InvList) < wire.MaxInvPerMsg; i++ {
 		// The block is either going to be skipped because it has already been
 		// requested or it will be requested, but in either case, the block is
@@ -561,6 +571,7 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 		peer.requestedBlocks[*hash] = struct{}{}
 		gdmsg.AddInvVect(iv)
 	}
+	m.requestMtx.Unlock()
 	if len(gdmsg.InvList) > 0 {
 		peer.QueueMessage(gdmsg, nil)
 	}
@@ -774,6 +785,7 @@ func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
 	requestQueues := make(map[*Peer][]wire.InvVect)
 	var inv wire.InvVect
 	inv.Type = wire.InvTypeTx
+	m.requestMtx.Lock()
 TxHashes:
 	for txHash := range peer.requestedTxns {
 		inv.Hash = txHash
@@ -830,6 +842,7 @@ MixHashes:
 		// No peers found that have announced this data.
 		delete(m.requestedMixMsgs, mixHash)
 	}
+	m.requestMtx.Unlock()
 	for pp, requestQueue := range requestQueues {
 		var numRequested int32
 		gdmsg := wire.NewMsgGetData()
@@ -896,8 +909,10 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	// already knows about it and as such we shouldn't have any more
 	// instances of trying to fetch it, or we failed to insert and thus
 	// we'll retry next time we get an inv.
+	m.requestMtx.Lock()
 	delete(peer.requestedTxns, *txHash)
 	delete(m.requestedTxns, *txHash)
+	m.requestMtx.Unlock()
 
 	if err != nil {
 		// Do not request this transaction again until a new block has been
@@ -940,8 +955,10 @@ func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
 	// about it and as such we shouldn't have any more instances of trying
 	// to fetch it, or we failed to insert and thus we'll retry next time
 	// we get an inv.
+	m.requestMtx.Lock()
 	delete(peer.requestedMixMsgs, mixHash)
 	delete(m.requestedMixMsgs, mixHash)
+	m.requestMtx.Unlock()
 
 	if err != nil {
 		// Do not request this message again until a new block has
@@ -1085,7 +1102,10 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// The remote peer is misbehaving when the block was not requested.
 	blockHash := bmsg.block.Hash()
-	if _, exists := peer.requestedBlocks[*blockHash]; !exists {
+	m.requestMtx.Lock()
+	_, exists := peer.requestedBlocks[*blockHash]
+	m.requestMtx.Unlock()
+	if !exists {
 		log.Warnf("Got unrequested block %v from %s -- disconnecting",
 			blockHash, peer)
 		peer.Disconnect()
@@ -1105,8 +1125,10 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// This ensures chain is aware of the block before it is removed from the
 	// maps in order to help prevent duplicate requests.
 	forkLen, err := m.processBlock(bmsg.block)
+	m.requestMtx.Lock()
 	delete(peer.requestedBlocks, *blockHash)
 	delete(m.requestedBlocks, *blockHash)
+	m.requestMtx.Unlock()
 	if err != nil {
 		// Ideally there should never be any requests for duplicate blocks, but
 		// ignore any that manage to make it through.
@@ -1215,8 +1237,13 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	m.syncPeerMtx.Lock()
 	isSyncPeer := peer == m.syncPeer
 	m.syncPeerMtx.Unlock()
-	if isSyncPeer && len(peer.requestedBlocks) < minInFlightBlocks {
-		m.fetchNextBlocks(peer)
+	if isSyncPeer {
+		m.requestMtx.Lock()
+		numInFlight := len(peer.requestedBlocks)
+		m.requestMtx.Unlock()
+		if numInFlight < minInFlightBlocks {
+			m.fetchNextBlocks(peer)
+		}
 	}
 }
 
@@ -1535,6 +1562,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// the associated block(s).
 	if isChainCurrent {
 		gdmsg := wire.NewMsgGetDataSizeHint(uint(len(headers)))
+		m.requestMtx.Lock()
 		for i := range headerHashes {
 			// Skip the block when it has already been requested or is otherwise
 			// already known.
@@ -1554,6 +1582,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 			gdmsg.AddInvVect(iv)
 		}
+		m.requestMtx.Unlock()
 		if len(gdmsg.InvList) > 0 {
 			peer.QueueMessage(gdmsg, nil)
 		}
@@ -1575,6 +1604,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
 	peer := nfmsg.peer
 
+	m.requestMtx.Lock()
 	for _, inv := range nfmsg.notFound.InvList {
 		// verify the hash was actually announced by the peer
 		// before deleting from the global requested maps.
@@ -1596,6 +1626,7 @@ func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
 			}
 		}
 	}
+	m.requestMtx.Unlock()
 }
 
 // needTx returns whether or not the transaction needs to be downloaded.  For
@@ -1687,11 +1718,13 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Request the transaction if there is not one already pending.
+			m.requestMtx.Lock()
 			if _, exists := m.requestedTxns[iv.Hash]; !exists {
 				limitAdd(m.requestedTxns, iv.Hash, maxRequestedTxns)
 				limitAdd(peer.requestedTxns, iv.Hash, maxRequestedTxns)
 				requestQueue = append(requestQueue, iv)
 			}
+			m.requestMtx.Unlock()
 
 		case wire.InvTypeMix:
 			// Add the mix message to the cache of known inventory
@@ -1710,11 +1743,13 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Request the mixing message if it is not already pending.
+			m.requestMtx.Lock()
 			if _, exists := m.requestedMixMsgs[iv.Hash]; !exists {
 				limitAdd(m.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
 				limitAdd(peer.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
 				requestQueue = append(requestQueue, iv)
 			}
+			m.requestMtx.Unlock()
 		}
 	}
 
@@ -2017,8 +2052,17 @@ func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
 	}
 }
 
+// requestFromPeer requests any combination of blocks, votes, treasury spends,
+// and mix messages from the given peer.  It ensures all of the requests are
+// tracked so the peer is not banned for sending unrequested data when it
+// responds.
+//
+// This function is safe for concurrent access.
 func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
 	tSpendHashes, mixHashes []chainhash.Hash) error {
+
+	defer m.requestMtx.Unlock()
+	m.requestMtx.Lock()
 
 	// Add the blocks to the request.
 	msgResp := wire.NewMsgGetData()
