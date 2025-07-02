@@ -106,12 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// getSyncPeerMsg is a message type to be sent across the message channel for
-// retrieving the current sync peer.
-type getSyncPeerMsg struct {
-	reply chan int32
-}
-
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
@@ -2009,16 +2003,6 @@ out:
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
-			case getSyncPeerMsg:
-				m.syncPeerMtx.Lock()
-				syncPeer := m.syncPeer
-				m.syncPeerMtx.Unlock()
-
-				var peerID int32
-				if syncPeer != nil {
-					peerID = syncPeer.ID()
-				}
-				msg.reply <- peerID
 
 			default:
 				log.Warnf("Invalid message type in event handler: %T", msg)
@@ -2045,18 +2029,18 @@ out:
 
 // SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
 func (m *SyncManager) SyncPeerID() int32 {
-	reply := make(chan int32, 1)
-	select {
-	case m.msgChan <- getSyncPeerMsg{reply: reply}:
-	case <-m.quit:
-	}
-
-	select {
-	case peerID := <-reply:
-		return peerID
-	case <-m.quit:
+	if m.shutdownRequested() {
 		return 0
 	}
+
+	m.syncPeerMtx.Lock()
+	syncPeer := m.syncPeer
+	m.syncPeerMtx.Unlock()
+	if syncPeer != nil {
+		return syncPeer.ID()
+	}
+
+	return 0
 }
 
 // RequestFromPeer requests any combination of blocks, votes, treasury spends,
