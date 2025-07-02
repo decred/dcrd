@@ -112,23 +112,6 @@ type getSyncPeerMsg struct {
 	reply chan int32
 }
 
-// processBlockResponse is a response sent to the reply channel of a
-// processBlockMsg.
-type processBlockResponse struct {
-	forkLen int64
-	err     error
-}
-
-// processBlockMsg is a message type to be sent across the message channel
-// for requested a block is processed.  Note this call differs from blockMsg
-// above in that blockMsg is intended for blocks that came from peers and have
-// extra handling whereas this message essentially is just a concurrent safe
-// way to call ProcessBlock on the internal block chain instance.
-type processBlockMsg struct {
-	block *dcrutil.Block
-	reply chan processBlockResponse
-}
-
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
@@ -2037,29 +2020,6 @@ out:
 				}
 				msg.reply <- peerID
 
-			case processBlockMsg:
-				forkLen, err := m.processBlock(msg.block)
-				if err != nil {
-					msg.reply <- processBlockResponse{
-						forkLen: forkLen,
-						err:     err,
-					}
-					continue
-				}
-
-				onMainChain := forkLen == 0
-				if onMainChain {
-					// Prune invalidated transactions.
-					best := m.cfg.Chain.BestSnapshot()
-					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
-						best.Height)
-					m.cfg.TxMemPool.PruneExpiredTx(best.Height)
-				}
-
-				msg.reply <- processBlockResponse{
-					err: nil,
-				}
-
 			default:
 				log.Warnf("Invalid message type in event handler: %T", msg)
 			}
@@ -2247,22 +2207,38 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 	return nil
 }
 
-// ProcessBlock makes use of ProcessBlock on an internal instance of a block
-// chain.  It is funneled through the sync manager since blockchain is not safe
-// for concurrent access.
+// ProcessBlock processes the provided block using the chain instance associated
+// with the sync manager.
+//
+// Blocks from all sources, such as those submitted to the RPC server and those
+// found by the CPU miner, are expected to be processed using this method as
+// opposed to directly invoking the method on the chain instance.
+//
+// Passing all blocks through the sync manager ensures they are all processed
+// using the same code paths as blocks received from the network which helps
+// enforce consistent handling and that the sync manager is always up-to-date in
+// regards to the sync status of the chain.
+//
+// This function is safe for concurrent access.
 func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
-	reply := make(chan processBlockResponse, 1)
-	select {
-	case m.msgChan <- processBlockMsg{block: block, reply: reply}:
-	case <-m.quit:
+	if m.shutdownRequested() {
+		return nil
 	}
 
-	select {
-	case response := <-reply:
-		return response.err
-	case <-m.quit:
-		return fmt.Errorf("sync manager stopped")
+	forkLen, err := m.processBlock(block)
+	if err != nil {
+		return err
 	}
+
+	onMainChain := forkLen == 0
+	if onMainChain {
+		// Prune invalidated transactions.
+		best := m.cfg.Chain.BestSnapshot()
+		m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
+		m.cfg.TxMemPool.PruneExpiredTx(best.Height)
+	}
+
+	return nil
 }
 
 // IsCurrent returns whether or not the sync manager believes it is synced with
