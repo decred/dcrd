@@ -938,7 +938,7 @@ func (sp *serverPeer) Run() {
 	sp.WaitForDisconnect()
 	srvr := sp.server
 	srvr.DonePeer(sp)
-	srvr.syncManager.PeerDisconnected(sp.syncMgrPeer)
+	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
 
 	if sp.VersionKnown() {
 		// Evict any remaining orphans that were sent by the peer.
