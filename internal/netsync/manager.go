@@ -220,7 +220,7 @@ type Peer struct {
 	// messages sent by the peer that contain headers which do not connect.  It
 	// is used to detect peers that have either diverged so far they are no
 	// longer useful or are otherwise being malicious.
-	numConsecutiveOrphanHeaders int32
+	numConsecutiveOrphanHeaders atomic.Int64
 
 	// These fields are used to track the best known block announced by the peer
 	// which in turn provides a means to discover which blocks are available to
@@ -1378,11 +1378,11 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		// that does not connect and disconnect it once the max allowed
 		// threshold has been reached.
 		if numHeaders < maxExpectedHeaderAnnouncementsPerMsg {
-			peer.numConsecutiveOrphanHeaders++
-			if peer.numConsecutiveOrphanHeaders >= maxConsecutiveOrphanHeaders {
+			numConsecutive := peer.numConsecutiveOrphanHeaders.Add(1)
+			if numConsecutive >= maxConsecutiveOrphanHeaders {
 				log.Debugf("Received %d consecutive headers messages that do "+
-					"not connect from peer %s -- disconnecting",
-					peer.numConsecutiveOrphanHeaders, peer)
+					"not connect from peer %s -- disconnecting", numConsecutive,
+					peer)
 				peer.Disconnect()
 				return
 			}
@@ -1495,7 +1495,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// Reset the count of consecutive headers messages that contained headers
 	// which do not connect.  Note that this is intentionally only done when all
 	// of the provided headers are successfully processed above.
-	peer.numConsecutiveOrphanHeaders = 0
+	peer.numConsecutiveOrphanHeaders.Store(0)
 
 	// Potentially resolve a previously unknown announced block and then update
 	// the block with the most cumulative proof of work the peer has announced
