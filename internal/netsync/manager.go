@@ -430,7 +430,8 @@ type SyncManager struct {
 	isCurrent atomic.Bool
 
 	// The following fields are used to track the list of the next blocks to
-	// download in the branch leading up to the best known header.
+	// download in the branch leading up to the best known header.  They are
+	// protected by the associated mutex.
 	//
 	// nextBlocksHeader is the hash of the best known header when the list was
 	// last updated.
@@ -446,6 +447,7 @@ type SyncManager struct {
 	// upper bound on the entries of the backing array that are valid and also
 	// acts as a list of needed blocks that are not already known to be in
 	// flight.
+	nextBlocksMtx    sync.Mutex
 	nextBlocksHeader chainhash.Hash
 	nextBlocksBuf    [512]chainhash.Hash
 	nextNeededBlocks []chainhash.Hash
@@ -495,8 +497,7 @@ func chainBlockLocatorToHashes(locator blockchain.BlockLocator) []chainhash.Hash
 // maybeUpdateNextNeededBlocks potentially updates the list of the next blocks
 // to download in the branch leading up to the best known header.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the next blocks mutex held (writes).
 func (m *SyncManager) maybeUpdateNextNeededBlocks() {
 	// Update the list if the best known header changed since the last time it
 	// was updated or it is not empty, is getting short, and does not already
@@ -525,8 +526,7 @@ func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 // fetchNextBlocks creates and sends a request to the provided peer for the next
 // blocks to be downloaded based on the current headers.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function is safe for concurrent access.
 func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	// Nothing to do if the target maximum number of blocks to request from the
 	// peer at the same time are already in flight.
@@ -536,6 +536,9 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	if numInFlight >= maxInFlightBlocks {
 		return
 	}
+
+	defer m.nextBlocksMtx.Unlock()
+	m.nextBlocksMtx.Lock()
 
 	// Potentially update the list of the next blocks to download in the branch
 	// leading up to the best known header.
