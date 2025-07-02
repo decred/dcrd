@@ -314,7 +314,7 @@ func (peer *Peer) maybeRequestInitialState(includeMiningState bool) {
 type headerSyncState struct {
 	// headersSynced tracks whether or not the headers are synced to a point
 	// that is recent enough to start downloading blocks.
-	headersSynced bool
+	headersSynced atomic.Bool
 
 	// These fields are used to implement a progress stall timeout that can be
 	// reset at any time without needing to create a new one and the associated
@@ -366,6 +366,12 @@ func (state *headerSyncState) resetStallTimeout() {
 	state.stopStallTimeout()
 	state.stallTimer.Reset(headerSyncStallTimeoutSecs * time.Second)
 	state.stallChanDrained = false
+}
+
+// InitialHeaderSyncDone returns whether or not the initial header sync process
+// is complete.
+func (state *headerSyncState) InitialHeaderSyncDone() bool {
+	return state.headersSynced.Load()
 }
 
 // SyncManager provides a concurrency safe sync manager for handling all
@@ -663,7 +669,7 @@ func (m *SyncManager) startSync(bestHeight int64) {
 	}
 
 	// Perform the initial header sync process as needed.
-	headersSynced := m.hdrSyncState.headersSynced
+	headersSynced := m.hdrSyncState.InitialHeaderSyncDone()
 	if !headersSynced {
 		m.startInitialHeaderSync(bestHeight)
 	}
@@ -721,7 +727,7 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	//
 	// Note that the parent is used because the request would otherwise result
 	// in an empty response when both the local and remote tips are the same.
-	if peer.servesData && m.hdrSyncState.headersSynced {
+	if peer.servesData && m.hdrSyncState.InitialHeaderSyncDone() {
 		m.fetchNextHeaders(peer)
 	}
 
@@ -1308,7 +1314,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	firstHeader := headers[0]
 	firstHeaderHash := firstHeader.BlockHash()
 	firstHeaderConnects := chain.HaveHeader(&firstHeader.PrevBlock)
-	headersSynced := m.hdrSyncState.headersSynced
+	headersSynced := m.hdrSyncState.InitialHeaderSyncDone()
 	if !firstHeaderConnects {
 		// Attempt to detect block announcements which do not connect to any
 		// known headers and request any headers starting from the best header
@@ -1482,7 +1488,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		const syncHeightFetchOffset = 6
 		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
-			m.hdrSyncState.headersSynced = headersSynced
+			m.hdrSyncState.headersSynced.Store(headersSynced)
 			m.hdrSyncState.stopStallTimeout()
 
 			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
