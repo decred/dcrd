@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
@@ -406,10 +407,8 @@ type SyncManager struct {
 	// process and related stall handling.
 	hdrSyncState headerSyncState
 
-	// The following fields are used to track the height being synced to from
-	// peers.
-	syncHeightMtx sync.Mutex
-	syncHeight    int64
+	// syncHeight tracks the height being synced to from peers.
+	syncHeight atomic.Int64
 
 	// The following fields are used to track whether or not the manager
 	// believes it is fully synced to the network.
@@ -438,12 +437,31 @@ type SyncManager struct {
 	nextNeededBlocks []chainhash.Hash
 }
 
+// maybeUpdateSyncHeight atomically sets [m.syncHeight] to the provided value
+// when it is greater than its current value.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) maybeUpdateSyncHeight(newHeight int64) {
+	// NOTE: It's faster to avoid branches that would be introduced by checking
+	// the result of the CAS operation since both the success case and failure
+	// case of the CAS can be handled cleanly by simply loading the new value.
+	//
+	// Concretely, if the CAS fails, the conditional response would be to load
+	// the new value and loop around to try again.  However, if it succeeds, the
+	// conditional response would either be to break out of the for loop or to
+	// update the local variable to the new value so the for loop terminates.
+	// Both options are relatively expensive as compared to the chosen approach
+	// because they both would induce another conditional branch.
+	curHeight := m.syncHeight.Load()
+	for curHeight < newHeight {
+		m.syncHeight.CompareAndSwap(curHeight, newHeight)
+		curHeight = m.syncHeight.Load()
+	}
+}
+
 // SyncHeight returns latest known block being synced to.
 func (m *SyncManager) SyncHeight() int64 {
-	m.syncHeightMtx.Lock()
-	syncHeight := m.syncHeight
-	m.syncHeightMtx.Unlock()
-	return syncHeight
+	return m.syncHeight.Load()
 }
 
 // chainBlockLocatorToHashes converts a block locator from chain to a slice
@@ -616,11 +634,7 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 
 	// Update the sync height when it is higher than the currently best known
 	// value.
-	m.syncHeightMtx.Lock()
-	if syncHeight > m.syncHeight {
-		m.syncHeight = syncHeight
-	}
-	m.syncHeightMtx.Unlock()
+	m.maybeUpdateSyncHeight(syncHeight)
 
 	// Start the header sync progress stall timeout.
 	m.hdrSyncState.resetStallTimeout()
@@ -1037,12 +1051,7 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// known value and it extends the main chain.
 	onMainChain := forkLen == 0
 	if onMainChain {
-		m.syncHeightMtx.Lock()
-		blockHeight := int64(block.MsgBlock().Header.Height)
-		if blockHeight > m.syncHeight {
-			m.syncHeight = blockHeight
-		}
-		m.syncHeightMtx.Unlock()
+		m.maybeUpdateSyncHeight(int64(block.MsgBlock().Header.Height))
 	}
 
 	m.isCurrentMtx.Lock()
@@ -1116,9 +1125,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// was just rejected.
 		if isBlockForBestHeader {
 			_, newBestHeaderHeight := chain.BestHeader()
-			m.syncHeightMtx.Lock()
-			m.syncHeight = newBestHeaderHeight
-			m.syncHeightMtx.Unlock()
+			m.syncHeight.Store(newBestHeaderHeight)
 
 			m.isCurrentMtx.Lock()
 			m.maybeUpdateIsCurrent()
@@ -1402,9 +1409,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// peer.
 			if peer == m.syncPeer && !headersSynced {
 				_, newBestHeaderHeight := chain.BestHeader()
-				m.syncHeightMtx.Lock()
-				m.syncHeight = newBestHeaderHeight
-				m.syncHeightMtx.Unlock()
+				m.syncHeight.Store(newBestHeaderHeight)
 			}
 
 			// Note that there is no need to check for an orphan header here
@@ -1443,13 +1448,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	m.maybeUpdateBestAnnouncedBlock(peer, finalReceivedHash, finalHeader)
 
 	// Update the sync height if the new best known header height exceeds it.
-	syncHeight := m.SyncHeight()
-	if newBestHeaderHeight > syncHeight {
-		syncHeight = newBestHeaderHeight
-		m.syncHeightMtx.Lock()
-		m.syncHeight = syncHeight
-		m.syncHeightMtx.Unlock()
-	}
+	m.maybeUpdateSyncHeight(newBestHeaderHeight)
 
 	// Disconnect outbound peers that have less cumulative work than the minimum
 	// value already known to have been achieved on the network a priori while
@@ -1485,7 +1484,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// final header that is within a few blocks of the sync height.
 	if !headersSynced && peer == m.syncPeer {
 		const syncHeightFetchOffset = 6
-		if int64(finalHeader.Height)+syncHeightFetchOffset > syncHeight {
+		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
 			m.hdrSyncState.headersSynced = headersSynced
 			m.hdrSyncState.stopStallTimeout()
@@ -2227,7 +2226,7 @@ func New(config *Config) *SyncManager {
 		minKnownWork = new(uint256.Uint256).SetBig(minKnownWorkBig)
 	}
 
-	return &SyncManager{
+	mgr := &SyncManager{
 		cfg:              *config,
 		rejectedTxns:     apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
 		rejectedMixMsgs:  apbf.NewFilter(maxRejectedMixMsgs, rejectedMixMsgsFPRate),
@@ -2240,7 +2239,8 @@ func New(config *Config) *SyncManager {
 		progressLogger:   progresslog.New("Processed", log),
 		msgChan:          make(chan interface{}, config.MaxPeers*3),
 		quit:             make(chan struct{}),
-		syncHeight:       config.Chain.BestSnapshot().Height,
 		isCurrent:        config.Chain.IsCurrent(),
 	}
+	mgr.syncHeight.Store(config.Chain.BestSnapshot().Height)
+	return mgr
 }
