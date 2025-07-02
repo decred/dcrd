@@ -106,11 +106,6 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// peerConnectedMsg signifies a newly connected peer to the event handler.
-type peerConnectedMsg struct {
-	peer *Peer
-}
-
 // blockMsg packages a Decred block message and the peer it came from together
 // so the event handler has access to that information.
 type blockMsg struct {
@@ -453,6 +448,19 @@ type SyncManager struct {
 	nextNeededBlocks []chainhash.Hash
 }
 
+// shutdownRequested returns true when the context used to run the sync manager
+// has been canceled.  This simplifies checking for shutdown slightly since the
+// caller can just use an if statement instead of a select.
+func (m *SyncManager) shutdownRequested() bool {
+	select {
+	case <-m.quit:
+		return true
+	default:
+	}
+
+	return false
+}
+
 // maybeUpdateSyncHeight atomically sets [m.syncHeight] to the provided value
 // when it is greater than its current value.
 //
@@ -725,16 +733,15 @@ func (m *SyncManager) onInitialChainSyncDone() {
 	m.peersMtx.Unlock()
 }
 
-// handlePeerConnectedMsg deals with new peers that have signalled they may
-// be considered as a sync peer (they have already successfully negotiated).  It
-// also starts syncing if needed.  It is invoked from the eventHandler goroutine.
-func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
-	select {
-	case <-ctx.Done():
-	default:
+// OnPeerConnected should be invoked with peers that have already gone through
+// version negotiation and passed other initial validation checks that determine
+// it is suitable for participation in staying synced with the network.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnPeerConnected(peer *Peer) {
+	if m.shutdownRequested() {
+		return
 	}
-
-	log.Infof("New valid peer %s (%s)", peer, peer.UserAgent())
 
 	m.peersMtx.Lock()
 	m.peers[peer] = struct{}{}
@@ -1836,9 +1843,6 @@ out:
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
-			case *peerConnectedMsg:
-				m.handlePeerConnectedMsg(ctx, msg.peer)
-
 			case *txMsg:
 				m.handleTxMsg(msg)
 				select {
@@ -1934,14 +1938,6 @@ out:
 	}
 
 	log.Trace("Sync manager event handler done")
-}
-
-// PeerConnected informs the sync manager of a newly active peer.
-func (m *SyncManager) PeerConnected(peer *Peer) {
-	select {
-	case m.msgChan <- &peerConnectedMsg{peer: peer}:
-	case <-m.quit:
-	}
 }
 
 // OnTx adds the passed transaction message and peer to the event handling

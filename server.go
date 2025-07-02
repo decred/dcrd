@@ -2554,7 +2554,8 @@ func (s *server) AddPeer(sp *serverPeer) {
 	// Signal the net sync manager this peer is a new sync candidate unless it
 	// was disconnected above.
 	if sp.Connected() {
-		s.syncManager.PeerConnected(sp.syncMgrPeer)
+		srvrLog.Infof("New valid peer %s (%s)", sp, sp.UserAgent())
+		s.syncManager.OnPeerConnected(sp.syncMgrPeer)
 	}
 }
 
