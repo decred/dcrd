@@ -305,8 +305,25 @@ func (peer *Peer) maybeRequestInitialState(includeMiningState bool) {
 // headerSyncState houses the state used to track the header sync progress and
 // related stall handling.
 type headerSyncState struct {
+	// This mutex is used to protect the overall state transition from the
+	// initial headers sync mode to the initial chain sync mode.
+	sync.Mutex
+
 	// headersSynced tracks whether or not the headers are synced to a point
 	// that is recent enough to start downloading blocks.
+	//
+	// Note that it is an atomic as opposed to a plain boolean flag in order to
+	// provide a fast path once the initial headers sync is done.
+	//
+	// However, the state transition itself, which includes updating this flag
+	// to true, is protected by the slower embedded mutex.  In other words, care
+	// is required to ensure there are no logic races before the flag is set,
+	// but once it is set, callers can safely rely on it without needing the
+	// slower mutex.
+	//
+	// This approach provides a nice performance boost because the initial
+	// header sync process is only active for a short period, but its status is
+	// needed continuously, such as for every new header.
 	headersSynced atomic.Bool
 
 	// stallTimer is used to implement a progress stall timeout that can be
@@ -1394,8 +1411,26 @@ func (m *SyncManager) headerSyncProgress() float64 {
 // onInitialHeaderSyncDone is invoked when the initial header sync process
 // completes.
 //
-// This function is safe for concurrent access.
+// This function MUST be called with the header sync state mutex held (writes).
 func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64) {
+	m.hdrSyncState.StopStallTimeout()
+
+	// This method is typically only called once in practice currently due to
+	// the way the sync process is handled, but that might change in the future
+	// if parallel header syncing is implemented.  Be cautious and prevent
+	// multiple invocations just in case.
+	//
+	// Check the atomic flag again under the slower mutex to prevent possible
+	// logic races during the transition from the initial headers sync mode to
+	// the initial chain sync mode.
+	//
+	// A sync.Once is not used because other code needs to make decisions based
+	// on the flag.
+	if m.hdrSyncState.InitialHeaderSyncDone() {
+		return
+	}
+	m.hdrSyncState.headersSynced.Store(true)
+
 	log.Infof("Initial headers sync complete (best header hash %s, height %d)",
 		hash, height)
 	log.Info("Performing initial chain sync...")
@@ -1616,9 +1651,6 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		blkLocator := chain.BlockLocatorFromHash(finalReceivedHash)
 		locator := chainBlockLocatorToHashes(blkLocator)
 		peer.PushGetHeadersMsg(locator, &zeroHash)
-
-		m.progressLogger.LogHeaderProgress(uint64(len(headers)), headersSynced,
-			m.headerSyncProgress)
 	}
 
 	// Consider the headers synced once the sync peer sends a message with a
@@ -1627,17 +1659,20 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		const syncHeightFetchOffset = 6
 		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
-			m.hdrSyncState.headersSynced.Store(headersSynced)
-			m.hdrSyncState.StopStallTimeout()
 
+			m.hdrSyncState.Lock()
 			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
 				headersSynced, m.headerSyncProgress)
 			m.onInitialHeaderSyncDone(&newBestHeaderHash, newBestHeaderHeight)
+			m.hdrSyncState.Unlock()
 
 			// Update the local var that tracks whether the chain believes it is
 			// current since it might have been updated now that the headers are
 			// synced.
 			isChainCurrent = chain.IsCurrent()
+		} else {
+			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
+				headersSynced, m.headerSyncProgress)
 		}
 	}
 
