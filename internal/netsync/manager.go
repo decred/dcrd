@@ -402,8 +402,12 @@ type SyncManager struct {
 
 	// The following fields are used to track the current sync peer.  The peer
 	// is protected by the associated mutex.
-	syncPeerMtx sync.Mutex
-	syncPeer    *Peer
+	//
+	// warnOnNoSync is used to track whether or not a warning should be logged
+	// when there is no suitable sync peer.
+	syncPeerMtx  sync.Mutex
+	syncPeer     *Peer
+	warnOnNoSync bool
 
 	// The following fields are used to track the peers available to the sync
 	// manager.  The map is protected by the associated mutex.
@@ -618,16 +622,31 @@ func isSyncPeerCandidate(peer *Peer, bestHeight int64) bool {
 }
 
 // updateSyncPeerState updates the sync peer to be the peer that is both a sync
-// candidate and has the highest known block height.
+// candidate and has the highest known block height and updates the state of
+// whether or not the manager believes the chain is fully synced to whatever the
+// chain believes when there are no suitable candidates.
+//
+// It also potentially warns when no suitable candidate is found depending on
+// various factors such as whether or not a warning has already been shown since
+// the last time there was a valid sync peer.
 //
 // This function MUST be called with the sync peer mutex held (writes).
-func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
-	// Determine the best sync peer.
+func (m *SyncManager) updateSyncPeerState() {
+	chain := m.cfg.Chain
+	_, bestHeaderHeight := chain.BestHeader()
+
+	// Determine the best sync peer and number of outbound peers.
 	var bestPeer *Peer
+	var numOutbound uint64
 	m.peersMtx.Lock()
 	for peer := range m.peers {
+		// Tally total number of outbound peers.
+		if !peer.Inbound() {
+			numOutbound++
+		}
+
 		// Skip peers that are not sync candidates.
-		if !isSyncPeerCandidate(peer, bestHeight) {
+		if !isSyncPeerCandidate(peer, bestHeaderHeight) {
 			continue
 		}
 
@@ -637,30 +656,69 @@ func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 		}
 	}
 	m.peersMtx.Unlock()
+
+	// Update the state of whether or not the manager believes the chain is
+	// fully synced to whatever the chain believes and return after potentially
+	// logging a warning when there is not a suitable candidate since there is
+	// nothing more to do without one.
+	if bestPeer == nil {
+		m.isCurrent.Store(chain.IsCurrent())
+
+		// A sync peer already being assigned prior to calling implies it was
+		// disconnected or otherwise is no longer a suitable candidate.  On the
+		// other hand, no sync peer assigned implies there were no suitable
+		// candidates at all.
+		//
+		// The latter case is expected to happen and thus is only something
+		// worthy of a warning when the max expected number of outbound
+		// connections has been reached.
+		hadSyncPeer := m.syncPeer != nil
+		hasMaxOutbound := numOutbound >= m.cfg.MaxOutboundPeers
+		if m.warnOnNoSync && (hadSyncPeer || hasMaxOutbound) {
+			log.Warnf("No sync peer candidates available")
+			m.warnOnNoSync = false
+		}
+	} else {
+		// Ensure future warnings are eligible to be shown when no sync peer
+		// candidates are available.
+		m.warnOnNoSync = true
+	}
+
 	m.syncPeer = bestPeer
 }
 
-// startInitialHeaderSync starts the initial header sync process which consists
-// of downloading all headers that are not already known from the sync peer. As
-// the name implies, this assumes the initial header sync process is not already
-// done.
+// startInitialHeaderSync attempts to find the best header sync candidate and,
+// so long as one is found, saves it as the sync peer and starts or continues
+// the initial header sync process with it.
 //
-// This function MUST be called with the sync peer mutex held (reads).
-func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
-	hdrSyncPeer := m.syncPeer
-	syncHeight := hdrSyncPeer.LastBlock()
-	log.Infof("Syncing headers to block height %d from peer %v", syncHeight,
-		hdrSyncPeer)
+// The initial header sync process consists of downloading all headers that are
+// not already known from the sync peer.  As the name implies, this assumes the
+// initial header sync process is not already done.
+//
+// This function MUST be called with the sync peer mutex held (writes).
+func (m *SyncManager) startInitialHeaderSync() {
+	// Attempt to find and set the best header sync peer candidate and return if
+	// no suitable candidates were found since there is nothing more to do
+	// without one.
+	m.updateSyncPeerState()
+	if m.syncPeer == nil {
+		return
+	}
 
-	// The chain is not synced whenever the current best height is not within a
-	// couple of blocks of the height to sync to.
+	syncHeight := m.syncPeer.LastBlock()
+	log.Infof("Syncing headers to block height %d from peer %v", syncHeight,
+		m.syncPeer)
+
+	// The chain is not synced whenever the current best chain height is not
+	// within a couple of blocks of the height to sync to.
+	bestHeight := m.cfg.Chain.BestSnapshot().Height
 	if bestHeight+2 < syncHeight {
 		m.isCurrent.Store(false)
 	}
 
 	// Request headers starting from the parent of the best known header for the
 	// local chain from the sync peer.
-	m.fetchNextHeaders(hdrSyncPeer)
+	m.fetchNextHeaders(m.syncPeer)
 
 	// Update the sync height when it is higher than the currently best known
 	// value.
@@ -670,48 +728,27 @@ func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
 	m.hdrSyncState.ResetStallTimeout()
 }
 
-// startSync updates sync peer candidacy and kicks off the blockchain sync
-// process depending on the current overall sync state.
-//
-// When the initial header sync process has not been completed, it selects the
-// peer with the most blocks and begins to download the blockchain headers from
-// it.
-//
-// On the other hand, when the initial header sync process is complete, it
-// starts downloading any outstanding blocks that are still needed.
+// startChainSync attempts to find a peer to sync the chain from and, so long as
+// one is found, saves it as the sync peer and starts or continues the
+// blockchain sync process with it.
 //
 // This function MUST be called with the sync peer mutex held (writes).
-func (m *SyncManager) startSync(bestHeight int64) {
-	// Update sync peer candidacy and determine the best sync peer.
-	m.updateSyncPeerState(bestHeight)
-
-	// Update the state of whether or not the manager believes the chain is
-	// fully synced to whatever the chain believes when there is no candidate
-	// for a sync peer.
-	//
-	// Also, return now when there isn't a sync peer candidate as there is
-	// nothing more to do without one.
+func (m *SyncManager) startChainSync() {
+	// Attempt to find and set the best sync peer candidate and return if no
+	// suitable candidates were found since there is nothing more to do without
+	// one.
+	m.updateSyncPeerState()
 	if m.syncPeer == nil {
-		m.isCurrent.Store(m.cfg.Chain.IsCurrent())
-		log.Warnf("No sync peer candidates available")
 		return
 	}
 
-	// Perform the initial header sync process as needed.
-	headersSynced := m.hdrSyncState.InitialHeaderSyncDone()
-	if !headersSynced {
-		m.startInitialHeaderSync(bestHeight)
-	}
-
-	// Download any blocks needed to catch the local chain up to the best
-	// known header (if any) when the initial headers sync is already done.
+	// Download any blocks needed to catch the local chain up to the best known
+	// header (if any).
 	//
-	// This is done in addition to the header request above to avoid waiting
-	// for the round trip when there are still blocks that are needed
-	// regardless of the headers response.
-	if headersSynced {
-		m.fetchNextBlocks(m.syncPeer)
-	}
+	// This is done to avoid waiting for a round trip on header discovery when
+	// there are still blocks that are needed regardless of the headers
+	// response.
+	m.fetchNextBlocks(m.syncPeer)
 }
 
 // onInitialChainSyncDone is invoked when the initial chain sync process
@@ -744,6 +781,28 @@ func (m *SyncManager) OnPeerConnected(peer *Peer) {
 	m.peers[peer] = struct{}{}
 	m.peersMtx.Unlock()
 
+	// Attempt to find a peer to sync headers from when there isn't already one
+	// and the initial headers sync process is still in progress.
+	//
+	// Technically, this currently could start the process with the peer that is
+	// connecting if it is a header sync candidate because the only time the
+	// sync peer will not be set due to the current logic is when there are no
+	// other candidates.  However, using the same logic to select a new sync
+	// peer as when the current one disconnects is more consistent and easier to
+	// update if more complex logic is introduced in the future.
+	if !m.hdrSyncState.InitialHeaderSyncDone() {
+		m.syncPeerMtx.Lock()
+		if m.syncPeer == nil {
+			m.startInitialHeaderSync()
+		}
+		m.syncPeerMtx.Unlock()
+		return
+	}
+
+	// -------------------------------------------------------
+	// The initial headers sync process is done at this point.
+	// -------------------------------------------------------
+
 	// Request headers starting from the parent of the best known header for the
 	// local chain immediately when the initial headers sync process is complete
 	// and the peer potentially serves useful data.
@@ -755,15 +814,15 @@ func (m *SyncManager) OnPeerConnected(peer *Peer) {
 	//
 	// Note that the parent is used because the request would otherwise result
 	// in an empty response when both the local and remote tips are the same.
-	if peer.servesData && m.hdrSyncState.InitialHeaderSyncDone() {
+	if peer.servesData {
 		m.fetchNextHeaders(peer)
 	}
 
-	// Start syncing by choosing the best candidate if needed.
-	bestHeight := m.cfg.Chain.BestSnapshot().Height
+	// Attempt to find a sync peer and start syncing the chain from it when
+	// there isn't already one.
 	m.syncPeerMtx.Lock()
-	if m.syncPeer == nil && isSyncPeerCandidate(peer, bestHeight) {
-		m.startSync(bestHeight)
+	if m.syncPeer == nil {
+		m.startChainSync()
 	}
 	m.syncPeerMtx.Unlock()
 
@@ -790,6 +849,25 @@ func (m *SyncManager) OnPeerDisconnected(peer *Peer) {
 	m.peersMtx.Lock()
 	delete(m.peers, peer)
 	m.peersMtx.Unlock()
+
+	// Attempt to find a new peer to sync headers from when the quitting peer is
+	// the sync peer and the initial headers sync process is still in progress.
+	//
+	// Also, skip the rest of the logic below before the headers are synced
+	// since no requests for the data being checked are made prior to that point
+	// nor can the chain sync be started.
+	if !m.hdrSyncState.InitialHeaderSyncDone() {
+		m.syncPeerMtx.Lock()
+		if m.syncPeer == peer {
+			m.startInitialHeaderSync()
+		}
+		m.syncPeerMtx.Unlock()
+		return
+	}
+
+	// -------------------------------------------------------
+	// The initial headers sync process is done at this point.
+	// -------------------------------------------------------
 
 	// Re-request in-flight blocks and transactions that were not received by
 	// the disconnected peer if the data was announced by another peer.  Remove
@@ -877,12 +955,11 @@ MixHashes:
 		}
 	}
 
-	// Attempt to find a new peer to sync from when the quitting peer is the
-	// sync peer.
+	// Attempt to find a new peer to sync the chain from when the quitting peer
+	// is the sync peer.
 	m.syncPeerMtx.Lock()
 	if m.syncPeer == peer {
-		m.syncPeer = nil
-		m.startSync(m.cfg.Chain.BestSnapshot().Height)
+		m.startChainSync()
 	}
 	m.syncPeerMtx.Unlock()
 }
@@ -2262,6 +2339,10 @@ type Config struct {
 	// believed to be fully synced.
 	NoMiningStateSync bool
 
+	// MaxOutboundPeers specifies the maximum number of outbound peer the server
+	// is expected to be connected with.
+	MaxOutboundPeers uint64
+
 	// MaxPeers specifies the maximum number of peers the server is expected to
 	// be connected with.  It is primarily used as a hint for more efficient
 	// synchronization.
@@ -2301,6 +2382,7 @@ func New(config *Config) *SyncManager {
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]*Peer),
 		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		warnOnNoSync:     true,
 		peers:            make(map[*Peer]struct{}),
 		minKnownWork:     minKnownWork,
 		hdrSyncState:     makeHeaderSyncState(),

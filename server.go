@@ -4054,6 +4054,10 @@ func newServer(ctx context.Context, profiler *profileServer,
 	mixchain := &mixpoolChain{s.chain, s.txMemPool}
 	s.mixMsgPool = mixpool.NewPool(mixchain)
 
+	targetOutbound := defaultTargetOutbound
+	if cfg.MaxPeers < targetOutbound {
+		targetOutbound = cfg.MaxPeers
+	}
 	s.syncManager = netsync.New(&netsync.Config{
 		PeerNotifier:          &s,
 		Chain:                 s.chain,
@@ -4061,6 +4065,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 		TimeSource:            s.timeSource,
 		TxMemPool:             s.txMemPool,
 		NoMiningStateSync:     cfg.NoMiningStateSync,
+		MaxOutboundPeers:      uint64(targetOutbound),
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,
 		RecentlyConfirmedTxns: s.recentlyConfirmedTxns,
