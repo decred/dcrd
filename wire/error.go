@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -214,7 +214,6 @@ func (e ErrorCode) Error() string {
 // - The target is a *MessageError and the error codes match
 // - The target is an ErrorCode and it the error codes match
 func (e ErrorCode) Is(target error) bool {
-	// nolint: errorlint
 	switch target := target.(type) {
 	case *MessageError:
 		return e == target.ErrorCode
@@ -258,7 +257,6 @@ func messageError(funcName string, c ErrorCode, desc string) *MessageError {
 // - The target is a *MessageError and the error codes match
 // - The target is an ErrorCode and it the error codes match
 func (m *MessageError) Is(target error) bool {
-	// nolint: errorlint
 	switch target := target.(type) {
 	case *MessageError:
 		return m.ErrorCode == target.ErrorCode

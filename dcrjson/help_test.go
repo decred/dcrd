@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -172,7 +172,7 @@ func TestHelpReflectInternals(t *testing.T) {
 			name: "array of struct indent level 0",
 			reflectType: func() reflect.Type {
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field int
 				}
 				return reflect.TypeOf([]s{})
@@ -192,7 +192,7 @@ func TestHelpReflectInternals(t *testing.T) {
 			name: "array of struct indent level 1",
 			reflectType: func() reflect.Type {
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field int
 				}
 				return reflect.TypeOf([]s{})
@@ -310,7 +310,7 @@ func TestResultStructHelp(t *testing.T) {
 			name: "struct with primitive field",
 			reflectType: func() reflect.Type {
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field int
 				}
 				return reflect.TypeOf(s{})
@@ -335,7 +335,7 @@ func TestResultStructHelp(t *testing.T) {
 			name: "struct with array of primitive field",
 			reflectType: func() reflect.Type {
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field []int
 				}
 				return reflect.TypeOf(s{})
@@ -347,12 +347,12 @@ func TestResultStructHelp(t *testing.T) {
 		{
 			name: "struct with sub-struct field",
 			reflectType: func() reflect.Type {
-				// nolint: structcheck, unused
+				// nolint: unused
 				type s2 struct {
 					subField int
 				}
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field s2
 				}
 				return reflect.TypeOf(s{})
@@ -367,12 +367,12 @@ func TestResultStructHelp(t *testing.T) {
 		{
 			name: "struct with sub-struct field pointer",
 			reflectType: func() reflect.Type {
-				// nolint: structcheck, unused
+				// nolint: unused
 				type s2 struct {
 					subField int
 				}
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field *s2
 				}
 				return reflect.TypeOf(s{})
@@ -387,12 +387,12 @@ func TestResultStructHelp(t *testing.T) {
 		{
 			name: "struct with array of structs field",
 			reflectType: func() reflect.Type {
-				// nolint: structcheck, unused
+				// nolint: unused
 				type s2 struct {
 					subField int
 				}
 				type s struct {
-					// nolint: structcheck, unused
+					// nolint: unused
 					field []s2
 				}
 				return reflect.TypeOf(s{})

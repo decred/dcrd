@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -124,7 +124,7 @@ type SharedSecrets struct {
 	DCSecrets [][]wire.MixVect
 }
 
-// SharedKeys creates the pairwise SR and DC shared secret keys for
+// SharedSecrets creates the pairwise SR and DC shared secret keys for
 // mcounts[k.MyIndex] mixes.  ecdhPubs, cts, and mcounts must all share the same
 // slice length.
 func (kx *KX) SharedSecrets(k *RevealedKeys, sid []byte, run uint32, mcounts []uint32) (SharedSecrets, error) {

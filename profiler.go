@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	_ "net/http/pprof" // nolint:gosec
+	_ "net/http/pprof"
 	"net/netip"
 	"strconv"
 	"sync"
