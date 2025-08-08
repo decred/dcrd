@@ -8,13 +8,11 @@ package netsync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/container/apbf"
@@ -2062,116 +2060,63 @@ func (m *SyncManager) SyncPeerID() int32 {
 // the peer is not banned for sending unrequested data when it responds.
 //
 // This function is safe for concurrent access.
-func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
-	tSpendHashes []chainhash.Hash) error {
-
+func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes, tSpendHashes []chainhash.Hash) {
 	if m.shutdownRequested() {
-		return nil
+		return
 	}
 
 	defer m.requestMtx.Unlock()
 	m.requestMtx.Lock()
 
-	// Add the blocks to the request.
+	// Request as many needed blocks as possible at once.
+	var numRequested uint32
 	gdMsg := wire.NewMsgGetData()
 	for i := range blocks {
-		// Skip the block when it has already been requested.
-		bh := &blocks[i]
-		if m.isRequestedBlock(bh) {
+		// Skip the block when it has already been requested or is already
+		// known.
+		blockHash := &blocks[i]
+		if m.isRequestedBlock(blockHash) || m.cfg.Chain.HaveBlock(blockHash) {
 			continue
 		}
 
-		// Skip the block when it is already known.
-		if m.cfg.Chain.HaveBlock(bh) {
-			continue
+		gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, blockHash))
+		m.requestedBlocks[*blockHash] = peer
+		numRequested++
+		if numRequested == wire.MaxInvPerMsg {
+			// Send full getdata message and reset.
+			peer.QueueMessage(gdMsg, nil)
+			gdMsg = wire.NewMsgGetData()
+			numRequested = 0
 		}
-
-		err := gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
-		if err != nil {
-			return fmt.Errorf("unexpected error encountered building request "+
-				"for block %v: %w", bh, err)
-		}
-
-		m.requestedBlocks[*bh] = peer
 	}
 
-	addTxsToRequest := func(hashes []chainhash.Hash, txType stake.TxType) error {
-		// Return immediately if txs is nil.
-		if hashes == nil {
-			return nil
-		}
-
+	// Request as many needed votes and treasury spend transactions as possible
+	// at once.
+	for _, hashes := range [][]chainhash.Hash{voteHashes, tSpendHashes} {
 		for i := range hashes {
-			// Skip the transaction when it has already been requested.
+			// Skip the transaction when it has already been requested or is
+			// otherwise not needed.
 			txHash := &hashes[i]
-			if _, ok := m.requestedTxns[*txHash]; ok {
+			_, alreadyRequested := m.requestedTxns[*txHash]
+			if alreadyRequested || !m.needTx(txHash) {
 				continue
 			}
 
-			// Ask the transaction memory pool if the transaction is known
-			// to it in any form (main pool or orphan).
-			if m.cfg.TxMemPool.HaveTransaction(txHash) {
-				continue
-			}
-
-			// Check if the transaction exists from the point of view of the main
-			// chain tip.  Note that this is only a best effort since it is expensive
-			// to check existence of every output and the only purpose of this check
-			// is to avoid requesting already known transactions.
-			//
-			// Check for a specific outpoint based on the tx type.
-			outpoint := wire.OutPoint{Hash: *txHash}
-			switch txType {
-			case stake.TxTypeSSGen:
-				// The first two outputs of vote transactions are OP_RETURN <data>, and
-				// therefore never exist as an unspent txo.  Use the third output, as
-				// the third output (and subsequent outputs) are OP_SSGEN outputs.
-				outpoint.Index = 2
-				outpoint.Tree = wire.TxTreeStake
-			case stake.TxTypeTSpend:
-				// The first output of a tSpend transaction is OP_RETURN <data>, and
-				// therefore never exists as an unspent txo.  Use the second output, as
-				// the second output (and subsequent outputs) are OP_TGEN outputs.
-				outpoint.Index = 1
-				outpoint.Tree = wire.TxTreeStake
-			}
-			entry, err := m.cfg.Chain.FetchUtxoEntry(outpoint)
-			if err != nil {
-				return err
-			}
-			if entry != nil {
-				continue
-			}
-
-			err = gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, txHash))
-			if err != nil {
-				return fmt.Errorf("unexpected error encountered building request "+
-					"for tx %v: %w", txHash, err)
-			}
-
+			gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, txHash))
 			m.requestedTxns[*txHash] = peer
+			numRequested++
+			if numRequested == wire.MaxInvPerMsg {
+				// Send full getdata message and reset.
+				peer.QueueMessage(gdMsg, nil)
+				gdMsg = wire.NewMsgGetData()
+				numRequested = 0
+			}
 		}
-
-		return nil
-	}
-
-	// Add the vote transactions to the request.
-	err := addTxsToRequest(voteHashes, stake.TxTypeSSGen)
-	if err != nil {
-		return err
-	}
-
-	// Add the tspend transactions to the request.
-	err = addTxsToRequest(tSpendHashes, stake.TxTypeTSpend)
-	if err != nil {
-		return err
 	}
 
 	if len(gdMsg.InvList) > 0 {
 		peer.QueueMessage(gdMsg, nil)
 	}
-
-	return nil
 }
 
 // RequestMixMsgFromPeer requests the specified mix message from the given peer.
