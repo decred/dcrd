@@ -123,12 +123,6 @@ type Peer struct {
 	// requested from the peer once.
 	requestInitialStateOnce sync.Once
 
-	// These fields track pending requests for data from the peer.  They are
-	// owned by the sync manager and protected by its request mutex.
-	requestedTxns    map[chainhash.Hash]struct{}
-	requestedBlocks  map[chainhash.Hash]struct{}
-	requestedMixMsgs map[chainhash.Hash]struct{}
-
 	// numConsecutiveOrphanHeaders tracks the number of consecutive header
 	// messages sent by the peer that contain headers which do not connect.  It
 	// is used to detect peers that have either diverged so far they are no
@@ -164,11 +158,8 @@ type Peer struct {
 func NewPeer(peer *peerpkg.Peer) *Peer {
 	servesData := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
-		Peer:             peer,
-		servesData:       servesData,
-		requestedTxns:    make(map[chainhash.Hash]struct{}),
-		requestedBlocks:  make(map[chainhash.Hash]struct{}),
-		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		Peer:       peer,
+		servesData: servesData,
 	}
 }
 
@@ -325,9 +316,9 @@ type SyncManager struct {
 	// These fields track pending requests for data from all peers.  They are
 	// protected by the request mutex.
 	requestMtx       sync.Mutex
-	requestedTxns    map[chainhash.Hash]struct{}
+	requestedTxns    map[chainhash.Hash]*Peer
 	requestedBlocks  map[chainhash.Hash]*Peer
-	requestedMixMsgs map[chainhash.Hash]struct{}
+	requestedMixMsgs map[chainhash.Hash]*Peer
 
 	// The following fields are used to track the current sync peer.  The peer
 	// is protected by the associated mutex.
@@ -467,6 +458,33 @@ func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 	return ok
 }
 
+// isRequestedBlockFromPeer returns whether or not the given block hash has been
+// requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedBlockFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedBlocks[*hash]
+	return ok && requestedFrom == peer
+}
+
+// isRequestedTxFromPeer returns whether or not the given transaction hash has
+// been requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedTxFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedTxns[*hash]
+	return ok && requestedFrom == peer
+}
+
+// isRequestedMixMsgFromPeer returns whether or not the given mix message hash
+// has been requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedMixMsgFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedMixMsgs[*hash]
+	return ok && requestedFrom == peer
+}
+
 // fetchNextBlocks creates and sends a request to the provided peer for the next
 // blocks to be downloaded based on the current headers.
 //
@@ -474,8 +492,14 @@ func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	// Nothing to do if the target maximum number of blocks to request from the
 	// peer at the same time are already in flight.
+	var numInFlight int
 	m.requestMtx.Lock()
-	numInFlight := len(peer.requestedBlocks)
+	for _, requestedFrom := range m.requestedBlocks {
+		if requestedFrom != peer {
+			continue
+		}
+		numInFlight++
+	}
 	m.requestMtx.Unlock()
 	if numInFlight >= maxInFlightBlocks {
 		return
@@ -515,7 +539,6 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 
 		iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 		m.requestedBlocks[*hash] = peer
-		peer.requestedBlocks[*hash] = struct{}{}
 		gdmsg.AddInvVect(iv)
 	}
 	m.requestMtx.Unlock()
@@ -830,7 +853,10 @@ func (m *SyncManager) OnPeerDisconnected(peer *Peer) {
 	inv.Type = wire.InvTypeTx
 	m.requestMtx.Lock()
 TxHashes:
-	for txHash := range peer.requestedTxns {
+	for txHash, requestedFrom := range m.requestedTxns {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = txHash
 		m.peersMtx.Lock()
 		for pp := range m.peers {
@@ -838,7 +864,7 @@ TxHashes:
 				continue
 			}
 			requestQueues[pp] = append(requestQueues[pp], inv)
-			pp.requestedTxns[txHash] = struct{}{}
+			m.requestedTxns[txHash] = pp
 			m.peersMtx.Unlock()
 			continue TxHashes
 		}
@@ -848,7 +874,10 @@ TxHashes:
 	}
 	inv.Type = wire.InvTypeBlock
 BlockHashes:
-	for blockHash := range peer.requestedBlocks {
+	for blockHash, requestedFrom := range m.requestedBlocks {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = blockHash
 		m.peersMtx.Lock()
 		for pp := range m.peers {
@@ -856,7 +885,7 @@ BlockHashes:
 				continue
 			}
 			requestQueues[pp] = append(requestQueues[pp], inv)
-			pp.requestedBlocks[blockHash] = struct{}{}
+			m.requestedBlocks[blockHash] = pp
 			m.peersMtx.Unlock()
 			continue BlockHashes
 		}
@@ -866,7 +895,10 @@ BlockHashes:
 	}
 	inv.Type = wire.InvTypeMix
 MixHashes:
-	for mixHash := range peer.requestedMixMsgs {
+	for mixHash, requestedFrom := range m.requestedMixMsgs {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = mixHash
 		m.peersMtx.Lock()
 		for pp := range m.peers {
@@ -874,7 +906,7 @@ MixHashes:
 				continue
 			}
 			requestQueues[pp] = append(requestQueues[pp], inv)
-			pp.requestedMixMsgs[mixHash] = struct{}{}
+			m.requestedMixMsgs[mixHash] = pp
 			m.peersMtx.Unlock()
 			continue MixHashes
 		}
@@ -969,7 +1001,6 @@ func (m *SyncManager) OnTx(peer *Peer, tx *dcrutil.Tx) []*dcrutil.Tx {
 	// instances of trying to fetch it, or we failed to insert and thus
 	// we'll retry next time we get an inv.
 	m.requestMtx.Lock()
-	delete(peer.requestedTxns, *txHash)
 	delete(m.requestedTxns, *txHash)
 	m.requestMtx.Unlock()
 
@@ -1034,7 +1065,6 @@ func (m *SyncManager) OnMixMsg(peer *Peer, msg mixing.Message) ([]mixing.Message
 	// to fetch it, or we failed to insert and thus we'll retry next time
 	// we get an inv.
 	m.requestMtx.Lock()
-	delete(peer.requestedMixMsgs, mixHash)
 	delete(m.requestedMixMsgs, mixHash)
 	m.requestMtx.Unlock()
 
@@ -1191,9 +1221,9 @@ func (m *SyncManager) OnBlock(peer *Peer, block *dcrutil.Block) {
 	// The remote peer is misbehaving when the block was not requested.
 	blockHash := block.Hash()
 	m.requestMtx.Lock()
-	_, exists := peer.requestedBlocks[*blockHash]
+	requested := m.isRequestedBlockFromPeer(peer, blockHash)
 	m.requestMtx.Unlock()
-	if !exists {
+	if !requested {
 		log.Warnf("Got unrequested block %v from %s -- disconnecting",
 			blockHash, peer)
 		peer.Disconnect()
@@ -1211,7 +1241,6 @@ func (m *SyncManager) OnBlock(peer *Peer, block *dcrutil.Block) {
 	// maps in order to help prevent duplicate requests.
 	forkLen, err := m.processBlock(block)
 	m.requestMtx.Lock()
-	delete(peer.requestedBlocks, *blockHash)
 	delete(m.requestedBlocks, *blockHash)
 	m.requestMtx.Unlock()
 	if err != nil {
@@ -1335,7 +1364,7 @@ func (m *SyncManager) OnBlock(peer *Peer, block *dcrutil.Block) {
 	m.syncPeerMtx.Unlock()
 	if isSyncPeer {
 		m.requestMtx.Lock()
-		numInFlight := len(peer.requestedBlocks)
+		numInFlight := len(m.requestedBlocks)
 		m.requestMtx.Unlock()
 		if numInFlight < minInFlightBlocks {
 			m.fetchNextBlocks(peer)
@@ -1717,7 +1746,6 @@ func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
 			}
 
 			m.requestedBlocks[*hash] = peer
-			peer.requestedBlocks[*hash] = struct{}{}
 			iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 			gdmsg.AddInvVect(iv)
 		}
@@ -1760,21 +1788,18 @@ func (m *SyncManager) OnNotFound(peer *Peer, notFound *wire.MsgNotFound) {
 	m.requestMtx.Lock()
 	for _, inv := range notFound.InvList {
 		// Verify the hash was actually announced by the peer before deleting
-		// from the global requested maps.
+		// from the request maps.
 		switch inv.Type {
 		case wire.InvTypeBlock:
-			if _, exists := peer.requestedBlocks[inv.Hash]; exists {
-				delete(peer.requestedBlocks, inv.Hash)
+			if m.isRequestedBlockFromPeer(peer, &inv.Hash) {
 				delete(m.requestedBlocks, inv.Hash)
 			}
 		case wire.InvTypeTx:
-			if _, exists := peer.requestedTxns[inv.Hash]; exists {
-				delete(peer.requestedTxns, inv.Hash)
+			if m.isRequestedTxFromPeer(peer, &inv.Hash) {
 				delete(m.requestedTxns, inv.Hash)
 			}
 		case wire.InvTypeMix:
-			if _, exists := peer.requestedMixMsgs[inv.Hash]; exists {
-				delete(peer.requestedMixMsgs, inv.Hash)
+			if m.isRequestedMixMsgFromPeer(peer, &inv.Hash) {
 				delete(m.requestedMixMsgs, inv.Hash)
 			}
 		}
@@ -1885,8 +1910,7 @@ func (m *SyncManager) OnInv(peer *Peer, inv *wire.MsgInv) {
 			// Request the transaction if there is not one already pending.
 			m.requestMtx.Lock()
 			if _, exists := m.requestedTxns[iv.Hash]; !exists {
-				limitAdd(m.requestedTxns, iv.Hash, maxRequestedTxns)
-				limitAdd(peer.requestedTxns, iv.Hash, maxRequestedTxns)
+				limitAdd(m.requestedTxns, iv.Hash, peer, maxRequestedTxns)
 				requestQueue = append(requestQueue, iv)
 			}
 			m.requestMtx.Unlock()
@@ -1910,8 +1934,7 @@ func (m *SyncManager) OnInv(peer *Peer, inv *wire.MsgInv) {
 			// Request the mixing message if it is not already pending.
 			m.requestMtx.Lock()
 			if _, exists := m.requestedMixMsgs[iv.Hash]; !exists {
-				limitAdd(m.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
-				limitAdd(peer.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
+				limitAdd(m.requestedMixMsgs, iv.Hash, peer, maxRequestedMixMsgs)
 				requestQueue = append(requestQueue, iv)
 			}
 			m.requestMtx.Unlock()
@@ -1970,9 +1993,10 @@ func (m *SyncManager) OnInv(peer *Peer, inv *wire.MsgInv) {
 // limitAdd is a helper function for maps that require a maximum limit by
 // evicting a random value if adding the new value would cause it to
 // overflow the maximum allowed.
-func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
-	// Nothing to do if entry is already in the map.
+func limitAdd(m map[chainhash.Hash]*Peer, hash chainhash.Hash, peer *Peer, limit int) {
+	// Replace existing entries.
 	if _, exists := m[hash]; exists {
+		m[hash] = peer
 		return
 	}
 	if len(m)+1 > limit {
@@ -1987,7 +2011,7 @@ func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
 			break
 		}
 	}
-	m[hash] = struct{}{}
+	m[hash] = peer
 }
 
 // stallHandler monitors the header sync process to detect stalls and disconnect
@@ -2066,32 +2090,28 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 		err := gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
-				"for mining state block %v: %w", bh, err)
+				"for block %v: %w", bh, err)
 		}
 
-		peer.requestedBlocks[*bh] = struct{}{}
 		m.requestedBlocks[*bh] = peer
 	}
 
-	addTxsToRequest := func(txs []chainhash.Hash, txType stake.TxType) error {
+	addTxsToRequest := func(hashes []chainhash.Hash, txType stake.TxType) error {
 		// Return immediately if txs is nil.
-		if txs == nil {
+		if hashes == nil {
 			return nil
 		}
 
-		for i := range txs {
-			// If we've already requested this transaction, skip it.
-			tx := &txs[i]
-			_, alreadyReqP := peer.requestedTxns[*tx]
-			_, alreadyReqB := m.requestedTxns[*tx]
-
-			if alreadyReqP || alreadyReqB {
+		for i := range hashes {
+			// Skip the transaction when it has already been requested.
+			txHash := &hashes[i]
+			if _, ok := m.requestedTxns[*txHash]; ok {
 				continue
 			}
 
 			// Ask the transaction memory pool if the transaction is known
 			// to it in any form (main pool or orphan).
-			if m.cfg.TxMemPool.HaveTransaction(tx) {
+			if m.cfg.TxMemPool.HaveTransaction(txHash) {
 				continue
 			}
 
@@ -2101,7 +2121,7 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 			// is to avoid requesting already known transactions.
 			//
 			// Check for a specific outpoint based on the tx type.
-			outpoint := wire.OutPoint{Hash: *tx}
+			outpoint := wire.OutPoint{Hash: *txHash}
 			switch txType {
 			case stake.TxTypeSSGen:
 				// The first two outputs of vote transactions are OP_RETURN <data>, and
@@ -2124,14 +2144,13 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 				continue
 			}
 
-			err = gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
+			err = gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, txHash))
 			if err != nil {
 				return fmt.Errorf("unexpected error encountered building request "+
-					"for mining state vote %v: %w", tx, err)
+					"for tx %v: %w", txHash, err)
 			}
 
-			peer.requestedTxns[*tx] = struct{}{}
-			m.requestedTxns[*tx] = struct{}{}
+			m.requestedTxns[*txHash] = peer
 		}
 
 		return nil
@@ -2150,12 +2169,9 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 	}
 
 	for i := range mixHashes {
-		// If we've already requested this mix message, skip it.
+		// Skip mix messages that have already been requested.
 		mh := &mixHashes[i]
-		_, alreadyReqP := peer.requestedMixMsgs[*mh]
-		_, alreadyReqB := m.requestedMixMsgs[*mh]
-
-		if alreadyReqP || alreadyReqB {
+		if _, ok := m.requestedMixMsgs[*mh]; ok {
 			continue
 		}
 
@@ -2170,8 +2186,7 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 				"for inv vect mix hash %v: %w", mh, err)
 		}
 
-		peer.requestedMixMsgs[*mh] = struct{}{}
-		m.requestedMixMsgs[*mh] = struct{}{}
+		m.requestedMixMsgs[*mh] = peer
 	}
 
 	if len(gdMsg.InvList) > 0 {
@@ -2307,9 +2322,9 @@ func New(config *Config) *SyncManager {
 		cfg:              *config,
 		rejectedTxns:     apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
 		rejectedMixMsgs:  apbf.NewFilter(maxRejectedMixMsgs, rejectedMixMsgsFPRate),
-		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedTxns:    make(map[chainhash.Hash]*Peer),
 		requestedBlocks:  make(map[chainhash.Hash]*Peer),
-		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]*Peer),
 		warnOnNoSync:     true,
 		peers:            make(map[*Peer]struct{}),
 		minKnownWork:     minKnownWork,
