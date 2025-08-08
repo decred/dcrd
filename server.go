@@ -1343,11 +1343,8 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 		}
 	}
 
-	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
+	sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
 		voteHashes, nil)
-	if err != nil {
-		peerLog.Warnf("couldn't handle mining state message: %v", err)
-	}
 }
 
 // OnGetInitState is invoked when a peer receives a getinitstate wire message.
@@ -1429,11 +1426,8 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 // OnInitState is invoked when a peer receives a initstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(_ *peer.Peer, msg *wire.MsgInitState) {
-	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
-		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes)
-	if err != nil {
-		peerLog.Warnf("couldn't handle init state message: %v", err)
-	}
+	sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, msg.BlockHashes,
+		msg.VoteHashes, msg.TSpendHashes)
 }
 
 // OnTx is invoked when a peer receives a tx wire message.  It blocks until the
