@@ -1344,7 +1344,7 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 	}
 
 	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
-		voteHashes, nil, nil)
+		voteHashes, nil)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v", err)
 	}
@@ -1430,7 +1430,7 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(_ *peer.Peer, msg *wire.MsgInitState) {
 	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
-		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes, nil)
+		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}
@@ -1852,9 +1852,8 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 	}
 	var missingOwnPRErr *mixpool.MissingOwnPRError
 	if errors.As(err, &missingOwnPRErr) {
-		mixHashes := []chainhash.Hash{missingOwnPRErr.MissingPR}
-		sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, nil, nil, nil,
-			mixHashes)
+		mixHash := &missingOwnPRErr.MissingPR
+		sp.server.syncManager.RequestMixMsgFromPeer(sp.syncMgrPeer, mixHash)
 		return
 	}
 	if mixpool.IsBannable(err, sp.Services()) {
