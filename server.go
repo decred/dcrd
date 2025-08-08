@@ -700,12 +700,6 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// The following fields are used to synchronize the net sync manager and
-	// server.
-	txProcessed     chan struct{}
-	blockProcessed  chan struct{}
-	mixMsgProcessed chan error
-
 	// peerNa is network address of the peer connected to.
 	peerNa atomic.Pointer[wire.NetAddress]
 
@@ -732,14 +726,11 @@ type serverPeer struct {
 // the caller.
 func newServerPeer(s *server, isPersistent bool) *serverPeer {
 	return &serverPeer{
-		server:          s,
-		persistent:      isPersistent,
-		knownAddresses:  apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
-		quit:            make(chan struct{}),
-		txProcessed:     make(chan struct{}, 1),
-		blockProcessed:  make(chan struct{}, 1),
-		mixMsgProcessed: make(chan error, 1),
-		getDataQueue:    make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
+		server:         s,
+		persistent:     isPersistent,
+		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
+		quit:           make(chan struct{}),
+		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
 
@@ -938,7 +929,7 @@ func (sp *serverPeer) Run() {
 	sp.WaitForDisconnect()
 	srvr := sp.server
 	srvr.DonePeer(sp)
-	srvr.syncManager.PeerDisconnected(sp.syncMgrPeer)
+	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
 
 	if sp.VersionKnown() {
 		// Evict any remaining orphans that were sent by the peer.
@@ -1353,7 +1344,7 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 	}
 
 	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, blockHashes,
-		voteHashes, nil, nil)
+		voteHashes, nil)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v", err)
 	}
@@ -1439,7 +1430,7 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(_ *peer.Peer, msg *wire.MsgInitState) {
 	err := sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
-		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes, nil)
+		msg.BlockHashes, msg.VoteHashes, msg.TSpendHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}
@@ -1463,13 +1454,18 @@ func (sp *serverPeer) OnTx(_ *peer.Peer, msg *wire.MsgTx) {
 	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 	sp.AddKnownInventory(iv)
 
-	// Queue the transaction up to be handled by the net sync manager and
-	// intentionally block further receives until the transaction is fully
+	// Handle the transaction with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the transaction is fully
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.syncManager.OnTx(tx, sp.syncMgrPeer, sp.txProcessed)
-	<-sp.txProcessed
+	//
+	// Also, announce any accepted transactions to the network and websocket
+	// clients.
+	acceptedTxns := sp.server.syncManager.OnTx(sp.syncMgrPeer, tx)
+	if len(acceptedTxns) > 0 {
+		sp.server.AnnounceNewTransactions(acceptedTxns)
+	}
 }
 
 // OnBlock is invoked when a peer receives a block wire message.  It blocks
@@ -1483,16 +1479,12 @@ func (sp *serverPeer) OnBlock(_ *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
 	sp.AddKnownInventory(iv)
 
-	// Queue the block up to be handled by the net sync manager and
-	// intentionally block further receives until the network block is fully
-	// processed and known good or bad.  This helps prevent a malicious peer
-	// from queuing up a bunch of bad blocks before disconnecting (or being
-	// disconnected) and wasting memory.  Additionally, this behavior is
-	// depended on by at least the block acceptance test tool as the reference
-	// implementation processes blocks in the same thread and therefore blocks
-	// further messages until the network block has been fully processed.
-	sp.server.syncManager.OnBlock(block, sp.syncMgrPeer, sp.blockProcessed)
-	<-sp.blockProcessed
+	// Handle the block with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the block is fully processed
+	// and known good or bad.  This helps prevent a malicious peer from queuing
+	// up a bunch of bad blocks before disconnecting (or being disconnected) and
+	// wasting memory.
+	sp.server.syncManager.OnBlock(sp.syncMgrPeer, block)
 }
 
 // OnInv is invoked when a peer receives an inv wire message and is used to
@@ -1508,7 +1500,7 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if !cfg.BlocksOnly {
-		sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
+		sp.server.syncManager.OnInv(sp.syncMgrPeer, msg)
 		return
 	}
 
@@ -1527,13 +1519,13 @@ func (sp *serverPeer) OnInv(_ *peer.Peer, msg *wire.MsgInv) {
 		return
 	}
 
-	sp.server.syncManager.OnInv(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnInv(sp.syncMgrPeer, msg)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.syncManager.OnHeaders(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnHeaders(sp.syncMgrPeer, msg)
 }
 
 // OnGetData is invoked when a peer receives a getdata wire message and is used
@@ -1832,15 +1824,28 @@ func (sp *serverPeer) onMixMessage(msg mixing.Message) {
 	iv := wire.NewInvVect(wire.InvTypeMix, &hash)
 	sp.AddKnownInventory(iv)
 
-	// Queue the message to be handled by the net sync manager
+	// Handle the message with the net sync manager.  Notice that this
+	// intentionally blocks further receives until the message is fully
+	// processed and known good or bad.  This helps prevent a malicious peer
+	// from queuing up a bunch of bad mix messages before disconnecting (or
+	// being disconnected) and wasting memory.
+	//
+	// Also, announce any accepted messages to the network and websocket
+	// clients.
+	//
+	// Finally, when the error is the result of an orphan KE with unknown PR,
+	// request the PR from the peer submitting the KE.  This is a normal
+	// occurrence.
+	//
 	// XXX: add ban score increases for non-instaban errors?
-	sp.server.syncManager.OnMixMsg(msg, sp.syncMgrPeer, sp.mixMsgProcessed)
-	err := <-sp.mixMsgProcessed
+	accepted, err := sp.server.syncManager.OnMixMsg(sp.syncMgrPeer, msg)
+	if len(accepted) > 0 {
+		sp.server.AnnounceMixMessages(accepted)
+	}
 	var missingOwnPRErr *mixpool.MissingOwnPRError
 	if errors.As(err, &missingOwnPRErr) {
-		mixHashes := []chainhash.Hash{missingOwnPRErr.MissingPR}
-		sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer,
-			nil, nil, nil, mixHashes)
+		mixHash := &missingOwnPRErr.MissingPR
+		sp.server.syncManager.RequestMixMsgFromPeer(sp.syncMgrPeer, mixHash)
 		return
 	}
 	if mixpool.IsBannable(err, sp.Services()) {
@@ -1956,7 +1961,7 @@ func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
 			return
 		}
 	}
-	sp.server.syncManager.OnNotFound(msg, sp.syncMgrPeer)
+	sp.server.syncManager.OnNotFound(sp.syncMgrPeer, msg)
 }
 
 // attemptDcrdDial is a wrapper function around dcrdDial which adds and marks
@@ -2554,7 +2559,8 @@ func (s *server) AddPeer(sp *serverPeer) {
 	// Signal the net sync manager this peer is a new sync candidate unless it
 	// was disconnected above.
 	if sp.Connected() {
-		s.syncManager.PeerConnected(sp.syncMgrPeer)
+		srvrLog.Infof("New valid peer %s (%s)", sp, sp.UserAgent())
+		s.syncManager.OnPeerConnected(sp.syncMgrPeer)
 	}
 }
 
@@ -4049,13 +4055,17 @@ func newServer(ctx context.Context, profiler *profileServer,
 	mixchain := &mixpoolChain{s.chain, s.txMemPool}
 	s.mixMsgPool = mixpool.NewPool(mixchain)
 
+	targetOutbound := defaultTargetOutbound
+	if cfg.MaxPeers < targetOutbound {
+		targetOutbound = cfg.MaxPeers
+	}
 	s.syncManager = netsync.New(&netsync.Config{
-		PeerNotifier:          &s,
 		Chain:                 s.chain,
 		ChainParams:           s.chainParams,
 		TimeSource:            s.timeSource,
 		TxMemPool:             s.txMemPool,
 		NoMiningStateSync:     cfg.NoMiningStateSync,
+		MaxOutboundPeers:      uint64(targetOutbound),
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,
 		RecentlyConfirmedTxns: s.recentlyConfirmedTxns,
