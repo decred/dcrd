@@ -2057,14 +2057,13 @@ func (m *SyncManager) SyncPeerID() int32 {
 	return 0
 }
 
-// RequestFromPeer requests any combination of blocks, votes, treasury spends,
-// and mix messages from the given peer.  It ensures all of the requests are
-// tracked so the peer is not banned for sending unrequested data when it
-// responds.
+// RequestFromPeer requests any combination of blocks, votes, and treasury
+// spends from the given peer.  It ensures all of the requests are tracked so
+// the peer is not banned for sending unrequested data when it responds.
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
-	tSpendHashes, mixHashes []chainhash.Hash) error {
+	tSpendHashes []chainhash.Hash) error {
 
 	if m.shutdownRequested() {
 		return nil
@@ -2168,32 +2167,37 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes,
 		return err
 	}
 
-	for i := range mixHashes {
-		// Skip mix messages that have already been requested.
-		mh := &mixHashes[i]
-		if _, ok := m.requestedMixMsgs[*mh]; ok {
-			continue
-		}
-
-		// Skip the message when it is already known.
-		if m.cfg.MixPool.HaveMessage(mh) {
-			continue
-		}
-
-		err := gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
-		if err != nil {
-			return fmt.Errorf("unexpected error encountered building request "+
-				"for inv vect mix hash %v: %w", mh, err)
-		}
-
-		m.requestedMixMsgs[*mh] = peer
-	}
-
 	if len(gdMsg.InvList) > 0 {
 		peer.QueueMessage(gdMsg, nil)
 	}
 
 	return nil
+}
+
+// RequestMixMsgFromPeer requests the specified mix message from the given peer.
+// It ensures all of the requests are tracked so the peer is not banned for
+// sending unrequested data when it responds.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) RequestMixMsgFromPeer(peer *Peer, mixHash *chainhash.Hash) {
+	if m.shutdownRequested() {
+		return
+	}
+
+	defer m.requestMtx.Unlock()
+	m.requestMtx.Lock()
+
+	// Skip mix messages that have already been requested or are otherwise not
+	// needed.
+	_, alreadyRequested := m.requestedMixMsgs[*mixHash]
+	if alreadyRequested || !m.needMixMsg(mixHash) {
+		return
+	}
+
+	gdMsg := wire.NewMsgGetDataSizeHint(1)
+	gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mixHash))
+	m.requestedMixMsgs[*mixHash] = peer
+	peer.QueueMessage(gdMsg, nil)
 }
 
 // ProcessBlock processes the provided block using the chain instance associated
