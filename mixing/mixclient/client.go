@@ -643,7 +643,7 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 		if !timer.Stop() {
 			<-timer.C
 		}
-		return epoch, nil
+		return time.Now(), nil
 	case <-timer.C:
 		return epoch, nil
 	}
