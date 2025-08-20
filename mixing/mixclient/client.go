@@ -1375,7 +1375,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return sesRun, err
 	}
 	sesRun.freshGen = false
 	err = c.sendLocalPeerMsgs(ctx, ps.deadlines.recvKE, sesRun, msgKE)
