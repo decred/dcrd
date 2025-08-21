@@ -214,6 +214,24 @@ type peer struct {
 	// Whether this peer represents a remote peer created from revealed secrets;
 	// used during blaming.
 	remote bool
+
+	// Signals a canceled local peer.
+	done <-chan struct{}
+}
+
+// isRemoteOrCanceled returns true if the peer represents a remote peer or a
+// local client request that has been canceled and is no longer being served.
+func (p *peer) isRemoteOrCanceled() bool {
+	if p.remote {
+		return true
+	}
+	select {
+	case <-p.done:
+		return true
+	default:
+	}
+
+	return false
 }
 
 // sendRes sends a result to the peer's result channel without blocking.
@@ -493,7 +511,7 @@ func (c *Client) forLocalPeers(ctx context.Context, s *sessionRun, f func(p *pee
 	resChans := make([]chan error, 0, len(s.peers))
 
 	for _, p := range s.peers {
-		if p.remote {
+		if p.isRemoteOrCanceled() {
 			continue
 		}
 
@@ -530,7 +548,7 @@ func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *s
 
 	msgs := make([]delayedMsg, 0, len(s.peers)*bits.OnesCount(msgMask))
 	for _, p := range s.peers {
-		if p.remote {
+		if p.isRemoteOrCanceled() {
 			continue
 		}
 		msg := delayedMsg{
@@ -879,6 +897,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		priv:     priv,
 		id:       (*[33]byte)(pub.SerializeCompressed()),
 		coinjoin: cj,
+		done:     ctx.Done(),
 	}
 
 	err = c.prDelay(ctx, p)
@@ -906,6 +925,12 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 
 	c.logf("Created local peer id=%x PR=%s", p.id[:], p.pr.Hash())
 
+	// Add peer to pending requests.
+	//
+	// Local peers are not removed from the pending pairings maps when
+	// this method returns if this client request is canceled.  Peers are
+	// garbage collected later if they have been unresponsive in an epoch
+	// or when their PR expires.
 	c.mu.Lock()
 	pending := c.pendingPairings[string(pairingID)]
 	if pending == nil {
@@ -927,7 +952,12 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		return err
 	}
 
-	return <-p.res
+	select {
+	case res := <-p.res:
+		return res
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // ExpireMessages will cause the removal all mixpool messages and sessions
