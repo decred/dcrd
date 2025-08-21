@@ -216,6 +216,16 @@ type peer struct {
 	remote bool
 }
 
+// sendRes sends a result to the peer's result channel without blocking.
+func (p *peer) sendRes(err error) {
+	// p.res is buffered.  If the write is blocked, we have already served
+	// this peer or sent another error.
+	select {
+	case p.res <- err:
+	default:
+	}
+}
+
 // cloneLocalPeer creates a new peer instance representing a local peer
 // client, sharing the caller context and result channels, but resetting all
 // per-session fields (if freshGen is true), or only copying the PRNG and
@@ -450,10 +460,7 @@ func (c *Client) Run(ctx context.Context) error {
 	c.mu.Lock()
 	for _, p := range c.pendingPairings {
 		for _, lp := range p.localPeers {
-			select {
-			case lp.res <- ErrStopping:
-			default:
-			}
+			lp.sendRes(ErrStopping)
 		}
 	}
 	c.mu.Unlock()
@@ -945,14 +952,7 @@ func (c *Client) expireMessages() {
 			prHash := peer.pr.Hash()
 			if !c.mixpool.HaveMessage(&prHash) {
 				delete(p.localPeers, id)
-				// p.res is buffered.  If the write is
-				// blocked, we have already served this peer
-				// or sent another error.
-				select {
-				case peer.res <- expiredPRErr(peer.pr):
-				default:
-				}
-
+				peer.sendRes(expiredPRErr(peer.pr))
 			}
 		}
 		if len(p.localPeers) == 0 {
@@ -1841,7 +1841,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 			return errTriggeredBlame
 		}
 		if err != nil {
-			p.res <- err
+			p.sendRes(err)
 			return err
 		}
 
@@ -1925,10 +1925,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	}
 
 	c.forLocalPeers(ctx, sesRun, func(p *peer) error {
-		select {
-		case p.res <- nil:
-		default:
-		}
+		p.sendRes(nil)
 		return nil
 	})
 
@@ -2354,7 +2351,7 @@ func excludeBlamed(prevRun *sessionRun, epoch uint64, blamed blamedIdentities, r
 		if _, ok := blamedMap[*p.id]; ok {
 			// Should never happen except during tests.
 			if !p.remote {
-				p.res <- &testPeerBlamedError{p}
+				p.sendRes(&testPeerBlamedError{p})
 			}
 
 			continue
