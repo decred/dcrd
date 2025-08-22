@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,6 +55,14 @@ var (
 	littleEndian = binary.LittleEndian
 )
 
+var (
+	// ErrCancelDiscreteMining indicates the discrete mining process was
+	// cancelled before completing successfully.  For example, this can happen
+	// when explicitly requested via calling [CPUMiner.GenerateNBlocks] with 0
+	// or when the parent context is cancelled.
+	ErrCancelDiscreteMining = errors.New("discrete mining process canceled")
+)
+
 // speedStats houses tracking information used to monitor the hashing speed of
 // the CPU miner.
 type speedStats struct {
@@ -105,8 +113,8 @@ type Config struct {
 // CPUMiner provides facilities for solving blocks (mining) using the CPU in a
 // concurrency-safe manner.  It consists of two main modes -- a normal mining
 // mode that tries to solve blocks continuously and a discrete mining mode,
-// which is accessible via GenerateNBlocks, that generates a specific number of
-// blocks that extend the main chain.
+// which is accessible via [CPUMiner.GenerateNBlocks], that generates a specific
+// number of blocks that extend the main chain.
 //
 // The normal mining mode consists of two main goroutines -- a speed monitor and
 // a controller for additional worker goroutines that generate and solve blocks.
@@ -139,6 +147,12 @@ type CPUMiner struct {
 	//
 	// It is protected by the embedded mutex.
 	minedOnParents map[chainhash.Hash]uint8
+
+	// generateCancelFn is set when discrete mining is active and may be invoked
+	// to cancel the discrete mining process early.
+	//
+	// It is protected by the embedded mutex.
+	generateCancelFn context.CancelFunc
 }
 
 // speedMonitor handles tracking the number of hashes per second the mining
@@ -665,7 +679,7 @@ func (m *CPUMiner) HashesPerSecond() float64 {
 // value of 0 causes all normal mode CPU mining to be stopped.
 //
 // NOTE: This will have no effect if discrete mining mode is currently active
-// via GenerateNBlocks.
+// via [CPUMiner.GenerateNBlocks].
 //
 // This function is safe for concurrent access.
 func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
@@ -713,6 +727,17 @@ func (m *CPUMiner) NumWorkers() int32 {
 // mining mode and returns a list of the hashes of generated blocks that were
 // added to the main chain.
 //
+// Only one instance of discrete mining may be active at once.  An active
+// discrete mining instance may be canceled by specifying 0 for the number of
+// blocks.  A canceled instance will return [ErrCancelDiscreteMining].
+//
+// Specifying 0 for the number of blocks when there are no active discrete
+// mining instances has no effect.
+//
+// An error will be returned when either normal mining is active or when a
+// discrete mining instance is already active and the specified number of blocks
+// is not 0.
+//
 // It makes use of a subscription to the background block template generator to
 // obtain the templates and attempts to solve them while automatically switching
 // to new templates as they become available as needed.  As a result, it
@@ -726,26 +751,46 @@ func (m *CPUMiner) NumWorkers() int32 {
 // added to a side chain if it happens to be solved around the same time another
 // one shows up.
 func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
-	// Nothing to do.
-	if n == 0 {
-		return nil, nil
-	}
-
-	// Respond with an error if server is already mining.
+	// Respond with an error if server is already normal mining or when discrete
+	// mining and the specified number of blocks is nonzero.
 	m.Lock()
 	if m.normalMining {
 		m.Unlock()
 		return nil, errors.New("server is already CPU mining -- please call " +
 			"`setgenerate 0` before calling discrete `generate` commands")
 	}
-	if m.discreteMining {
+	if m.discreteMining && n != 0 {
 		m.Unlock()
 		return nil, errors.New("server is already discrete mining -- please " +
 			"wait until the existing call completes or cancel it")
 	}
 
+	// Cancel any outstanding discrete mining calls and return when the caller
+	// specified 0 blocks.
+	if n == 0 {
+		if m.generateCancelFn != nil {
+			m.generateCancelFn()
+		}
+		m.Unlock()
+		return nil, nil
+	}
+
+	// Create a child context that can be cancelled and activate discrete mining
+	// mode.
+	genCtx, genCancelFn := context.WithCancel(ctx)
+	m.generateCancelFn = genCancelFn
 	m.discreteMining = true
 	m.Unlock()
+	defer func() {
+		// Disable discrete mining mode.
+		m.Lock()
+		m.discreteMining = false
+		if m.generateCancelFn != nil {
+			m.generateCancelFn()
+			m.generateCancelFn = nil
+		}
+		m.Unlock()
+	}()
 
 	log.Tracef("Generating %d blocks", n)
 
@@ -759,7 +804,7 @@ out:
 		// Wait for a new template update notification or early shutdown.
 		var templateNtfn *mining.TemplateNtfn
 		select {
-		case <-ctx.Done():
+		case <-genCtx.Done():
 			break out
 		case <-m.quit:
 			break out
@@ -801,7 +846,7 @@ out:
 		// data of the shared template.
 		shallowBlockCopy := *templateNtfn.Template.Block
 		shallowBlockHdr := &shallowBlockCopy.Header
-		if m.solveBlock(ctx, shallowBlockHdr, &stats, isBlake3PowActive) {
+		if m.solveBlock(genCtx, shallowBlockHdr, &stats, isBlake3PowActive) {
 			block := dcrutil.NewBlock(&shallowBlockCopy)
 			if m.submitBlock(block, isBlake3PowActive) {
 				m.discretePrevTemplate.Store(templateNtfn.Template)
@@ -815,11 +860,10 @@ out:
 		}
 	}
 
-	// Disable discrete mining mode and return the results.
 	log.Tracef("Generated %d blocks", len(blockHashes))
-	m.Lock()
-	m.discreteMining = false
-	m.Unlock()
+	if genCtx.Err() != nil {
+		return nil, ErrCancelDiscreteMining
+	}
 	return blockHashes, nil
 }
 
@@ -828,7 +872,7 @@ out:
 //
 // Use Run to initialize the CPU miner and then either use SetNumWorkers with a
 // non-zero value to start the normal continuous mining mode or use
-// GenerateNBlocks to mine a discrete number of blocks.
+// [CPUMiner.GenerateNBlocks] to mine a discrete number of blocks.
 //
 // See the documentation for CPUMiner type for more details.
 func New(cfg *Config) *CPUMiner {
