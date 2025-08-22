@@ -182,7 +182,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#generate|generate]]
 |N
-|When in simnet or regtest mode, generate a set number of blocks.
+|Generates a set number of blocks (testnet or simnet only).
 |-
 |[[#getaddednodeinfo|getaddednodeinfo]]
 |N
@@ -897,16 +897,24 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate.
+# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate or 0 to cancel an active instance.
 |-
 !Description
-|When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs.
+|
+: Generates <code>numblocks</code> blocks (testnet or simnet only) and returns a JSON array of their hashes.
+: An error is returned when the server is already CPU mining and CPU mining via any other RPCs is prevented while it runs.  This implies only one instance of this RPC can be active at a time.
+: A separate invocation with <code>numblocks</code> set to 0 may be used to cancel an active [[#generate|generate]] instance.
 |-
-!Returns
+!Returns (numblocks>0)
 |<code>(json array of strings)</code>
 : <code>blockhash</code>: hash of the generated block.
-<code>["blockhash", ...]</code>
 |-
+!Returns (numblocks=0)
+|Nothing
+|-
+!Example Return (numblocks>0)
+|
+:<code>["000000000000000096579458d1c0f1531fcfc58d57b4fce51eb177d8d10e784d", ...]</code>
 |}
 
 ----
