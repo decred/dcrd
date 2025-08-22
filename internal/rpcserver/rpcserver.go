@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -47,6 +47,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
@@ -498,6 +499,14 @@ func rpcMixMessageNotFoundError(hash *chainhash.Hash) *dcrjson.RPCError {
 // context cancellation such as when the server is being shutdown.
 func rpcConnectionClosedError() *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc, "Connection closed")
+}
+
+// rpcCancelError is a convenience function for returning an RPC error which
+// indicates the associated call has been canceled, most likely due to a caller
+// request.
+func rpcCancelError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+	return dcrjson.NewRPCError(dcrjson.ErrRPCCancel,
+		fmt.Sprintf(fmtStr, args...))
 }
 
 // rpcMiscError is a convenience function for returning a nicely formatted RPC
@@ -1783,17 +1792,24 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 
 	c := cmd.(*types.GenerateCmd)
 
-	// Respond with an error when no blocks are requested.
-	if c.NumBlocks == 0 {
-		err := errors.New("invalid number of blocks")
-		return nil, rpcInternalErr(err, "Configuration")
-	}
-
 	// Mine the correct number of blocks, assigning the hex representation of
 	// the hash of each one to its place in the reply.
 	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(ctx, c.NumBlocks)
 	if err != nil {
-		return nil, rpcInternalErr(err, "Could not generate blocks")
+		switch {
+		case ctx.Err() != nil:
+			return nil, rpcConnectionClosedError()
+
+		case errors.Is(err, cpuminer.ErrCancelDiscreteMining):
+			return nil, rpcCancelError("Failed to generate the requested "+
+				"number of blocks: %v", err)
+		}
+
+		return nil, rpcInternalErr(err, "Failed to generate the requested "+
+			"number of blocks")
+	}
+	if len(blockHashes) == 0 {
+		return nil, nil
 	}
 	reply := make([]string, 0, len(blockHashes))
 	for _, hash := range blockHashes {
