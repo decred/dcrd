@@ -1792,8 +1792,9 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 
 	c := cmd.(*types.GenerateCmd)
 
-	// Mine the correct number of blocks, assigning the hex representation of
-	// the hash of each one to its place in the reply.
+	// Extend the main chain by the requested number of blocks by potentially
+	// mining blocks as needed and assign the hex representation of the hashes
+	// in the reply.
 	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(ctx, c.NumBlocks)
 	if err != nil {
 		switch {

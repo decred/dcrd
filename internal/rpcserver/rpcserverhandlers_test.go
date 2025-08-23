@@ -927,7 +927,7 @@ func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
 // testCPUMiner provides a mock CPU miner by implementing the CPUMiner
 // interface.
 type testCPUMiner struct {
-	generatedBlocks    []*chainhash.Hash
+	generatedBlocks    []chainhash.Hash
 	generateNBlocksErr error
 	isMining           bool
 	hashesPerSecond    float64
@@ -936,7 +936,7 @@ type testCPUMiner struct {
 
 // GenerateNBlocks returns a mock implementatation of generating a requested
 // number of blocks.
-func (c *testCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
+func (c *testCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.Hash, error) {
 	return c.generatedBlocks, c.generateNBlocksErr
 }
 
@@ -3477,7 +3477,7 @@ func TestHandleGenerate(t *testing.T) {
 
 	hashStrOne := "00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480"
 	hashStrTwo := "00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d"
-	generatedBlocks := []*chainhash.Hash{mustParseHash(hashStrOne), mustParseHash(hashStrTwo)}
+	generatedBlocks := []chainhash.Hash{*mustParseHash(hashStrOne), *mustParseHash(hashStrTwo)}
 	res := []string{hashStrOne, hashStrTwo}
 	chainParams := cloneParams(defaultChainParams)
 	chainParams.GenerateSupported = true
