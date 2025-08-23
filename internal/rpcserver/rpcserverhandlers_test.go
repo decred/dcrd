@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,6 +40,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
@@ -3513,14 +3514,28 @@ func TestHandleGenerate(t *testing.T) {
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCDifficulty,
 	}, {
-		name:            "handleGenerate: generate 0 blocks",
+		name:            "handleGenerate: generate 0 blocks no running instance",
 		handler:         handleGenerate,
 		cmd:             &types.GenerateCmd{},
 		mockMiningState: defaultMockMiningState(),
 		mockChainParams: chainParams,
-		mockCPUMiner:    cpu,
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInternal.Code,
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			return cpu
+		}(),
+	}, {
+		name:            "handleGenerate: generate 0 to cancel running instance",
+		handler:         handleGenerate,
+		cmd:             &types.GenerateCmd{},
+		mockMiningState: defaultMockMiningState(),
+		mockChainParams: chainParams,
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			cpu.generateNBlocksErr = cpuminer.ErrCancelDiscreteMining
+			return cpu
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCCancel,
 	}, {
 		name:    "handleGenerate: generate n blocks error",
 		handler: handleGenerate,
