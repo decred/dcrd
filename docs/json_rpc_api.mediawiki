@@ -182,7 +182,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#generate|generate]]
 |N
-|Generates a set number of blocks (testnet or simnet only).
+|Generates blocks as needed to extend the main chain by a set number of blocks (testnet or simnet only).
 |-
 |[[#getaddednodeinfo|getaddednodeinfo]]
 |N
@@ -897,11 +897,12 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate or 0 to cancel an active instance.
+# <code>numblocks</code>: <code>(int, required)</code> Number of blocks to extend the main chain or 0 to cancel an active instance.
 |-
 !Description
 |
-: Generates <code>numblocks</code> blocks (testnet or simnet only) and returns a JSON array of their hashes.
+: Generates blocks as needed to extend the main chain by <code>numblocks</code> blocks (testnet or simnet only).
+: Blocks that arrive from other sources are built upon and a best effort attempt is made to avoid as many forks as possible.
 : An error is returned when the server is already CPU mining and CPU mining via any other RPCs is prevented while it runs.  This implies only one instance of this RPC can be active at a time.
 : A separate invocation with <code>numblocks</code> set to 0 may be used to cancel an active [[#generate|generate]] instance.
 |-
