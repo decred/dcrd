@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -584,7 +584,7 @@ type rpcCPUMiner struct {
 var _ rpcserver.CPUMiner = (*rpcCPUMiner)(nil)
 
 // GenerateNBlocks generates the requested number of blocks.
-func (c *rpcCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
+func (c *rpcCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.Hash, error) {
 	if c.miner == nil {
 		return nil, errors.New("Block generation is disallowed without a " +
 			"CPU miner.")
