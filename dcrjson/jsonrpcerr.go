@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -41,6 +41,7 @@ const (
 	ErrRPCDeserialization     RPCErrorCode = -22
 	ErrRPCVerify              RPCErrorCode = -25
 	ErrRPCInvalidState        RPCErrorCode = -26
+	ErrRPCCancel              RPCErrorCode = -27
 )
 
 // Peer-to-peer client errors.

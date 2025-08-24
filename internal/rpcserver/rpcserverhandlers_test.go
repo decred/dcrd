@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,6 +40,7 @@ import (
 	"github.com/decred/dcrd/internal/blockchain/indexers"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
@@ -926,7 +927,7 @@ func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
 // testCPUMiner provides a mock CPU miner by implementing the CPUMiner
 // interface.
 type testCPUMiner struct {
-	generatedBlocks    []*chainhash.Hash
+	generatedBlocks    []chainhash.Hash
 	generateNBlocksErr error
 	isMining           bool
 	hashesPerSecond    float64
@@ -935,7 +936,7 @@ type testCPUMiner struct {
 
 // GenerateNBlocks returns a mock implementatation of generating a requested
 // number of blocks.
-func (c *testCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
+func (c *testCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.Hash, error) {
 	return c.generatedBlocks, c.generateNBlocksErr
 }
 
@@ -3476,7 +3477,7 @@ func TestHandleGenerate(t *testing.T) {
 
 	hashStrOne := "00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480"
 	hashStrTwo := "00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d"
-	generatedBlocks := []*chainhash.Hash{mustParseHash(hashStrOne), mustParseHash(hashStrTwo)}
+	generatedBlocks := []chainhash.Hash{*mustParseHash(hashStrOne), *mustParseHash(hashStrTwo)}
 	res := []string{hashStrOne, hashStrTwo}
 	chainParams := cloneParams(defaultChainParams)
 	chainParams.GenerateSupported = true
@@ -3513,14 +3514,28 @@ func TestHandleGenerate(t *testing.T) {
 		wantErr:         true,
 		errCode:         dcrjson.ErrRPCDifficulty,
 	}, {
-		name:            "handleGenerate: generate 0 blocks",
+		name:            "handleGenerate: generate 0 blocks no running instance",
 		handler:         handleGenerate,
 		cmd:             &types.GenerateCmd{},
 		mockMiningState: defaultMockMiningState(),
 		mockChainParams: chainParams,
-		mockCPUMiner:    cpu,
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInternal.Code,
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			return cpu
+		}(),
+	}, {
+		name:            "handleGenerate: generate 0 to cancel running instance",
+		handler:         handleGenerate,
+		cmd:             &types.GenerateCmd{},
+		mockMiningState: defaultMockMiningState(),
+		mockChainParams: chainParams,
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			cpu.generateNBlocksErr = cpuminer.ErrCancelDiscreteMining
+			return cpu
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCCancel,
 	}, {
 		name:    "handleGenerate: generate n blocks error",
 		handler: handleGenerate,

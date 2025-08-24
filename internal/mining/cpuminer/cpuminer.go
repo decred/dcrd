@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,6 +55,14 @@ var (
 	littleEndian = binary.LittleEndian
 )
 
+var (
+	// ErrCancelDiscreteMining indicates the discrete mining process was
+	// cancelled before completing successfully.  For example, this can happen
+	// when explicitly requested via calling [CPUMiner.GenerateNBlocks] with 0
+	// or when the parent context is cancelled.
+	ErrCancelDiscreteMining = errors.New("discrete mining process canceled")
+)
+
 // speedStats houses tracking information used to monitor the hashing speed of
 // the CPU miner.
 type speedStats struct {
@@ -74,6 +82,14 @@ type Config struct {
 	// BgBlkTmplGenerator identifies the instance to use in order to
 	// generate block templates that the miner will attempt to solve.
 	BgBlkTmplGenerator *mining.BgBlkTmplGenerator
+
+	// BestSnapshot defines the function to use to access information about the
+	// current best block.  The returned instance should be treated as immutable.
+	BestSnapshot func() *blockchain.BestState
+
+	// BlockHashByHeight returns the hash of the block at the given height in
+	// the main chain.
+	BlockHashByHeight func(height int64) (*chainhash.Hash, error)
 
 	// ProcessBlock defines the function to call with any solved blocks.
 	// It typically must run the provided block through the same set of
@@ -105,8 +121,8 @@ type Config struct {
 // CPUMiner provides facilities for solving blocks (mining) using the CPU in a
 // concurrency-safe manner.  It consists of two main modes -- a normal mining
 // mode that tries to solve blocks continuously and a discrete mining mode,
-// which is accessible via GenerateNBlocks, that generates a specific number of
-// blocks that extend the main chain.
+// which is accessible via [CPUMiner.GenerateNBlocks], that mines blocks on an
+// as needed basis to extend the main chain by a specific number of blocks.
 //
 // The normal mining mode consists of two main goroutines -- a speed monitor and
 // a controller for additional worker goroutines that generate and solve blocks.
@@ -128,17 +144,27 @@ type CPUMiner struct {
 	speedStats        map[uint64]*speedStats
 	quit              chan struct{}
 
-	// discretePrevTemplate is the template that was most recently mined by the
-	// discrete mining process.  It is used to provide a better user experience
-	// for the discrete mining process used in testing.
-	discretePrevTemplate atomic.Pointer[mining.BlockTemplate]
-
 	// This is a map that keeps track of how many blocks have been mined on each
 	// parent by the CPUMiner. It is only for use in simulation networks, to
 	// diminish memory exhaustion.
 	//
 	// It is protected by the embedded mutex.
 	minedOnParents map[chainhash.Hash]uint8
+
+	// discretePrevTemplate is the template that was most recently mined by the
+	// discrete mining process.  It is used to provide a better user experience
+	// for the discrete mining process used in testing.
+	discretePrevTemplate atomic.Pointer[mining.BlockTemplate]
+
+	// generateCancelFn is set when discrete mining is active and may be invoked
+	// to cancel the discrete mining process early.
+	//
+	// It is protected by the embedded mutex.
+	generateCancelFn context.CancelFunc
+
+	// notifyBlocks is used for notifications when new blocks are connected to
+	// the main chain when in the discrete mining mode.
+	notifyBlocks chan *dcrutil.Block
 }
 
 // speedMonitor handles tracking the number of hashes per second the mining
@@ -665,7 +691,7 @@ func (m *CPUMiner) HashesPerSecond() float64 {
 // value of 0 causes all normal mode CPU mining to be stopped.
 //
 // NOTE: This will have no effect if discrete mining mode is currently active
-// via GenerateNBlocks.
+// via [CPUMiner.GenerateNBlocks].
 //
 // This function is safe for concurrent access.
 func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
@@ -709,117 +735,280 @@ func (m *CPUMiner) NumWorkers() int32 {
 	return int32(m.numWorkers.Load())
 }
 
-// GenerateNBlocks generates the requested number of blocks in the discrete
-// mining mode and returns a list of the hashes of generated blocks that were
-// added to the main chain.
+// BlockConnected informs the CPU miner that a block has been connected to the
+// main chain.  It is the caller's responsibility to ensure this is only invoked
+// as described.
+//
+// This function is safe for concurrent access.
+func (m *CPUMiner) BlockConnected(block *dcrutil.Block) {
+	// Block notifications are only needed when discrete mining is active.
+	var notifyBlocks chan *dcrutil.Block
+	m.Lock()
+	if m.discreteMining {
+		notifyBlocks = m.notifyBlocks
+	}
+	m.Unlock()
+	if notifyBlocks == nil {
+		return
+	}
+
+	// Notify via a non-blocking send over the buffered channel.
+	//
+	// In practice, since the channel is read in a tight loop and is buffered,
+	// this should basically never end up hitting the blocking path.  However,
+	// since it is important to ensure the caller is not potentially blocked for
+	// long periods, handle the possibility gracefully by dropping the oldest
+	// notifications to make up for slow receivers.
+	//
+	// This approach is used over the more typical approach of dropping the most
+	// recent notifications because those are the more important ones given how
+	// they are used.
+	for {
+		select {
+		case notifyBlocks <- block:
+			return
+		case <-m.quit:
+			return
+		default:
+			// Channel is full.  Discard the oldest entry.
+			//
+			// Notice a non-blocking read is used to prevent the possibility of
+			// blocking in the case another receiver happens to preempt the read
+			// and leave the channel empty.
+			select {
+			case <-notifyBlocks:
+			default:
+			}
+		}
+	}
+}
+
+// drainNotifyBlocksChan drains any remaining queued entries from the block
+// notification channel.
+func (m *CPUMiner) drainNotifyBlocksChan() {
+	for {
+		select {
+		case <-m.notifyBlocks:
+		default:
+			return
+		}
+	}
+}
+
+// GenerateNBlocks generates blocks on an as needed basis to extend the main
+// chain by the requested number of blocks in the discrete mining mode and
+// returns a list of hashes of the blocks that ultimately extended the main
+// chain, regardless of their origin.
+//
+// The aforementioned distinction regarding the origin of the returned hashes is
+// important to note because the blocks that ultimately extend the main chain
+// may be different from the blocks generated since blocks from other sources
+// may arrive while the discrete mining process is underway leading to
+// generation of more or less blocks than the target number.
+//
+// A best effort attempt is made to avoid as many forks as possible by
+// discarding any locally-mined blocks that would knowingly cause a fork with
+// blocks that arrive from other sources and to only generate as many blocks as
+// are necessary to achieve extending the main chain by the specified number of
+// blocks.  However, forks may still occur since it is not always possible to
+// detect forks beforehand.  Nevertheless, any such forks will not count towards
+// the requested number of blocks since they do not extend the main chain.
+//
+// Only one instance of discrete mining may be active at once.  An active
+// discrete mining instance may be canceled by specifying 0 for the number of
+// blocks.  A canceled instance will return [ErrCancelDiscreteMining].
+//
+// Specifying 0 for the number of blocks when there are no active discrete
+// mining instances has no effect.
+//
+// An error will be returned when either normal mining is active or when a
+// discrete mining instance is already active and the specified number of blocks
+// is not 0.
 //
 // It makes use of a subscription to the background block template generator to
 // obtain the templates and attempts to solve them while automatically switching
 // to new templates as they become available as needed.  As a result, it
 // supports many of the nice features of the template subscriptions such as
-// giving all votes a chance to arrive.
-//
-// Note that, as the above implies, this will only consider blocks successfully
-// added to the main chain in the overall count, so, upon returning, the list of
-// hashes will only contain the hashes of those blocks.  This distinction is
-// important because it is sometimes possible for a block to be rejected or be
-// added to a side chain if it happens to be solved around the same time another
-// one shows up.
-func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
-	// Nothing to do.
-	if n == 0 {
-		return nil, nil
-	}
-
-	// Respond with an error if server is already mining.
+// giving all votes a chance to arrive and automatically switching to templates
+// building on new blocks that arrive from other sources.
+func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.Hash, error) {
+	// Respond with an error if server is already normal mining or when discrete
+	// mining and the specified number of blocks is nonzero.
 	m.Lock()
 	if m.normalMining {
 		m.Unlock()
 		return nil, errors.New("server is already CPU mining -- please call " +
 			"`setgenerate 0` before calling discrete `generate` commands")
 	}
-	if m.discreteMining {
+	if m.discreteMining && n != 0 {
 		m.Unlock()
 		return nil, errors.New("server is already discrete mining -- please " +
 			"wait until the existing call completes or cancel it")
 	}
 
+	// Cancel any outstanding discrete mining calls and return when the caller
+	// specified 0 blocks.
+	if n == 0 {
+		if m.generateCancelFn != nil {
+			m.generateCancelFn()
+		}
+		m.Unlock()
+		return nil, nil
+	}
+
+	// Create a child context that can be cancelled and activate discrete mining
+	// mode.
+	genCtx, genCancelFn := context.WithCancel(ctx)
+	m.generateCancelFn = genCancelFn
 	m.discreteMining = true
 	m.Unlock()
+	defer func() {
+		// Disable discrete mining mode.
+		m.Lock()
+		m.discreteMining = false
+		if m.generateCancelFn != nil {
+			m.generateCancelFn()
+			m.generateCancelFn = nil
+		}
+		m.drainNotifyBlocksChan()
+		m.Unlock()
+	}()
 
-	log.Tracef("Generating %d blocks", n)
+	log.Tracef("Extending the main chain %d blocks", n)
 
+	// Separate waitgroup for solve goroutine to ensure it's stopped prior to
+	// returning.
+	var solveWg sync.WaitGroup
+
+	// Subscribe for block template updates and ensure the subscription is
+	// stopped when done.
 	templateSub := m.g.Subscribe()
 	defer templateSub.Stop()
 
-	blockHashes := make([]*chainhash.Hash, 0, n)
-	var stats speedStats
+	// Determine the starting and target block heights of the main chain based
+	// on the requested number of blocks.
+	origBestHeight := m.cfg.BestSnapshot().Height
+	targetBestHeight := origBestHeight + int64(n)
+
+	var solveCancel context.CancelFunc
 out:
 	for {
 		// Wait for a new template update notification or early shutdown.
-		var templateNtfn *mining.TemplateNtfn
 		select {
-		case <-ctx.Done():
+		case templateNtfn := <-templateSub.C():
+			// Stop once the main chain reaches the target best height.
+			//
+			// This condition will typically never be hit because block
+			// notifications happen before template notifications and the loop
+			// will exit when the block notification for target height is
+			// received, but be safe and ensure termination in case the relevant
+			// terminating block notification were to somehow get dropped in a
+			// pathological case.
+			if m.cfg.BestSnapshot().Height >= targetBestHeight {
+				break out
+			}
+
+			// Since callers might call this method in rapid succession and the
+			// subscription immediately sends the current template, the template
+			// might not have been updated yet (for example, it might be waiting
+			// on votes).  In that case, wait for the updated template.
+			if templateNtfn.Template == m.discretePrevTemplate.Load() {
+				continue
+			}
+			m.discretePrevTemplate.Store(nil)
+
+			// Ensure the previous solve goroutine (if any) is stopped.
+			if solveCancel != nil {
+				solveCancel()
+			}
+
+			// Determine the state of the blake3 proof of work agenda.  An error
+			// should never really happen here in practice, but just loop around
+			// and wait for another template if it does.
+			prevHash := templateNtfn.Template.Block.Header.PrevBlock
+			isBlake3PowActive, err := m.cfg.IsBlake3PowAgendaActive(&prevHash)
+			if err != nil {
+				continue
+			}
+
+			// Attempt to solve the block in a separate goroutine so it can be
+			// stopped early when new block templates are notified.
+			solveCtx, cancel := context.WithCancel(genCtx)
+			solveCancel = cancel
+			solveWg.Add(1)
+			go func() {
+				defer solveWg.Done()
+
+				// The block solving function will exit with false if the block
+				// was not solved for any reason such as the context being
+				// cancelled or an unexpected error.
+				//
+				// When the return is true, a solution was found, so attempt to
+				// submit the solved block.
+				//
+				// The block in the template is shallow copied to avoid mutating
+				// the data of the shared template.
+				var stats speedStats
+				shallowBlockCopy := *templateNtfn.Template.Block
+				header := &shallowBlockCopy.Header
+				if m.solveBlock(solveCtx, header, &stats, isBlake3PowActive) {
+					// Avoid submitting any solutions that might have been found
+					// in between the time a worker was signalled to stop and it
+					// actually stopping.
+					if solveCtx.Err() != nil {
+						return
+					}
+
+					// Avoid submitting any solutions that would extend the main
+					// chain beyond the target height.
+					if m.cfg.BestSnapshot().Height >= targetBestHeight {
+						return
+					}
+
+					block := dcrutil.NewBlock(&shallowBlockCopy)
+					if m.submitBlock(block, isBlake3PowActive) {
+						m.discretePrevTemplate.Store(templateNtfn.Template)
+					}
+				}
+			}()
+
+		case block := <-m.notifyBlocks:
+			// Stop once the main chain reaches the target best height.
+			if block.Height() >= targetBestHeight {
+				break out
+			}
+
+		case <-genCtx.Done():
 			break out
 		case <-m.quit:
-			break out
-		case templateNtfn = <-templateSub.C():
-		}
-
-		// Since callers might call this method in rapid succession and the
-		// subscription immediately sends the current template, the template
-		// might not have been updated yet (for example, it might be waiting on
-		// votes).  In that case, wait for the updated template.
-		if templateNtfn.Template == m.discretePrevTemplate.Load() {
-			continue
-		}
-		m.discretePrevTemplate.Store(nil)
-
-		// Determine the state of the blake3 proof of work agenda.  An error
-		// should never really happen here in practice, but just loop around and
-		// wait for another template if it does.
-		prevHash := templateNtfn.Template.Block.Header.PrevBlock
-		isBlake3PowActive, err := m.cfg.IsBlake3PowAgendaActive(&prevHash)
-		if err != nil {
-			continue
-		}
-
-		// Attempt to solve the block.
-		//
-		// The function will exit with false if the block was not solved for any
-		// reason such as the context being cancelled or an unexpected error.
-		//
-		// When the return is true, a solution was found, so attempt to submit
-		// the solved block.  Notice that this only records the hash of the
-		// block if it was successfully submitted to the main chain.  This means
-		// it is theoretically possible for more blocks than requested to be
-		// mined if any of them fail to submit, but it results in better
-		// behavior that lines up with what a caller would expect such that the
-		// requested number of blocks are mined and added to the main chain.
-		//
-		// The block in the template is shallow copied to avoid mutating the
-		// data of the shared template.
-		shallowBlockCopy := *templateNtfn.Template.Block
-		shallowBlockHdr := &shallowBlockCopy.Header
-		if m.solveBlock(ctx, shallowBlockHdr, &stats, isBlake3PowActive) {
-			block := dcrutil.NewBlock(&shallowBlockCopy)
-			if m.submitBlock(block, isBlake3PowActive) {
-				m.discretePrevTemplate.Store(templateNtfn.Template)
-				blockHashes = append(blockHashes, block.Hash())
-			}
-		}
-
-		// Done when the requested number of blocks are mined.
-		if uint32(len(blockHashes)) == n {
 			break out
 		}
 	}
 
-	// Disable discrete mining mode and return the results.
-	log.Tracef("Generated %d blocks", len(blockHashes))
-	m.Lock()
-	m.discreteMining = false
-	m.Unlock()
+	// Ensure resources associated with the solve goroutine context are freed
+	// and wait for the solve groutines to finish if needed.
+	if solveCancel != nil {
+		solveCancel()
+	}
+	solveWg.Wait()
+
+	numExtended := m.cfg.BestSnapshot().Height - origBestHeight
+	log.Tracef("Extended the main chain %d blocks", numExtended)
+	if genCtx.Err() != nil {
+		return nil, ErrCancelDiscreteMining
+	}
+
+	// Return the block hashes that ultimately extended the main chain
+	// regardless of their origin.
+	blockHashes := make([]chainhash.Hash, 0, n)
+	for height := origBestHeight + 1; height <= targetBestHeight; height++ {
+		var blockHash chainhash.Hash
+		hash, err := m.cfg.BlockHashByHeight(height)
+		if err == nil {
+			blockHash = *hash
+		}
+		blockHashes = append(blockHashes, blockHash)
+	}
 	return blockHashes, nil
 }
 
@@ -828,7 +1017,7 @@ out:
 //
 // Use Run to initialize the CPU miner and then either use SetNumWorkers with a
 // non-zero value to start the normal continuous mining mode or use
-// GenerateNBlocks to mine a discrete number of blocks.
+// [CPUMiner.GenerateNBlocks] to mine a discrete number of blocks.
 //
 // See the documentation for CPUMiner type for more details.
 func New(cfg *Config) *CPUMiner {
@@ -839,6 +1028,7 @@ func New(cfg *Config) *CPUMiner {
 		queryHashesPerSec: make(chan float64),
 		speedStats:        make(map[uint64]*speedStats),
 		minedOnParents:    make(map[chainhash.Hash]uint8),
+		notifyBlocks:      make(chan *dcrutil.Block, 10),
 		quit:              make(chan struct{}),
 	}
 	miner.numWorkers.Store(defaultNumWorkers)

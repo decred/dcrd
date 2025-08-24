@@ -2981,6 +2981,10 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			s.bg.BlockConnected(block)
 		}
 
+		if s.cpuMiner != nil {
+			s.cpuMiner.BlockConnected(block)
+		}
+
 		// Notify subscribed indexes of connected block.
 		if s.indexSubscriber != nil {
 			s.indexSubscriber.Notify(&indexers.IndexNtfn{
@@ -4149,6 +4153,8 @@ func newServer(ctx context.Context, profiler *profileServer,
 			ChainParams:                s.chainParams,
 			PermitConnectionlessMining: cfg.SimNet || cfg.RegNet,
 			BgBlkTmplGenerator:         s.bg,
+			BestSnapshot:               s.chain.BestSnapshot,
+			BlockHashByHeight:          s.chain.BlockHashByHeight,
 			ProcessBlock:               s.syncManager.ProcessBlock,
 			ConnectedCount:             s.ConnectedCount,
 			IsCurrent:                  s.syncManager.IsCurrent,

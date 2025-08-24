@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 The Decred developers
+// Copyright (c) 2019-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -523,7 +523,7 @@ type SanityChecker interface {
 // concurrent access.
 type CPUMiner interface {
 	// GenerateNBlocks generates the requested number of blocks.
-	GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error)
+	GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.Hash, error)
 
 	// IsMining returns whether or not the CPU miner has been started and is
 	// therefore currently mining.
