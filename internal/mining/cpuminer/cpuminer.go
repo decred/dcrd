@@ -144,11 +144,6 @@ type CPUMiner struct {
 	speedStats        map[uint64]*speedStats
 	quit              chan struct{}
 
-	// discretePrevTemplate is the template that was most recently mined by the
-	// discrete mining process.  It is used to provide a better user experience
-	// for the discrete mining process used in testing.
-	discretePrevTemplate atomic.Pointer[mining.BlockTemplate]
-
 	// This is a map that keeps track of how many blocks have been mined on each
 	// parent by the CPUMiner. It is only for use in simulation networks, to
 	// diminish memory exhaustion.
@@ -156,11 +151,20 @@ type CPUMiner struct {
 	// It is protected by the embedded mutex.
 	minedOnParents map[chainhash.Hash]uint8
 
+	// discretePrevTemplate is the template that was most recently mined by the
+	// discrete mining process.  It is used to provide a better user experience
+	// for the discrete mining process used in testing.
+	discretePrevTemplate atomic.Pointer[mining.BlockTemplate]
+
 	// generateCancelFn is set when discrete mining is active and may be invoked
 	// to cancel the discrete mining process early.
 	//
 	// It is protected by the embedded mutex.
 	generateCancelFn context.CancelFunc
+
+	// notifyBlocks is used for notifications when new blocks are connected to
+	// the main chain when in the discrete mining mode.
+	notifyBlocks chan *dcrutil.Block
 }
 
 // speedMonitor handles tracking the number of hashes per second the mining
@@ -731,6 +735,63 @@ func (m *CPUMiner) NumWorkers() int32 {
 	return int32(m.numWorkers.Load())
 }
 
+// BlockConnected informs the CPU miner that a block has been connected to the
+// main chain.  It is the caller's responsibility to ensure this is only invoked
+// as described.
+//
+// This function is safe for concurrent access.
+func (m *CPUMiner) BlockConnected(block *dcrutil.Block) {
+	// Block notifications are only needed when discrete mining is active.
+	m.Lock()
+	discreteMining := m.discreteMining
+	m.Unlock()
+	if !discreteMining {
+		return
+	}
+
+	// Notify via a non-blocking send over the buffered channel.
+	//
+	// In practice, since the channel is read in a tight loop and is buffered,
+	// this should basically never end up hitting the blocking path.  However,
+	// since it is important to ensure the caller is not potentially blocked for
+	// long periods, handle the possibility gracefully by dropping the oldest
+	// notifications to make up for slow receivers.
+	//
+	// This approach is used over the more typical approach of dropping the most
+	// recent notifications because those are the more important ones given how
+	// they are used.
+	for {
+		select {
+		case m.notifyBlocks <- block:
+			return
+		case <-m.quit:
+			return
+		default:
+			// Channel is full.  Discard the oldest entry.
+			//
+			// Notice a non-blocking read is used to prevent the possibility of
+			// blocking in the case another receiver happens to preempt the read
+			// and leave the channel empty.
+			select {
+			case <-m.notifyBlocks:
+			default:
+			}
+		}
+	}
+}
+
+// drainNotifyBlocksChan drains any remaining queued entries from the block
+// notification channel.
+func (m *CPUMiner) drainNotifyBlocksChan() {
+	for {
+		select {
+		case <-m.notifyBlocks:
+		default:
+			return
+		}
+	}
+}
+
 // GenerateNBlocks generates blocks on an as needed basis to extend the main
 // chain by the requested number of blocks in the discrete mining mode and
 // returns a list of hashes of the blocks that ultimately extended the main
@@ -806,6 +867,7 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.H
 			m.generateCancelFn()
 			m.generateCancelFn = nil
 		}
+		m.drainNotifyBlocksChan()
 		m.Unlock()
 	}()
 
@@ -825,9 +887,6 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]chainhash.H
 	origBestHeight := m.cfg.BestSnapshot().Height
 	targetBestHeight := origBestHeight + int64(n)
 
-	done := make(chan struct{})
-	var closeDoneOnce sync.Once
-	safeCloseDone := func() { closeDoneOnce.Do(func() { close(done) }) }
 	var solveCancel context.CancelFunc
 out:
 	for {
@@ -835,9 +894,15 @@ out:
 		select {
 		case templateNtfn := <-templateSub.C():
 			// Stop once the main chain reaches the target best height.
+			//
+			// This condition will typically never be hit because block
+			// notifications happen before template notifications and the loop
+			// will exit when the block notification for target height is
+			// received, but be safe and ensure termination in case the relevant
+			// terminating block notification were to somehow get dropped in a
+			// pathological case.
 			if m.cfg.BestSnapshot().Height >= targetBestHeight {
-				safeCloseDone()
-				continue
+				break out
 			}
 
 			// Since callers might call this method in rapid succession and the
@@ -892,29 +957,24 @@ out:
 					}
 
 					// Avoid submitting any solutions that would extend the main
-					// chain beyond the target height and close the done channel
-					// immediately to avoid waiting for a new template.
+					// chain beyond the target height.
 					if m.cfg.BestSnapshot().Height >= targetBestHeight {
-						safeCloseDone()
 						return
 					}
 
 					block := dcrutil.NewBlock(&shallowBlockCopy)
 					if m.submitBlock(block, isBlake3PowActive) {
 						m.discretePrevTemplate.Store(templateNtfn.Template)
-
-						// Close the done channel immediately once the final
-						// block is submitted to avoid waiting for a new
-						// template.
-						if m.cfg.BestSnapshot().Height >= targetBestHeight {
-							safeCloseDone()
-						}
 					}
 				}
 			}()
 
-		case <-done:
-			break out
+		case block := <-m.notifyBlocks:
+			// Stop once the main chain reaches the target best height.
+			if block.Height() >= targetBestHeight {
+				break out
+			}
+
 		case <-genCtx.Done():
 			break out
 		case <-m.quit:
@@ -965,6 +1025,7 @@ func New(cfg *Config) *CPUMiner {
 		queryHashesPerSec: make(chan float64),
 		speedStats:        make(map[uint64]*speedStats),
 		minedOnParents:    make(map[chainhash.Hash]uint8),
+		notifyBlocks:      make(chan *dcrutil.Block, 10),
 		quit:              make(chan struct{}),
 	}
 	miner.numWorkers.Store(defaultNumWorkers)

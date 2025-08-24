@@ -2981,6 +2981,10 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			s.bg.BlockConnected(block)
 		}
 
+		if s.cpuMiner != nil {
+			s.cpuMiner.BlockConnected(block)
+		}
+
 		// Notify subscribed indexes of connected block.
 		if s.indexSubscriber != nil {
 			s.indexSubscriber.Notify(&indexers.IndexNtfn{
