@@ -8,12 +8,11 @@ package netsync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/container/apbf"
@@ -105,113 +104,18 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// peerConnectedMsg signifies a newly connected peer to the event handler.
-type peerConnectedMsg struct {
-	peer *Peer
-}
-
-// blockMsg packages a Decred block message and the peer it came from together
-// so the event handler has access to that information.
-type blockMsg struct {
-	block *dcrutil.Block
-	peer  *Peer
-	reply chan struct{}
-}
-
-// invMsg packages a Decred inv message and the peer it came from together
-// so the event handler has access to that information.
-type invMsg struct {
-	inv  *wire.MsgInv
-	peer *Peer
-}
-
-// headersMsg packages a Decred headers message and the peer it came from
-// together so the event handler has access to that information.
-type headersMsg struct {
-	headers *wire.MsgHeaders
-	peer    *Peer
-}
-
-// notFoundMsg packages a Decred notfound message and the peer it came from
-// together so the event handler has access to that information.
-type notFoundMsg struct {
-	notFound *wire.MsgNotFound
-	peer     *Peer
-}
-
-// peerDisconnectedMsg signifies a newly disconnected peer to the event handler.
-type peerDisconnectedMsg struct {
-	peer *Peer
-}
-
-// txMsg packages a Decred tx message and the peer it came from together
-// so the event handler has access to that information.
-type txMsg struct {
-	tx    *dcrutil.Tx
-	peer  *Peer
-	reply chan struct{}
-}
-
-// getSyncPeerMsg is a message type to be sent across the message channel for
-// retrieving the current sync peer.
-type getSyncPeerMsg struct {
-	reply chan int32
-}
-
-// requestFromPeerMsg is a message type to be sent across the message channel
-// for requesting either blocks or transactions from a given peer. It routes
-// this through the sync manager so the sync manager doesn't ban the peer
-// when it sends this information back.
-type requestFromPeerMsg struct {
-	peer         *Peer
-	blocks       []chainhash.Hash
-	voteHashes   []chainhash.Hash
-	tSpendHashes []chainhash.Hash
-	mixHashes    []chainhash.Hash
-	reply        chan requestFromPeerResponse
-}
-
-// requestFromPeerResponse is a response sent to the reply channel of a
-// requestFromPeerMsg query.
-type requestFromPeerResponse struct {
-	err error
-}
-
-// processBlockResponse is a response sent to the reply channel of a
-// processBlockMsg.
-type processBlockResponse struct {
-	forkLen int64
-	err     error
-}
-
-// processBlockMsg is a message type to be sent across the message channel
-// for requested a block is processed.  Note this call differs from blockMsg
-// above in that blockMsg is intended for blocks that came from peers and have
-// extra handling whereas this message essentially is just a concurrent safe
-// way to call ProcessBlock on the internal block chain instance.
-type processBlockMsg struct {
-	block *dcrutil.Block
-	reply chan processBlockResponse
-}
-
-// mixMsg is a message type to be sent across the message channel for requesting
-// a message's acceptance to the mixing pool.
-type mixMsg struct {
-	msg   mixing.Message
-	peer  *Peer
-	reply chan error
-}
-
 // Peer extends a common peer to maintain additional state needed by the sync
 // manager.  The internals are intentionally unexported to create an opaque
 // type.
 type Peer struct {
 	*peerpkg.Peer
 
-	syncCandidate    bool
-	requestedTxns    map[chainhash.Hash]struct{}
-	requestedBlocks  map[chainhash.Hash]struct{}
-	requestedMixMsgs map[chainhash.Hash]struct{}
+	// This flag is set during creation based on information available from the
+	// embedded peer and is immutable making it safe for concurrent access.
+	//
+	// servesData indicates the peer is capable of serving data.  Currently,
+	// this effectively means it is a full node.
+	servesData bool
 
 	// requestInitialStateOnce is used to ensure the initial state data is only
 	// requested from the peer once.
@@ -221,11 +125,12 @@ type Peer struct {
 	// messages sent by the peer that contain headers which do not connect.  It
 	// is used to detect peers that have either diverged so far they are no
 	// longer useful or are otherwise being malicious.
-	numConsecutiveOrphanHeaders int32
+	numConsecutiveOrphanHeaders atomic.Int64
 
 	// These fields are used to track the best known block announced by the peer
 	// which in turn provides a means to discover which blocks are available to
-	// download from the peer.
+	// download from the peer.  They are protected by the associated best
+	// announced mutex.
 	//
 	// announcedOrphanBlock is the hash of the most recently announced block
 	// that did not connect to any headers known to the local chain at the time
@@ -240,6 +145,7 @@ type Peer struct {
 	//
 	// bestAnnouncedWork is the cumulative proof of work for the associated best
 	// announced block hash.
+	bestAnnouncedMtx     sync.Mutex
 	announcedOrphanBlock *chainhash.Hash
 	bestAnnouncedBlock   *chainhash.Hash
 	bestAnnouncedWork    *uint256.Uint256
@@ -248,13 +154,10 @@ type Peer struct {
 // NewPeer returns a new instance of a peer that wraps the provided underlying
 // common peer with additional state that is used throughout the package.
 func NewPeer(peer *peerpkg.Peer) *Peer {
-	isSyncCandidate := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
+	servesData := peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 	return &Peer{
-		Peer:             peer,
-		syncCandidate:    isSyncCandidate,
-		requestedTxns:    make(map[chainhash.Hash]struct{}),
-		requestedBlocks:  make(map[chainhash.Hash]struct{}),
-		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		Peer:       peer,
+		servesData: servesData,
 	}
 }
 
@@ -304,22 +207,31 @@ func (peer *Peer) maybeRequestInitialState(includeMiningState bool) {
 // headerSyncState houses the state used to track the header sync progress and
 // related stall handling.
 type headerSyncState struct {
+	// This mutex is used to protect the overall state transition from the
+	// initial headers sync mode to the initial chain sync mode.
+	sync.Mutex
+
 	// headersSynced tracks whether or not the headers are synced to a point
 	// that is recent enough to start downloading blocks.
-	headersSynced bool
+	//
+	// Note that it is an atomic as opposed to a plain boolean flag in order to
+	// provide a fast path once the initial headers sync is done.
+	//
+	// However, the state transition itself, which includes updating this flag
+	// to true, is protected by the slower embedded mutex.  In other words, care
+	// is required to ensure there are no logic races before the flag is set,
+	// but once it is set, callers can safely rely on it without needing the
+	// slower mutex.
+	//
+	// This approach provides a nice performance boost because the initial
+	// header sync process is only active for a short period, but its status is
+	// needed continuously, such as for every new header.
+	headersSynced atomic.Bool
 
-	// These fields are used to implement a progress stall timeout that can be
+	// stallTimer is used to implement a progress stall timeout that can be
 	// reset at any time without needing to create a new one and the associated
 	// extra garbage.
-	//
-	// stallTimer is an underlying timer that is used to implement the timeout.
-	//
-	// stallChanDrained indicates whether or not the channel for the stall timer
-	// has already been read and is used when resetting the timer to ensure the
-	// channel is drained when the timer is stopped as described in the timer
-	// documentation.
-	stallTimer       *time.Timer
-	stallChanDrained bool
+	stallTimer *time.Timer
 }
 
 // makeHeaderSyncState returns a header sync state that is ready to use.
@@ -327,37 +239,51 @@ func makeHeaderSyncState() headerSyncState {
 	stallTimer := time.NewTimer(math.MaxInt64)
 	stallTimer.Stop()
 	return headerSyncState{
-		stallTimer:       stallTimer,
-		stallChanDrained: true,
+		stallTimer: stallTimer,
 	}
 }
 
-// stopStallTimeout stops the progress stall timer while ensuring to read from
-// the timer's channel in the case the timer already expired which can happen
-// due to the fact the stop happens in between channel reads.  This behavior is
-// well documented in the Timer docs.
+// StopStallTimeout makes a best effort attempt to prevent the progress stall
+// timer from firing.  It has no effect if the timer has already fired.
 //
-// NOTE: This function must not be called concurrent with any other receives on
-// the timer's channel.
-func (state *headerSyncState) stopStallTimeout() {
-	t := state.stallTimer
-	if !t.Stop() && !state.stallChanDrained {
-		<-t.C
-	}
-	state.stallChanDrained = true
+// It is only a best effort attempt because stopping the timer concurrently with
+// listening on its channel leaves the possibility for the timer to be in the
+// process of firing just as it's being stopped which can result in a stale
+// time value being delivered on the channel prior to Go 1.23.
+//
+// That possibility is not a concern because:
+//
+//	a) The stall timeout logic only depends on the event as opposed to the time
+//	   values
+//	b) The timeout is sufficiently long that it is almost never hit in practice
+//	c) It is even more rare that the timer would just happen to be in the
+//	   process of firing (sending to the channel) when data nearly
+//	   simultaneously arrives and resets the timer just before it actually fires
+//	d) Even if all of that were to happen, the only effect is the standard
+//	   stall timeout handling logic which means there are no adverse effects
+//
+// This function is safe for concurrent access.
+func (state *headerSyncState) StopStallTimeout() {
+	state.stallTimer.Stop()
 }
 
-// resetStallTimeout resets the progress stall timer while ensuring to read from
-// the timer's channel in the case the timer already expired which can happen
-// due to the fact the reset happens in between channel reads.  This behavior is
-// well documented in the Timer docs.
+// ResetStallTimeout resets the progress stall timer.  Note that resetting the
+// timer concurrently with listening on its channel leaves the possibility for
+// the timer to be in process of firing just as it's being reset which can
+// result in a stale time value being delivered on the channel prior to Go 1.23.
 //
-// NOTE: This function must not be called concurrent with any other receives on
-// the timer's channel.
-func (state *headerSyncState) resetStallTimeout() {
-	state.stopStallTimeout()
+// The aforementioned possibility is not a concern for the same reasons
+// discussed in [headerSyncState.StopStallTimeout].
+//
+// This function is safe for concurrent access.
+func (state *headerSyncState) ResetStallTimeout() {
 	state.stallTimer.Reset(headerSyncStallTimeoutSecs * time.Second)
-	state.stallChanDrained = false
+}
+
+// InitialHeaderSyncDone returns whether or not the initial header sync process
+// is complete.
+func (state *headerSyncState) InitialHeaderSyncDone() bool {
+	return state.headersSynced.Load()
 }
 
 // SyncManager provides a concurrency safe sync manager for handling all
@@ -376,34 +302,56 @@ type SyncManager struct {
 	// params should be updated to use the new type, but that will be a major
 	// version bump, so a one-time conversion is a good tradeoff in the mean
 	// time.
+	//
+	// This value is set during creation and is immutable making it safe for
+	// concurrent access.
 	minKnownWork *uint256.Uint256
 
-	rejectedTxns     *apbf.Filter
-	rejectedMixMsgs  *apbf.Filter
-	requestedTxns    map[chainhash.Hash]struct{}
+	rejectedTxns    *apbf.Filter
+	rejectedMixMsgs *apbf.Filter
+	progressLogger  *progresslog.Logger
+
+	// These fields track pending requests for data from all peers.  They are
+	// protected by the request mutex.
+	requestMtx       sync.Mutex
+	requestedTxns    map[chainhash.Hash]*Peer
 	requestedBlocks  map[chainhash.Hash]*Peer
-	requestedMixMsgs map[chainhash.Hash]struct{}
-	progressLogger   *progresslog.Logger
-	syncPeer         *Peer
-	msgChan          chan interface{}
-	peers            map[*Peer]struct{}
+	requestedMixMsgs map[chainhash.Hash]*Peer
+
+	// The following fields are used to track the current sync peer.  The peer
+	// is protected by the associated mutex.
+	//
+	// warnOnNoSync is used to track whether or not a warning should be logged
+	// when there is no suitable sync peer.
+	syncPeerMtx  sync.Mutex
+	syncPeer     *Peer
+	warnOnNoSync bool
+
+	// The following fields are used to track the peers available to the sync
+	// manager.  The map is protected by the associated mutex.
+	peersMtx sync.Mutex
+	peers    map[*Peer]struct{}
 
 	// hdrSyncState houses the state used to track the initial header sync
 	// process and related stall handling.
 	hdrSyncState headerSyncState
 
-	// The following fields are used to track the height being synced to from
-	// peers.
-	syncHeightMtx sync.Mutex
-	syncHeight    int64
+	// The following fields are used to track the state of the initial chain
+	// sync process.  The flag and transition to the initial chain synced state
+	// is protected by the associated mutex.
+	initialChainSyncDoneMtx sync.Mutex
+	isInitialChainSyncDone  bool
 
-	// The following fields are used to track whether or not the manager
-	// believes it is fully synced to the network.
-	isCurrentMtx sync.Mutex
-	isCurrent    bool
+	// syncHeight tracks the height being synced to from peers.
+	syncHeight atomic.Int64
+
+	// isCurrent tracks whether or not the manager believes it is fully synced
+	// to the network.
+	isCurrent atomic.Bool
 
 	// The following fields are used to track the list of the next blocks to
-	// download in the branch leading up to the best known header.
+	// download in the branch leading up to the best known header.  They are
+	// protected by the associated mutex.
 	//
 	// nextBlocksHeader is the hash of the best known header when the list was
 	// last updated.
@@ -419,17 +367,50 @@ type SyncManager struct {
 	// upper bound on the entries of the backing array that are valid and also
 	// acts as a list of needed blocks that are not already known to be in
 	// flight.
+	nextBlocksMtx    sync.Mutex
 	nextBlocksHeader chainhash.Hash
 	nextBlocksBuf    [512]chainhash.Hash
 	nextNeededBlocks []chainhash.Hash
 }
 
+// shutdownRequested returns true when the context used to run the sync manager
+// has been canceled.  This simplifies checking for shutdown slightly since the
+// caller can just use an if statement instead of a select.
+func (m *SyncManager) shutdownRequested() bool {
+	select {
+	case <-m.quit:
+		return true
+	default:
+	}
+
+	return false
+}
+
+// maybeUpdateSyncHeight atomically sets [m.syncHeight] to the provided value
+// when it is greater than its current value.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) maybeUpdateSyncHeight(newHeight int64) {
+	// NOTE: It's faster to avoid branches that would be introduced by checking
+	// the result of the CAS operation since both the success case and failure
+	// case of the CAS can be handled cleanly by simply loading the new value.
+	//
+	// Concretely, if the CAS fails, the conditional response would be to load
+	// the new value and loop around to try again.  However, if it succeeds, the
+	// conditional response would either be to break out of the for loop or to
+	// update the local variable to the new value so the for loop terminates.
+	// Both options are relatively expensive as compared to the chosen approach
+	// because they both would induce another conditional branch.
+	curHeight := m.syncHeight.Load()
+	for curHeight < newHeight {
+		m.syncHeight.CompareAndSwap(curHeight, newHeight)
+		curHeight = m.syncHeight.Load()
+	}
+}
+
 // SyncHeight returns latest known block being synced to.
 func (m *SyncManager) SyncHeight() int64 {
-	m.syncHeightMtx.Lock()
-	syncHeight := m.syncHeight
-	m.syncHeightMtx.Unlock()
-	return syncHeight
+	return m.syncHeight.Load()
 }
 
 // chainBlockLocatorToHashes converts a block locator from chain to a slice
@@ -449,8 +430,7 @@ func chainBlockLocatorToHashes(locator blockchain.BlockLocator) []chainhash.Hash
 // maybeUpdateNextNeededBlocks potentially updates the list of the next blocks
 // to download in the branch leading up to the best known header.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the next blocks mutex held (writes).
 func (m *SyncManager) maybeUpdateNextNeededBlocks() {
 	// Update the list if the best known header changed since the last time it
 	// was updated or it is not empty, is getting short, and does not already
@@ -470,22 +450,61 @@ func (m *SyncManager) maybeUpdateNextNeededBlocks() {
 // isRequestedBlock returns whether or not the given block hash has already been
 // requested from any remote peer.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the request mutex held (reads).
 func (m *SyncManager) isRequestedBlock(hash *chainhash.Hash) bool {
 	_, ok := m.requestedBlocks[*hash]
 	return ok
 }
 
+// isRequestedBlockFromPeer returns whether or not the given block hash has been
+// requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedBlockFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedBlocks[*hash]
+	return ok && requestedFrom == peer
+}
+
+// isRequestedTxFromPeer returns whether or not the given transaction hash has
+// been requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedTxFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedTxns[*hash]
+	return ok && requestedFrom == peer
+}
+
+// isRequestedMixMsgFromPeer returns whether or not the given mix message hash
+// has been requested from the given remote peer.
+//
+// This function MUST be called with the request mutex held (reads).
+func (m *SyncManager) isRequestedMixMsgFromPeer(peer *Peer, hash *chainhash.Hash) bool {
+	requestedFrom, ok := m.requestedMixMsgs[*hash]
+	return ok && requestedFrom == peer
+}
+
 // fetchNextBlocks creates and sends a request to the provided peer for the next
 // blocks to be downloaded based on the current headers.
+//
+// This function is safe for concurrent access.
 func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 	// Nothing to do if the target maximum number of blocks to request from the
 	// peer at the same time are already in flight.
-	numInFlight := len(peer.requestedBlocks)
+	var numInFlight int
+	m.requestMtx.Lock()
+	for _, requestedFrom := range m.requestedBlocks {
+		if requestedFrom != peer {
+			continue
+		}
+		numInFlight++
+	}
+	m.requestMtx.Unlock()
 	if numInFlight >= maxInFlightBlocks {
 		return
 	}
+
+	defer m.nextBlocksMtx.Unlock()
+	m.nextBlocksMtx.Lock()
 
 	// Potentially update the list of the next blocks to download in the branch
 	// leading up to the best known header.
@@ -501,6 +520,7 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 		numNeeded = maxNeeded
 	}
 	gdmsg := wire.NewMsgGetDataSizeHint(uint(numNeeded))
+	m.requestMtx.Lock()
 	for i := 0; i < numNeeded && len(gdmsg.InvList) < wire.MaxInvPerMsg; i++ {
 		// The block is either going to be skipped because it has already been
 		// requested or it will be requested, but in either case, the block is
@@ -517,9 +537,9 @@ func (m *SyncManager) fetchNextBlocks(peer *Peer) {
 
 		iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 		m.requestedBlocks[*hash] = peer
-		peer.requestedBlocks[*hash] = struct{}{}
 		gdmsg.AddInvVect(iv)
 	}
+	m.requestMtx.Unlock()
 	if len(gdmsg.InvList) > 0 {
 		peer.QueueMessage(gdmsg, nil)
 	}
@@ -546,25 +566,43 @@ func (m *SyncManager) fetchNextHeaders(peer *Peer) {
 	peer.PushGetHeadersMsg(locator, &zeroHash)
 }
 
-// updateSyncPeerState updates the sync peer to be the peer with the highest
-// known block height, and also marks peers as non sync candidates if their
-// chain heights have been surpassed.
-func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
-	// Determine the best sync peer.
+// isSyncPeerCandidate returns whether or not the given peer is a sync peer
+// candidate.
+//
+// Being a sync peer candidate has the following requirements:
+//   - The peer must serve data
+//   - The peer's latest known block height must be at least as high as the best
+//     known block height of the local chain
+func isSyncPeerCandidate(peer *Peer, bestHeight int64) bool {
+	return peer.servesData && peer.LastBlock() >= bestHeight
+}
+
+// updateSyncPeerState updates the sync peer to be the peer that is both a sync
+// candidate and has the highest known block height and updates the state of
+// whether or not the manager believes the chain is fully synced to whatever the
+// chain believes when there are no suitable candidates.
+//
+// It also potentially warns when no suitable candidate is found depending on
+// various factors such as whether or not a warning has already been shown since
+// the last time there was a valid sync peer.
+//
+// This function MUST be called with the sync peer mutex held (writes).
+func (m *SyncManager) updateSyncPeerState() {
+	chain := m.cfg.Chain
+	_, bestHeaderHeight := chain.BestHeader()
+
+	// Determine the best sync peer and number of outbound peers.
 	var bestPeer *Peer
+	var numOutbound uint64
+	m.peersMtx.Lock()
 	for peer := range m.peers {
-		if !peer.syncCandidate {
-			continue
+		// Tally total number of outbound peers.
+		if !peer.Inbound() {
+			numOutbound++
 		}
 
-		// Remove sync candidate peers that are no longer candidates due to
-		// passing their latest known block.  NOTE: The < is intentional as
-		// opposed to <=.  While technically the peer doesn't have a later block
-		// when it's equal, it will likely have one soon so it is a reasonable
-		// choice.  It also allows the case where both are at 0 such as during
-		// regression test.
-		if peer.LastBlock() < bestHeight {
-			peer.syncCandidate = false
+		// Skip peers that are not sync candidates.
+		if !isSyncPeerCandidate(peer, bestHeaderHeight) {
 			continue
 		}
 
@@ -573,119 +611,174 @@ func (m *SyncManager) updateSyncPeerState(bestHeight int64) {
 			bestPeer = peer
 		}
 	}
+	m.peersMtx.Unlock()
+
+	// Update the state of whether or not the manager believes the chain is
+	// fully synced to whatever the chain believes and return after potentially
+	// logging a warning when there is not a suitable candidate since there is
+	// nothing more to do without one.
+	if bestPeer == nil {
+		m.isCurrent.Store(chain.IsCurrent())
+
+		// A sync peer already being assigned prior to calling implies it was
+		// disconnected or otherwise is no longer a suitable candidate.  On the
+		// other hand, no sync peer assigned implies there were no suitable
+		// candidates at all.
+		//
+		// The latter case is expected to happen and thus is only something
+		// worthy of a warning when the max expected number of outbound
+		// connections has been reached.
+		hadSyncPeer := m.syncPeer != nil
+		hasMaxOutbound := numOutbound >= m.cfg.MaxOutboundPeers
+		if m.warnOnNoSync && (hadSyncPeer || hasMaxOutbound) {
+			log.Warnf("No sync peer candidates available")
+			m.warnOnNoSync = false
+		}
+	} else {
+		// Ensure future warnings are eligible to be shown when no sync peer
+		// candidates are available.
+		m.warnOnNoSync = true
+	}
+
 	m.syncPeer = bestPeer
 }
 
-// startInitialHeaderSync starts the initial header sync process which consists
-// of downloading all headers that are not already known from the sync peer. As
-// the name implies, this assumes the initial header sync process is not already
-// done.
-func (m *SyncManager) startInitialHeaderSync(bestHeight int64) {
-	hdrSyncPeer := m.syncPeer
-	syncHeight := hdrSyncPeer.LastBlock()
-	log.Infof("Syncing headers to block height %d from peer %v", syncHeight,
-		hdrSyncPeer)
+// startInitialHeaderSync attempts to find the best header sync candidate and,
+// so long as one is found, saves it as the sync peer and starts or continues
+// the initial header sync process with it.
+//
+// The initial header sync process consists of downloading all headers that are
+// not already known from the sync peer.  As the name implies, this assumes the
+// initial header sync process is not already done.
+//
+// This function MUST be called with the sync peer mutex held (writes).
+func (m *SyncManager) startInitialHeaderSync() {
+	// Attempt to find and set the best header sync peer candidate and return if
+	// no suitable candidates were found since there is nothing more to do
+	// without one.
+	m.updateSyncPeerState()
+	if m.syncPeer == nil {
+		return
+	}
 
-	// The chain is not synced whenever the current best height is not within a
-	// couple of blocks of the height to sync to.
+	syncHeight := m.syncPeer.LastBlock()
+	log.Infof("Syncing headers to block height %d from peer %v", syncHeight,
+		m.syncPeer)
+
+	// The chain is not synced whenever the current best chain height is not
+	// within a couple of blocks of the height to sync to.
+	bestHeight := m.cfg.Chain.BestSnapshot().Height
 	if bestHeight+2 < syncHeight {
-		m.isCurrentMtx.Lock()
-		m.isCurrent = false
-		m.isCurrentMtx.Unlock()
+		m.isCurrent.Store(false)
 	}
 
 	// Request headers starting from the parent of the best known header for the
 	// local chain from the sync peer.
-	m.fetchNextHeaders(hdrSyncPeer)
+	m.fetchNextHeaders(m.syncPeer)
 
 	// Update the sync height when it is higher than the currently best known
 	// value.
-	m.syncHeightMtx.Lock()
-	if syncHeight > m.syncHeight {
-		m.syncHeight = syncHeight
-	}
-	m.syncHeightMtx.Unlock()
+	m.maybeUpdateSyncHeight(syncHeight)
 
 	// Start the header sync progress stall timeout.
-	m.hdrSyncState.resetStallTimeout()
+	m.hdrSyncState.ResetStallTimeout()
 }
 
-// startSync updates sync peer candidacy and kicks off the blockchain sync
-// process depending on the current overall sync state.
+// startChainSync attempts to find a peer to sync the chain from and, so long as
+// one is found, saves it as the sync peer and starts or continues the
+// blockchain sync process with it.
 //
-// When the initial header sync process has not been completed, it selects the
-// peer with the most blocks and begins to download the blockchain headers from
-// it.
-//
-// On the other hand, when the initial header sync process is complete, it
-// starts downloading any outstanding blocks that are still needed.
-func (m *SyncManager) startSync() {
-	// Update sync peer candidacy and determine the best sync peer.
-	chain := m.cfg.Chain
-	best := chain.BestSnapshot()
-	m.updateSyncPeerState(best.Height)
-
-	// Update the state of whether or not the manager believes the chain is
-	// fully synced to whatever the chain believes when there is no candidate
-	// for a sync peer.
-	//
-	// Also, return now when there isn't a sync peer candidate as there is
-	// nothing more to do without one.
+// This function MUST be called with the sync peer mutex held (writes).
+func (m *SyncManager) startChainSync() {
+	// Attempt to find and set the best sync peer candidate and return if no
+	// suitable candidates were found since there is nothing more to do without
+	// one.
+	m.updateSyncPeerState()
 	if m.syncPeer == nil {
-		m.isCurrentMtx.Lock()
-		m.isCurrent = chain.IsCurrent()
-		m.isCurrentMtx.Unlock()
-		log.Warnf("No sync peer candidates available")
 		return
 	}
 
-	// Perform the initial header sync process as needed.
-	headersSynced := m.hdrSyncState.headersSynced
-	if !headersSynced {
-		m.startInitialHeaderSync(best.Height)
-	}
-
-	// Download any blocks needed to catch the local chain up to the best
-	// known header (if any) when the initial headers sync is already done.
+	// Download any blocks needed to catch the local chain up to the best known
+	// header (if any).
 	//
-	// This is done in addition to the header request above to avoid waiting
-	// for the round trip when there are still blocks that are needed
-	// regardless of the headers response.
-	if headersSynced {
-		m.fetchNextBlocks(m.syncPeer)
-	}
+	// This is done to avoid waiting for a round trip on header discovery when
+	// there are still blocks that are needed regardless of the headers
+	// response.
+	m.fetchNextBlocks(m.syncPeer)
 }
 
 // onInitialChainSyncDone is invoked when the initial chain sync process
 // completes.
+//
+// This function MUST be called with the initial sync done mutex held (writes).
 func (m *SyncManager) onInitialChainSyncDone() {
+	// This is typically only called once in practice currently due to the way
+	// the sync process is handled, but that might change in the future with
+	// parallel and out of order block processing or possibly parallel header
+	// syncing.  Be cautious and prevent multiple invocations just in case.
+	//
+	// A sync.Once is not used because other code needs to make decisions based
+	// on the flag.  It might also be useful in the future to allow the sync
+	// state to move back into initial chain sync mode if the chain falls too
+	// far behind, which, for example, could happen due to an extended network
+	// outage.
+	if m.isInitialChainSyncDone {
+		return
+	}
+	m.isInitialChainSyncDone = true
+
 	best := m.cfg.Chain.BestSnapshot()
-	log.Infof("Initial chain sync complete (hash %s, height %d)",
-		best.Hash, best.Height)
+	log.Infof("Initial chain sync complete (hash %s, height %d)", best.Hash,
+		best.Height)
 
 	// Request initial state from all peers that still need it now that the
 	// initial chain sync is done.
+	m.peersMtx.Lock()
 	for peer := range m.peers {
 		peer.maybeRequestInitialState(!m.cfg.NoMiningStateSync)
 	}
+	m.peersMtx.Unlock()
 }
 
-// handlePeerConnectedMsg deals with new peers that have signalled they may
-// be considered as a sync peer (they have already successfully negotiated).  It
-// also starts syncing if needed.  It is invoked from the eventHandler goroutine.
-func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
-	select {
-	case <-ctx.Done():
-	default:
+// OnPeerConnected should be invoked with peers that have already gone through
+// version negotiation and passed other initial validation checks that determine
+// it is suitable for participation in staying synced with the network.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnPeerConnected(peer *Peer) {
+	if m.shutdownRequested() {
+		return
 	}
 
-	log.Infof("New valid peer %s (%s)", peer, peer.UserAgent())
-
+	m.peersMtx.Lock()
 	m.peers[peer] = struct{}{}
+	m.peersMtx.Unlock()
+
+	// Attempt to find a peer to sync headers from when there isn't already one
+	// and the initial headers sync process is still in progress.
+	//
+	// Technically, this currently could start the process with the peer that is
+	// connecting if it is a header sync candidate because the only time the
+	// sync peer will not be set due to the current logic is when there are no
+	// other candidates.  However, using the same logic to select a new sync
+	// peer as when the current one disconnects is more consistent and easier to
+	// update if more complex logic is introduced in the future.
+	if !m.hdrSyncState.InitialHeaderSyncDone() {
+		m.syncPeerMtx.Lock()
+		if m.syncPeer == nil {
+			m.startInitialHeaderSync()
+		}
+		m.syncPeerMtx.Unlock()
+		return
+	}
+
+	// -------------------------------------------------------
+	// The initial headers sync process is done at this point.
+	// -------------------------------------------------------
 
 	// Request headers starting from the parent of the best known header for the
 	// local chain immediately when the initial headers sync process is complete
-	// and the peer is a sync candidate.
+	// and the peer potentially serves useful data.
 	//
 	// This primarily serves two purposes:
 	//
@@ -694,14 +787,17 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	//
 	// Note that the parent is used because the request would otherwise result
 	// in an empty response when both the local and remote tips are the same.
-	if peer.syncCandidate && m.hdrSyncState.headersSynced {
+	if peer.servesData {
 		m.fetchNextHeaders(peer)
 	}
 
-	// Start syncing by choosing the best candidate if needed.
-	if peer.syncCandidate && m.syncPeer == nil {
-		m.startSync()
+	// Attempt to find a sync peer and start syncing the chain from it when
+	// there isn't already one.
+	m.syncPeerMtx.Lock()
+	if m.syncPeer == nil {
+		m.startChainSync()
 	}
+	m.syncPeerMtx.Unlock()
 
 	// Potentially request the initial state from this peer now when the manager
 	// believes the chain is fully synced.  Otherwise, it will be requested when
@@ -711,68 +807,112 @@ func (m *SyncManager) handlePeerConnectedMsg(ctx context.Context, peer *Peer) {
 	}
 }
 
-// handlePeerDisconnectedMsg deals with peers that have signalled they are done.
-// It removes the peer as a candidate for syncing and in the case where it was
-// the current sync peer, attempts to select a new best peer to sync from.  It
-// is invoked from the eventHandler goroutine.
-func (m *SyncManager) handlePeerDisconnectedMsg(peer *Peer) {
-	// Remove the peer from the list of candidate peers.
-	delete(m.peers, peer)
+// OnPeerDisconnected should be invoked when peers the sync manager was
+// previously informed about have disconnected.  It removes the peer as a
+// candidate for syncing and, in the case it was the current sync peer, attempts
+// to select a new best peer to sync from.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnPeerDisconnected(peer *Peer) {
+	if m.shutdownRequested() {
+		return
+	}
 
-	// Re-request in-flight blocks and transactions that were not received
-	// by the disconnected peer if the data was announced by another peer.
-	// Remove the data from the manager's requested data maps if no other
-	// peers have announced the data.
+	// Remove the peer from the list of candidate peers.
+	m.peersMtx.Lock()
+	delete(m.peers, peer)
+	m.peersMtx.Unlock()
+
+	// Attempt to find a new peer to sync headers from when the quitting peer is
+	// the sync peer and the initial headers sync process is still in progress.
+	//
+	// Also, skip the rest of the logic below before the headers are synced
+	// since no requests for the data being checked are made prior to that point
+	// nor can the chain sync be started.
+	if !m.hdrSyncState.InitialHeaderSyncDone() {
+		m.syncPeerMtx.Lock()
+		if m.syncPeer == peer {
+			m.startInitialHeaderSync()
+		}
+		m.syncPeerMtx.Unlock()
+		return
+	}
+
+	// -------------------------------------------------------
+	// The initial headers sync process is done at this point.
+	// -------------------------------------------------------
+
+	// Re-request in-flight blocks and transactions that were not received by
+	// the disconnected peer if the data was announced by another peer.  Remove
+	// the data from the manager's requested data maps if no other peers have
+	// announced the data.
 	requestQueues := make(map[*Peer][]wire.InvVect)
 	var inv wire.InvVect
 	inv.Type = wire.InvTypeTx
+	m.requestMtx.Lock()
 TxHashes:
-	for txHash := range peer.requestedTxns {
+	for txHash, requestedFrom := range m.requestedTxns {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = txHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
-			pp.requestedTxns[txHash] = struct{}{}
+			requestQueues[pp] = append(requestQueues[pp], inv)
+			m.requestedTxns[txHash] = pp
+			m.peersMtx.Unlock()
 			continue TxHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedTxns, txHash)
 	}
 	inv.Type = wire.InvTypeBlock
 BlockHashes:
-	for blockHash := range peer.requestedBlocks {
+	for blockHash, requestedFrom := range m.requestedBlocks {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = blockHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
-			pp.requestedBlocks[blockHash] = struct{}{}
+			requestQueues[pp] = append(requestQueues[pp], inv)
+			m.requestedBlocks[blockHash] = pp
+			m.peersMtx.Unlock()
 			continue BlockHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedBlocks, blockHash)
 	}
 	inv.Type = wire.InvTypeMix
 MixHashes:
-	for mixHash := range peer.requestedMixMsgs {
+	for mixHash, requestedFrom := range m.requestedMixMsgs {
+		if requestedFrom != peer {
+			continue
+		}
 		inv.Hash = mixHash
+		m.peersMtx.Lock()
 		for pp := range m.peers {
 			if !pp.IsKnownInventory(&inv) {
 				continue
 			}
-			invs := append(requestQueues[pp], inv)
-			requestQueues[pp] = invs
-			pp.requestedMixMsgs[mixHash] = struct{}{}
+			requestQueues[pp] = append(requestQueues[pp], inv)
+			m.requestedMixMsgs[mixHash] = pp
+			m.peersMtx.Unlock()
 			continue MixHashes
 		}
+		m.peersMtx.Unlock()
 		// No peers found that have announced this data.
 		delete(m.requestedMixMsgs, mixHash)
 	}
+	m.requestMtx.Unlock()
 	for pp, requestQueue := range requestQueues {
 		var numRequested int32
 		gdmsg := wire.NewMsgGetData()
@@ -797,137 +937,179 @@ MixHashes:
 		}
 	}
 
-	// Attempt to find a new peer to sync from when the quitting peer is the
-	// sync peer.
+	// Attempt to find a new peer to sync the chain from when the quitting peer
+	// is the sync peer.
+	m.syncPeerMtx.Lock()
 	if m.syncPeer == peer {
-		m.syncPeer = nil
-		m.startSync()
+		m.startChainSync()
 	}
+	m.syncPeerMtx.Unlock()
 }
 
-// handleTxMsg handles transaction messages from all peers.
-func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
-	peer := tmsg.peer
+// OnTx should be invoked with transactions that are received from remote peers.
+//
+// Its primary purpose is processing transactions by validating them and adding
+// them to the mempool along with any orphan transactions that depend on it.
+//
+// It also deals with some other things related to syncing such as marking
+// in-flight transactions as received and preventing multiple requests for
+// invalid transactions.
+//
+// It returns a slice of transactions added to the mempool which might include
+// the passed transaction itself along with any additional orphan transactions
+// that were added as a result of the passed one being accepted.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnTx(peer *Peer, tx *dcrutil.Tx) []*dcrutil.Tx {
+	if m.shutdownRequested() {
+		return nil
+	}
 
-	// NOTE:  BitcoinJ, and possibly other wallets, don't follow the spec of
-	// sending an inventory message and allowing the remote peer to decide
-	// whether or not they want to request the transaction via a getdata
-	// message.  Unfortunately, the reference implementation permits
-	// unrequested data, so it has allowed wallets that don't follow the
-	// spec to proliferate.  While this is not ideal, there is no check here
-	// to disconnect peers for sending unsolicited transactions to provide
-	// interoperability.
-	txHash := tmsg.tx.Hash()
+	// NOTE: The expected sequence of events for inventory propagation is
+	// technically sending an inventory message and allowing the remote peer to
+	// decide whether or not they want to request the transaction via a getdata
+	// message.
+	//
+	// However, primarily due to inherited legacy behavior, there is no check
+	// here to disconnect peers for sending unsolicited transactions.  This
+	// behavior is retained in order to provide interoperability since changing
+	// it now could potentially cause issues for any wallets that rely on it.
+	txHash := tx.Hash()
 
 	// Ignore transactions that have already been rejected.  The transaction was
 	// unsolicited if it was already previously rejected.
 	if m.rejectedTxns.Contains(txHash[:]) {
 		log.Debugf("Ignoring unsolicited previously rejected transaction %v "+
 			"from %s", txHash, peer)
-		return
+		return nil
 	}
 
-	// Process the transaction to include validation, insertion in the
-	// memory pool, orphan handling, etc.
+	// Process the transaction to include validation, insertion in the memory
+	// pool, orphan handling, etc.
 	allowOrphans := m.cfg.MaxOrphanTxs > 0
-	acceptedTxs, err := m.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
-		allowOrphans, true, mempool.Tag(peer.ID()))
+	acceptedTxns, err := m.cfg.TxMemPool.ProcessTransaction(tx, allowOrphans,
+		true, mempool.Tag(peer.ID()))
 
 	// Remove transaction from request maps. Either the mempool/chain
 	// already knows about it and as such we shouldn't have any more
 	// instances of trying to fetch it, or we failed to insert and thus
 	// we'll retry next time we get an inv.
-	delete(peer.requestedTxns, *txHash)
+	m.requestMtx.Lock()
 	delete(m.requestedTxns, *txHash)
+	m.requestMtx.Unlock()
 
 	if err != nil {
 		// Do not request this transaction again until a new block has been
 		// processed.
 		m.rejectedTxns.Add(txHash[:])
 
-		// When the error is a rule error, it means the transaction was
-		// simply rejected as opposed to something actually going wrong,
-		// so log it as such.  Otherwise, something really did go wrong,
-		// so log it as an actual error.
+		// When the error is a rule error, it means the transaction was simply
+		// rejected as opposed to something actually going wrong, so log it as
+		// such.  Otherwise, something really did go wrong, so log it as an
+		// actual error.
 		var rErr mempool.RuleError
 		if errors.As(err, &rErr) {
 			log.Debugf("Rejected transaction %v from %s: %v", txHash, peer, err)
 		} else {
 			log.Errorf("Failed to process transaction %v: %v", txHash, err)
 		}
-		return
-	}
-
-	m.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
-}
-
-// handleMixMsg handles mixing messages from all peers.
-func (m *SyncManager) handleMixMsg(mmsg *mixMsg) error {
-	peer := mmsg.peer
-
-	mixHash := mmsg.msg.Hash()
-
-	// Ignore transactions that have already been rejected.  The transaction was
-	// unsolicited if it was already previously rejected.
-	if m.rejectedMixMsgs.Contains(mixHash[:]) {
-		log.Debugf("Ignoring unsolicited previously rejected mix message %v "+
-			"from %s", &mixHash, peer)
 		return nil
 	}
 
-	accepted, err := m.cfg.MixPool.AcceptMessage(mmsg.msg)
+	return acceptedTxns
+}
+
+// OnMixMsg should be invoked with mix messages that are received from remote
+// peers.
+//
+// Its primary purpose is processing mix messages by validating them and adding
+// them to the mixpool along with any orphan messages that depend on them.
+//
+// It also deals with some other things related to syncing such as marking
+// in-flight messages as received and preventing multiple requests for invalid
+// messages.
+//
+// It returns a slice of messages added to the mixpool which might include the
+// passed message itself along with any additional orphan messages that were
+// added as a result of the passed one being accepted.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnMixMsg(peer *Peer, msg mixing.Message) ([]mixing.Message, error) {
+	if m.shutdownRequested() {
+		return nil, nil
+	}
+
+	// Ignore mix messages that have already been rejected.  The message was
+	// unsolicited if it was already previously rejected.
+	mixHash := msg.Hash()
+	if m.rejectedMixMsgs.Contains(mixHash[:]) {
+		log.Debugf("Ignoring unsolicited previously rejected mix message %v "+
+			"from %s", &mixHash, peer)
+		return nil, nil
+	}
+
+	accepted, err := m.cfg.MixPool.AcceptMessage(msg)
 
 	// Remove message from request maps. Either the mixpool already knows
 	// about it and as such we shouldn't have any more instances of trying
 	// to fetch it, or we failed to insert and thus we'll retry next time
 	// we get an inv.
-	delete(peer.requestedMixMsgs, mixHash)
+	m.requestMtx.Lock()
 	delete(m.requestedMixMsgs, mixHash)
+	m.requestMtx.Unlock()
 
 	if err != nil {
-		// Do not request this message again until a new block has
-		// been processed.  If the message is an orphan KE, it is
-		// tracked internally by mixpool as an orphan; there is no
-		// need to request it again after requesting the unknown PR.
+		// Do not request this message again until a new block has been
+		// processed.  If the message is an orphan KE, it is tracked internally
+		// by mixpool as an orphan; there is no need to request it again after
+		// requesting the unknown PR.
 		m.rejectedMixMsgs.Add(mixHash[:])
 
-		// When the error is a rule error, it means the message was
-		// simply rejected as opposed to something actually going wrong,
-		// so log it as such.
+		// When the error is a rule error, it means the message was simply
+		// rejected as opposed to something actually going wrong, so log it as
+		// such.
 		//
 		// When the error is an orphan KE with unknown PR, the PR will be
 		// requested from the peer submitting the KE.  This is a normal
 		// occurrence, and will be logged at debug instead at error level.
 		//
-		// Otherwise, something really did go wrong, so log it as an
-		// actual error.
+		// Otherwise, something really did go wrong, so log it as an actual
+		// error.
 		var rErr *mixpool.RuleError
 		var missingPRErr *mixpool.MissingOwnPRError
 		if errors.As(err, &rErr) || errors.As(err, &missingPRErr) {
-			log.Debugf("Rejected %T mixing message %v from %s: %v",
-				mmsg.msg, &mixHash, peer, err)
+			log.Debugf("Rejected %T mixing message %v from %s: %v", msg,
+				&mixHash, peer, err)
 		} else {
-			log.Errorf("Failed to process %T mixing message %v: %v",
-				mmsg.msg, &mixHash, err)
+			log.Errorf("Failed to process %T mixing message %v: %v", msg,
+				&mixHash, err)
 		}
-		return err
+		return nil, err
 	}
 
-	if len(accepted) == 0 {
-		return nil
-	}
-
-	m.cfg.PeerNotifier.AnnounceMixMessages(accepted)
-	return nil
+	return accepted, nil
 }
 
 // maybeUpdateIsCurrent potentially updates the manager to signal it believes
 // the chain is considered synced.
 //
-// This function MUST be called with the is current mutex held (for writes).
+// This function is safe for concurrent access.
 func (m *SyncManager) maybeUpdateIsCurrent() {
+	// Note that not protecting this entire sequence by a mutex doesn't present
+	// an overall logic problem because it only ever potentially updates the
+	// flag to true and whether or not the manager is considered current is
+	// fundamentally a transient property that can change at any time.
+
 	// Nothing to do when already considered synced.
-	if m.isCurrent {
+	if m.isCurrent.Load() {
 		return
 	}
 
@@ -936,7 +1118,7 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 	best := m.cfg.Chain.BestSnapshot()
 	syncHeight := m.SyncHeight()
 	if best.Height >= syncHeight && m.cfg.Chain.IsCurrent() {
-		m.isCurrent = true
+		m.isCurrent.Store(true)
 	}
 }
 
@@ -944,8 +1126,7 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 // cumulative proof of work that the given peer has announced which includes its
 // associated hash, cumulative work sum, and height.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the best announced mutex held (writes).
 func (m *SyncManager) maybeUpdateBestAnnouncedBlock(p *Peer, hash *chainhash.Hash, header *wire.BlockHeader) {
 	chain := m.cfg.Chain
 	workSum, err := chain.ChainWork(hash)
@@ -968,8 +1149,7 @@ func (m *SyncManager) maybeUpdateBestAnnouncedBlock(p *Peer, hash *chainhash.Has
 // when it is, potentially making it the block with the most cumulative proof of
 // work announced by the peer if needed.
 //
-// This function is NOT safe for concurrent access.  It must be called from the
-// event handler goroutine.
+// This function MUST be called with the best announced mutex held (writes).
 func (m *SyncManager) maybeResolveOrphanBlock(p *Peer) {
 	// Nothing to do if there isn't a pending orphan block announcement that has
 	// not yet been resolved or the block still isn't known.
@@ -996,6 +1176,8 @@ func (m *SyncManager) maybeResolveOrphanBlock(p *Peer) {
 // the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.  Orphans are rejected and can be
 // detected by checking if the error is blockchain.ErrMissingParent.
+//
+// This function is safe for concurrent access.
 func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
 	forkLen, err := m.cfg.Chain.ProcessBlock(block)
@@ -1007,49 +1189,58 @@ func (m *SyncManager) processBlock(block *dcrutil.Block) (int64, error) {
 	// known value and it extends the main chain.
 	onMainChain := forkLen == 0
 	if onMainChain {
-		m.syncHeightMtx.Lock()
-		blockHeight := int64(block.MsgBlock().Header.Height)
-		if blockHeight > m.syncHeight {
-			m.syncHeight = blockHeight
-		}
-		m.syncHeightMtx.Unlock()
+		m.maybeUpdateSyncHeight(int64(block.MsgBlock().Header.Height))
 	}
 
-	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
-	m.isCurrentMtx.Unlock()
 
 	return forkLen, nil
 }
 
-// handleBlockMsg handles block messages from all peers.
-func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
-	peer := bmsg.peer
+// OnBlock should be invoked with blocks that are received from remote peers.
+//
+// Its primary purpose is processing blocks by validating them, adding them to
+// the blockchain, logging relevant information, and requesting more if needed.
+//
+// It also deals with some other things related to syncing such as participating
+// in determining when the blockchain is initially synced and removing the
+// transactions in the block from the transaction and mixing pools.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) OnBlock(peer *Peer, block *dcrutil.Block) {
+	if m.shutdownRequested() {
+		return
+	}
 
 	// The remote peer is misbehaving when the block was not requested.
-	blockHash := bmsg.block.Hash()
-	if _, exists := peer.requestedBlocks[*blockHash]; !exists {
+	blockHash := block.Hash()
+	m.requestMtx.Lock()
+	requested := m.isRequestedBlockFromPeer(peer, blockHash)
+	m.requestMtx.Unlock()
+	if !requested {
 		log.Warnf("Got unrequested block %v from %s -- disconnecting",
 			blockHash, peer)
 		peer.Disconnect()
 		return
 	}
 
-	// Save whether or not the chain believes it is current prior to processing
-	// the block for use below in determining logging behavior.
+	// Save the current best header prior to processing the block for use below.
 	chain := m.cfg.Chain
-	wasChainCurrent := chain.IsCurrent()
 	curBestHeaderHash, _ := chain.BestHeader()
-	isBlockForBestHeader := curBestHeaderHash == *blockHash
 
 	// Process the block to include validation, best chain selection, etc.
 	//
 	// Also, remove the block from the request maps once it has been processed.
 	// This ensures chain is aware of the block before it is removed from the
 	// maps in order to help prevent duplicate requests.
-	forkLen, err := m.processBlock(bmsg.block)
-	delete(peer.requestedBlocks, *blockHash)
+	forkLen, err := m.processBlock(block)
+	m.requestMtx.Lock()
 	delete(m.requestedBlocks, *blockHash)
+	m.requestMtx.Unlock()
 	if err != nil {
 		// Ideally there should never be any requests for duplicate blocks, but
 		// ignore any that manage to make it through.
@@ -1084,36 +1275,45 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// Also, reset the sync height to whatever the chain reports as the new
 		// best header height since it is now very likely less than the tip that
 		// was just rejected.
+		isBlockForBestHeader := curBestHeaderHash == *blockHash
 		if isBlockForBestHeader {
 			_, newBestHeaderHeight := chain.BestHeader()
-			m.syncHeightMtx.Lock()
-			m.syncHeight = newBestHeaderHeight
-			m.syncHeightMtx.Unlock()
+			m.syncHeight.Store(newBestHeaderHeight)
 
-			m.isCurrentMtx.Lock()
 			m.maybeUpdateIsCurrent()
-			m.isCurrentMtx.Unlock()
 
+			m.peersMtx.Lock()
 			for peer := range m.peers {
-				if peer.syncCandidate {
+				if peer.servesData {
 					m.fetchNextHeaders(peer)
 				}
 			}
+			m.peersMtx.Unlock()
 		}
 
 		return
 	}
 
-	// Log information about the block.  Use the progress logger when the chain
-	// was not already current prior to processing the block to provide nicer
-	// periodic logging with a progress percentage.  Otherwise, log the block
-	// individually along with some stats.
-	msgBlock := bmsg.block.MsgBlock()
+	// Log information about the block.  Use the progress logger when the
+	// initial chain sync is not done to provide nicer periodic logging with a
+	// progress percentage.  Otherwise, log the block individually along with
+	// some stats.
+	//
+	// Also, transition the initial chain sync state to done when the chain
+	// becomes current.
+	//
+	// Note that the entire logging sequence is protected by the initial chain
+	// sync done mutex to ensure proper ordering since it is also dependent on
+	// the state of the transition.  Namely, the periodic progress logger must
+	// no longer be used once the initial chain sync is done.
+	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
-	if !wasChainCurrent {
-		forceLog := int64(header.Height) >= m.SyncHeight()
+	m.initialChainSyncDoneMtx.Lock()
+	if !m.isInitialChainSyncDone {
+		isCurrent := chain.IsCurrent()
+		forceLog := int64(header.Height) >= m.SyncHeight() || isCurrent
 		m.progressLogger.LogProgress(msgBlock, forceLog, chain.VerifyProgress)
-		if chain.IsCurrent() {
+		if isCurrent {
 			m.onInitialChainSyncDone()
 		}
 	} else {
@@ -1135,6 +1335,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			numRevokes, pickNoun(numRevokes, "revocation", "revocations"),
 			header.Height, interval)
 	}
+	m.initialChainSyncDoneMtx.Unlock()
 
 	// Perform some additional processing when the block extended the main
 	// chain.
@@ -1148,8 +1349,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		// Clear the rejected transactions.
 		m.rejectedTxns.Reset()
 
-		// Remove expired pair requests and completed mixes from
-		// mixpool.
+		// Remove expired pair requests and completed mixes from the mixpool.
 		m.cfg.MixPool.RemoveSpentPRs(msgBlock.Transactions)
 		m.cfg.MixPool.RemoveSpentPRs(msgBlock.STransactions)
 		m.cfg.MixPool.ExpireMessagesInBackground(header.Height)
@@ -1157,8 +1357,16 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Request more blocks using the headers when the request queue is getting
 	// short.
-	if peer == m.syncPeer && len(peer.requestedBlocks) < minInFlightBlocks {
-		m.fetchNextBlocks(peer)
+	m.syncPeerMtx.Lock()
+	isSyncPeer := peer == m.syncPeer
+	m.syncPeerMtx.Unlock()
+	if isSyncPeer {
+		m.requestMtx.Lock()
+		numInFlight := len(m.requestedBlocks)
+		m.requestMtx.Unlock()
+		if numInFlight < minInFlightBlocks {
+			m.fetchNextBlocks(peer)
+		}
 	}
 }
 
@@ -1221,13 +1429,86 @@ func (m *SyncManager) headerSyncProgress() float64 {
 	return math.Min(float64(header.Height)/float64(syncHeight), 1.0) * 100
 }
 
-// handleHeadersMsg handles headers messages from all peers.
-func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
-	peer := hmsg.peer
+// onInitialHeaderSyncDone is invoked when the initial header sync process
+// completes.
+//
+// This function MUST be called with the header sync state mutex held (writes).
+func (m *SyncManager) onInitialHeaderSyncDone(hash *chainhash.Hash, height int64) {
+	m.hdrSyncState.StopStallTimeout()
+
+	// This method is typically only called once in practice currently due to
+	// the way the sync process is handled, but that might change in the future
+	// if parallel header syncing is implemented.  Be cautious and prevent
+	// multiple invocations just in case.
+	//
+	// Check the atomic flag again under the slower mutex to prevent possible
+	// logic races during the transition from the initial headers sync mode to
+	// the initial chain sync mode.
+	//
+	// A sync.Once is not used because other code needs to make decisions based
+	// on the flag.
+	if m.hdrSyncState.InitialHeaderSyncDone() {
+		return
+	}
+	m.hdrSyncState.headersSynced.Store(true)
+
+	log.Infof("Initial headers sync complete (best header hash %s, height %d)",
+		hash, height)
+	log.Info("Performing initial chain sync...")
+	m.progressLogger.SetLastLogTime(time.Now())
+
+	// Request headers starting from the parent of the best known header for the
+	// local chain from any peers that potentially serve useful data and have
+	// not yet had their best known block discovered now that the initial
+	// headers sync process is complete.
+	m.peersMtx.Lock()
+	for peer := range m.peers {
+		peer.bestAnnouncedMtx.Lock()
+		m.maybeResolveOrphanBlock(peer)
+		needsBestHeader := peer.servesData && peer.bestAnnouncedBlock == nil
+		peer.bestAnnouncedMtx.Unlock()
+		if !needsBestHeader {
+			continue
+		}
+		m.fetchNextHeaders(peer)
+	}
+	m.peersMtx.Unlock()
+
+	// Potentially update whether the chain believes it is current now that the
+	// headers are synced.
+	chain := m.cfg.Chain
+	chain.MaybeUpdateIsCurrent()
+	if chain.IsCurrent() {
+		m.initialChainSyncDoneMtx.Lock()
+		m.onInitialChainSyncDone()
+		m.initialChainSyncDoneMtx.Unlock()
+	}
+}
+
+// OnHeaders should be invoked with header messages that are received from
+// remote peers.
+//
+// Its primary purpose is processing headers by ensuring they properly connect,
+// adding them to the blockchain, and requesting more if needed.
+//
+// It also deals with some other things related to syncing such as determining
+// when the headers are initially synced, disconnecting outbound peers that have
+// less cumulative work compared to the known minimum work during the initial
+// chain sync, and requesting blocks associated with the announced headers.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
+	if m.shutdownRequested() {
+		return
+	}
 
 	// Nothing to do for an empty headers message as it means the sending peer
 	// does not have any additional headers for the requested block locator.
-	headers := hmsg.headers.Headers
+	headers := headersMsg.Headers
 	numHeaders := len(headers)
 	if numHeaders == 0 {
 		return
@@ -1239,7 +1520,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	firstHeader := headers[0]
 	firstHeaderHash := firstHeader.BlockHash()
 	firstHeaderConnects := chain.HaveHeader(&firstHeader.PrevBlock)
-	headersSynced := m.hdrSyncState.headersSynced
+	headersSynced := m.hdrSyncState.InitialHeaderSyncDone()
 	if !firstHeaderConnects {
 		// Attempt to detect block announcements which do not connect to any
 		// known headers and request any headers starting from the best header
@@ -1251,11 +1532,11 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		// that does not connect and disconnect it once the max allowed
 		// threshold has been reached.
 		if numHeaders < maxExpectedHeaderAnnouncementsPerMsg {
-			peer.numConsecutiveOrphanHeaders++
-			if peer.numConsecutiveOrphanHeaders >= maxConsecutiveOrphanHeaders {
+			numConsecutive := peer.numConsecutiveOrphanHeaders.Add(1)
+			if numConsecutive >= maxConsecutiveOrphanHeaders {
 				log.Debugf("Received %d consecutive headers messages that do "+
-					"not connect from peer %s -- disconnecting",
-					peer.numConsecutiveOrphanHeaders, peer)
+					"not connect from peer %s -- disconnecting", numConsecutive,
+					peer)
 				peer.Disconnect()
 				return
 			}
@@ -1274,10 +1555,12 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// block by the peer that does not connect to any headers known to
 			// the local chain since there is a good chance it will eventually
 			// become known either from this peer or others.
-			m.maybeResolveOrphanBlock(peer)
 			finalHeader := headers[len(headers)-1]
 			finalHeaderHash := finalHeader.BlockHash()
+			peer.bestAnnouncedMtx.Lock()
+			m.maybeResolveOrphanBlock(peer)
 			peer.announcedOrphanBlock = &finalHeaderHash
+			peer.bestAnnouncedMtx.Unlock()
 
 			// Update the latest block height for the peer to avoid stale
 			// heights when looking for future potential header sync node
@@ -1320,6 +1603,10 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		headerHashes = append(headerHashes, header.BlockHash())
 	}
 
+	m.syncPeerMtx.Lock()
+	isSyncPeer := peer == m.syncPeer
+	m.syncPeerMtx.Unlock()
+
 	// Save the current best known header height prior to processing the headers
 	// so the code later is able to determine if any new useful headers were
 	// provided.
@@ -1334,11 +1621,9 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// and thus whatever the best known good header is becomes the new
 			// sync height unless a better one is discovered from the new sync
 			// peer.
-			if peer == m.syncPeer && !headersSynced {
+			if !headersSynced && isSyncPeer {
 				_, newBestHeaderHeight := chain.BestHeader()
-				m.syncHeightMtx.Lock()
-				m.syncHeight = newBestHeaderHeight
-				m.syncHeightMtx.Unlock()
+				m.syncHeight.Store(newBestHeaderHeight)
 			}
 
 			// Note that there is no need to check for an orphan header here
@@ -1357,33 +1642,29 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// Reset the header sync progress stall timeout when the headers are not
 	// already synced and progress was made.
 	newBestHeaderHash, newBestHeaderHeight := chain.BestHeader()
-	if peer == m.syncPeer && !headersSynced {
+	if !headersSynced && isSyncPeer {
 		if newBestHeaderHeight > prevBestHeaderHeight {
-			m.hdrSyncState.resetStallTimeout()
+			m.hdrSyncState.ResetStallTimeout()
 		}
 	}
 
 	// Reset the count of consecutive headers messages that contained headers
 	// which do not connect.  Note that this is intentionally only done when all
 	// of the provided headers are successfully processed above.
-	peer.numConsecutiveOrphanHeaders = 0
+	peer.numConsecutiveOrphanHeaders.Store(0)
 
 	// Potentially resolve a previously unknown announced block and then update
 	// the block with the most cumulative proof of work the peer has announced
 	// to the final announced header if needed.
 	finalHeader := headers[len(headers)-1]
 	finalReceivedHash := &headerHashes[len(headerHashes)-1]
+	peer.bestAnnouncedMtx.Lock()
 	m.maybeResolveOrphanBlock(peer)
 	m.maybeUpdateBestAnnouncedBlock(peer, finalReceivedHash, finalHeader)
+	peer.bestAnnouncedMtx.Unlock()
 
 	// Update the sync height if the new best known header height exceeds it.
-	syncHeight := m.SyncHeight()
-	if newBestHeaderHeight > syncHeight {
-		syncHeight = newBestHeaderHeight
-		m.syncHeightMtx.Lock()
-		m.syncHeight = syncHeight
-		m.syncHeightMtx.Unlock()
-	}
+	m.maybeUpdateSyncHeight(newBestHeaderHeight)
 
 	// Disconnect outbound peers that have less cumulative work than the minimum
 	// value already known to have been achieved on the network a priori while
@@ -1410,46 +1691,28 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		blkLocator := chain.BlockLocatorFromHash(finalReceivedHash)
 		locator := chainBlockLocatorToHashes(blkLocator)
 		peer.PushGetHeadersMsg(locator, &zeroHash)
-
-		m.progressLogger.LogHeaderProgress(uint64(len(headers)), headersSynced,
-			m.headerSyncProgress)
 	}
 
 	// Consider the headers synced once the sync peer sends a message with a
 	// final header that is within a few blocks of the sync height.
-	if !headersSynced && peer == m.syncPeer {
+	if !headersSynced && isSyncPeer {
 		const syncHeightFetchOffset = 6
-		if int64(finalHeader.Height)+syncHeightFetchOffset > syncHeight {
+		if int64(finalHeader.Height)+syncHeightFetchOffset > m.SyncHeight() {
 			headersSynced = true
-			m.hdrSyncState.headersSynced = headersSynced
-			m.hdrSyncState.stopStallTimeout()
 
+			m.hdrSyncState.Lock()
 			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
 				headersSynced, m.headerSyncProgress)
-			log.Infof("Initial headers sync complete (best header hash %s, "+
-				"height %d)", newBestHeaderHash, newBestHeaderHeight)
-			log.Info("Syncing chain")
-			m.progressLogger.SetLastLogTime(time.Now())
+			m.onInitialHeaderSyncDone(&newBestHeaderHash, newBestHeaderHeight)
+			m.hdrSyncState.Unlock()
 
-			// Request headers starting from the parent of the best known header
-			// for the local chain from any sync candidates that have not yet
-			// had their best known block discovered now that the initial
-			// headers sync process is complete.
-			for peer := range m.peers {
-				m.maybeResolveOrphanBlock(peer)
-				if !peer.syncCandidate || peer.bestAnnouncedBlock != nil {
-					continue
-				}
-				m.fetchNextHeaders(peer)
-			}
-
-			// Potentially update whether the chain believes it is current now
-			// that the headers are synced.
-			chain.MaybeUpdateIsCurrent()
+			// Update the local var that tracks whether the chain believes it is
+			// current since it might have been updated now that the headers are
+			// synced.
 			isChainCurrent = chain.IsCurrent()
-			if isChainCurrent {
-				m.onInitialChainSyncDone()
-			}
+		} else {
+			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
+				headersSynced, m.headerSyncProgress)
 		}
 	}
 
@@ -1465,6 +1728,7 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	// the associated block(s).
 	if isChainCurrent {
 		gdmsg := wire.NewMsgGetDataSizeHint(uint(len(headers)))
+		m.requestMtx.Lock()
 		for i := range headerHashes {
 			// Skip the block when it has already been requested or is otherwise
 			// already known.
@@ -1480,10 +1744,10 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			}
 
 			m.requestedBlocks[*hash] = peer
-			peer.requestedBlocks[*hash] = struct{}{}
 			iv := wire.NewInvVect(wire.InvTypeBlock, hash)
 			gdmsg.AddInvVect(iv)
 		}
+		m.requestMtx.Unlock()
 		if len(gdmsg.InvList) > 0 {
 			peer.QueueMessage(gdmsg, nil)
 		}
@@ -1491,36 +1755,54 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 
 	// Download any blocks needed to catch the local chain up to the best known
 	// header (if any) once the initial headers sync is done.
-	if headersSynced && m.syncPeer != nil {
-		m.fetchNextBlocks(m.syncPeer)
+	if headersSynced {
+		m.syncPeerMtx.Lock()
+		syncPeer := m.syncPeer
+		m.syncPeerMtx.Unlock()
+		if syncPeer != nil {
+			m.fetchNextBlocks(syncPeer)
+		}
 	}
 }
 
-// handleNotFoundMsg handles notfound messages from all peers.
-func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
-	peer := nfmsg.peer
+// OnNotFound should be invoked from the sync manager with notfound messages
+// that are received from remote peers.
+//
+// Currently, this primarily just removes the items from the request maps so
+// they can eventually be requested from elsewhere.  This could be improved in
+// the future to immediately request the reported items from another peer that
+// has announced them.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnNotFound(peer *Peer, notFound *wire.MsgNotFound) {
+	if m.shutdownRequested() {
+		return
+	}
 
-	for _, inv := range nfmsg.notFound.InvList {
-		// verify the hash was actually announced by the peer
-		// before deleting from the global requested maps.
+	m.requestMtx.Lock()
+	for _, inv := range notFound.InvList {
+		// Verify the hash was actually announced by the peer before deleting
+		// from the request maps.
 		switch inv.Type {
 		case wire.InvTypeBlock:
-			if _, exists := peer.requestedBlocks[inv.Hash]; exists {
-				delete(peer.requestedBlocks, inv.Hash)
+			if m.isRequestedBlockFromPeer(peer, &inv.Hash) {
 				delete(m.requestedBlocks, inv.Hash)
 			}
 		case wire.InvTypeTx:
-			if _, exists := peer.requestedTxns[inv.Hash]; exists {
-				delete(peer.requestedTxns, inv.Hash)
+			if m.isRequestedTxFromPeer(peer, &inv.Hash) {
 				delete(m.requestedTxns, inv.Hash)
 			}
 		case wire.InvTypeMix:
-			if _, exists := peer.requestedMixMsgs[inv.Hash]; exists {
-				delete(peer.requestedMixMsgs, inv.Hash)
+			if m.isRequestedMixMsgFromPeer(peer, &inv.Hash) {
 				delete(m.requestedMixMsgs, inv.Hash)
 			}
 		}
 	}
+	m.requestMtx.Unlock()
 }
 
 // needTx returns whether or not the transaction needs to be downloaded.  For
@@ -1560,11 +1842,23 @@ func (m *SyncManager) needMixMsg(hash *chainhash.Hash) bool {
 	return true
 }
 
-// handleInvMsg handles inv messages from all peers.  This entails examining the
-// inventory advertised by the remote peer for block and transaction
-// announcements and acting accordingly.
-func (m *SyncManager) handleInvMsg(imsg *invMsg) {
-	peer := imsg.peer
+// OnInv should be invoked with inventory announcements that are received from
+// remote peers.
+//
+// Its primary purpose is to learn about the inventory advertised by the remote
+// peer and to use that information to guide decisions regarding whether or not
+// and when to request the relevant associated data from the peer.
+//
+// Ideally, this should be called from the same peer goroutine that received the
+// message so the bulk of the processing is done concurrently and further reads
+// from the peer are blocked until the message is processed.
+//
+// This function is safe for the concurrent access.
+func (m *SyncManager) OnInv(peer *Peer, inv *wire.MsgInv) {
+	if m.shutdownRequested() {
+		return
+	}
+
 	isCurrent := m.IsCurrent()
 
 	// Update state information regarding per-peer known inventory and determine
@@ -1575,7 +1869,7 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 	// peer can be updated with that information accordingly.
 	var lastBlock *wire.InvVect
 	var requestQueue []*wire.InvVect
-	for _, iv := range imsg.inv.InvList {
+	for _, iv := range inv.InvList {
 		switch iv.Type {
 		case wire.InvTypeBlock:
 			// NOTE: All block announcements are now made via headers and the
@@ -1612,11 +1906,12 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Request the transaction if there is not one already pending.
+			m.requestMtx.Lock()
 			if _, exists := m.requestedTxns[iv.Hash]; !exists {
-				limitAdd(m.requestedTxns, iv.Hash, maxRequestedTxns)
-				limitAdd(peer.requestedTxns, iv.Hash, maxRequestedTxns)
+				limitAdd(m.requestedTxns, iv.Hash, peer, maxRequestedTxns)
 				requestQueue = append(requestQueue, iv)
 			}
+			m.requestMtx.Unlock()
 
 		case wire.InvTypeMix:
 			// Add the mix message to the cache of known inventory
@@ -1635,32 +1930,37 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Request the mixing message if it is not already pending.
+			m.requestMtx.Lock()
 			if _, exists := m.requestedMixMsgs[iv.Hash]; !exists {
-				limitAdd(m.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
-				limitAdd(peer.requestedMixMsgs, iv.Hash, maxRequestedMixMsgs)
+				limitAdd(m.requestedMixMsgs, iv.Hash, peer, maxRequestedMixMsgs)
 				requestQueue = append(requestQueue, iv)
 			}
+			m.requestMtx.Unlock()
 		}
 	}
 
 	if lastBlock != nil {
 		// Determine if the final announced block is already known to the local
-		// chain and then either track it as the most recently announced
-		// block by the peer that does not connect to any headers known to the
-		// local chain or potentially make it the block with the most cumulative
-		// proof of work announced by the peer when it is already known.
+		// chain and then either track it as the most recently announced block
+		// by the peer that does not connect to any headers known to the local
+		// chain or potentially make it the block with the most cumulative proof
+		// of work announced by the peer when it is already known.
 		if !m.cfg.Chain.HaveHeader(&lastBlock.Hash) {
 			// Notice a copy of the hash is made here to avoid keeping a
 			// reference into the inventory vector which would prevent it from
 			// being GCd.
 			lastBlockHash := lastBlock.Hash
+			peer.bestAnnouncedMtx.Lock()
 			m.maybeResolveOrphanBlock(peer)
 			peer.announcedOrphanBlock = &lastBlockHash
+			peer.bestAnnouncedMtx.Unlock()
 		} else {
 			header, err := m.cfg.Chain.HeaderByHash(&lastBlock.Hash)
 			if err == nil {
+				peer.bestAnnouncedMtx.Lock()
 				m.maybeResolveOrphanBlock(peer)
 				m.maybeUpdateBestAnnouncedBlock(peer, &lastBlock.Hash, &header)
+				peer.bestAnnouncedMtx.Unlock()
 			}
 		}
 	}
@@ -1691,9 +1991,10 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 // limitAdd is a helper function for maps that require a maximum limit by
 // evicting a random value if adding the new value would cause it to
 // overflow the maximum allowed.
-func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
-	// Nothing to do if entry is already in the map.
+func limitAdd(m map[chainhash.Hash]*Peer, hash chainhash.Hash, peer *Peer, limit int) {
+	// Replace existing entries.
 	if _, exists := m[hash]; exists {
+		m[hash] = peer
 		return
 	}
 	if len(m)+1 > limit {
@@ -1708,108 +2009,26 @@ func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
 			break
 		}
 	}
-	m[hash] = struct{}{}
+	m[hash] = peer
 }
 
-// eventHandler is the main handler for the sync manager.  It must be run as a
-// goroutine.  It processes block and inv messages in a separate goroutine from
-// the peer handlers so the block (MsgBlock) messages are handled by a single
-// thread without needing to lock memory data structures.  This is important
-// because the sync manager controls which blocks are needed and how the
-// fetching should proceed.
-func (m *SyncManager) eventHandler(ctx context.Context) {
+// stallHandler monitors the header sync process to detect stalls and disconnect
+// the sync peer which ensures clean recovery from stalls.
+//
+// It must be run as a goroutine.
+func (m *SyncManager) stallHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		case data := <-m.msgChan:
-			switch msg := data.(type) {
-			case *peerConnectedMsg:
-				m.handlePeerConnectedMsg(ctx, msg.peer)
-
-			case *txMsg:
-				m.handleTxMsg(msg)
-				select {
-				case msg.reply <- struct{}{}:
-				case <-ctx.Done():
-				}
-
-			case *blockMsg:
-				m.handleBlockMsg(msg)
-				select {
-				case msg.reply <- struct{}{}:
-				case <-ctx.Done():
-				}
-
-			case *mixMsg:
-				err := m.handleMixMsg(msg)
-				select {
-				case msg.reply <- err:
-				case <-ctx.Done():
-				}
-
-			case *invMsg:
-				m.handleInvMsg(msg)
-
-			case *headersMsg:
-				m.handleHeadersMsg(msg)
-
-			case *notFoundMsg:
-				m.handleNotFoundMsg(msg)
-
-			case *peerDisconnectedMsg:
-				m.handlePeerDisconnectedMsg(msg.peer)
-
-			case getSyncPeerMsg:
-				var peerID int32
-				if m.syncPeer != nil {
-					peerID = m.syncPeer.ID()
-				}
-				msg.reply <- peerID
-
-			case requestFromPeerMsg:
-				err := m.requestFromPeer(msg.peer, msg.blocks, msg.voteHashes,
-					msg.tSpendHashes, msg.mixHashes)
-				msg.reply <- requestFromPeerResponse{
-					err: err,
-				}
-
-			case processBlockMsg:
-				forkLen, err := m.processBlock(msg.block)
-				if err != nil {
-					msg.reply <- processBlockResponse{
-						forkLen: forkLen,
-						err:     err,
-					}
-					continue
-				}
-
-				onMainChain := forkLen == 0
-				if onMainChain {
-					// Prune invalidated transactions.
-					best := m.cfg.Chain.BestSnapshot()
-					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
-						best.Height)
-					m.cfg.TxMemPool.PruneExpiredTx(best.Height)
-				}
-
-				msg.reply <- processBlockResponse{
-					err: nil,
-				}
-
-			default:
-				log.Warnf("Invalid message type in event handler: %T", msg)
-			}
-
 		case <-m.hdrSyncState.stallTimer.C:
-			// Mark the timer's channel as having been drained so the timer can
-			// safely be reset.
-			m.hdrSyncState.stallChanDrained = true
-
 			// Disconnect the sync peer due to stalling the header sync process.
-			if m.syncPeer != nil {
+			m.syncPeerMtx.Lock()
+			syncPeer := m.syncPeer
+			m.syncPeerMtx.Unlock()
+			if syncPeer != nil {
 				log.Debugf("Header sync progress stalled from peer %s -- "+
-					"disconnecting", m.syncPeer)
-				m.syncPeer.Disconnect()
+					"disconnecting", syncPeer)
+				syncPeer.Disconnect()
 			}
 
 		case <-ctx.Done():
@@ -1817,275 +2036,147 @@ out:
 		}
 	}
 
-	log.Trace("Sync manager event handler done")
-}
-
-// PeerConnected informs the sync manager of a newly active peer.
-func (m *SyncManager) PeerConnected(peer *Peer) {
-	select {
-	case m.msgChan <- &peerConnectedMsg{peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// OnTx adds the passed transaction message and peer to the event handling
-// queue.
-func (m *SyncManager) OnTx(tx *dcrutil.Tx, peer *Peer, done chan struct{}) {
-	select {
-	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
-	case <-m.quit:
-		done <- struct{}{}
-	}
-}
-
-// OnBlock adds the passed block message and peer to the event handling
-// queue.
-func (m *SyncManager) OnBlock(block *dcrutil.Block, peer *Peer, done chan struct{}) {
-	select {
-	case m.msgChan <- &blockMsg{block: block, peer: peer, reply: done}:
-	case <-m.quit:
-		done <- struct{}{}
-	}
-}
-
-// OnInv adds the passed inv message and peer to the event handling queue.
-func (m *SyncManager) OnInv(inv *wire.MsgInv, peer *Peer) {
-	select {
-	case m.msgChan <- &invMsg{inv: inv, peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// OnHeaders adds the passed headers message and peer to the event handling
-// queue.
-func (m *SyncManager) OnHeaders(headers *wire.MsgHeaders, peer *Peer) {
-	select {
-	case m.msgChan <- &headersMsg{headers: headers, peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// OnMixMsg adds the passed mixing message and peer to the event handling
-// queue.
-func (m *SyncManager) OnMixMsg(msg mixing.Message, peer *Peer, done chan error) {
-	select {
-	case m.msgChan <- &mixMsg{msg: msg, peer: peer, reply: done}:
-	case <-m.quit:
-	}
-}
-
-// OnNotFound adds the passed notfound message and peer to the event handling
-// queue.
-func (m *SyncManager) OnNotFound(notFound *wire.MsgNotFound, peer *Peer) {
-	select {
-	case m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}:
-	case <-m.quit:
-	}
-}
-
-// PeerDisconnected informs the sync manager that a peer has disconnected.
-func (m *SyncManager) PeerDisconnected(peer *Peer) {
-	select {
-	case m.msgChan <- &peerDisconnectedMsg{peer: peer}:
-	case <-m.quit:
-	}
+	log.Trace("Sync manager stall handler done")
 }
 
 // SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
 func (m *SyncManager) SyncPeerID() int32 {
-	reply := make(chan int32, 1)
-	select {
-	case m.msgChan <- getSyncPeerMsg{reply: reply}:
-	case <-m.quit:
-	}
-
-	select {
-	case peerID := <-reply:
-		return peerID
-	case <-m.quit:
+	if m.shutdownRequested() {
 		return 0
 	}
+
+	m.syncPeerMtx.Lock()
+	syncPeer := m.syncPeer
+	m.syncPeerMtx.Unlock()
+	if syncPeer != nil {
+		return syncPeer.ID()
+	}
+
+	return 0
 }
 
-// RequestFromPeer allows an outside caller to request blocks or transactions
-// from a peer.  The requests are logged in the internal map of requests so the
-// peer is not later banned for sending the respective data.
-func (m *SyncManager) RequestFromPeer(p *Peer, blocks, voteHashes,
-	tSpendHashes, mixHashes []chainhash.Hash) error {
-
-	reply := make(chan requestFromPeerResponse, 1)
-	request := requestFromPeerMsg{
-		peer:         p,
-		blocks:       blocks,
-		voteHashes:   voteHashes,
-		tSpendHashes: tSpendHashes,
-		mixHashes:    mixHashes,
-		reply:        reply,
-	}
-	select {
-	case m.msgChan <- request:
-	case <-m.quit:
+// RequestFromPeer requests any combination of blocks, votes, and treasury
+// spends from the given peer.  It ensures all of the requests are tracked so
+// the peer is not banned for sending unrequested data when it responds.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes, tSpendHashes []chainhash.Hash) {
+	if m.shutdownRequested() {
+		return
 	}
 
-	select {
-	case response := <-reply:
-		return response.err
-	case <-m.quit:
-		return fmt.Errorf("sync manager stopped")
-	}
-}
+	defer m.requestMtx.Unlock()
+	m.requestMtx.Lock()
 
-func (m *SyncManager) requestFromPeer(peer *Peer, blocks, voteHashes,
-	tSpendHashes, mixHashes []chainhash.Hash) error {
-
-	// Add the blocks to the request.
-	msgResp := wire.NewMsgGetData()
+	// Request as many needed blocks as possible at once.
+	var numRequested uint32
+	gdMsg := wire.NewMsgGetData()
 	for i := range blocks {
-		// Skip the block when it has already been requested.
-		bh := &blocks[i]
-		if m.isRequestedBlock(bh) {
+		// Skip the block when it has already been requested or is already
+		// known.
+		blockHash := &blocks[i]
+		if m.isRequestedBlock(blockHash) || m.cfg.Chain.HaveBlock(blockHash) {
 			continue
 		}
 
-		// Skip the block when it is already known.
-		if m.cfg.Chain.HaveBlock(bh) {
-			continue
+		gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, blockHash))
+		m.requestedBlocks[*blockHash] = peer
+		numRequested++
+		if numRequested == wire.MaxInvPerMsg {
+			// Send full getdata message and reset.
+			peer.QueueMessage(gdMsg, nil)
+			gdMsg = wire.NewMsgGetData()
+			numRequested = 0
 		}
-
-		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
-		if err != nil {
-			return fmt.Errorf("unexpected error encountered building request "+
-				"for mining state block %v: %w", bh, err)
-		}
-
-		peer.requestedBlocks[*bh] = struct{}{}
-		m.requestedBlocks[*bh] = peer
 	}
 
-	addTxsToRequest := func(txs []chainhash.Hash, txType stake.TxType) error {
-		// Return immediately if txs is nil.
-		if txs == nil {
-			return nil
+	// Request as many needed votes and treasury spend transactions as possible
+	// at once.
+	for _, hashes := range [][]chainhash.Hash{voteHashes, tSpendHashes} {
+		for i := range hashes {
+			// Skip the transaction when it has already been requested or is
+			// otherwise not needed.
+			txHash := &hashes[i]
+			_, alreadyRequested := m.requestedTxns[*txHash]
+			if alreadyRequested || !m.needTx(txHash) {
+				continue
+			}
+
+			gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, txHash))
+			m.requestedTxns[*txHash] = peer
+			numRequested++
+			if numRequested == wire.MaxInvPerMsg {
+				// Send full getdata message and reset.
+				peer.QueueMessage(gdMsg, nil)
+				gdMsg = wire.NewMsgGetData()
+				numRequested = 0
+			}
 		}
+	}
 
-		for i := range txs {
-			// If we've already requested this transaction, skip it.
-			tx := &txs[i]
-			_, alreadyReqP := peer.requestedTxns[*tx]
-			_, alreadyReqB := m.requestedTxns[*tx]
+	if len(gdMsg.InvList) > 0 {
+		peer.QueueMessage(gdMsg, nil)
+	}
+}
 
-			if alreadyReqP || alreadyReqB {
-				continue
-			}
+// RequestMixMsgFromPeer requests the specified mix message from the given peer.
+// It ensures all of the requests are tracked so the peer is not banned for
+// sending unrequested data when it responds.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) RequestMixMsgFromPeer(peer *Peer, mixHash *chainhash.Hash) {
+	if m.shutdownRequested() {
+		return
+	}
 
-			// Ask the transaction memory pool if the transaction is known
-			// to it in any form (main pool or orphan).
-			if m.cfg.TxMemPool.HaveTransaction(tx) {
-				continue
-			}
+	defer m.requestMtx.Unlock()
+	m.requestMtx.Lock()
 
-			// Check if the transaction exists from the point of view of the main
-			// chain tip.  Note that this is only a best effort since it is expensive
-			// to check existence of every output and the only purpose of this check
-			// is to avoid requesting already known transactions.
-			//
-			// Check for a specific outpoint based on the tx type.
-			outpoint := wire.OutPoint{Hash: *tx}
-			switch txType {
-			case stake.TxTypeSSGen:
-				// The first two outputs of vote transactions are OP_RETURN <data>, and
-				// therefore never exist as an unspent txo.  Use the third output, as
-				// the third output (and subsequent outputs) are OP_SSGEN outputs.
-				outpoint.Index = 2
-				outpoint.Tree = wire.TxTreeStake
-			case stake.TxTypeTSpend:
-				// The first output of a tSpend transaction is OP_RETURN <data>, and
-				// therefore never exists as an unspent txo.  Use the second output, as
-				// the second output (and subsequent outputs) are OP_TGEN outputs.
-				outpoint.Index = 1
-				outpoint.Tree = wire.TxTreeStake
-			}
-			entry, err := m.cfg.Chain.FetchUtxoEntry(outpoint)
-			if err != nil {
-				return err
-			}
-			if entry != nil {
-				continue
-			}
+	// Skip mix messages that have already been requested or are otherwise not
+	// needed.
+	_, alreadyRequested := m.requestedMixMsgs[*mixHash]
+	if alreadyRequested || !m.needMixMsg(mixHash) {
+		return
+	}
 
-			err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
-			if err != nil {
-				return fmt.Errorf("unexpected error encountered building request "+
-					"for mining state vote %v: %w", tx, err)
-			}
+	gdMsg := wire.NewMsgGetDataSizeHint(1)
+	gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mixHash))
+	m.requestedMixMsgs[*mixHash] = peer
+	peer.QueueMessage(gdMsg, nil)
+}
 
-			peer.requestedTxns[*tx] = struct{}{}
-			m.requestedTxns[*tx] = struct{}{}
-		}
-
+// ProcessBlock processes the provided block using the chain instance associated
+// with the sync manager.
+//
+// Blocks from all sources, such as those submitted to the RPC server and those
+// found by the CPU miner, are expected to be processed using this method as
+// opposed to directly invoking the method on the chain instance.
+//
+// Passing all blocks through the sync manager ensures they are all processed
+// using the same code paths as blocks received from the network which helps
+// enforce consistent handling and that the sync manager is always up-to-date in
+// regards to the sync status of the chain.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
+	if m.shutdownRequested() {
 		return nil
 	}
 
-	// Add the vote transactions to the request.
-	err := addTxsToRequest(voteHashes, stake.TxTypeSSGen)
+	forkLen, err := m.processBlock(block)
 	if err != nil {
 		return err
 	}
 
-	// Add the tspend transactions to the request.
-	err = addTxsToRequest(tSpendHashes, stake.TxTypeTSpend)
-	if err != nil {
-		return err
-	}
-
-	for i := range mixHashes {
-		// If we've already requested this mix message, skip it.
-		mh := &mixHashes[i]
-		_, alreadyReqP := peer.requestedMixMsgs[*mh]
-		_, alreadyReqB := m.requestedMixMsgs[*mh]
-
-		if alreadyReqP || alreadyReqB {
-			continue
-		}
-
-		// Skip the message when it is already known.
-		if m.cfg.MixPool.HaveMessage(mh) {
-			continue
-		}
-
-		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeMix, mh))
-		if err != nil {
-			return fmt.Errorf("unexpected error encountered building request "+
-				"for inv vect mix hash %v: %w", mh, err)
-		}
-
-		peer.requestedMixMsgs[*mh] = struct{}{}
-		m.requestedMixMsgs[*mh] = struct{}{}
-	}
-
-	if len(msgResp.InvList) > 0 {
-		peer.QueueMessage(msgResp, nil)
+	onMainChain := forkLen == 0
+	if onMainChain {
+		// Prune invalidated transactions.
+		best := m.cfg.Chain.BestSnapshot()
+		m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
+		m.cfg.TxMemPool.PruneExpiredTx(best.Height)
 	}
 
 	return nil
-}
-
-// ProcessBlock makes use of ProcessBlock on an internal instance of a block
-// chain.  It is funneled through the sync manager since blockchain is not safe
-// for concurrent access.
-func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
-	reply := make(chan processBlockResponse, 1)
-	select {
-	case m.msgChan <- processBlockMsg{block: block, reply: reply}:
-	case <-m.quit:
-	}
-
-	select {
-	case response := <-reply:
-		return response.err
-	case <-m.quit:
-		return fmt.Errorf("sync manager stopped")
-	}
 }
 
 // IsCurrent returns whether or not the sync manager believes it is synced with
@@ -2093,11 +2184,8 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block) error {
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) IsCurrent() bool {
-	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
-	isCurrent := m.isCurrent
-	m.isCurrentMtx.Unlock()
-	return isCurrent
+	return m.isCurrent.Load()
 }
 
 // Run starts the sync manager and all other goroutines necessary for it to
@@ -2105,11 +2193,11 @@ func (m *SyncManager) IsCurrent() bool {
 func (m *SyncManager) Run(ctx context.Context) {
 	log.Trace("Starting sync manager")
 
-	// Start the event handler goroutine.
+	// Start the stall handler goroutine.
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		m.eventHandler(ctx)
+		m.stallHandler(ctx)
 		wg.Done()
 	}()
 
@@ -2123,10 +2211,6 @@ func (m *SyncManager) Run(ctx context.Context) {
 // Config holds the configuration options related to the network chain
 // synchronization manager.
 type Config struct {
-	// PeerNotifier specifies an implementation to use for notifying peers of
-	// status changes related to blocks and transactions.
-	PeerNotifier PeerNotifier
-
 	// ChainParams identifies which chain parameters the manager is associated
 	// with.
 	ChainParams *chaincfg.Params
@@ -2146,6 +2230,10 @@ type Config struct {
 	// perform an initial mining state synchronization with peers once they are
 	// believed to be fully synced.
 	NoMiningStateSync bool
+
+	// MaxOutboundPeers specifies the maximum number of outbound peer the server
+	// is expected to be connected with.
+	MaxOutboundPeers uint64
 
 	// MaxPeers specifies the maximum number of peers the server is expected to
 	// be connected with.  It is primarily used as a hint for more efficient
@@ -2179,20 +2267,21 @@ func New(config *Config) *SyncManager {
 		minKnownWork = new(uint256.Uint256).SetBig(minKnownWorkBig)
 	}
 
-	return &SyncManager{
+	mgr := &SyncManager{
 		cfg:              *config,
 		rejectedTxns:     apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
 		rejectedMixMsgs:  apbf.NewFilter(maxRejectedMixMsgs, rejectedMixMsgsFPRate),
-		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedTxns:    make(map[chainhash.Hash]*Peer),
 		requestedBlocks:  make(map[chainhash.Hash]*Peer),
-		requestedMixMsgs: make(map[chainhash.Hash]struct{}),
+		requestedMixMsgs: make(map[chainhash.Hash]*Peer),
+		warnOnNoSync:     true,
 		peers:            make(map[*Peer]struct{}),
 		minKnownWork:     minKnownWork,
 		hdrSyncState:     makeHeaderSyncState(),
 		progressLogger:   progresslog.New("Processed", log),
-		msgChan:          make(chan interface{}, config.MaxPeers*3),
 		quit:             make(chan struct{}),
-		syncHeight:       config.Chain.BestSnapshot().Height,
-		isCurrent:        config.Chain.IsCurrent(),
 	}
+	mgr.syncHeight.Store(config.Chain.BestSnapshot().Height)
+	mgr.isCurrent.Store(config.Chain.IsCurrent())
+	return mgr
 }
