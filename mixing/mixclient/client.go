@@ -55,6 +55,7 @@ func expiredPRErr(pr *wire.MsgMixPairReq) error {
 var (
 	errOnlyKEsBroadcasted = errors.New("session ended without mix occurring")
 	errTriggeredBlame     = errors.New("blame required")
+	errNoActiveLocalPeers = errors.New("no active local peers")
 )
 
 const (
@@ -507,6 +508,8 @@ func (c *Client) peerWorker(ctx context.Context) error {
 
 // forLocalPeers is a helper method that runs a callback on all local peers of
 // a session run.  The calls are executed concurrently on peer worker goroutines.
+// This method will error if there are no uncanceled local peers to perform the
+// action on.
 func (c *Client) forLocalPeers(ctx context.Context, s *sessionRun, f func(p *peer) error) error {
 	resChans := make([]chan error, 0, len(s.peers))
 
@@ -529,6 +532,10 @@ func (c *Client) forLocalPeers(ctx context.Context, s *sessionRun, f func(p *pee
 		}
 	}
 
+	if len(resChans) == 0 {
+		return errNoActiveLocalPeers
+	}
+
 	var errs = make([]error, len(resChans))
 	for i := range errs {
 		errs[i] = <-resChans[i]
@@ -543,6 +550,9 @@ type delayedMsg struct {
 	p        *peer
 }
 
+// sendLocalPeerMsgs sends messages matching the message mask from all
+// uncanceled local peers.  Errors if all there are no local peers or if all
+// local peers have been canceled.
 func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *sessionRun, msgMask uint) error {
 	now := time.Now()
 
@@ -589,6 +599,9 @@ func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *s
 			msg.m = p.rs
 			msgs = append(msgs, msg)
 		}
+	}
+	if len(msgs) == 0 {
+		return errNoActiveLocalPeers
 	}
 	sort.SliceStable(msgs, func(i, j int) bool {
 		return msgs[i].sendTime.Before(msgs[j].sendTime)
