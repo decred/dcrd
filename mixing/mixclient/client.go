@@ -1184,6 +1184,9 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			// err = nil would be an ineffectual assignment here;
 			// blamed is non-nil and the following if block will
 			// always be entered.
+
+		case errors.Is(err, errNoActiveLocalPeers):
+			return
 		}
 
 		if blamed != nil || errors.As(err, &blamed) {
