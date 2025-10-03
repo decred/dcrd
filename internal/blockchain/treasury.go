@@ -250,17 +250,6 @@ func dbFetchTreasuryBalance(dbTx database.Tx, hash chainhash.Hash) (*treasurySta
 	return deserializeTreasuryState(v)
 }
 
-// dbFetchTreasurySingle wraps dbFetchTreasuryBalance in a view.
-func (b *BlockChain) dbFetchTreasurySingle(hash chainhash.Hash) (*treasuryState, error) {
-	var ts *treasuryState
-	err := b.db.View(func(dbTx database.Tx) error {
-		var err error
-		ts, err = dbFetchTreasuryBalance(dbTx, hash)
-		return err
-	})
-	return ts, err
-}
-
 // serializeTSpend serializes the TSpend data for use in the database.
 // The format is as follows:
 // Block []chainhash.Hash (blocks where TSpend was mined).
@@ -598,30 +587,39 @@ func VerifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 func (b *BlockChain) sumPastTreasuryChanges(preTVINode *blockNode, nbBlocks uint64) (int64, int64, *blockNode, error) {
 	node := preTVINode
 	var spent, added int64
-	var derr errDbTreasury
-	for i := uint64(0); i < nbBlocks && node != nil; i++ {
-		ts, err := b.dbFetchTreasurySingle(node.hash)
-		if errors.As(err, &derr) {
-			// Record doesn't exist. Means we reached the end of
-			// when treasury records are available.
-			node = nil
-			continue
-		} else if err != nil {
-			return 0, 0, nil, err
-		}
+	err := b.db.View(func(dbTx database.Tx) error {
+		for i := uint64(0); i < nbBlocks && node != nil; i++ {
+			ts, err := dbFetchTreasuryBalance(dbTx, node.hash)
+			if err != nil {
+				var derr errDbTreasury
+				if errors.As(err, &derr) {
+					// Record doesn't exist.  Means we reached the end of when
+					// treasury records are available.
+					node = nil
+					continue
+				}
 
-		// Range over values.
-		for _, v := range ts.values {
-			if v.typ.IsDebit() {
-				// treasuryValues record debits as negative
-				// amounts, so invert it here.
-				spent += -v.amount
-			} else {
-				added += v.amount
+				return err
 			}
+
+			// Range over values.
+			for _, v := range ts.values {
+				if v.typ.IsDebit() {
+					// treasuryValues record debits as negative amounts, so
+					// invert it here.
+					spent += -v.amount
+				} else {
+					added += v.amount
+				}
+			}
+
+			node = node.parent
 		}
 
-		node = node.parent
+		return nil
+	})
+	if err != nil {
+		return 0, 0, nil, err
 	}
 
 	return spent, added, node, nil
