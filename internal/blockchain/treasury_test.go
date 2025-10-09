@@ -493,12 +493,10 @@ func TestTSpendVoteCount(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -889,12 +887,10 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	// bootstrap policy to allow a tspend with a _very_ high value.
 	params.TreasuryExpenditureBootstrap = 21e6 * 1e8
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1016,12 +1012,10 @@ func TestExpendituresReorg(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1251,12 +1245,10 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1540,12 +1532,10 @@ func TestTSpendDupVote(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1674,12 +1664,10 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1781,12 +1769,10 @@ func TestTSpendWindow(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -1898,12 +1884,10 @@ func TestTSpendSignature(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -2085,12 +2069,10 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -2219,12 +2201,10 @@ func TestTSpendExists(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -2486,12 +2466,10 @@ func TestTreasuryBalance(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -2749,12 +2727,10 @@ func TestTAddCorners(t *testing.T) {
 	mul := params.TreasuryVoteIntervalMultiplier
 	cbm := params.CoinbaseMaturity
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -2941,12 +2917,10 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -3138,12 +3112,10 @@ func TestTSpendCorners(t *testing.T) {
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -3244,10 +3216,9 @@ func TestTSpendCorners(t *testing.T) {
 func TestTSpendFirstTVICorner(t *testing.T) {
 	t.Parallel()
 
-	// Clone the parameters so they can be mutated and mark the treasury agenda
-	// as always active.
+	// Mark the treasury agenda as always active.
 	const voteID = chaincfg.VoteIDTreasury
-	params := cloneParams(chaincfg.RegNetParams())
+	params := chaincfg.RegNetParams()
 	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Change params to hit corner case.
@@ -3457,12 +3428,10 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -4027,12 +3996,10 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda, and, finally, ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
