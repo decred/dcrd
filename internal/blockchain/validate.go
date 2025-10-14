@@ -4088,12 +4088,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 	if isTreasuryEnabled {
-		if len(block.STransactions()) == 0 {
-			return AssertError("invalid STransactions length")
-		}
-		err = checkTreasuryBase(b.subsidyCache,
-			block.STransactions()[0], node.height, node.voters,
-			b.chainParams)
+		err := checkTreasuryBase(b.subsidyCache, block.STransactions()[0],
+			node.height, node.voters, b.chainParams)
 		if err != nil {
 			return err
 		}
