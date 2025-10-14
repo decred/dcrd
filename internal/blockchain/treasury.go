@@ -454,12 +454,11 @@ func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block
 	return dbPutTreasuryBalance(dbTx, *hash, ts)
 }
 
-// dbPutTSpend inserts the TSpends that are included in this block to the
-// database.
+// dbPutTSpend inserts the treasury spends that are included in this block to
+// the database.
 func (b *BlockChain) dbPutTSpend(dbTx database.Tx, block *dcrutil.Block) error {
-	hash := block.Hash()
+	blockHash := block.Hash()
 	msgBlock := block.MsgBlock()
-	trsyLog.Tracef("dbPutTSpend: processing block %v", hash)
 	for _, v := range msgBlock.STransactions {
 		if !stake.IsTSpend(v) {
 			continue
@@ -467,7 +466,9 @@ func (b *BlockChain) dbPutTSpend(dbTx database.Tx, block *dcrutil.Block) error {
 
 		// Store TSpend and the block it was included in.
 		txHash := v.TxHash()
-		err := dbUpdateTSpend(dbTx, txHash, *hash)
+		trsyLog.Tracef("Adding treasury spend %s in block %s to db", txHash,
+			blockHash)
+		err := dbUpdateTSpend(dbTx, txHash, *blockHash)
 		if err != nil {
 			return err
 		}
@@ -703,8 +704,8 @@ func (b *BlockChain) maxTreasuryExpenditureDCP0006(preTVINode *blockNode) (int64
 		allowedToSpend = avgPlusAllowance - spentRecentWindow
 	}
 
-	trsyLog.Tracef("  maxTSpendExpenditure: recentWindow %d priorWindows %d "+
-		"(%d non-empty) allowedToSpend %d", spentRecentWindow,
+	trsyLog.Tracef("maxTreasuryExpenditureDCP0006: recentWindow %d "+
+		"priorWindows %d (%d non-empty) allowedToSpend %d", spentRecentWindow,
 		spentPriorWindows, nbNonEmptyWindows, allowedToSpend)
 
 	return allowedToSpend, nil
@@ -755,9 +756,9 @@ func (b *BlockChain) maxTreasuryExpenditureDCP0007(preTVINode *blockNode) (int64
 		allowedToSpend = addedPlusAllowance - spentRecent
 	}
 
-	trsyLog.Tracef("  maxTSpendExpenditureDCP0007: spent %d, "+
-		"added %d, allowedToSpend %d", spentRecent,
-		addedRecent, allowedToSpend)
+	trsyLog.Tracef("maxTreasuryExpenditureDCP0007: spent %v, added %v, "+
+		"allowedToSpend %v", dcrutil.Amount(spentRecent),
+		dcrutil.Amount(addedRecent), dcrutil.Amount(allowedToSpend))
 
 	return allowedToSpend, nil
 }
@@ -806,8 +807,6 @@ func (b *BlockChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64,
 //
 // This function must be called with the block index read lock held.
 func (b *BlockChain) checkTSpendsExpenditure(preTVINode *blockNode, totalTSpendAmount int64) error {
-	trsyLog.Tracef("checkTSpendExpenditure: processing %d tspent at height %d",
-		totalTSpendAmount, preTVINode.height+1)
 	if totalTSpendAmount == 0 {
 		// Nothing to do.
 		return nil
@@ -829,12 +828,13 @@ func (b *BlockChain) checkTSpendsExpenditure(preTVINode *blockNode, totalTSpendA
 	if err != nil {
 		return err
 	}
+	trsyLog.Tracef("checkTSpendsExpenditure: total treasury spend of %v at "+
+		"height %d (treasury balance %v)", dcrutil.Amount(totalTSpendAmount),
+		preTVINode.height+1, dcrutil.Amount(treasuryBalance))
 	if treasuryBalance-totalTSpendAmount < 0 {
 		return fmt.Errorf("treasury balance may not become negative: "+
 			"balance %v spend %v", treasuryBalance, totalTSpendAmount)
 	}
-	trsyLog.Tracef("  checkTSpendExpenditure: balance %v spend %v",
-		treasuryBalance, totalTSpendAmount)
 
 	allowedToSpend, err := b.maxTreasuryExpenditure(preTVINode)
 	if err != nil {
@@ -931,8 +931,6 @@ type tspendVotes struct {
 // specified block. Note that this function errors if the block is outside the
 // voting window for the given tspend.
 func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (*tspendVotes, error) {
-	trsyLog.Tracef("tSpendCountVotes: processing tspend %v", tspend.Hash())
-
 	var (
 		t   tspendVotes
 		err error
@@ -947,8 +945,9 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 	}
 
 	nextHeight := prevNode.height + 1
-	trsyLog.Tracef("  tSpendCountVotes: nextHeight %v start %v expiry %v",
-		nextHeight, t.start, t.end)
+	trsyLog.Tracef("Counting votes for treasury spend %s (height %d, spend "+
+		"window [%d, %d], expiry %d)", tspend.Hash(), nextHeight, t.start,
+		t.end, expiry)
 
 	// Ensure tspend is within the window.
 	if !standalone.InsideTSpendWindow(nextHeight,

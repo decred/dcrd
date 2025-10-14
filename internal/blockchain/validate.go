@@ -4237,7 +4237,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// that 'overwrite' older transactions which are not fully spent.
 	err = b.checkDupTxs(block.Transactions(), view, wire.TxTreeRegular)
 	if err != nil {
-		log.Tracef("checkDupTxs failed for cur regular tree: %v", err)
+		log.Tracef("checkDupTxs failed for regular tree: %v", err)
 		return err
 	}
 
@@ -4319,8 +4319,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		err = checkBlockScripts(block, view, true, scriptFlags,
 			b.sigCache, isAutoRevocationsEnabled)
 		if err != nil {
-			log.Tracef("checkBlockScripts failed; error returned "+
-				"on txtreeregular of cur block: %v", err)
+			log.Tracef("checkBlockScripts failed for regular tree: %v", err)
 			return err
 		}
 	}
