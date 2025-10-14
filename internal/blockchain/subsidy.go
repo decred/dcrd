@@ -88,11 +88,6 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 		return nil
 	}
 
-	// Treasury subsidy is disabled.
-	if params.BlockTaxProportion == 0 {
-		return nil
-	}
-
 	if len(tx.MsgTx().TxOut) == 0 {
 		str := "invalid coinbase (no outputs)"
 		return ruleError(ErrNoTxOutputs, str)
@@ -129,11 +124,6 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
-		return nil
-	}
-
-	// Treasury subsidy is disabled.
-	if params.BlockTaxProportion == 0 {
 		return nil
 	}
 
