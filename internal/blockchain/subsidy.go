@@ -82,14 +82,14 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 // coinbasePaysTreasuryAddress checks to see if a given block's coinbase
 // correctly pays the treasury prior to the agenda that modifies the treasury
 // payout to happen via a treasurybase transaction in the stake tree instead.
-func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params, isTreasuryEnabled bool) error {
+func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
 		return nil
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		str := "invalid coinbase (no outputs)"
+		const str = "invalid coinbase (no outputs)"
 		return ruleError(ErrNoTxOutputs, str)
 	}
 
@@ -107,6 +107,7 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 
 	// Calculate the amount of subsidy that should have been paid out to the
 	// Treasury and ensure the subsidy generated is correct.
+	const isTreasuryEnabled = false
 	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters,
 		isTreasuryEnabled)
 	if orgSubsidy != treasuryOutput.Value {

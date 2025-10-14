@@ -4098,9 +4098,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 			return err
 		}
 	} else {
-		err = coinbasePaysTreasuryAddress(b.subsidyCache,
-			block.Transactions()[0], node.height, node.voters,
-			b.chainParams, isTreasuryEnabled)
+		err := coinbasePaysTreasuryAddress(b.subsidyCache,
+			block.Transactions()[0], node.height, node.voters, b.chainParams)
 		if err != nil {
 			return err
 		}
