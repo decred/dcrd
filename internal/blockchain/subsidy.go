@@ -128,33 +128,33 @@ func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, he
 		return nil
 	}
 
-	if len(tx.MsgTx().TxOut) != 2 {
-		// Can't get hit
-		return ruleError(ErrInvalidTreasurybaseTxOutputs,
-			fmt.Sprintf("invalid treasurybase number of outputs: %v",
-				len(tx.MsgTx().TxOut)))
+	const requiredOutputs = 2
+	if len(tx.MsgTx().TxOut) != requiredOutputs {
+		str := fmt.Sprintf("treasurybase has %d outputs instead of %d",
+			len(tx.MsgTx().TxOut), requiredOutputs)
+		return ruleError(ErrInvalidTreasurybaseTxOutputs, str)
 	}
 
 	treasuryOutput := tx.MsgTx().TxOut[0]
-	if treasuryOutput.Version != 0 {
+	const requiredScriptVersion = 0
+	if treasuryOutput.Version != requiredScriptVersion {
 		// Can't get hit
-		str := fmt.Sprintf("treasury output version %d is instead of %d",
-			treasuryOutput.Version, 0)
+		str := fmt.Sprintf("treasury output script version is %d instead of %d",
+			treasuryOutput.Version, requiredScriptVersion)
 		return ruleError(ErrInvalidTreasurybaseVersion, str)
 	}
 	if len(treasuryOutput.PkScript) != 1 ||
 		treasuryOutput.PkScript[0] != txscript.OP_TADD {
 		// Can't get hit
 		str := fmt.Sprintf("treasury output script is %x instead of %x",
-			treasuryOutput.PkScript, params.OrganizationPkScript)
+			treasuryOutput.PkScript, txscript.OP_TADD)
 		return ruleError(ErrInvalidTreasurybaseScript, str)
 	}
 
 	// Calculate the amount of subsidy that should have been paid out to the
 	// Treasury and ensure the subsidy generated is correct.
 	const withTreasury = true
-	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters,
-		withTreasury)
+	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters, withTreasury)
 	if orgSubsidy != treasuryOutput.Value {
 		str := fmt.Sprintf("treasury output amount is %s instead of %s",
 			dcrutil.Amount(treasuryOutput.Value), dcrutil.Amount(orgSubsidy))
