@@ -875,17 +875,6 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.AcceptTipBlock()
 }
 
-// getTreasuryState retrieves the treasury state for the provided hash.
-func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*treasuryState, error) {
-	var tsr *treasuryState
-	err := g.chain.db.View(func(dbTx database.Tx) error {
-		var err error
-		tsr, err = dbFetchTreasuryBalance(dbTx, hash)
-		return err
-	})
-	return tsr, err
-}
-
 // TestTSpendEmptyTreasury tests that we can't generate a tspend that spends
 // more funds than available in the treasury even when otherwise allowed by
 // policy.
@@ -998,15 +987,8 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 		outs = g.OldestCoinbaseOuts()
 	}
 
-	// Assert treasury balance is 1 atom less than calculated amount.
-	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if int64(tspendAmount-tspendFee)-ts.balance != 1 {
-		t.Fatalf("Assert treasury balance error: got %v want %v",
-			ts.balance, int64(tspendAmount-tspendFee)-ts.balance)
-	}
+	// Ensure treasury balance is 1 atom less than calculated amount.
+	g.ExpectTreasuryBalance(int64(tspendAmount-tspendFee) - 1)
 
 	// Try spending 1 atom more than treasury balance.
 	name := "btoomuch0"
@@ -1048,19 +1030,6 @@ func TestExpendituresReorg(t *testing.T) {
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
-
-	// Helper to check the treasury balance at tip.
-	assertTipTreasuryBalance := func(wantBalance int64) {
-		t.Helper()
-		ts, err := getTreasuryState(g, g.Tip().BlockHash())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ts.balance != wantBalance {
-			t.Fatalf("unexpected treasury balance. want=%d got %d",
-				wantBalance, ts.balance)
-		}
-	}
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -1196,7 +1165,7 @@ func TestExpendituresReorg(t *testing.T) {
 	// Balance only reflects the tbase added so far. We add 1 to
 	// tbaseBlocks to account for the `btspend` block.
 	wantBalance := (tbaseBlocks + 1 - int64(params.CoinbaseMaturity)) * devsub
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
 	// Generate a sidechain that does _not_ include the TSpend and mine it
@@ -1229,7 +1198,7 @@ func TestExpendituresReorg(t *testing.T) {
 	// Given we reorged to a side chain that does _not_ include the TSpend
 	// and TAdd, we expect the current balance to have only tbases.
 	wantBalance = (tbaseBlocks - int64(params.CoinbaseMaturity)) * devsub
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
 	// Extend the chain starting at btspend again, until it becomes the
@@ -1265,7 +1234,7 @@ func TestExpendituresReorg(t *testing.T) {
 	// now ensure the treasury balance reflects their presence.
 	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*int64(devsub) -
 		int64(tspendAmount) + taddAmount
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 }
 
 // TestSpendableTreasuryTxs tests that the outputs of mined TSpends and TAdds
@@ -2040,14 +2009,7 @@ func TestTSpendSignature(t *testing.T) {
 	}
 
 	// Assert treasury balance
-	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ts.balance != int64(devsub*tvi*mul) {
-		t.Fatalf("assert balance got %v want devsub %v", ts.balance,
-			devsub*tvi*mul)
-	}
+	g.ExpectTreasuryBalance(int64(devsub * tvi * mul))
 
 	// ---------------------------------------------------------------------
 	// Add tspend1 twice
@@ -2087,14 +2049,7 @@ func TestTSpendSignature(t *testing.T) {
 	outs = g.OldestCoinbaseOuts()
 
 	// Assert treasury balance
-	ts, err = getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ts.balance != int64(devsub*tvi*mul)+devsub {
-		t.Fatalf("assert balance got %v want devsub %v", ts.balance,
-			devsub*tvi*mul+devsub)
-	}
+	g.ExpectTreasuryBalance(int64(devsub*tvi*mul) + devsub)
 
 	// ---------------------------------------------------------------------
 	// Add Coinbase maturity blocks and assert treasury balance.
@@ -2113,18 +2068,11 @@ func TestTSpendSignature(t *testing.T) {
 	}
 
 	// Assert treasury balance
-	ts, err = getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
 	expectedBalance := int64(devsub*tvi*mul) +
 		(int64(devsub) * int64(params.CoinbaseMaturity+1)) // doubleok0+cbm0+cbm1
 	expectedBalance -= int64(tspendAmount1)
 	expectedBalance -= int64(tspendAmount2)
-	if ts.balance != expectedBalance {
-		t.Fatalf("assert balance got %v want devsub %v", ts.balance,
-			expectedBalance)
-	}
+	g.ExpectTreasuryBalance(expectedBalance)
 }
 
 // TestTSpendSignatureInvalid verifies that a tspend is disallowed with an
@@ -2245,14 +2193,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	}
 
 	// Assert treasury balance
-	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ts.balance != int64(devsub*tvi*mul) {
-		t.Fatalf("assert balance got %v want devsub %v", ts.balance,
-			devsub*tvi*mul)
-	}
+	g.ExpectTreasuryBalance(int64(devsub * tvi * mul))
 
 	// ---------------------------------------------------------------------
 	// Add tspend with invalid signature
@@ -2584,7 +2525,7 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Create 10 blocks that has a tadd without change.
+	// Create 10 blocks that have a tadd without change.
 	//
 	//   ... -> b0
 	// ---------------------------------------------------------------------
@@ -2617,19 +2558,8 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 	iterations := 1
 
-	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if ts.balance != int64(expectedTotal) {
-		t.Fatalf("invalid balance: total %v expected %v",
-			ts.balance, expectedTotal)
-	}
-	if ts.values[1].amount != int64(blockCount) {
-		t.Fatalf("invalid Value: total %v expected %v",
-			ts.values[0], int64(blockCount))
-	}
+	g.ExpectTreasuryBalance(int64(expectedTotal))
+	g.ExpectTreasuryBalanceChange(1, treasuryValueTAdd, int64(blockCount))
 
 	// ---------------------------------------------------------------------
 	// Create 10 blocks that has a tadd with change. Pretend that the TSpend
@@ -2725,19 +2655,8 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 	iterations++
 
-	ts, err = getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if ts.balance != int64(expectedTotal) {
-		t.Fatalf("invalid balance: total %v expected %v",
-			ts.balance, expectedTotal)
-	}
-	if ts.values[1].amount != int64(blockCount*2) {
-		t.Fatalf("invalid Value: total %v expected %v",
-			ts.values[0], int64(blockCount)*2)
-	}
+	g.ExpectTreasuryBalance(int64(expectedTotal))
+	g.ExpectTreasuryBalanceChange(1, treasuryValueTAdd, int64(blockCount*2))
 
 	// ---------------------------------------------------------------------
 	// Create 20 blocks that has a tspend and params.CoinbaseMaturity more
@@ -2768,16 +2687,8 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 	iterations += 2 // We generate 2*blockCount
 
-	ts, err = getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	expected := int64(devsub*blockCount*iterations) - int64(tspendFee)
-	if ts.balance != expected {
-		t.Fatalf("invalid balance: total %v expected %v",
-			ts.balance, expected)
-	}
+	g.ExpectTreasuryBalance(expected)
 }
 
 // newTxOut returns a new transaction output with the given parameters.
