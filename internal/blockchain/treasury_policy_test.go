@@ -36,11 +36,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// activation as compared to various existing network params and
+	// significantly increase the SRI so that the treasurybase isn't reduced
+	// throughout these tests to simplify the arithmetic.
 	params := quickVoteActivationParams()
-
-	// We'll significantly increase the SRI so that the treasurybase isn't
-	// reduced throughout these tests and our arithmetic can be simpler.
 	params.SubsidyReductionInterval = 1000
 
 	// CoinbaseMaturity MUST be lower than TVI otherwise assumptions about
@@ -72,19 +71,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
-
-	// Helper to verify the tip balance.
-	assertTipTreasuryBalance := func(wantBalance int64) {
-		t.Helper()
-		ts, err := getTreasuryState(g, g.Tip().BlockHash())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ts.balance != wantBalance {
-			t.Fatalf("unexpected treasury balance. want=%d got %d",
-				wantBalance, ts.balance)
-		}
-	}
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -147,8 +133,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the treasury is still empty.
-	assertTipTreasuryBalance(0)
+	// Ensure the treasury is still empty.
+	g.ExpectTreasuryBalance(0)
 
 	// ---------------------------------------------------------------------
 	// Generate a block that matures funds into the treasury.
@@ -164,7 +150,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// The current treasury balance should equal the first treasurybase
 	// subsidy.
-	assertTipTreasuryBalance(devsub)
+	g.ExpectTreasuryBalance(devsub)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to the next TVI.
@@ -192,7 +178,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// Treasury balance should be the sum of the mature treasurybases.
 	wantBalance := (tbaseBlocks - int64(params.CoinbaseMaturity)) * devsub
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Figure out the expiry for the next tspends.
 	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi) // travel a bit back
@@ -276,11 +262,11 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and the just mined tspends.
 	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
 		taddAmount - int64(tspendAmount)*nbTSpends
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Expiry for the next set of tspends.
 	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi)
@@ -469,11 +455,11 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and the just mined tspends.
 	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
 		taddAmount - int64(tspendAmount)*nbTSpends - testCases[nbTests-1].amount
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to advance until all previously mined tspends
@@ -557,11 +543,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// activation as compared to various existing network params and
+	// significantly increase the SRI so that the treasurybase isn't reduced
+	// throughout these tests to simplify the arithmetic.
 	params := quickVoteActivationParams()
-
-	// We'll significantly increase the SRI so that the treasurybase isn't
-	// reduced throughout these tests and our arithmetic can be simpler.
 	params.SubsidyReductionInterval = 1000
 
 	// CoinbaseMaturity MUST be lower than TVI otherwise assumptions about
@@ -599,19 +584,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
-
-	// Helper to verify the tip balance.
-	assertTipTreasuryBalance := func(wantBalance int64) {
-		t.Helper()
-		ts, err := getTreasuryState(g, g.Tip().BlockHash())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ts.balance != wantBalance {
-			t.Fatalf("unexpected treasury balance. want=%d got %d",
-				wantBalance, ts.balance)
-		}
-	}
 
 	// ---------------------------------------------------------------------
 	// Generate and accept enough blocks with the appropriate vote bits set
@@ -805,11 +777,11 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and mined tspends.
 	wantBalance := (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
 		taddAmount - tspendAmount*nbTSpends
-	assertTipTreasuryBalance(wantBalance)
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Generate a new tspend that spends the entire possible amount and one
 	// that spends one atom. This time we don't create a tadd.

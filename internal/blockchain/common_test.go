@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1076,6 +1076,68 @@ func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdSta
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected choice for %s -- "+
 			"got %v, want %v", g.TipName(), tipHash, tipHeight, id, gotChoiceID,
 			wantChoiceID)
+	}
+}
+
+// ExpectTreasuryBalance queries the treasury balance for the current tip block
+// and chain associated with the harness generator and expects it to match the
+// provided value.
+func (g *chaingenHarness) ExpectTreasuryBalance(balance int64) {
+	g.t.Helper()
+
+	tipHash := g.Tip().BlockHash()
+	tipHeight := g.Tip().Header.Height
+	var ts *treasuryState
+	err := g.chain.db.View(func(dbTx database.Tx) error {
+		var err error
+		ts, err = dbFetchTreasuryBalance(dbTx, tipHash)
+		return err
+	})
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error fetching "+
+			"treasury balance: %v", g.TipName(), tipHash, tipHeight, err)
+	}
+	if ts.balance != balance {
+		g.t.Fatalf("block %q (hash %s, height %d) mismatched treasury balance "+
+			"-- got %d, want %d", g.TipName(), tipHash, tipHeight, ts.balance,
+			balance)
+	}
+}
+
+// ExpectTreasuryBalanceChange queries the treasury balance changes for the
+// current tip block and chain associated with the harness generator and expects
+// the change at the provided index to match the provided type and value.
+func (g *chaingenHarness) ExpectTreasuryBalanceChange(changeIdx int, typ treasuryValueType, amount int64) {
+	g.t.Helper()
+
+	tipHash := g.Tip().BlockHash()
+	tipHeight := g.Tip().Header.Height
+	var ts *treasuryState
+	err := g.chain.db.View(func(dbTx database.Tx) error {
+		var err error
+		ts, err = dbFetchTreasuryBalance(dbTx, tipHash)
+		return err
+	})
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error fetching "+
+			"treasury balance: %v", g.TipName(), tipHash, tipHeight, err)
+	}
+
+	if changeIdx >= len(ts.values) {
+		g.t.Fatalf("block %q (hash %s, height %d) no treasury balance changes "+
+			"found for idx %d", g.TipName(), tipHash, tipHeight, changeIdx)
+	}
+	change := ts.values[changeIdx]
+	if change.typ != typ {
+		g.t.Fatalf("block %q (hash %s, height %d) mismatched treasury balance "+
+			"change type for index %d -- got %d, want %d", g.TipName(), tipHash,
+			tipHeight, changeIdx, change.typ, typ)
+	}
+	if change.amount != amount {
+		g.t.Fatalf("block %q (hash %s, height %d) mismatched treasury balance "+
+			"change amount for index %d, type %d -- got %d, want %d",
+			g.TipName(), tipHash, tipHeight, changeIdx, change.typ,
+			change.amount, amount)
 	}
 }
 
