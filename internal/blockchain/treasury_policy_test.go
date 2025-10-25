@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -36,11 +36,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// activation as compared to various existing network params and
+	// significantly increase the SRI so that the treasurybase isn't reduced
+	// throughout these tests to simplify the arithmetic.
 	params := quickVoteActivationParams()
-
-	// We'll significantly increase the SRI so that the treasurybase isn't
-	// reduced throughout these tests and our arithmetic can be simpler.
 	params.SubsidyReductionInterval = 1000
 
 	// CoinbaseMaturity MUST be lower than TVI otherwise assumptions about
@@ -72,19 +71,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
-
-	// Helper to verify the tip balance.
-	assertTipTreasuryBalance := func(wantBalance int64) {
-		t.Helper()
-		ts, err := getTreasuryState(g, g.Tip().BlockHash())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ts.balance != wantBalance {
-			t.Fatalf("unexpected treasury balance. want=%d got %d",
-				wantBalance, ts.balance)
-		}
-	}
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with
@@ -125,7 +111,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// tbaseBlocks will keep track of how many blocks with a treasury base
 	// have been added to the chain.
-	var tbaseBlocks int
+	var tbaseBlocks int64
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks that the treasury has funds. After
@@ -147,8 +133,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the treasury is still empty.
-	assertTipTreasuryBalance(0)
+	// Ensure the treasury is still empty.
+	g.ExpectTreasuryBalance(0)
 
 	// ---------------------------------------------------------------------
 	// Generate a block that matures funds into the treasury.
@@ -164,7 +150,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// The current treasury balance should equal the first treasurybase
 	// subsidy.
-	assertTipTreasuryBalance(devsub)
+	g.ExpectTreasuryBalance(devsub)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to the next TVI.
@@ -191,8 +177,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	}
 
 	// Treasury balance should be the sum of the mature treasurybases.
-	wantBalance := (int64(tbaseBlocks) - int64(params.CoinbaseMaturity)) * devsub
-	assertTipTreasuryBalance(wantBalance)
+	wantBalance := (tbaseBlocks - int64(params.CoinbaseMaturity)) * devsub
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Figure out the expiry for the next tspends.
 	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi) // travel a bit back
@@ -200,19 +186,15 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	// Each tspend will spend 1/4 of all the funds expendable within a
 	// treasury expenditure policy window.
-	nbTSpends := 4
-	tspendAmount := expendBootstrap / int64(nbTSpends)
-	tspendFee := uint64(0)
+	const nbTSpends = 4
+	tspendAmount := dcrutil.Amount(expendBootstrap / nbTSpends)
+	const tspendFee = 0
 	tspends := make([]*wire.MsgTx, nbTSpends)
 	tspendHashes := make([]*chainhash.Hash, nbTSpends)
 	tspendVotes := make([]stake.TreasuryVoteT, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-			{
-				Amount: dcrutil.Amount(uint64(tspendAmount) - tspendFee),
-			},
-		},
-			dcrutil.Amount(tspendFee), expiry)
+			{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 		h := tspends[i].TxHash()
 		tspendHashes[i] = &h
 		tspendVotes[i] = stake.TreasuryVoteYes
@@ -280,11 +262,11 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and the just mined tspends.
-	wantBalance = (int64(tbaseBlocks)-int64(params.CoinbaseMaturity))*devsub +
-		taddAmount - tspendAmount*int64(nbTSpends)
-	assertTipTreasuryBalance(wantBalance)
+	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
+		taddAmount - int64(tspendAmount)*nbTSpends
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Expiry for the next set of tspends.
 	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi)
@@ -293,14 +275,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// We have spent the entire possible amount for the most recent
 	// expenditure window. To assert that is true, create, approve and
 	// attempt to mine a very small tspend.
-	smallTSpendAmount := int64(1)
-	smallTSpendFee := int64(0)
+	const smallTSpendAmount = 1
+	const smallTSpendFee = 0
 	smallTSpend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(smallTSpendAmount - smallTSpendFee)),
-		},
-	},
-		dcrutil.Amount(smallTSpendFee), expiry)
+		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
 	h := smallTSpend.TxHash()
 	tspendHashes = []*chainhash.Hash{&h}
 	tspendVotes = []stake.TreasuryVoteT{stake.TreasuryVoteYes}
@@ -399,11 +377,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	tspendVotes = make([]stake.TreasuryVoteT, nbTests)
 	for i := 0; i < nbTests; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-			{
-				Amount: dcrutil.Amount(uint64(testCases[i].amount) - tspendFee),
-			},
-		},
-			dcrutil.Amount(tspendFee), expiry)
+			{Amount: dcrutil.Amount(testCases[i].amount) - tspendFee}},
+			tspendFee, expiry)
 		h := tspends[i].TxHash()
 		tspendHashes[i] = &h
 		tspendVotes[i] = stake.TreasuryVoteYes
@@ -480,11 +455,11 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and the just mined tspends.
-	wantBalance = (int64(tbaseBlocks)-int64(params.CoinbaseMaturity))*devsub +
-		taddAmount - tspendAmount*int64(nbTSpends) - testCases[nbTests-1].amount
-	assertTipTreasuryBalance(wantBalance)
+	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
+		taddAmount - int64(tspendAmount)*nbTSpends - testCases[nbTests-1].amount
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to advance until all previously mined tspends
@@ -510,11 +485,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	tspendHashes = make([]*chainhash.Hash, 1)
 	tspendVotes = make([]stake.TreasuryVoteT, 1)
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(expendBootstrap) - tspendFee),
-		},
-	},
-		dcrutil.Amount(tspendFee), expiry)
+		{Amount: dcrutil.Amount(expendBootstrap) - tspendFee}}, tspendFee,
+		expiry)
 	h = tspend.TxHash()
 	tspendHashes[0] = &h
 	tspendVotes[0] = stake.TreasuryVoteYes
@@ -571,11 +543,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	t.Parallel()
 
 	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// activation as compared to various existing network params and
+	// significantly increase the SRI so that the treasurybase isn't reduced
+	// throughout these tests to simplify the arithmetic.
 	params := quickVoteActivationParams()
-
-	// We'll significantly increase the SRI so that the treasurybase isn't
-	// reduced throughout these tests and our arithmetic can be simpler.
 	params.SubsidyReductionInterval = 1000
 
 	// CoinbaseMaturity MUST be lower than TVI otherwise assumptions about
@@ -614,19 +585,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
 	g := newChaingenHarness(t, params)
 
-	// Helper to verify the tip balance.
-	assertTipTreasuryBalance := func(wantBalance int64) {
-		t.Helper()
-		ts, err := getTreasuryState(g, g.Tip().BlockHash())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ts.balance != wantBalance {
-			t.Fatalf("unexpected treasury balance. want=%d got %d",
-				wantBalance, ts.balance)
-		}
-	}
-
 	// ---------------------------------------------------------------------
 	// Generate and accept enough blocks with the appropriate vote bits set
 	// to activate the treasury and revert treasury expenditure policy
@@ -655,7 +613,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 
 	// tbaseBlocks will keep track of how many blocks with a treasury base
 	// have been added to the chain.
-	var tbaseBlocks int
+	var tbaseBlocks int64
 
 	// ---------------------------------------------------------------------
 	// Mine as many blocks as needed so that the treasury has enough funds
@@ -693,22 +651,19 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	//
 	// We make sure the tadd amount that will be added makes the total sum
 	// exactly divisble by the number of tspends (4).
-	nbTSpends := 4
+	const nbTSpends = 4
 	tbaseAmount := int64(tvi * mul * tew * devsub)
-	taddAmount := int64(nbTSpends*10) - tbaseAmount%int64(nbTSpends)
+	taddAmount := nbTSpends*10 - tbaseAmount%nbTSpends
 	incomeAmount := taddAmount + tbaseAmount
-	tspendAmount := (incomeAmount + incomeAmount/2) / int64(nbTSpends)
-	tspendFee := uint64(0)
+	tspendAmount := (incomeAmount + incomeAmount/2) / nbTSpends
+	const tspendFee = 0
 	tspends := make([]*wire.MsgTx, nbTSpends)
 	tspendHashes := make([]*chainhash.Hash, nbTSpends)
 	tspendVotes := make([]stake.TreasuryVoteT, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-			{
-				Amount: dcrutil.Amount(uint64(tspendAmount) - tspendFee),
-			},
-		},
-			dcrutil.Amount(tspendFee), expiry)
+			{Amount: dcrutil.Amount(tspendAmount) - tspendFee}}, tspendFee,
+			expiry)
 		h := tspends[i].TxHash()
 		tspendHashes[i] = &h
 		tspendVotes[i] = stake.TreasuryVoteYes
@@ -717,14 +672,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// Also generate an additional, one atom tspend that will be approved.
 	// This will be used to make assertions that the limit of expenditures
 	// has not been breached.
-	smallTSpendAmount := int64(1)
-	smallTSpendFee := int64(0)
+	const smallTSpendAmount = 1
+	const smallTSpendFee = 0
 	smallTSpend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(smallTSpendAmount - smallTSpendFee)),
-		},
-	},
-		dcrutil.Amount(smallTSpendFee), expiry)
+		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
 	h := smallTSpend.TxHash()
 	tspendHashes = append(tspendHashes, &h)
 	tspendVotes = append(tspendVotes, stake.TreasuryVoteYes)
@@ -826,11 +777,11 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 		tbaseBlocks++
 	}
 
-	// Assert the balance equals everything received by the treasury minus
+	// Ensure the balance equals everything received by the treasury minus
 	// immature tbases and mined tspends.
-	wantBalance := (int64(tbaseBlocks)-int64(params.CoinbaseMaturity))*devsub +
-		taddAmount - tspendAmount*int64(nbTSpends)
-	assertTipTreasuryBalance(wantBalance)
+	wantBalance := (tbaseBlocks-int64(params.CoinbaseMaturity))*devsub +
+		taddAmount - tspendAmount*nbTSpends
+	g.ExpectTreasuryBalance(wantBalance)
 
 	// Generate a new tspend that spends the entire possible amount and one
 	// that spends one atom. This time we don't create a tadd.
@@ -838,18 +789,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	expiry = standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	tspendAmount = tbaseAmount + tbaseAmount/2
 	largeTSpend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(tspendAmount) - tspendFee),
-		},
-	},
-		dcrutil.Amount(tspendFee), expiry)
+		{Amount: dcrutil.Amount(tspendAmount) - tspendFee}}, tspendFee, expiry)
 
 	smallTSpend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(smallTSpendAmount - smallTSpendFee)),
-		},
-	},
-		dcrutil.Amount(smallTSpendFee), expiry)
+		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
 	txhLargeTSpend := largeTSpend.TxHash()
 	txhSmallTSpend := smallTSpend.TxHash()
 	tspendHashes = []*chainhash.Hash{&txhLargeTSpend, &txhSmallTSpend}
@@ -932,18 +875,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	expiry = standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	tspendAmount = tbaseAmount + tbaseAmount/2 - smallTSpendAmount - smallTSpendFee
 	largeTSpend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(tspendAmount) - tspendFee),
-		},
-	},
-		dcrutil.Amount(tspendFee), expiry)
+		{Amount: dcrutil.Amount(tspendAmount) - tspendFee}}, tspendFee, expiry)
 
 	smallTSpend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(uint64(smallTSpendAmount - smallTSpendFee)),
-		},
-	},
-		dcrutil.Amount(smallTSpendFee), expiry)
+		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
 	txhLargeTSpend = largeTSpend.TxHash()
 	txhSmallTSpend = smallTSpend.TxHash()
 	tspendHashes = []*chainhash.Hash{&txhLargeTSpend, &txhSmallTSpend}
