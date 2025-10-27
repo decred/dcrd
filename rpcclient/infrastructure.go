@@ -926,6 +926,10 @@ func (c *Client) sendRequest(ctx context.Context, jReq *jsonRequest) {
 // future.  It handles both websocket and HTTP POST mode depending on the
 // configuration of the client.
 func (c *Client) sendCmd(ctx context.Context, cmd interface{}) *cmdRes {
+	if ctx.Err() != nil {
+		return newFutureError(ctx, ErrRequestCanceled)
+	}
+
 	// Get the method associated with the command.
 	method, err := dcrjson.CmdMethod(cmd)
 	if err != nil {
