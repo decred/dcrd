@@ -943,7 +943,7 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	}
 
 	tspendAmount := dcrutil.Amount(devsub*(tvi*mul-uint64(params.CoinbaseMaturity)+
-		uint64(start-nextBlockHeight)) + 1) // One atom too many
+		uint64(start-nextBlockHeight)+1) + 1) // One atom too many
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
@@ -970,8 +970,8 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate a TVI worth of rewards and try to spend more.
 	//
-	//   ... -> b0 ... -> b7
-	//                 \-> btoomuch0
+	//   ... -> b#
+	//            \-> btoomuch0
 	// ---------------------------------------------------------------------
 
 	voteCount := params.TicketsPerBlock
@@ -987,8 +987,9 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 		outs = g.OldestCoinbaseOuts()
 	}
 
-	// Ensure treasury balance is 1 atom less than calculated amount.
-	g.ExpectTreasuryBalance(int64(tspendAmount-tspendFee) - 1)
+	// Ensure treasury balance for the next block is 1 atom less than calculated
+	// amount.
+	g.ExpectTreasuryBalance(int64(tspendAmount-tspendFee-devsub) - 1)
 
 	// Try spending 1 atom more than treasury balance.
 	name := "btoomuch0"

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -354,8 +354,8 @@ func (b *BlockChain) FetchTSpend(tspend chainhash.Hash) ([]chainhash.Hash, error
 	return hashes, err
 }
 
-// calculateTreasuryBalance calculates the treasury balance as of the provided
-// node.
+// calculateTreasuryBalance calculates the treasury balance as of the block
+// AFTER the passed previous block node.
 //
 // The treasury balance for a given block is calculated as the balance of its
 // parent block plus all maturing TADDs and TreasuryBases minus all maturing
@@ -363,8 +363,11 @@ func (b *BlockChain) FetchTSpend(tspend chainhash.Hash) ([]chainhash.Hash, error
 //
 // The "maturing" TADDs, TreasuryBases and TSPENDS are those that were in the
 // CoinbaseMaturity ancestor block of the passed node.
-func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode) int64 {
-	wantNode := node.RelativeAncestor(int64(b.chainParams.CoinbaseMaturity))
+func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, prevNode *blockNode) int64 {
+	// Determine the block whose treasury entries will mature in the block AFTER
+	// the passed node.
+	relativeMaturity := int64(b.chainParams.CoinbaseMaturity - 1)
+	wantNode := prevNode.RelativeAncestor(relativeMaturity)
 	if wantNode == nil {
 		// Since the node does not exist we can safely assume the
 		// balance is 0. This is true at the beginning of the chain
@@ -373,11 +376,10 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 		return 0
 	}
 
-	// Current balance is in the parent node
-	ts, err := dbFetchTreasuryBalance(dbTx, node.parent.hash)
+	ts, err := dbFetchTreasuryBalance(dbTx, prevNode.hash)
 	if err != nil {
-		// Since the node.parent.hash does not exist in the treasury db
-		// we can safely assume the balance is 0
+		// It is safe to assume the balance is 0 when the node does not exist in
+		// the treasury database.
 		return 0
 	}
 
@@ -403,7 +405,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 // add/spend into the database.
 func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
 	// Calculate balance as of this node
-	balance := b.calculateTreasuryBalance(dbTx, node)
+	balance := b.calculateTreasuryBalance(dbTx, node.parent)
 	msgBlock := block.MsgBlock()
 	ts := treasuryState{
 		balance: balance,
