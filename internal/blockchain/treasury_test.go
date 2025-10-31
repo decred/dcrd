@@ -27,7 +27,6 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
-	"github.com/decred/dcrd/txscript/v4/stdscript"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -416,75 +415,6 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 }
 
 const devsub = 5000000000
-
-// standardTreasurybaseOpReturn creates a standard OP_RETURN output to insert
-// into coinbase. This function autogenerates the extranonce. The OP_RETURN
-// pushes 12 bytes.
-func standardTreasurybaseOpReturn(height uint32) []byte {
-	extraNonce, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
-
-	enData := make([]byte, 12)
-	binary.LittleEndian.PutUint32(enData[0:4], height)
-	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
-	extraNonceScript, err := stdscript.ProvablyPruneableScriptV0(enData)
-	if err != nil {
-		panic(err)
-	}
-
-	return extraNonceScript
-}
-
-// replaceCoinbase is a munge function that takes the coinbase and removes the
-// treasury payout and moves it to a TADD treasury agenda based version. It
-// also bumps all STransactions indexes by 1 since we require treasurybase to
-// be the 0th entry in the stake tree.
-func replaceCoinbase(b *wire.MsgBlock) {
-	// Find coinbase tx and remove dev subsidy.
-	coinbaseTx := b.Transactions[0]
-	devSubsidy := coinbaseTx.TxOut[0].Value
-	coinbaseTx.TxOut = coinbaseTx.TxOut[1:]
-	coinbaseTx.Version = wire.TxVersionTreasury
-	coinbaseTx.TxIn[0].ValueIn -= devSubsidy
-
-	// Create treasuryBase and insert it at position 0 of the stake
-	// tree.
-	oldSTransactions := b.STransactions
-	b.STransactions = make([]*wire.MsgTx, len(b.STransactions)+1)
-	for k, v := range oldSTransactions {
-		b.STransactions[k+1] = v
-	}
-	treasurybaseTx := wire.NewMsgTx()
-	treasurybaseTx.Version = wire.TxVersionTreasury
-	treasurybaseTx.AddTxIn(&wire.TxIn{
-		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-			wire.MaxPrevOutIndex, wire.TxTreeRegular),
-		Sequence:    wire.MaxTxInSequenceNum,
-		BlockHeight: wire.NullBlockHeight,
-		BlockIndex:  wire.NullBlockIndex,
-		// Required 0 len SignatureScript
-	})
-	treasurybaseTx.TxIn[0].ValueIn = devSubsidy
-	treasurybaseTx.AddTxOut(&wire.TxOut{
-		Value:    devSubsidy,
-		PkScript: []byte{txscript.OP_TADD},
-	})
-	// Encoded height.
-	treasurybaseTx.AddTxOut(&wire.TxOut{
-		Value:    0,
-		PkScript: standardTreasurybaseOpReturn(b.Header.Height),
-	})
-	retTx := dcrutil.NewTx(treasurybaseTx)
-	retTx.SetTree(wire.TxTreeStake)
-	b.STransactions[0] = retTx.MsgTx()
-
-	// Sanity check treasury base.
-	if !standalone.IsTreasuryBase(retTx.MsgTx()) {
-		panic(stake.CheckTreasuryBase(retTx.MsgTx()))
-	}
-}
 
 func TestTSpendVoteCount(t *testing.T) {
 	t.Parallel()
