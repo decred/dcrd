@@ -49,12 +49,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		t.Fatal("params sanity check failed. CBM > TVI ")
 	}
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda and ensure it is
+	// always available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -556,13 +554,11 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 		t.Fatal("params sanity check failed. CBM > TVI ")
 	}
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda and ensure it is
+	// always available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	const tPolVoteID = chaincfg.VoteIDRevertTreasuryPolicy
-	params = cloneParams(params)
 	tVersion := mergeAgendas(t, params, []string{tVoteID, tPolVoteID})
 	for i := range params.Deployments[tVersion] {
 		removeDeploymentTimeConstraints(&params.Deployments[tVersion][i])
