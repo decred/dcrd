@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2024 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -51,11 +51,6 @@ const (
 	// voteBitYes is the specific bit that is set in the vote bits to
 	// indicate that the previous block is valid.
 	voteBitYes = 0x01
-
-	// noTreasury signifies the treasury agenda should be treated as though
-	// it is inactive.  It is used to increase the readability of the
-	// tests.
-	noTreasury = false
 )
 
 // SpendableOut represents a transaction output that is spendable along with
@@ -192,6 +187,20 @@ const (
 	PDAAsert
 )
 
+// TreasurySemantics defines the supported treasury semantics the generator can
+// use when generating solved blocks.
+type TreasurySemantics uint8
+
+const (
+	// TSOriginal specifies the original treasury semantics that were in effect
+	// at initial launch.
+	TSOriginal TreasurySemantics = iota
+
+	// TSDCP0006 specifies the decentralized treasury semantics introduced by
+	// DCP0006.
+	TSDCP0006
+)
+
 // Generator houses state used to ease the process of generating test blocks
 // that build from one another along with housing other useful things such as
 // available spendable outputs and generic payment scripts used throughout the
@@ -226,6 +235,10 @@ type Generator struct {
 	powHashAlgo   PowHashAlgorithm
 	powDiffAlgo   PowDifficultyAlgorithm
 	powDiffAnchor *wire.BlockHeader
+
+	// Used for tracking different treasury semantics depending on voting
+	// agendas.
+	treasurySemantics TreasurySemantics
 }
 
 // MakeGenerator returns a generator instance initialized with the genesis block
@@ -260,6 +273,7 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 		missedVotes:         make(map[chainhash.Hash]*stakeTicket),
 		powHashAlgo:         PHABlake256r14,
 		powDiffAlgo:         PDAEma,
+		treasurySemantics:   TSOriginal,
 	}, nil
 }
 
@@ -319,6 +333,41 @@ func (g *Generator) UsePowDiffAlgo(algo PowDifficultyAlgorithm, options ...strin
 	}
 
 	panic(fmt.Sprintf("unsupported proof of work difficulty algorithm %d", algo))
+}
+
+// UseTreasurySemantics specifies the treasury semantics the generator should
+// use when generating blocks.  It will panic if an unsupported value is
+// provided.
+//
+// The second options parameter depends on the specified semantics as follows:
+//
+// TSOriginal:
+//   - No additional options may be specified.  The function will panic if any
+//     are specified.
+//
+// TSDCP0006:
+//   - No additional options may be specified.  The function will panic if any
+//     are specified.
+func (g *Generator) UseTreasurySemantics(semantics TreasurySemantics, options ...string) {
+	switch semantics {
+	case TSOriginal:
+		if len(options) != 0 {
+			panic("no options may be specified for the original treasury " +
+				"semantics")
+		}
+		g.treasurySemantics = semantics
+		return
+
+	case TSDCP0006:
+		if len(options) != 0 {
+			panic("no options may be specified for the DCP0006 treasury " +
+				"semantics")
+		}
+		g.treasurySemantics = semantics
+		return
+	}
+
+	panic(fmt.Sprintf("unsupported treasury semantics %d", semantics))
 }
 
 // Params returns the chain params associated with the generator instance.
@@ -483,6 +532,26 @@ func (g *Generator) calcDevSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint3
 	return (devSubsidy * dcrutil.Amount(numVotes)) / ticketsPerBlock
 }
 
+// calcCoinbaseDevSubsidy returns the dev org subsidy portion from a given full
+// subsidy for use in the coinbase transaction using the treasury semantics
+// configured for the generator.
+//
+// This differs from [Generator.calcDevSubsidy] in that this considers how the
+// treasury semantics affect the coinbase transaction whereas
+// [Generator.calcDevSubsidy] does not.
+//
+// NOTE: This and the other subsidy calculation funcs intentionally are not
+// using the blockchain code since the intent is to be able to generate known
+// good tests which exercise that code, so it wouldn't make sense to use the
+// same code to generate them.
+func (g *Generator) calcCoinbaseDevSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint32, numVotes uint16) dcrutil.Amount {
+	if g.treasurySemantics == TSDCP0006 && blockHeight > 1 {
+		return 0
+	}
+
+	return g.calcDevSubsidy(fullSubsidy, blockHeight, numVotes)
+}
+
 // standardCoinbaseOpReturnScript returns a standard script suitable for use as
 // the second output of a standard coinbase transaction of a new block.  In
 // particular, the serialized data used with the OP_RETURN starts with the block
@@ -492,14 +561,11 @@ func (g *Generator) calcDevSubsidy(fullSubsidy dcrutil.Amount, blockHeight uint3
 // height is not defined however this effectively mirrors the actual mining code
 // at the time it was written.
 func standardCoinbaseOpReturnScript(blockHeight uint32) []byte {
-	rand, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
+	extraNonce := rand.Uint64()
 
 	data := make([]byte, 36)
 	binary.LittleEndian.PutUint32(data[0:4], blockHeight)
-	binary.LittleEndian.PutUint64(data[28:36], rand)
+	binary.LittleEndian.PutUint64(data[28:36], extraNonce)
 	return opReturnScript(data)
 }
 
@@ -512,22 +578,32 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	}
 }
 
-// addCoinbaseTxOutputs adds the following outputs to the provided transaction
-// which is assumed to be a coinbase transaction:
-//   - First output pays the development subsidy portion to the dev org
-//   - Second output is a standard provably prunable data-only coinbase output
-//   - Third and subsequent outputs pay the pow subsidy portion to the generic
-//     OP_TRUE p2sh script hash
+// addCoinbaseTxOutputs adds the outputs required for a coinbase to the provided
+// transaction based on the given parameters and using the treasury semantics
+// configured for the generator.
+//
+// The provided transaction is assumed to be a coinbase transaction.
+//
+// See the [Generator.CreateCoinbaseTx] documentation for a breakdown of the
+// outputs added to the transaction.
 func (g *Generator) addCoinbaseTxOutputs(tx *wire.MsgTx, blockHeight uint32, devSubsidy, powSubsidy dcrutil.Amount) {
-	// First output is the developer subsidy.
-	tx.AddTxOut(&wire.TxOut{
-		Value:    int64(devSubsidy),
-		Version:  g.params.OrganizationPkScriptVersion,
-		PkScript: g.params.OrganizationPkScript,
-	})
+	// A coinbase for the original treasury semantics requires the first output
+	// to be the developer subsidy.  The subsidy was moved to the stake tree for
+	// the decentralized treasury, so there is no output for it in that case.
+	if g.treasurySemantics == TSOriginal || blockHeight <= 1 {
+		tx.AddTxOut(&wire.TxOut{
+			Value:    int64(devSubsidy),
+			Version:  g.params.OrganizationPkScriptVersion,
+			PkScript: g.params.OrganizationPkScript,
+		})
+	}
 
-	// Second output is a provably prunable data-only output that is used
-	// to ensure the coinbase is unique.
+	// The next output is a provably prunable data-only output that is used to
+	// ensure the coinbase is unique.
+	//
+	// It will either be the first output when the [TSDCP0006] treasury
+	// semantics are in effect or the second when the [TSOriginal] treasury
+	// semantics are in effect.
 	tx.AddTxOut(wire.NewTxOut(0, standardCoinbaseOpReturnScript(blockHeight)))
 
 	// Final outputs are the proof-of-work subsidy split into more than one
@@ -545,20 +621,34 @@ func (g *Generator) addCoinbaseTxOutputs(tx *wire.MsgTx, blockHeight uint32, dev
 	}
 }
 
-// CreateCoinbaseTx returns a coinbase transaction paying an appropriate
-// subsidy based on the passed block height and number of votes to the dev org
-// and proof-of-work miner.
+// CreateCoinbaseTx returns a coinbase transaction that consists of outputs
+// which pay an appropriate subsidy based on the passed block height and number
+// of votes to the proof-of-work miner and potentially the dev org use the
+// treasury semantics configured for the generator.
 //
-// See the addCoinbaseTxOutputs documentation for a breakdown of the outputs
-// the transaction contains.
+// For the [TSOriginal] treasury semantics the outputs are:
+//   - First output pays the development subsidy portion to the dev org
+//   - Second output is a standard provably prunable data-only coinbase output
+//   - Third and subsequent outputs pay the pow subsidy portion to the generic
+//     OP_TRUE p2sh script hash
+//
+// For the [TSDCP0006] treasury semantics the outputs are:
+//   - First output is a standard provably prunable data-only coinbase output
+//   - Second and subsequent outputs pay the pow subsidy portion to the generic
+//     OP_TRUE p2sh script hash
 func (g *Generator) CreateCoinbaseTx(blockHeight uint32, numVotes uint16) *wire.MsgTx {
 	// Calculate the subsidy proportions based on the block height and the
 	// number of votes the block will include.
 	fullSubsidy := g.calcFullSubsidy(blockHeight)
-	devSubsidy := g.calcDevSubsidy(fullSubsidy, blockHeight, numVotes)
+	devSubsidy := g.calcCoinbaseDevSubsidy(fullSubsidy, blockHeight, numVotes)
 	powSubsidy := g.calcPoWSubsidy(fullSubsidy, blockHeight, numVotes)
 
+	// The coinbase transaction version depends on the active treasury
+	// semantics.
 	tx := wire.NewMsgTx()
+	if g.treasurySemantics == TSDCP0006 && blockHeight > 1 {
+		tx.Version = wire.TxVersionTreasury
+	}
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
 		// zero hash and max index.
@@ -573,6 +663,58 @@ func (g *Generator) CreateCoinbaseTx(blockHeight uint32, numVotes uint16) *wire.
 
 	g.addCoinbaseTxOutputs(tx, blockHeight, devSubsidy, powSubsidy)
 
+	return tx
+}
+
+// standardTreasurybaseOpReturnScript returns a standard script suitable for use
+// as the second output of the treasurybase transaction of a new block.  In
+// particular, the serialized data used with the OP_RETURN starts with the block
+// height and is followed by 8 bytes of cryptographically random data.
+func standardTreasurybaseOpReturnScript(blockHeight uint32) []byte {
+	randValue := rand.Uint64()
+
+	data := make([]byte, 12)
+	binary.LittleEndian.PutUint32(data[0:4], blockHeight)
+	binary.LittleEndian.PutUint64(data[4:12], randValue)
+	return opReturnScript(data)
+}
+
+// CreateTreasuryBaseTx returns a treasurybase transaction that consists of
+// outputs which pay an appropriate subsidy based on the passed block height
+// number of votes to the treasury.
+//
+// Inputs:
+//   - A single input with the input value set to the total payout amount
+//
+// Outputs:
+//   - Treasury add output that adds to the treasury account balance
+//   - Output that includes the block height and a cryptographically random
+//     value to ensure a unique hash
+//
+// Note that all treasurybase transactions require TxVersionTreasury and
+// they must be in the stake transaction tree.
+func (g *Generator) CreateTreasuryBaseTx(blockHeight uint32, numVotes uint16) *wire.MsgTx {
+	// Calculate the subsidy proportion based on the block height and the number
+	// of votes the block will include.
+	fullSubsidy := g.calcFullSubsidy(blockHeight)
+	trsySubsidy := g.calcDevSubsidy(fullSubsidy, blockHeight, numVotes)
+
+	// Create a treasurybase with expected inputs and outputs.
+	tx := wire.NewMsgTx()
+	tx.Version = wire.TxVersionTreasury
+	tx.AddTxIn(&wire.TxIn{
+		// Treasurybase transactions have no inputs, so previous outpoint is
+		// zero hash and max index.
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         int64(trsySubsidy),
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: nil, // Must be nil by consensus.
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(trsySubsidy), []byte{txscript.OP_TADD}))
+	tx.AddTxOut(wire.NewTxOut(0, standardTreasurybaseOpReturnScript(blockHeight)))
 	return tx
 }
 
@@ -640,6 +782,7 @@ func (g *Generator) CreateTreasuryTAddChange(spend *SpendableOut,
 	// Generate and return the transaction spending from the provided
 	// spendable output with the previously described outputs.
 	tx := wire.NewMsgTx()
+	tx.Version = wire.TxVersionTreasury
 	tx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: spend.prevOut,
 		Sequence:         wire.MaxTxInSequenceNum,
@@ -1431,10 +1574,10 @@ func estimateSupply(params *chaincfg.Params, height int64) int64 {
 	return supply
 }
 
-// CalcNextReqStakeDifficulty returns the required stake difficulty (aka
-// ticket price) for the block after the provided block the generator is
-// associated with.  The stake difficulty is calculated based on the algorithm
-// defined in DCP0001.
+// CalcNextReqStakeDifficulty returns the required stake difficulty (aka ticket
+// price) for the block after the provided block the generator is associated
+// with.  The stake difficulty is calculated based on the algorithm defined in
+// DCP0001.
 func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 	// Stake difficulty before any tickets could possibly be purchased is
 	// the minimum value.
@@ -1869,8 +2012,8 @@ func (g *Generator) IsSolved(header *wire.BlockHeader) bool {
 // with the solution.  False is returned if no solution exists.
 //
 // NOTE: This function will never solve blocks with a nonce of 0.  This is done
-// so the 'NextBlock' function can properly detect when a nonce was modified by
-// a munge function.
+// so [Generator.NextBlock] can properly detect when a nonce was modified by a
+// munge function.
 func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 	// sbResult is used by the solver goroutines to send results.
 	type sbResult struct {
@@ -1944,8 +2087,8 @@ func (g *Generator) solveBlock(header *wire.BlockHeader) bool {
 // ReplaceWithNVotes returns a function that itself takes a block and modifies
 // it by replacing the votes in the stake tree with specified number of votes.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.  To help safeguard against improper
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.  To help safeguard against improper
 // usage, it will panic if called with a block that does not connect to the
 // current tip block.
 func (g *Generator) ReplaceWithNVotes(numVotes uint16) func(*wire.MsgBlock) {
@@ -1967,18 +2110,39 @@ func (g *Generator) ReplaceWithNVotes(numVotes uint16) func(*wire.MsgBlock) {
 			panic(err)
 		}
 
-		// Generate vote transactions for the winning tickets.
-		defaultNumVotes := int(g.params.TicketsPerBlock)
-		numExisting := len(b.STransactions) - defaultNumVotes
-		stakeTxns := make([]*wire.MsgTx, 0, numExisting+int(numVotes))
+		// Find the existing votes and ensure they are all contiguous since the
+		// following logic depends on it.
+		voteIdxs := make([]int, 0, b.Header.Voters)
+		for txIdx, tx := range b.STransactions {
+			if isVoteTx(tx) {
+				voteIdxs = append(voteIdxs, txIdx)
+			}
+		}
+		var startVoteIdx, endVoteIdx int
+		numExistingVotes := len(voteIdxs)
+		if numExistingVotes > 0 {
+			startVoteIdx = voteIdxs[0]
+			endVoteIdx = voteIdxs[len(voteIdxs)-1]
+			if (endVoteIdx-startVoteIdx)+1 != numExistingVotes {
+				panic(fmt.Sprintf("attempt to replace number of votes for "+
+					"block %s with parent %s that does not have contiguous "+
+					"votes", b.BlockHash(), b.Header.PrevBlock))
+			}
+		}
+
+		// Generate vote transactions for the winning tickets while maintaining
+		// their original position in the stake tree.
+		numExistingTxns := len(b.STransactions) - numExistingVotes
+		stakeTxns := make([]*wire.MsgTx, 0, numExistingTxns+int(numVotes))
+		stakeTxns = append(stakeTxns, b.STransactions[:startVoteIdx]...)
 		for _, ticket := range winners {
 			voteTx := g.createVoteTxFromTicket(parentBlock, ticket)
 			stakeTxns = append(stakeTxns, voteTx)
 		}
 
-		// Add back the original stake transactions other than the
-		// original stake votes that have been replaced.
-		stakeTxns = append(stakeTxns, b.STransactions[defaultNumVotes:]...)
+		// Add back the original stake transactions other than the original
+		// stake votes that have been replaced.
+		stakeTxns = append(stakeTxns, b.STransactions[endVoteIdx+1:]...)
 
 		// Update the block with the new stake transactions and the
 		// header with the new number of votes.
@@ -1990,7 +2154,7 @@ func (g *Generator) ReplaceWithNVotes(numVotes uint16) func(*wire.MsgBlock) {
 		// subsidy is accounted for.
 		height := b.Header.Height
 		fullSubsidy := g.calcFullSubsidy(height)
-		devSubsidy := g.calcDevSubsidy(fullSubsidy, height, numVotes)
+		devSubsidy := g.calcCoinbaseDevSubsidy(fullSubsidy, height, numVotes)
 		powSubsidy := g.calcPoWSubsidy(fullSubsidy, height, numVotes)
 		cbTx := b.Transactions[0]
 		cbTx.TxIn[0].ValueIn = int64(devSubsidy + powSubsidy)
@@ -2004,8 +2168,8 @@ func (g *Generator) ReplaceWithNVotes(numVotes uint16) func(*wire.MsgBlock) {
 // will panic if the stake transaction at the provided index is not already a
 // vote.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
 func (g *Generator) ReplaceVoteBitsN(voteNum int, voteBits uint16) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		// Attempt to prevent misuse of this function by ensuring the
@@ -2031,8 +2195,8 @@ func (g *Generator) ReplaceVoteBitsN(voteNum int, voteBits uint16) func(*wire.Ms
 // ReplaceVoteBits returns a function that itself takes a block and modifies it
 // by replacing the vote bits of the stake transactions.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
 func (g *Generator) ReplaceVoteBits(voteBits uint16) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		for stxIdx, stx := range b.STransactions {
@@ -2062,8 +2226,8 @@ func ReplaceStakeVersion(newVersion uint32) func(*wire.MsgBlock) {
 // ReplaceVoteVersions returns a function that itself takes a block and modifies
 // it by replacing the voter version of the stake transactions.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
 func ReplaceVoteVersions(newVersion uint32) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		for _, stx := range b.STransactions {
@@ -2078,8 +2242,8 @@ func ReplaceVoteVersions(newVersion uint32) func(*wire.MsgBlock) {
 // ReplaceVotes returns a function that itself takes a block and modifies it by
 // replacing the voter version and bits of the stake transactions.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
 func ReplaceVotes(voteBits uint16, newVersion uint32) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		for _, stx := range b.STransactions {
@@ -2094,8 +2258,8 @@ func ReplaceVotes(voteBits uint16, newVersion uint32) func(*wire.MsgBlock) {
 // ReplaceVoteSubsidies returns a function that itself takes a block and
 // modifies it by replacing the subsidy of all votes contained in the block.
 //
-// NOTE: This must only be used as a munger to the 'NextBlock' function or it
-// will lead to an invalid live ticket pool.
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
 func ReplaceVoteSubsidies(newSubsidy dcrutil.Amount) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		for _, stx := range b.STransactions {
@@ -2568,34 +2732,45 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 //
 // 1. A coinbase with the following outputs:
 //
-//   - One that pays the required 10% subsidy to the dev org
+//   - When the [TSOriginal] treasury semantics are active, one that pays the
+//     required 10% subsidy to the dev org
 //   - One that contains a standard coinbase OP_RETURN script
 //   - Six that pay the required 60% subsidy to an OP_TRUE p2sh script
 //
-// 2. When a spendable output is provided:
+// 2. When a spendable output is provided, a transaction that spends from the
+// provided output with the following outputs:
 //
-//   - A transaction that spends from the provided output the following outputs:
 //   - One that pays the inputs amount minus 1 atom to an OP_TRUE p2sh script
+//   - One that contains an OP_RETURN output with a random uint64 in order to
+//     ensure the transaction has a unique hash
 //
-// 3. Once the coinbase maturity has been reached:
+// 3. Once the coinbase maturity height has been reached, a ticket purchase
+// transaction (sstx) for each provided ticket spendable output with the
+// following outputs:
 //
-//   - A ticket purchase transaction (sstx) for each provided ticket spendable
-//     output with the following outputs:
 //   - One OP_SSTX output that grants voting rights to an OP_TRUE p2sh script
 //   - One OP_RETURN output that contains the required commitment and pays
 //     the subsidy to an OP_TRUE p2sh script
 //   - One OP_SSTXCHANGE output that sends change to an OP_TRUE p2sh script
 //
-// 4. Once the stake validation height has been reached:
+// 4. When the [TSDCP0006] treasury semantics are active, a treasurybase with
+// the following outputs:
 //
-//   - 5 vote transactions (ssgen) as required according to the live ticket
-//     pool and vote selection rules with the following outputs:
+//   - One that contains the required OP_TADD script
+//   - One that contains a standard treasurybase OP_RETURN script
+//
+// 5. Once stake validation height has been reached, 5 vote transactions (ssgen)
+// as required according to the live ticket pool and vote selection rules with
+// the following outputs:
+//
 //   - One OP_RETURN followed by the block hash and height being voted on
 //   - One OP_RETURN followed by the vote bits
 //   - One or more OP_SSGEN outputs with the payouts according to the original
 //     ticket commitments
-//   - Revocation transactions (ssrtx) as required according to any missed votes
-//     with the following outputs:
+//
+// 6. Once stake validation height has been reached, revocation transactions
+// (ssrtx) as required according to any missed votes with the following outputs:
+//
 //   - One or more OP_SSRTX outputs with the payouts according to the original
 //     ticket commitments
 //
@@ -2694,6 +2869,13 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 			outputSum += dcrutil.Amount(txOut.Value)
 		}
 		stakeTreeFees += (inputSum - outputSum)
+	}
+
+	// Generate and prepend a treasurybase transaction when the decentralized
+	// treasury semantics are in effect.
+	if g.treasurySemantics == TSDCP0006 && nextHeight > 1 {
+		treasuryBaseTx := g.CreateTreasuryBaseTx(nextHeight, numVotes)
+		stakeTxns = append([]*wire.MsgTx{treasuryBaseTx}, stakeTxns...)
 	}
 
 	// Create a standard coinbase and spending transaction.
@@ -2913,14 +3095,15 @@ func (g *Generator) OldestCoinbaseOuts() []SpendableOut {
 }
 
 // NumSpendableCoinbaseOuts returns the number of proof-of-work outputs that
-// were previously saved to the generated but have not yet been collected.
+// were previously saved to the generator but have not yet been collected.
 func (g *Generator) NumSpendableCoinbaseOuts() int {
 	return len(g.spendableOuts)
 }
 
-// saveCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
-// passed block to the list of spendable outputs.
-func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
+// saveCoinbaseOutsOriginal adds the proof-of-work outputs of the coinbase tx in
+// the passed block to the list of spendable outputs using the original treasury
+// semantics in effect at initial launch.
+func (g *Generator) saveCoinbaseOutsOriginal(b *wire.MsgBlock) {
 	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
 		MakeSpendableOut(b, 0, 2),
 		MakeSpendableOut(b, 0, 3),
@@ -2932,10 +3115,10 @@ func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
 	g.prevCollectedHash = b.BlockHash()
 }
 
-// saveCoinbaseOutsWithTreasury adds the proof-of-work outputs of the coinbase tx in the
-// passed block to the list of spendable outputs. The offset changed due to
-// treasury agenda.
-func (g *Generator) saveCoinbaseOutsWithTreasury(b *wire.MsgBlock) {
+// saveCoinbaseOutsTreasury adds the proof-of-work outputs of the coinbase tx in
+// the passed block to the list of spendable outputs using the decentralized
+// treasury semantics introduced by DCP0006.
+func (g *Generator) saveCoinbaseOutsTreasury(b *wire.MsgBlock) {
 	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
 		MakeSpendableOut(b, 0, 1),
 		MakeSpendableOut(b, 0, 2),
@@ -2947,24 +3130,44 @@ func (g *Generator) saveCoinbaseOutsWithTreasury(b *wire.MsgBlock) {
 	g.prevCollectedHash = b.BlockHash()
 }
 
+// saveCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
+// passed block to the list of spendable outputs using the treasury semantics
+// configured for the generator.
+func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
+	switch g.treasurySemantics {
+	case TSOriginal:
+		g.saveCoinbaseOutsOriginal(b)
+		return
+
+	case TSDCP0006:
+		g.saveCoinbaseOutsTreasury(b)
+		return
+	}
+
+	panic(fmt.Sprintf("unsupported treasury semantics %d", g.treasurySemantics))
+}
+
 // SaveTipCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
-// current tip block to the list of spendable outputs.
+// current tip block to the list of spendable outputs using the treasury
+// semantics configured for the generator.
 func (g *Generator) SaveTipCoinbaseOuts() {
 	g.saveCoinbaseOuts(g.tip)
 }
 
 // SaveTipCoinbaseOutsWithTreasury adds the proof-of-work outputs of the
 // coinbase tx in the current tip block to the list of spendable outputs.
+//
+// Deprecated: Use [Generator.SaveTipCoinbaseOuts] with [Generator.UseTreasurySemantics] instead.
 func (g *Generator) SaveTipCoinbaseOutsWithTreasury() {
-	g.saveCoinbaseOutsWithTreasury(g.tip)
+	g.saveCoinbaseOutsTreasury(g.tip)
 }
 
 // SaveSpendableCoinbaseOuts adds all proof-of-work coinbase outputs starting
 // from the block after the last block that had its coinbase outputs collected
-// and ending at the current tip.  This is useful to batch the collection of the
-// outputs once the tests reach a stable point so they don't have to manually
-// add them for the right tests which will ultimately end up being the best
-// chain.
+// and ending at the current tip using the treasury semantics configured for the
+// generator.  This is useful to batch the collection of the outputs once the
+// tests reach a stable point so they don't have to manually add them for the
+// right tests which will ultimately end up being the best chain.
 func (g *Generator) SaveSpendableCoinbaseOuts() {
 	// Loop through the ancestors of the current tip until the
 	// reaching the block that has already had the coinbase outputs
@@ -3034,10 +3237,19 @@ func (g *Generator) AssertTipHeight(expected uint32) {
 	}
 }
 
+// countSigOps returns the number of signature operations in a script as
+// determined by [txscript.GetSigOpCount] using the treasury semantics
+// configured for the generator.
+func (g Generator) countSigOps(script []byte, height uint32) int {
+	isTreasuryEnabled := g.treasurySemantics == TSDCP0006 && height > 1
+	return txscript.GetSigOpCount(script, isTreasuryEnabled)
+}
+
 // AssertScriptSigOpsCount panics if the provided script does not have the
-// specified number of signature operations.
+// specified number of signature operations using the treasury semantics
+// configured for the generator.
 func (g *Generator) AssertScriptSigOpsCount(script []byte, expected int) {
-	numSigOps := txscript.GetSigOpCount(script, noTreasury)
+	numSigOps := g.countSigOps(script, g.tip.Header.Height)
 	if numSigOps != expected {
 		_, file, line, _ := runtime.Caller(1)
 		panic(fmt.Sprintf("assertion failed at %s:%d: generated number "+
@@ -3047,17 +3259,18 @@ func (g *Generator) AssertScriptSigOpsCount(script []byte, expected int) {
 }
 
 // countBlockSigOps returns the number of legacy signature operations in the
-// scripts in the passed block.
-func countBlockSigOps(block *wire.MsgBlock) int {
+// scripts in the passed block using the treasury semantics configured for the
+// generator.
+func (g *Generator) countBlockSigOps(block *wire.MsgBlock) int {
+	blockHeight := block.Header.Height
 	totalSigOps := 0
 	for _, tx := range block.Transactions {
 		for _, txIn := range tx.TxIn {
-			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript,
-				noTreasury)
+			numSigOps := g.countSigOps(txIn.SignatureScript, blockHeight)
 			totalSigOps += numSigOps
 		}
 		for _, txOut := range tx.TxOut {
-			numSigOps := txscript.GetSigOpCount(txOut.PkScript, noTreasury)
+			numSigOps := g.countSigOps(txOut.PkScript, blockHeight)
 			totalSigOps += numSigOps
 		}
 	}
@@ -3068,7 +3281,7 @@ func countBlockSigOps(block *wire.MsgBlock) int {
 // AssertTipBlockSigOpsCount panics if the current tip block associated with the
 // generator does not have the specified number of signature operations.
 func (g *Generator) AssertTipBlockSigOpsCount(expected int) {
-	numSigOps := countBlockSigOps(g.tip)
+	numSigOps := g.countBlockSigOps(g.tip)
 	if numSigOps != expected {
 		panic(fmt.Sprintf("generated number of sigops for block %q "+
 			"(height %d) is %d instead of expected %d", g.tipName,
