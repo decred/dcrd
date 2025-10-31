@@ -49,12 +49,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		t.Fatal("params sanity check failed. CBM > TVI ")
 	}
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda and ensure it is
+	// always available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
 	tVersion, deployment := findDeployment(t, params, tVoteID)
 	removeDeploymentTimeConstraints(deployment)
 
@@ -88,6 +86,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 
 	g.AdvanceToStakeValidationHeight()
 	g.AdvanceFromSVHToActiveAgendas(tVoteID)
+	g.UseTreasurySemantics(chaingen.TSDecentralized)
 
 	// Ensure treasury agenda is active.
 	tipHash := &g.chain.BestSnapshot().Hash
@@ -125,9 +124,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < uint32(params.CoinbaseMaturity); i++ {
 		name := fmt.Sprintf("bpretf%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -141,9 +139,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	//
 	// ... -> bpretf1 -> btfund
 	// -------------------------------------------------------------------
-	g.NextBlock("btfund", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase)
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.NextBlock("btfund", nil, outs[1:], replaceTreasuryVersions)
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 	tbaseBlocks++
@@ -168,9 +165,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// Generate up to TVI blocks.
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -204,7 +200,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	taddAmount := int64(1701)
 	taddFee := dcrutil.Amount(0)
 	tadd := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(taddAmount), taddFee)
-	tadd.Version = wire.TxVersionTreasury
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created tspends. A
@@ -216,10 +211,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -231,14 +224,13 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// ... -> bvn -> btspends
 	// ---------------------------------------------------------------------
 	g.NextBlock("btspends", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			for _, tspend := range tspends {
 				b.AddSTransaction(tspend)
 			}
 			b.AddSTransaction(tadd)
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 	tbaseBlocks++
@@ -254,9 +246,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// Mine CoinbaseMaturity+1 blocks
 	for i := uint32(0); i < uint32(params.CoinbaseMaturity+1); i++ {
 		name := fmt.Sprintf("btsm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -292,10 +283,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -308,7 +297,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// ---------------------------------------------------------------------
 	tipName := g.TipName()
 	g.NextBlock("bsmalltspendfail", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(smallTSpend)
 		})
@@ -336,10 +324,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < nbBlocks; i++ {
 		name := fmt.Sprintf("bnextew%d", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -393,10 +379,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -419,12 +403,11 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 		name := fmt.Sprintf("btest%d", i)
 
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
 			func(b *wire.MsgBlock) {
 				b.AddSTransaction(tspends[i])
 			})
 		if tc.wantAccept {
-			g.SaveTipCoinbaseOutsWithTreasury()
+			g.SaveTipCoinbaseOuts()
 			g.AcceptTipBlock()
 			outs = g.OldestCoinbaseOuts()
 			tbaseBlocks++
@@ -447,9 +430,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// Mine CoinbaseMaturity+1 blocks
 	for i := uint32(0); i < uint32(params.CoinbaseMaturity+1); i++ {
 		name := fmt.Sprintf("btstm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -470,9 +452,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// -------------------------------------------------------------------
 	for i := uint32(0); i < uint32(tvi*mul*tew*(tep+1)); i++ {
 		name := fmt.Sprintf("btpolfin%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -500,10 +481,8 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -515,7 +494,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// ... -> bvvvn -> btfinaltspend
 	// ---------------------------------------------------------------------
 	g.NextBlock("btfinaltspend", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(tspend)
 		})
@@ -556,13 +534,11 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 		t.Fatal("params sanity check failed. CBM > TVI ")
 	}
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the treasury agenda, and, finally, ensure it is
-	// always available to vote by removing the time constraints to prevent
-	// test failures when the real expiration time passes.
+	// Find the correct deployment for the treasury agenda and ensure it is
+	// always available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
 	const tVoteID = chaincfg.VoteIDTreasury
 	const tPolVoteID = chaincfg.VoteIDRevertTreasuryPolicy
-	params = cloneParams(params)
 	tVersion := mergeAgendas(t, params, []string{tVoteID, tPolVoteID})
 	for i := range params.Deployments[tVersion] {
 		removeDeploymentTimeConstraints(&params.Deployments[tVersion][i])
@@ -593,6 +569,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 
 	g.AdvanceToStakeValidationHeight()
 	g.AdvanceFromSVHToActiveAgendas(tVoteID, tPolVoteID)
+	g.UseTreasurySemantics(chaingen.TSDecentralized)
 
 	// Ensure treasury and revert expenditure policy agendas are active.
 	tipHash := &g.chain.BestSnapshot().Hash
@@ -632,9 +609,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < uint32(nbBlocks); i++ {
 		name := fmt.Sprintf("bpretf%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -684,7 +660,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// expenditure policy.
 	taddFee := dcrutil.Amount(0)
 	tadd := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(taddAmount), taddFee)
-	tadd.Version = wire.TxVersionTreasury
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created tspends.
@@ -697,10 +672,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	for i := uint64(0); i < tvi*2-1; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -712,11 +685,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ... -> bv# -> btadd
 	// ---------------------------------------------------------------------
 	g.NextBlock("btadd", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(tadd)
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 	tbaseBlocks++
@@ -730,7 +702,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ---------------------------------------------------------------------
 	preTspendsBlock := g.TipName()
 	g.NextBlock("btspendserr", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			for _, tspend := range tspends {
 				b.AddSTransaction(tspend)
@@ -748,13 +719,12 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	//             \-> btspendserr
 	// ---------------------------------------------------------------------
 	g.NextBlock("btspends", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			for _, tspend := range tspends {
 				b.AddSTransaction(tspend)
 			}
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 	tbaseBlocks++
@@ -769,9 +739,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	nbBlocks = tvi*mul*tew - 1
 	for i := uint32(0); i < uint32(nbBlocks); i++ {
 		name := fmt.Sprintf("btsm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -807,10 +776,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
@@ -824,7 +791,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ---------------------------------------------------------------------
 	preTspendsBlock = g.TipName()
 	g.NextBlock("btspendserr2", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(largeTSpend)
 			b.AddSTransaction(smallTSpend)
@@ -840,11 +806,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	//            \-> btspendserr2
 	// ---------------------------------------------------------------------
 	g.NextBlock("btspends2", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(largeTSpend)
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
@@ -858,9 +823,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	nbBlocks = tvi*mul*tew - 1
 	for i := uint32(0); i < uint32(nbBlocks); i++ {
 		name := fmt.Sprintf("btsmm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 		tbaseBlocks++
@@ -893,10 +857,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount,
-				false))
-		g.SaveTipCoinbaseOutsWithTreasury()
+			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
@@ -907,11 +869,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ... -> bvvv# -> btsmallts
 	// ---------------------------------------------------------------------
 	g.NextBlock("btsmallts", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(smallTSpend)
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
@@ -923,9 +884,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ---------------------------------------------------------------------
 	for i := uint64(0); i < tvi-1; i++ {
 		name := fmt.Sprintf("btsmmm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
@@ -936,11 +896,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ... -> btsmmm# -> btlargets
 	// ---------------------------------------------------------------------
 	g.NextBlock("btlargets", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			b.AddSTransaction(largeTSpend)
 		})
-	g.SaveTipCoinbaseOutsWithTreasury()
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
@@ -952,9 +911,8 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	// ---------------------------------------------------------------------
 	for i := uint64(0); i < tvi-1; i++ {
 		name := fmt.Sprintf("btsmmmm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOutsWithTreasury()
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
