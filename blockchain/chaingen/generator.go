@@ -985,6 +985,10 @@ func voteBitsScript(bits uint16, voteVersion uint32) []byte {
 //   - Second output is an OP_RETURN followed by the vote bits
 //   - Third and subsequent outputs are the payouts according to the ticket
 //     commitments and the appropriate proportion of the vote subsidy.
+//
+// Note that votes for treasury spends may be added to stake vote transactions
+// via [AddTreasurySpendVote], [SetTreasurySpendVote], and the block munge
+// functions [AddTreasurySpendYesVotes] and [AddTreasurySpendNoVotes].
 func (g *Generator) CreateVoteTx(voteBlock *wire.MsgBlock, ticketTx *wire.MsgTx, ticketBlockHeight, ticketBlockIndex uint32) *wire.MsgTx {
 	// Calculate the proof-of-stake subsidy proportion based on the block
 	// height.
@@ -2253,6 +2257,249 @@ func ReplaceVotes(voteBits uint16, newVersion uint32) func(*wire.MsgBlock) {
 			}
 		}
 	}
+}
+
+// treasurySpendVote houses information needed to cast a vote for a treasury
+// spend.  It consists of the hash of the treasury spend transaction and
+// the associated vote bits to use when voting on it.
+type treasurySpendVote struct {
+	hash chainhash.Hash
+	bits byte
+}
+
+// extractTreasurySpendVoteData extracts the raw vote data from the passed
+// script if it is a version 0 script that matches the expected form of a
+// provably-pruneable treasury spend vote script.  It will return nil otherwise.
+func extractTreasurySpendVoteData(scriptVer uint16, script []byte) []byte {
+	// A treasury spend vote consists of a provably-pruneable script of the
+	// form:
+	//  OP_RETURN DATA_PUSH <TV><votes>
+	//
+	// Each vote is of the form:
+	//  <32 byte spend tx hash><1 byte vote>
+	//
+	// The DATA_PUSH is one of OP_DATA_X or OP_PUSHDATA1 <1 byte size>.
+	//
+	// First, ensure the script is a provably-pruneable script that is both
+	// large enough to have at least the 'TV' discriminator and one vote and has
+	// one of the allowed data pushes.
+	const discriminatorSize = 2
+	const voteSize = chainhash.HashSize + 1
+	const minPossibleSize = 2 + discriminatorSize + voteSize
+	if scriptVer != 0 || len(script) < minPossibleSize {
+		return nil
+	}
+	if script[0] != txscript.OP_RETURN || script[1] > txscript.OP_PUSHDATA1 {
+		return nil
+	}
+
+	// Extract the data push and ensure it starts with the 'TV' discriminator.
+	tokenizer := txscript.MakeScriptTokenizer(scriptVer, script[1:])
+	tokenizer.Next()
+	data := tokenizer.Data()
+	if !tokenizer.Done() || data[0] != 'T' || data[1] != 'V' {
+		return nil
+	}
+
+	// Return the raw vote data push.
+	return data[2:]
+}
+
+// isTreasurySpendVoteOutput returns whether or not the passed script is a
+// version 0 script that matches the expected form of a provably-pruneable
+// treasury spend vote script.
+func isTreasurySpendVoteOutput(txOut *wire.TxOut) bool {
+	return extractTreasurySpendVoteData(txOut.Version, txOut.PkScript) != nil
+}
+
+// setTreasurySpendVotes updates the given transaction, which is expected to be
+// a stake vote transaction, to include the given treasury spend votes.
+//
+// It either replaces an existing treasury spend vote output with a new one or
+// adds the optional output when there is not already one.  In either case, the
+// resulting output will include only the provided treasury spend votes.
+//
+// It also modifies the transaction version to ensure it is set to the version
+// required to indicate an optional treasury spend vote output is included.
+func setTreasurySpendVotes(voteTx *wire.MsgTx, votes []treasurySpendVote) {
+	// Treasury spend votes are optional and exist in the final output when
+	// present.  Add an output when there is not already an existing one.
+	//
+	// Also, the overall vote transaction version must be set to the appropriate
+	// version when the optional treasury spend votes are present, so set it
+	// accordingly.
+	finalTxOut := voteTx.TxOut[len(voteTx.TxOut)-1]
+	if !isTreasurySpendVoteOutput(finalTxOut) {
+		const amount = 0
+		const scriptVersion = 0
+		finalTxOut = newTxOut(amount, scriptVersion, nil)
+		voteTx.AddTxOut(finalTxOut)
+	}
+	voteTx.Version = wire.TxVersionTreasury
+
+	// A treasury spend vote consists of a provably-pruneable script of the
+	// form:
+	//  OP_RETURN DATA_PUSH <TV><votes>
+	//
+	// Each vote is of the form:
+	//  <32 byte spend tx hash><1 byte vote>
+	voteData := make([]byte, 0, 2+len(votes)*(chainhash.HashSize+1))
+	voteData = append(voteData, 'T', 'V')
+	for _, vote := range votes {
+		voteData = append(voteData, vote.hash[:]...)
+		voteData = append(voteData, vote.bits)
+	}
+	finalTxOut.PkScript = opReturnScript(voteData)
+}
+
+// SetTreasurySpendVote updates the given transaction, which is expected to be a
+// stake vote transaction, to include a vote for the given treasury spend with
+// the provided vote bits.
+//
+// It either replaces an existing treasury spend vote output with a new one or
+// adds the optional output when there is not already one.  In either case, the
+// resulting output will include only the provided treasury spend vote.
+//
+// It will panic if the provided vote transaction is not a stake vote.
+func SetTreasurySpendVote(voteTx *wire.MsgTx, tspend *wire.MsgTx, bits byte) {
+	// Attempt to prevent misuse of this function by ensuring the provided stake
+	// transaction is actually a vote.
+	if !isVoteTx(voteTx) {
+		panic(fmt.Sprintf("attempt to set treasury spend votes on non-vote "+
+			"transaction %s", voteTx.TxHash()))
+	}
+
+	setTreasurySpendVotes(voteTx, []treasurySpendVote{{tspend.TxHash(), bits}})
+}
+
+// extractTreasurySpendVotes extracts any treasury spend votes from the passed
+// transaction which is expected to be a stake vote transaction.  It returns nil
+// when there are no votes.
+func extractTreasurySpendVotes(voteTx *wire.MsgTx) []treasurySpendVote {
+	// Treasury spend votes only apply to vote transactions with at least the
+	// treasury version.
+	if voteTx.Version < wire.TxVersionTreasury {
+		return nil
+	}
+
+	// Treasury spend votes are in the final output when present.  Attempt to
+	// extract the raw vote data when it is of the correct form.
+	finalTxOut := voteTx.TxOut[len(voteTx.TxOut)-1]
+	scriptVer, script := finalTxOut.Version, finalTxOut.PkScript
+	data := extractTreasurySpendVoteData(scriptVer, script)
+	if data == nil {
+		return nil
+	}
+
+	// The data for each treasury spend vote is of the form:
+	//  <32 byte spend tx hash><1 byte vote>
+	const voteSize = chainhash.HashSize + 1
+	numVotes := len(data) / voteSize
+	if numVotes == 0 {
+		return nil
+	}
+
+	votes := make([]treasurySpendVote, 0, numVotes)
+	for i := 0; i < numVotes; i++ {
+		var vote treasurySpendVote
+		copy(vote.hash[:], data[voteSize*i:])
+		vote.bits = data[voteSize*i+chainhash.HashSize]
+		votes = append(votes, vote)
+	}
+
+	return votes
+}
+
+// AddTreasurySpendVote modifies the passed stake vote to include the provided
+// vote bits for the given associated treasury spend transaction.  Existing
+// treasury spend votes are retained.
+//
+// It will panic if the provided vote transaction is not a stake vote.
+func AddTreasurySpendVote(voteTx *wire.MsgTx, tspend *wire.MsgTx, bits byte) {
+	// Attempt to prevent misuse of this function by ensuring the provided stake
+	// transaction is actually a vote.
+	if !isVoteTx(voteTx) {
+		panic(fmt.Sprintf("attempt to add treasury spend vote on non-vote "+
+			"transaction %s", voteTx.TxHash()))
+	}
+
+	// Append the provided treasury spend votes to add to any existing treasury
+	// spend votes and update the stake vote to include them.
+	existingVotes := extractTreasurySpendVotes(voteTx)
+	numCombined := len(existingVotes) + 1
+	combinedVotes := make([]treasurySpendVote, 0, numCombined)
+	combinedVotes = append(combinedVotes, existingVotes...)
+	combinedVotes = append(combinedVotes, treasurySpendVote{
+		hash: tspend.TxHash(),
+		bits: bits,
+	})
+	setTreasurySpendVotes(voteTx, combinedVotes)
+}
+
+// addTreasurySpendVotes returns a function that itself takes a block and
+// modifies it by setting all stake votes to include the provided vote bits for
+// the given associated treasury spend transactions.  Existing treasury spend
+// votes are retained.
+//
+// This is an internal func used to implement exported mungers.
+//
+// NOTE: It must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
+func addTreasurySpendVotes(votesToAdd []treasurySpendVote) func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		for _, stx := range b.STransactions {
+			if !isVoteTx(stx) {
+				continue
+			}
+
+			// Append the provided treasury spend votes to add to any existing
+			// treasury spend votes and update the stake vote to include them.
+			existingVotes := extractTreasurySpendVotes(stx)
+			numCombined := len(existingVotes) + len(votesToAdd)
+			combinedVotes := make([]treasurySpendVote, 0, numCombined)
+			combinedVotes = append(combinedVotes, existingVotes...)
+			combinedVotes = append(combinedVotes, votesToAdd...)
+			setTreasurySpendVotes(stx, combinedVotes)
+		}
+	}
+}
+
+// AddTreasurySpendYesVotes returns a function that itself takes a block and
+// modifies it by setting all stake votes to include yes votes for the provided
+// treasury spend transactions.  Existing treasury spend votes are retained.
+//
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
+func AddTreasurySpendYesVotes(treasurySpendTxns ...*wire.MsgTx) func(*wire.MsgBlock) {
+	// Create slice of treasury spend yes votes to add by the returned munger.
+	votesToAdd := make([]treasurySpendVote, 0, len(treasurySpendTxns))
+	const treasuryVoteYes = 0x01
+	for _, tx := range treasurySpendTxns {
+		votesToAdd = append(votesToAdd, treasurySpendVote{
+			hash: tx.TxHash(),
+			bits: treasuryVoteYes,
+		})
+	}
+	return addTreasurySpendVotes(votesToAdd)
+}
+
+// AddTreasurySpendNoVotes returns a function that itself takes a block and
+// modifies it by setting all stake votes to include no votes for the provided
+// treasury spend transactions.  Existing treasury spend votes are retained.
+//
+// NOTE: This must only be used as a munger to [Generator.NextBlock] or it will
+// lead to an invalid live ticket pool.
+func AddTreasurySpendNoVotes(treasurySpendTxns ...*wire.MsgTx) func(*wire.MsgBlock) {
+	// Create slice of treasury spend no votes to add by the returned munger.
+	votesToAdd := make([]treasurySpendVote, 0, len(treasurySpendTxns))
+	const treasuryVoteNo = 0x02
+	for _, tx := range treasurySpendTxns {
+		votesToAdd = append(votesToAdd, treasurySpendVote{
+			hash: tx.TxHash(),
+			bits: treasuryVoteNo,
+		})
+	}
+	return addTreasurySpendVotes(votesToAdd)
 }
 
 // ReplaceVoteSubsidies returns a function that itself takes a block and
