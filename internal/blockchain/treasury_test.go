@@ -341,79 +341,6 @@ func TestTSpendDatabase(t *testing.T) {
 	}
 }
 
-// appendHashes takes a slice of chainhash and votebits and appends it all
-// together for a TV script.
-func appendHashes(tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT) []byte {
-	if len(tspendHashes) != len(votes) {
-		panic(fmt.Sprintf("assert appendHashes %v != %v", len(tspendHashes),
-			len(votes)))
-	}
-	blob := make([]byte, 0, 2+chainhash.HashSize*7+7)
-	blob = append(blob, 'T', 'V')
-	for k, v := range tspendHashes {
-		blob = append(blob, v[:]...)
-		blob = append(blob, byte(votes[k]))
-	}
-	return blob
-}
-
-// addTSpendVotes return a munge function that votes according to voteBits.
-func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT, nrVotes uint16, skipAssert bool) func(*wire.MsgBlock) {
-	if len(tspendHashes) != len(votes) {
-		panic(fmt.Sprintf("assert addTSpendVotes %v != %v", len(tspendHashes),
-			len(votes)))
-	}
-	return func(b *wire.MsgBlock) {
-		// Find SSGEN and append votes.
-		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v) {
-				continue
-			}
-			if len(v.TxOut) != 3 {
-				t.Fatalf("expected SSGEN.TxOut len 3 got %v", len(v.TxOut))
-			}
-
-			// Only allow provided number of votes.
-			if uint16(k) > nrVotes {
-				break
-			}
-
-			// Append vote:
-			// OP_RETURN OP_DATA <TV> <tspend hash> <vote bits>
-			vote := appendHashes(tspendHashes, votes)
-			s, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
-				AddData(vote).Script()
-			if err != nil {
-				t.Fatal(err)
-			}
-			b.STransactions[k].TxOut = append(b.STransactions[k].TxOut,
-				&wire.TxOut{
-					PkScript: s,
-				})
-			// Only TxVersionTreasury supports optional votes.
-			b.STransactions[k].Version = wire.TxVersionTreasury
-
-			// See if we should skip asserts. This is used for
-			// munging votes and bits.
-			if skipAssert {
-				continue
-			}
-
-			// Assert vote insertion worked.
-			_, err = stake.GetSSGenTreasuryVotes(s)
-			if err != nil {
-				t.Fatalf("expected treasury vote: %v", err)
-			}
-
-			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k])
-			if err != nil {
-				t.Fatalf("expected SSGen: %v", err)
-			}
-		}
-	}
-}
-
 const devsub = 5000000000
 
 func TestTSpendVoteCount(t *testing.T) {
@@ -482,7 +409,6 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Try to insert TSPEND while not on a TVI
@@ -514,12 +440,10 @@ func TestTSpendVoteCount(t *testing.T) {
 	// Generate votes up to TVI. This is legal however they should NOT be
 	// counted in the totals since they are outside of the voting window.
 	g.SetTip(startTip)
-	voteCount := params.TicketsPerBlock
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -555,8 +479,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("btvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteNo}, voteCount, false))
+			chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -585,8 +508,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("btvi%v", tvi+i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteNo}, voteCount, false))
+			chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -679,15 +601,13 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	tspend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash = tspend.TxHash()
 
 	// Fast forward to next tvi and add no votes which should not count.
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bnovote%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteNo}, voteCount, false))
+			chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -701,17 +621,21 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("byesvote%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, totalVotes, false))
+			func(b *wire.MsgBlock) {
+				numVotes := totalVotes
+				if numVotes > params.TicketsPerBlock {
+					numVotes = params.TicketsPerBlock
+				}
+				for i := uint16(0); i < numVotes; i++ {
+					voteTx := b.STransactions[i+1]
+					const voteYes = byte(stake.TreasuryVoteYes)
+					chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
+				}
+				totalVotes -= numVotes
+			})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
-
-		if totalVotes > params.TicketsPerBlock {
-			totalVotes -= params.TicketsPerBlock
-		} else {
-			totalVotes = 0
-		}
 	}
 
 	// Verify we are one vote shy of quorum
@@ -744,17 +668,21 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("byesvote%v", tvi+i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash}, []stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				totalVotes, false))
+			func(b *wire.MsgBlock) {
+				numVotes := totalVotes
+				if numVotes > params.TicketsPerBlock {
+					numVotes = params.TicketsPerBlock
+				}
+				for i := uint16(0); i < numVotes; i++ {
+					voteTx := b.STransactions[i+1]
+					const voteYes = byte(stake.TreasuryVoteYes)
+					chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
+				}
+				totalVotes -= numVotes
+			})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
-
-		if totalVotes > params.TicketsPerBlock {
-			totalVotes -= params.TicketsPerBlock
-		} else {
-			totalVotes = 0
-		}
 	}
 
 	// Count votes.
@@ -852,7 +780,6 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -878,12 +805,10 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	//            \-> btoomuch0
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1017,7 +942,6 @@ func TestExpendituresReorg(t *testing.T) {
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// Generate a TAdd for some amount.
 	const taddAmount = 1701
@@ -1029,12 +953,10 @@ func TestExpendituresReorg(t *testing.T) {
 	//
 	// ... -> bpretvi1 -> bv0 -> ... -> bvn
 	// ---------------------------------------------------------------------
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1075,8 +997,7 @@ func TestExpendituresReorg(t *testing.T) {
 	for i := uint64(0); i < blocksToTreasuryChange; i++ {
 		name := fmt.Sprintf("bnotxs%v", i)
 		g.NextBlock(name, nil, oldOuts[0], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		switch i {
 		case 0:
 			// The first block creates a sidechain.
@@ -1105,8 +1026,7 @@ func TestExpendituresReorg(t *testing.T) {
 	for i := uint64(0); i < blocksToTreasuryChange; i++ {
 		name := fmt.Sprintf("btspend%v", i)
 		g.NextBlock(name, nil, oldOuts[0], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 
 		switch {
 		case i < blocksToTreasuryChange-1:
@@ -1267,12 +1187,10 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	//
 	// ... -> bpretvi1 -> bv0 -> ... -> bvn
 	// ---------------------------------------------------------------------
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1478,10 +1396,8 @@ func TestTSpendDupVote(t *testing.T) {
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 	tspend2 := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash2 := tspend2.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -1509,18 +1425,8 @@ func TestTSpendDupVote(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	startTip := g.TipName()
-	voteCount := params.TicketsPerBlock
 	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
-		addTSpendVotes(t,
-			[]*chainhash.Hash{
-				&tspendHash,
-				&tspendHash,
-			},
-			[]stake.TreasuryVoteT{
-				stake.TreasuryVoteYes,
-				stake.TreasuryVoteYes,
-			},
-			voteCount, true))
+		chaingen.AddTreasurySpendYesVotes(tspend, tspend))
 	g.RejectTipBlock(ErrBadTxInput)
 
 	// ---------------------------------------------------------------------
@@ -1533,14 +1439,11 @@ func TestTSpendDupVote(t *testing.T) {
 
 	g.SetTip(startTip)
 	g.NextBlock("bdv1", nil, outs[1:], replaceTreasuryVersions,
-		addTSpendVotes(t,
-			[]*chainhash.Hash{
-				&tspendHash2,
-			},
-			[]stake.TreasuryVoteT{
-				0x04, // Invalid bits
-			},
-			voteCount, true))
+		func(b *wire.MsgBlock) {
+			const invalidBits = 0x04
+			firstStakeVote := b.STransactions[1]
+			chaingen.SetTreasurySpendVote(firstStakeVote, tspend2, invalidBits)
+		})
 	g.RejectTipBlock(ErrBadTxInput)
 }
 
@@ -1608,14 +1511,9 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	const tspendFee = 0
 	const maxTspends = 7
 	tspends := make([]*wire.MsgTx, maxTspends+1)
-	tspendHashes := make([]*chainhash.Hash, maxTspends+1)
-	tspendVotes := make([]stake.TreasuryVoteT, maxTspends+1)
 	for i := 0; i < maxTspends+1; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 			{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-		hash := tspends[i].TxHash()
-		tspendHashes[i] = &hash
-		tspendVotes[i] = stake.TreasuryVoteYes
 	}
 
 	// ---------------------------------------------------------------------
@@ -1642,9 +1540,8 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	//                 \-> bdv0
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
-		addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, true))
+		chaingen.AddTreasurySpendYesVotes(tspends...))
 	g.RejectTipBlock(ErrBadTxInput)
 }
 
@@ -1712,7 +1609,6 @@ func TestTSpendWindow(t *testing.T) {
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -1738,12 +1634,10 @@ func TestTSpendWindow(t *testing.T) {
 	//                 \-> bvidaltoosoon0
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1823,13 +1717,11 @@ func TestTSpendSignature(t *testing.T) {
 	tspendFee := dcrutil.Amount(0)
 	tspend1 := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount1 - tspendFee}}, tspendFee, expiry)
-	tspend1Hash := tspend1.TxHash()
 
 	// tspend 2.
 	tspendAmount2 := dcrutil.Amount(devsub / 5)
 	tspend2 := g.CreateTreasuryTSpend(privKey2, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount2 - tspendFee}}, tspendFee, expiry)
-	tspend2Hash := tspend2.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -1851,20 +1743,10 @@ func TestTSpendSignature(t *testing.T) {
 	//   ... -> bpretvi1 -> btvi0 -> ... -> btvi7
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t,
-				[]*chainhash.Hash{
-					&tspend1Hash,
-					&tspend2Hash,
-				},
-				[]stake.TreasuryVoteT{
-					stake.TreasuryVoteYes,
-					stake.TreasuryVoteYes,
-				},
-				voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend1, tspend2))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2009,7 +1891,6 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	tspendFee := dcrutil.Amount(0)
 	tspend1 := g.CreateTreasuryTSpend(wrongKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount1 - tspendFee}}, tspendFee, expiry)
-	tspend1Hash := tspend1.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -2031,18 +1912,10 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	//   ... -> bpretvi1 -> btvi0 -> ... -> btvi7
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t,
-				[]*chainhash.Hash{
-					&tspend1Hash,
-				},
-				[]stake.TreasuryVoteT{
-					stake.TreasuryVoteYes,
-				},
-				voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend1))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2183,7 +2056,6 @@ func TestTSpendExists(t *testing.T) {
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -2206,12 +2078,10 @@ func TestTSpendExists(t *testing.T) {
 	//   ... -> b0 ... -> b7
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("b%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2429,50 +2299,6 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
-
-	// Treasury votes munger.
-	addTSpendVotes := func(b *wire.MsgBlock) {
-		// Find SSGEN and append Yes vote.
-		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v) {
-				continue
-			}
-			if len(v.TxOut) != 3 {
-				t.Fatalf("expected SSGEN.TxOut len 3 got %v",
-					len(v.TxOut))
-			}
-
-			// Append vote: OP_RET OP_DATA <TV> <tspend hash> <vote bits>
-			vote := make([]byte, 2+chainhash.HashSize+1)
-			vote[0] = 'T'
-			vote[1] = 'V'
-			copy(vote[2:], tspendHash[:])
-			vote[len(vote)-1] = 0x01 // Yes
-			s, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
-				AddData(vote).Script()
-			if err != nil {
-				t.Fatal(err)
-			}
-			b.STransactions[k].TxOut = append(b.STransactions[k].TxOut,
-				&wire.TxOut{
-					PkScript: s,
-				})
-			b.STransactions[k].Version = wire.TxVersionTreasury
-
-			// Assert vote insertion worked.
-			_, err = stake.GetSSGenTreasuryVotes(s)
-			if err != nil {
-				t.Fatalf("expected treasury vote: %v", err)
-			}
-
-			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k])
-			if err != nil {
-				t.Fatalf("expected SSGen: %v", err)
-			}
-		}
-	}
 
 	expectedTotal += skippedTotal
 	expectedTotal += devsub * blockCount // dev subsidy
@@ -2484,11 +2310,9 @@ func TestTreasuryBalance(t *testing.T) {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("b%v", i)
 		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes, func(b *wire.MsgBlock) {
-				tx := g.CreateTreasuryTAdd(&outs[0],
-					dcrutil.Amount(amount),
+			chaingen.AddTreasurySpendYesVotes(tspend), func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(amount),
 					dcrutil.Amount(1))
-				tx.Version = wire.TxVersionTreasury
 				b.AddSTransaction(tx)
 			})
 		g.SaveTipCoinbaseOuts()
@@ -3017,7 +2841,6 @@ func TestTSpendCorners(t *testing.T) {
 	}
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-	tspendHash := tspend.TxHash()
 
 	// ---------------------------------------------------------------------
 	// Get to TVI
@@ -3038,12 +2861,10 @@ func TestTSpendCorners(t *testing.T) {
 	//   pretvi1 -> btvi0 -> ... -> btvi7
 	// ---------------------------------------------------------------------
 
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -3101,7 +2922,6 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 	t.Logf("tspend expiry %v start %v end %v", expiry, start, end)
 	tspend := newFakeCreateTSpend(privKey, []dcrutil.Amount{100000000}, 1,
 		expiry)
-	tspendHash := tspend.TxHash()
 	_, _, err = stake.CheckTSpend(tspend)
 	if err != nil {
 		t.Fatal(err)
@@ -3228,7 +3048,6 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 
 	g.SetTip(startTip)
 	targetPoolSize = g.Params().TicketPoolSize * ticketsPerBlock
-	voteCount := params.TicketsPerBlock
 	for i := int64(0); int64(g.Tip().Header.Height) <
 		stakeValidationHeight+numVotingBlocks; i++ {
 
@@ -3248,8 +3067,7 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 
 		blockName := fmt.Sprintf("bsvv%d", i)
 		g.NextBlock(blockName, nil, ticketOuts,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes}, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}

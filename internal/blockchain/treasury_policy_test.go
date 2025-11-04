@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
@@ -186,14 +184,9 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	tspendAmount := dcrutil.Amount(expendBootstrap / nbTSpends)
 	const tspendFee = 0
 	tspends := make([]*wire.MsgTx, nbTSpends)
-	tspendHashes := make([]*chainhash.Hash, nbTSpends)
-	tspendVotes := make([]stake.TreasuryVoteT, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 			{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
-		h := tspends[i].TxHash()
-		tspendHashes[i] = &h
-		tspendVotes[i] = stake.TreasuryVoteYes
 	}
 
 	// Create a TADD to ensure they *DO NOT* count towards the policy.
@@ -207,11 +200,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	//
 	// ... -> bpretvin -> bv0 -> ... -> bvn
 	// ---------------------------------------------------------------------
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspends...))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -270,9 +262,6 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	const smallTSpendFee = 0
 	smallTSpend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
-	h := smallTSpend.TxHash()
-	tspendHashes = []*chainhash.Hash{&h}
-	tspendVotes = []stake.TreasuryVoteT{stake.TreasuryVoteYes}
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created small
@@ -283,7 +272,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(smallTSpend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -324,7 +313,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < nbBlocks; i++ {
 		name := fmt.Sprintf("bnextew%d", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(smallTSpend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -359,15 +348,10 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// Create the tspend txs, hashes and votes.
 	nbTests := len(testCases)
 	tspends = make([]*wire.MsgTx, nbTests)
-	tspendHashes = make([]*chainhash.Hash, nbTests)
-	tspendVotes = make([]stake.TreasuryVoteT, nbTests)
 	for i := 0; i < nbTests; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 			{Amount: dcrutil.Amount(testCases[i].amount) - tspendFee}},
 			tspendFee, expiry)
-		h := tspends[i].TxHash()
-		tspendHashes[i] = &h
-		tspendVotes[i] = stake.TreasuryVoteYes
 	}
 
 	// ---------------------------------------------------------------------
@@ -379,7 +363,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspends...))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -463,14 +447,9 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// amount allowed by the bootstrap policy again.
 	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi)
 	expiry = standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
-	tspendHashes = make([]*chainhash.Hash, 1)
-	tspendVotes = make([]stake.TreasuryVoteT, 1)
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: dcrutil.Amount(expendBootstrap) - tspendFee}}, tspendFee,
 		expiry)
-	h = tspend.TxHash()
-	tspendHashes[0] = &h
-	tspendVotes[0] = stake.TreasuryVoteYes
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created tspend. A
@@ -481,7 +460,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -634,15 +613,10 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	tspendAmount := (incomeAmount + incomeAmount/2) / nbTSpends
 	const tspendFee = 0
 	tspends := make([]*wire.MsgTx, nbTSpends)
-	tspendHashes := make([]*chainhash.Hash, nbTSpends)
-	tspendVotes := make([]stake.TreasuryVoteT, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 			{Amount: dcrutil.Amount(tspendAmount) - tspendFee}}, tspendFee,
 			expiry)
-		h := tspends[i].TxHash()
-		tspendHashes[i] = &h
-		tspendVotes[i] = stake.TreasuryVoteYes
 	}
 
 	// Also generate an additional, one atom tspend that will be approved.
@@ -652,9 +626,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	const smallTSpendFee = 0
 	smallTSpend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
-	h := smallTSpend.TxHash()
-	tspendHashes = append(tspendHashes, &h)
-	tspendVotes = append(tspendVotes, stake.TreasuryVoteYes)
 
 	// Create a TADD to ensure they *DO* count towards the maximum
 	// expenditure policy.
@@ -668,11 +639,11 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	//
 	// ... -> bpretvi# -> bv0 -> ... -> bv#
 	// ---------------------------------------------------------------------
-	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*2-1; i++ {
 		name := fmt.Sprintf("bv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(tspends...),
+			chaingen.AddTreasurySpendYesVotes(smallTSpend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -762,10 +733,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 
 	smallTSpend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
-	txhLargeTSpend := largeTSpend.TxHash()
-	txhSmallTSpend := smallTSpend.TxHash()
-	tspendHashes = []*chainhash.Hash{&txhLargeTSpend, &txhSmallTSpend}
-	tspendVotes = []stake.TreasuryVoteT{stake.TreasuryVoteYes, stake.TreasuryVoteYes}
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created tspends.
@@ -776,7 +743,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(largeTSpend, smallTSpend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -843,10 +810,6 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 
 	smallTSpend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: smallTSpendAmount - smallTSpendFee}}, smallTSpendFee, expiry)
-	txhLargeTSpend = largeTSpend.TxHash()
-	txhSmallTSpend = smallTSpend.TxHash()
-	tspendHashes = []*chainhash.Hash{&txhLargeTSpend, &txhSmallTSpend}
-	tspendVotes = []stake.TreasuryVoteT{stake.TreasuryVoteYes, stake.TreasuryVoteYes}
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the previously created tspends.
@@ -857,7 +820,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("bvvv%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, false))
+			chaingen.AddTreasurySpendYesVotes(largeTSpend, smallTSpend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
