@@ -341,57 +341,30 @@ func TestTSpendDatabase(t *testing.T) {
 	}
 }
 
-const devsub = 5000000000
-
 func TestTSpendVoteCount(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
-
 	startTip := g.TipName()
 
 	// ---------------------------------------------------------------------
@@ -399,7 +372,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	nextBlockHeight := g.Tip().Header.Height + 1
-	tspendAmount := dcrutil.Amount(devsub)
+	const tspendAmount = 1000
 	const tspendFee = 100
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, end, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -423,11 +396,9 @@ func TestTSpendVoteCount(t *testing.T) {
 	}
 	outs := g.OldestCoinbaseOuts()
 	name := "bnottvi0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrNotTVI)
 
 	// ---------------------------------------------------------------------
@@ -442,8 +413,8 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -463,11 +434,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrNotEnoughTSpendVotes)
 
 	// ---------------------------------------------------------------------
@@ -478,8 +447,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("btvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendNoVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -491,11 +459,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough1"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrNotEnoughTSpendVotes)
 
 	// ---------------------------------------------------------------------
@@ -507,8 +473,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("btvi%v", tvi+i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendNoVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -521,11 +486,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvienough0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrNotEnoughTSpendVotes)
 
 	// Assert we have the correct number of votes and voting window.
@@ -561,7 +524,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bposttvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -573,11 +536,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bexpired0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrExpiredTx)
 
 	// ---------------------------------------------------------------------
@@ -606,8 +567,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bnovote%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendNoVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendNoVotes(tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -620,19 +580,18 @@ func TestTSpendVoteCount(t *testing.T) {
 	totalVotes := uint16(quorum - 1)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("byesvote%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			func(b *wire.MsgBlock) {
-				numVotes := totalVotes
-				if numVotes > params.TicketsPerBlock {
-					numVotes = params.TicketsPerBlock
-				}
-				for i := uint16(0); i < numVotes; i++ {
-					voteTx := b.STransactions[i+1]
-					const voteYes = byte(stake.TreasuryVoteYes)
-					chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
-				}
-				totalVotes -= numVotes
-			})
+		g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+			numVotes := totalVotes
+			if numVotes > params.TicketsPerBlock {
+				numVotes = params.TicketsPerBlock
+			}
+			for i := uint16(0); i < numVotes; i++ {
+				voteTx := b.STransactions[i+1]
+				const voteYes = byte(stake.TreasuryVoteYes)
+				chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
+			}
+			totalVotes -= numVotes
+		})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -644,11 +603,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrNotEnoughTSpendVotes)
 
 	// Count votes.
@@ -667,19 +624,18 @@ func TestTSpendVoteCount(t *testing.T) {
 	totalVotes = uint16(1)
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("byesvote%v", tvi+i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			func(b *wire.MsgBlock) {
-				numVotes := totalVotes
-				if numVotes > params.TicketsPerBlock {
-					numVotes = params.TicketsPerBlock
-				}
-				for i := uint16(0); i < numVotes; i++ {
-					voteTx := b.STransactions[i+1]
-					const voteYes = byte(stake.TreasuryVoteYes)
-					chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
-				}
-				totalVotes -= numVotes
-			})
+		g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+			numVotes := totalVotes
+			if numVotes > params.TicketsPerBlock {
+				numVotes = params.TicketsPerBlock
+			}
+			for i := uint16(0); i < numVotes; i++ {
+				voteTx := b.STransactions[i+1]
+				const voteYes = byte(stake.TreasuryVoteYes)
+				chaingen.SetTreasurySpendVote(voteTx, tspend, voteYes)
+			}
+			totalVotes -= numVotes
+		})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -701,11 +657,9 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum1"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.AcceptTipBlock()
 }
 
@@ -715,71 +669,61 @@ func TestTSpendVoteCount(t *testing.T) {
 func TestTSpendEmptyTreasury(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// To ensure we can completely drain the treasury, increase the
 	// bootstrap policy to allow a tspend with a _very_ high value.
 	params.TreasuryExpenditureBootstrap = 21e6 * 1e8
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
 	// Shorter versions of useful params for convenience.
+	cbm := params.CoinbaseMaturity
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
+	// Ensure the treasury balance is the expected value at this point.  It is
+	// the number of treasurybases added minus the coinbase maturity all times
+	// the amount of each treasurybase.
+	tipHeight := g.Tip().Header.Height
+	numTrsyBases := int64(tipHeight - 1)
+	trsyBaseAmt := g.Tip().STransactions[0].TxIn[0].ValueIn
+	expectedBal := (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
 
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool for exact amount of treasury + 1 atom
 	// ---------------------------------------------------------------------
-	nextBlockHeight := g.Tip().Header.Height + 1
+
+	nextBlockHeight := tipHeight + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tspendAmount := dcrutil.Amount(devsub*(tvi*mul-uint64(params.CoinbaseMaturity)+
-		uint64(start-nextBlockHeight)+1) + 1) // One atom too many
-	const tspendFee = 0
-	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
+	// Create a treasury spend that is exactly one atom too much.
+	const spendFee = 10
+	futureBlocks := tvi*mul + uint64(start-nextBlockHeight)
+	futureTrsyBal := expectedBal + trsyBaseAmt*(int64(futureBlocks)+1)
+	tspendAmount := futureTrsyBal - spendFee + 1
+	payout := dcrutil.Amount(tspendAmount)
+	payouts := []chaingen.AddressAmountTuple{{Amount: payout}}
+	tspend := g.CreateTreasuryTSpend(privKey, payouts, spendFee, expiry)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
@@ -792,7 +736,7 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -807,8 +751,8 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -816,15 +760,13 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 
 	// Ensure treasury balance for the next block is 1 atom less than calculated
 	// amount.
-	g.ExpectTreasuryBalance(int64(tspendAmount-tspendFee-devsub) - 1)
+	g.ExpectTreasuryBalance(tspendAmount + spendFee - trsyBaseAmt - 1)
 
 	// Try spending 1 atom more than treasury balance.
 	name := "btoomuch0"
-	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrInvalidExpenditure)
 }
 
@@ -838,55 +780,37 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 func TestExpendituresReorg(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
+	cbm := params.CoinbaseMaturity
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
-
-	// tbaseBlocks will keep track of how many blocks with a treasury base
-	// have been added to the chain.
-	var tbaseBlocks int64
+	// Ensure the treasury balance is the expected value at this point.  It is
+	// the number of treasurybases added minus the coinbase maturity all times
+	// the amount of each treasurybase.
+	tipHeight := g.Tip().Header.Height
+	numTrsyBases := int64(tipHeight - 1)
+	trsyBaseAmt := g.Tip().STransactions[0].TxIn[0].ValueIn
+	expectedBal := (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have spendable outputs during the reorg
@@ -894,15 +818,16 @@ func TestExpendituresReorg(t *testing.T) {
 	// we'll need to manually generate and store these outputs until we
 	// have enough to create two sidechains in the future.
 	//
-	//   ... -> bva19 -> bout0 -> .. boutn
+	//   ... -> bsv# -> bout0 -> ... -> bout#
 	// ---------------------------------------------------------------------
+
 	outs := g.OldestCoinbaseOuts()
-	neededBlocks := (params.CoinbaseMaturity + 1) * 2
+	neededBlocks := (cbm + 1) * 2
 	neededOuts := neededBlocks * params.TicketsPerBlock
 	oldOuts := make([][]chaingen.SpendableOut, 1)
 	for i := uint32(0); i < uint32(neededOuts); i++ {
 		name := fmt.Sprintf("bout%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -911,13 +836,13 @@ func TestExpendituresReorg(t *testing.T) {
 		if len(*lastOuts) == int(params.TicketsPerBlock) && i < uint32(neededOuts-1) {
 			oldOuts = append(oldOuts, make([]chaingen.SpendableOut, 0, int(params.TicketsPerBlock)))
 		}
-		tbaseBlocks++
+		numTrsyBases++
 	}
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bout# -> bpretvi0 -> ... -> bpretvi#
 	// ---------------------------------------------------------------------
 
 	nextBlockHeight := g.Tip().Header.Height + 1
@@ -930,11 +855,11 @@ func TestExpendituresReorg(t *testing.T) {
 	// Generate up to TVI blocks.
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
-		tbaseBlocks++
+		numTrsyBases++
 	}
 
 	// Generate a TSpend for some amount.
@@ -951,16 +876,17 @@ func TestExpendituresReorg(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the tspend.
 	//
-	// ... -> bpretvi1 -> bv0 -> ... -> bvn
+	// ... -> bpretvi# -> bv0 -> ... -> bv#
 	// ---------------------------------------------------------------------
+
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("bv%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
-		tbaseBlocks++
+		numTrsyBases++
 	}
 
 	// Remember the block immediately before the TSpend is mined so we can
@@ -972,16 +898,15 @@ func TestExpendituresReorg(t *testing.T) {
 	//
 	// ... -> bvn -> btspend
 	// ---------------------------------------------------------------------
-	g.NextBlock("btspend", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			b.AddSTransaction(tspend)
-			b.AddSTransaction(tadd)
-		})
+	g.NextBlock("btspend", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+		b.AddSTransaction(tadd)
+	})
 	g.AcceptTipBlock()
 
 	// Balance only reflects the tbase added so far. We add 1 to
 	// tbaseBlocks to account for the `btspend` block.
-	wantBalance := (tbaseBlocks + 1 - int64(params.CoinbaseMaturity)) * devsub
+	wantBalance := (numTrsyBases + 1 - int64(cbm)) * trsyBaseAmt
 	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
@@ -990,14 +915,14 @@ func TestExpendituresReorg(t *testing.T) {
 	// treasury balance does _not_ reflect the reorged txs.
 	//
 	// ... -> bvn -> btspend
-	//           \-> bnotxs0 -> ... -> bnotxsn
+	//           \-> bnotxs0 -> ... -> bnotxs#
 	// ---------------------------------------------------------------------
 	g.SetTip(preTSpendBlock)
-	blocksToTreasuryChange := uint64(params.CoinbaseMaturity + 1)
+	blocksToTreasuryChange := uint64(cbm + 1)
 	for i := uint64(0); i < blocksToTreasuryChange; i++ {
 		name := fmt.Sprintf("bnotxs%v", i)
-		g.NextBlock(name, nil, oldOuts[0], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, oldOuts[0], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		switch i {
 		case 0:
 			// The first block creates a sidechain.
@@ -1006,27 +931,27 @@ func TestExpendituresReorg(t *testing.T) {
 			g.AcceptTipBlock()
 		}
 		oldOuts = oldOuts[1:]
-		tbaseBlocks++
+		numTrsyBases++
 	}
 
 	// Given we reorged to a side chain that does _not_ include the TSpend
 	// and TAdd, we expect the current balance to have only tbases.
-	wantBalance = (tbaseBlocks - int64(params.CoinbaseMaturity)) * devsub
+	wantBalance = (numTrsyBases - int64(cbm)) * trsyBaseAmt
 	g.ExpectTreasuryBalance(wantBalance)
 
 	// ---------------------------------------------------------------------
 	// Extend the chain starting at btspend again, until it becomes the
 	// main chain again.
 	//
-	// ... -> bvn -> btspend -> btspend0 -> ... btspendn
-	//           \-> bnotxs0 -> ... -> bnotxsn
+	// ... -> bvn -> btspend -> btspend0 -> ... -> btspend#
+	//           \-> bnotxs0 -> ........................... -> bnotxs#
 	// ---------------------------------------------------------------------
 	tip := g.TipName()
 	g.SetTip("btspend")
 	for i := uint64(0); i < blocksToTreasuryChange; i++ {
 		name := fmt.Sprintf("btspend%v", i)
-		g.NextBlock(name, nil, oldOuts[0], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, oldOuts[0], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 
 		switch {
 		case i < blocksToTreasuryChange-1:
@@ -1039,12 +964,12 @@ func TestExpendituresReorg(t *testing.T) {
 	}
 
 	// We mined one more block vs the previous chain.
-	tbaseBlocks++
+	numTrsyBases++
 
 	// We reorged back to the chain that includes the mature TSpend/TAdd so
 	// now ensure the treasury balance reflects their presence.
-	wantBalance = (tbaseBlocks-int64(params.CoinbaseMaturity))*int64(devsub) -
-		int64(tspendAmount) + taddAmount
+	wantBalance = (numTrsyBases-int64(cbm))*trsyBaseAmt - int64(tspendAmount) +
+		taddAmount
 	g.ExpectTreasuryBalance(wantBalance)
 }
 
@@ -1057,56 +982,32 @@ func TestExpendituresReorg(t *testing.T) {
 func TestSpendableTreasuryTxs(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bsv# -> bpretvi#
 	// ---------------------------------------------------------------------
 
 	nextBlockHeight := g.Tip().Header.Height + 1
@@ -1121,7 +1022,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	taddOut1 := outs[0] // Save this output for a tadd.
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1185,12 +1086,12 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to approve the tspend.
 	//
-	// ... -> bpretvi1 -> bv0 -> ... -> bvn
+	// ... -> bpretvi# -> bv0 -> ... -> bv#
 	// ---------------------------------------------------------------------
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("bv%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1199,23 +1100,22 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate a block that includes the tspend and tadd.
 	//
-	// ... -> bvn -> btspend
+	// ... -> bv# -> btspend
 	// ---------------------------------------------------------------------
 	var tspendHeight, tspendIndex uint32
-	g.NextBlock("btspend", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			tspendHeight = b.Header.Height
-			tspendIndex = uint32(len(b.STransactions))
-			b.AddSTransaction(tspend)
-			b.AddSTransaction(tadd1)
-			b.AddSTransaction(tadd2)
-		})
+	g.NextBlock("btspend", nil, outs[1:], func(b *wire.MsgBlock) {
+		tspendHeight = b.Header.Height
+		tspendIndex = uint32(len(b.STransactions))
+		b.AddSTransaction(tspend)
+		b.AddSTransaction(tadd1)
+		b.AddSTransaction(tadd2)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
 	// Ensure the CFilter committed to the outputs of the TSpend and TAdds.
-	tipHash = &g.chain.BestSnapshot().Hash
+	tipHash := &g.chain.BestSnapshot().Hash
 	bcf, _, err := g.chain.FilterByBlockHash(tipHash)
 	if err != nil {
 		t.Fatal(err)
@@ -1308,11 +1208,12 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate up to the block where the tspend is spendable.
 	//
-	// ... -> btspend -> bpremat0 -> ... -> bprematn
+	// ... -> btspend -> bpremat0 -> ... -> bpremat#
 	// ---------------------------------------------------------------------
+
 	for i := uint32(0); i < uint32(params.CoinbaseMaturity-1); i++ {
 		name := fmt.Sprintf("bpremat%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1322,12 +1223,11 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// Generate a block that includes the transaction spending from the
 	// TSpend and TAdd.
 	//
-	// ... -> btpremat -> btredeem
+	// ... -> btpremat# -> btredeem
 	// ---------------------------------------------------------------------
-	g.NextBlock("btredeem", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("btredeem", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 }
@@ -1335,55 +1235,32 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 func TestTSpendDupVote(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
-	// Create two TSPEND with invalid bits and duplicate votes.
+	// Create two TSPENDs with invalid bits and duplicate votes.
 	// ---------------------------------------------------------------------
+
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -1391,8 +1268,7 @@ func TestTSpendDupVote(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tspendAmount := dcrutil.Amount(devsub * (tvi*mul -
-		uint64(params.CoinbaseMaturity) + uint64(start-nextBlockHeight)))
+	const tspendAmount = 10
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
@@ -1410,14 +1286,14 @@ func TestTSpendDupVote(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
 
 	// ---------------------------------------------------------------------
-	// Duplicate votes on the same treasury spend tx hash illegal and
+	// Duplicate votes on the same treasury spend tx hash is illegal and
 	// therefore the tx is NOT recognized as a vote.
 	//
 	//   ... -> pretvi1
@@ -1425,8 +1301,8 @@ func TestTSpendDupVote(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	startTip := g.TipName()
-	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
-		chaingen.AddTreasurySpendYesVotes(tspend, tspend))
+	g.NextBlock("bdv0", nil, outs[1:], chaingen.AddTreasurySpendYesVotes(tspend,
+		tspend))
 	g.RejectTipBlock(ErrBadTxInput)
 
 	// ---------------------------------------------------------------------
@@ -1438,67 +1314,43 @@ func TestTSpendDupVote(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("bdv1", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			const invalidBits = 0x04
-			firstStakeVote := b.STransactions[1]
-			chaingen.SetTreasurySpendVote(firstStakeVote, tspend2, invalidBits)
-		})
+	g.NextBlock("bdv1", nil, outs[1:], func(b *wire.MsgBlock) {
+		const invalidBits = 0x04
+		firstStakeVote := b.STransactions[1]
+		chaingen.AddTreasurySpendVote(firstStakeVote, tspend2, invalidBits)
+	})
 	g.RejectTipBlock(ErrBadTxInput)
 }
 
 func TestTSpendTooManyTSpend(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Create two TSPEND with invalid bits and duplicate votes.
 	// ---------------------------------------------------------------------
+
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -1506,8 +1358,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tspendAmount := dcrutil.Amount(devsub * (tvi*mul -
-		uint64(params.CoinbaseMaturity) + uint64(start-nextBlockHeight)))
+	const tspendAmount = 10
 	const tspendFee = 0
 	const maxTspends = 7
 	tspends := make([]*wire.MsgTx, maxTspends+1)
@@ -1519,7 +1370,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bsv# -> bpretvi0 -> bpretvi#
 	// ---------------------------------------------------------------------
 
 	// Generate votes up to TVI. This is legal however they should NOT be
@@ -1527,7 +1378,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1536,67 +1387,44 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// 8 votes is illegal and therefore the tx is NOT recognized as a vote.
 	//
-	//   ... -> pretvi1
+	//   ... -> pretvi#
 	//                 \-> bdv0
 	// ---------------------------------------------------------------------
 
-	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
-		chaingen.AddTreasurySpendYesVotes(tspends...))
+	g.NextBlock("bdv0", nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+		tspends...))
 	g.RejectTipBlock(ErrBadTxInput)
 }
 
 func TestTSpendWindow(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool
 	// ---------------------------------------------------------------------
+
 	nextBlockHeight := g.Tip().Header.Height + uint32(tvi*mul*4) + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -1604,8 +1432,7 @@ func TestTSpendWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tspendAmount := dcrutil.Amount(devsub * (tvi*mul -
-		uint64(params.CoinbaseMaturity) + uint64(start-nextBlockHeight)))
+	const tspendAmount = 10
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
@@ -1613,7 +1440,7 @@ func TestTSpendWindow(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bsv# -> bpretvi0 -> bpretvi#
 	// ---------------------------------------------------------------------
 
 	// Generate votes up to TVI. This is legal however they should NOT be
@@ -1621,7 +1448,7 @@ func TestTSpendWindow(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1630,25 +1457,23 @@ func TestTSpendWindow(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate a TVI worth of rewards and try to spend more.
 	//
-	//   ... -> b0 ... -> b7
-	//                 \-> bvidaltoosoon0
+	//   ... -> bpretvi# -> b0 -> ... -> b#
+	//                                      \-> bvidaltoosoon0
 	// ---------------------------------------------------------------------
 
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
 
 	// Try accepting TSpend from the future.
-	g.NextBlock("bvidaltoosoon0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock("bvidaltoosoon0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrInvalidTSpendWindow)
 }
 
@@ -1657,99 +1482,89 @@ func TestTSpendWindow(t *testing.T) {
 func TestTSpendSignature(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
+	cbm := params.CoinbaseMaturity
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
+	// Ensure the treasury balance is the expected value at this point.  It is
+	// the number of treasurybases added minus the coinbase maturity all times
+	// the amount of each treasurybase.
+	tipHeight := g.Tip().Header.Height
+	numTrsyBases := int64(tipHeight - 1)
+	trsyBaseAmt := g.Tip().STransactions[0].TxIn[0].ValueIn
+	expectedBal := (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
 
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool with key 1 and 2
 	// ---------------------------------------------------------------------
-	nextBlockHeight := g.Tip().Header.Height //+ uint32(tvi*mul*4) + 1
+
+	nextBlockHeight := tipHeight + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tspendAmount1 := dcrutil.Amount(devsub / 3)
+	tspendAmount1 := dcrutil.Amount(trsyBaseAmt / 3)
 	tspendFee := dcrutil.Amount(0)
 	tspend1 := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount1 - tspendFee}}, tspendFee, expiry)
 
 	// tspend 2.
-	tspendAmount2 := dcrutil.Amount(devsub / 5)
+	tspendAmount2 := dcrutil.Amount(trsyBaseAmt / 5)
 	tspend2 := g.CreateTreasuryTSpend(privKey2, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount2 - tspendFee}}, tspendFee, expiry)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bsv# -> bpretvi0 -> bpretvi#
 	// ---------------------------------------------------------------------
+
 	outs := g.OldestCoinbaseOuts()
-	for i := uint32(0); i < start-nextBlockHeight-1; i++ {
+	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
 	}
 
 	// ---------------------------------------------------------------------
 	// Generate TVI*MUL of yes votes for both TSpends,
 	//
-	//   ... -> bpretvi1 -> btvi0 -> ... -> btvi7
+	//   ... -> bpretvi# -> btvi0 -> ... -> btvi#
 	// ---------------------------------------------------------------------
 
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend1, tspend2))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend1, tspend2))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
 	}
 
 	// Assert that we are on a TVI.
@@ -1758,64 +1573,59 @@ func TestTSpendSignature(t *testing.T) {
 	}
 
 	// Assert treasury balance
-	g.ExpectTreasuryBalance(int64(devsub * tvi * mul))
+	g.ExpectTreasuryBalance((numTrsyBases - int64(cbm)) * trsyBaseAmt)
 
 	// ---------------------------------------------------------------------
 	// Add tspend1 twice
 	//
-	//   ... -> btvi7 ->
-	//                \-> double0
+	//   ... -> btvi#
+	//               \-> double0
 	// ---------------------------------------------------------------------
 
 	startTip := g.TipName()
-	g.NextBlock("double0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpends
-			b.AddSTransaction(tspend1)
-			b.AddSTransaction(tspend2)
-			b.AddSTransaction(tspend1)
-		})
+	g.NextBlock("double0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend1)
+		b.AddSTransaction(tspend2)
+		b.AddSTransaction(tspend1)
+	})
 	g.RejectTipBlock(ErrDuplicateTx)
 
 	// ---------------------------------------------------------------------
 	// Add tspend1 and tspend2
 	//
-	//   ... -> btvi7 -> doubleok0
-	//                \-> double0
+	//   ... -> btvi# -> doubleok0
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("doubleok0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpends
-			b.AddSTransaction(tspend1)
-			b.AddSTransaction(tspend2)
-		})
+	g.NextBlock("doubleok0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend1)
+		b.AddSTransaction(tspend2)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
+	numTrsyBases++
 
 	// Assert treasury balance
-	g.ExpectTreasuryBalance(int64(devsub*tvi*mul) + devsub)
+	g.ExpectTreasuryBalance((numTrsyBases - int64(cbm)) * trsyBaseAmt)
 
 	// ---------------------------------------------------------------------
 	// Add Coinbase maturity blocks and assert treasury balance.
 	//
-	//   ... -> btvi7 -> doubleok0 -> cbm0 -> cbm1
-	//                \-> double0
+	//   ... -> btvi# -> doubleok0 -> cbm0 -> cbm#
 	// ---------------------------------------------------------------------
 
 	for i := uint32(0); i < uint32(params.CoinbaseMaturity); i++ {
 		name := fmt.Sprintf("cbm%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
 	}
 
 	// Assert treasury balance
-	expectedBalance := int64(devsub*tvi*mul) +
-		(int64(devsub) * int64(params.CoinbaseMaturity+1)) // doubleok0+cbm0+cbm1
+	expectedBalance := (numTrsyBases - int64(cbm)) * trsyBaseAmt
 	expectedBalance -= int64(tspendAmount1)
 	expectedBalance -= int64(tspendAmount2)
 	g.ExpectTreasuryBalance(expectedBalance)
@@ -1826,56 +1636,33 @@ func TestTSpendSignature(t *testing.T) {
 func TestTSpendSignatureInvalid(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool.
 	// ---------------------------------------------------------------------
-	nextBlockHeight := g.Tip().Header.Height //+ uint32(tvi*mul*4) + 1
+
+	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
@@ -1887,20 +1674,21 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	copy(wrongKey, privKey)
 	wrongKey[len(wrongKey)-1] = ^wrongKey[len(wrongKey)-1]
 
-	tspendAmount1 := dcrutil.Amount(devsub / 3)
-	tspendFee := dcrutil.Amount(0)
-	tspend1 := g.CreateTreasuryTSpend(wrongKey, []chaingen.AddressAmountTuple{
-		{Amount: tspendAmount1 - tspendFee}}, tspendFee, expiry)
+	const tspendAmount = 10
+	const tspendFee = 0
+	tspend := g.CreateTreasuryTSpend(wrongKey, []chaingen.AddressAmountTuple{
+		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	//   ... -> bsv# -> bpretvi0 -> bpretvi#
 	// ---------------------------------------------------------------------
+
 	outs := g.OldestCoinbaseOuts()
-	for i := uint32(0); i < start-nextBlockHeight-1; i++ {
+	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1909,13 +1697,13 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate TVI*MUL of yes votes for TSpend,
 	//
-	//   ... -> bpretvi1 -> btvi0 -> ... -> btvi7
+	//   ... -> bpretvi# -> btvi0 -> ... -> btvi#
 	// ---------------------------------------------------------------------
 
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend1))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1926,73 +1714,44 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 
-	// Assert treasury balance
-	g.ExpectTreasuryBalance(int64(devsub * tvi * mul))
-
 	// ---------------------------------------------------------------------
 	// Add tspend with invalid signature
 	//
-	//   ... -> btvi7 ->
-	//                \-> double0
+	//   ... -> btvi#
+	//                \-> invalidsig
 	// ---------------------------------------------------------------------
 
-	g.NextBlock("invalidsig0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend1)
-		})
+	g.NextBlock("invalidsig", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrUnknownPiKey)
 }
 
 func TestTSpendExists(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	cbm := params.CoinbaseMaturity
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// splitSecondRegularTxOutputs is a munge function which modifies the
 	// provided block by replacing its second regular transaction with one
@@ -2028,8 +1787,7 @@ func TestTSpendExists(t *testing.T) {
 	for i := uint16(0); i < genBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("bouts%v", i)
-		g.NextBlock(name, &outs[0], outs[1:], replaceTreasuryVersions,
-			splitSecondRegularTxOutputs)
+		g.NextBlock(name, &outs[0], outs[1:], splitSecondRegularTxOutputs)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 
@@ -2045,6 +1803,7 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool
 	// ---------------------------------------------------------------------
+
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -2052,7 +1811,7 @@ func TestTSpendExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tspendAmount := dcrutil.Amount(devsub)
+	const tspendAmount = 10
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
@@ -2060,13 +1819,13 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to get to TVI.
 	//
-	//   ... -> bouts -> bpretvi0 -> bpretvi1
+	//   ... -> bouts -> ... -> bpretvi#
 	// ---------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2075,13 +1834,13 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate two TVI with votes.
 	//
-	//   ... -> b0 ... -> b7
+	//   ... -> bpretvi# -> b0 -> ... -> b#
 	// ---------------------------------------------------------------------
 
 	for i := uint64(0); i < tvi*2; i++ {
 		name := fmt.Sprintf("b%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2090,74 +1849,66 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate a TVI and mine same TSpend, which has to be rejected.
 	//
-	//   ... -> be0 ... -> be3 ->
-	//                         \-> bexists0
+	//   ... -> b# -> be0 -> ... -> be#
+	//                                 \-> bexists0
 	// ---------------------------------------------------------------------
 
 	startTip := g.TipName()
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("be%v", i)
 		if i == 0 {
-			// Mine tspend.
-			g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
-				func(b *wire.MsgBlock) {
-					// Add TSpend
-					b.AddSTransaction(tspend)
-				})
+			g.NextBlock(name, nil, txOuts[i][1:], func(b *wire.MsgBlock) {
+				b.AddSTransaction(tspend)
+			})
 		} else {
-			g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions)
+			g.NextBlock(name, nil, txOuts[i][1:])
 		}
 		g.AcceptTipBlock()
 	}
 	oldTip := g.TipName()
 
 	// Mine tspend again.
-	g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock("bexists0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrTSpendExists)
 
 	// ---------------------------------------------------------------------
 	// Generate a TVI and mine same TSpend, should not exist since it is a
 	// fork.
 	//
-	//      /-> be0 ... -> be3 -> bexists0
-	// ... -> b3
-	//      \-> bep0 ... -> bep3 -> bexists1
+	//   ... -> b# -> be0  -> ... -> be#
+	//            \-> bep0 -> ... -> bep# -> bexists1
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
 	var nextFork uint64
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bep%v", i)
-		g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, txOuts[i][1:])
 		g.AcceptedToSideChainWithExpectedTip(oldTip)
 		nextFork = i + 1
 	}
 
 	// Mine tspend again.
-	g.NextBlock("bexists1", nil, txOuts[nextFork][1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock("bexists1", nil, txOuts[nextFork][1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Generate a TVI and mine same TSpend, should not exist since it is a
 	// fork.
 	//
-	//      /-> be0 ... -> be3 -> bexists0
-	// ... -> b3
-	//      \-> bep0 ... -> bep3 -> bexists1 ->bep4
-	//       \-> bepp0 ... -> bepp3 -> bexists2 -> bxxx0 .. bxxx3
+	//   ... -> b# -> be0   -> ... -> be#
+	//
+	//            \-> bep0  -> ... -> bexists1 -> bepa0  -> ... -> bepa#
+	//            \-> bepp0 -> ... -> bexists2 -> beppa0 -> ........... -> beppa#
 	// ---------------------------------------------------------------------
 
 	// Generate one more block to extend current best chain.
-	name := fmt.Sprintf("bep%v", nextFork)
-	g.NextBlock(name, nil, txOuts[nextFork+1][1:], replaceTreasuryVersions)
+	name := fmt.Sprintf("bepa%v", nextFork)
+	g.NextBlock(name, nil, txOuts[nextFork+1][1:])
 	g.AcceptTipBlock()
 	oldTip = g.TipName()
 	oldHeight := g.Tip().Header.Height
@@ -2167,24 +1918,22 @@ func TestTSpendExists(t *testing.T) {
 	txIdx := uint64(0)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bepp%v", i)
-		g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, txOuts[i][1:])
 		g.AcceptedToSideChainWithExpectedTip(oldTip)
 		txIdx = i + 1
 	}
 
 	// Mine tspend yet again.
-	g.NextBlock("bexists2", nil, txOuts[txIdx][1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock("bexists2", nil, txOuts[txIdx][1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.AcceptedToSideChainWithExpectedTip(oldTip)
 	txIdx++
 
 	// Force reorg
 	for i := uint64(0); i < tvi; i++ {
-		name := fmt.Sprintf("bxxx%v", i)
-		b := g.NextBlock(name, nil, txOuts[txIdx][1:], replaceTreasuryVersions)
+		name := fmt.Sprintf("beppa%v", i)
+		b := g.NextBlock(name, nil, txOuts[txIdx][1:])
 		if b.Header.Height <= oldHeight {
 			g.AcceptedToSideChainWithExpectedTip(oldTip)
 		} else {
@@ -2197,60 +1946,49 @@ func TestTSpendExists(t *testing.T) {
 func TestTreasuryBalance(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
+	// Shorter versions of useful params for convenience.
+	cbm := params.CoinbaseMaturity
+	tvi := params.TreasuryVoteInterval
+	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
+	// Ensure the treasury balance is the expected value at this point.  It is
+	// the number of treasurybases added minus the coinbase maturity all times
+	// the amount of each treasurybase.
+	tipHeight := g.Tip().Header.Height
+	numTrsyBases := int64(tipHeight - 1)
+	trsyBaseAmt := g.Tip().STransactions[0].TxIn[0].ValueIn
+	startingBal := (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(startingBal)
 
 	// ---------------------------------------------------------------------
 	// Create 10 blocks that have a tadd without change.
 	//
-	//   ... -> b0
+	//   ... -> bsv# -> b0 -> ... -> b9
 	// ---------------------------------------------------------------------
 
-	blockCount := 10
-	expectedTotal := devsub *
-		(blockCount - int(params.CoinbaseMaturity)) // dev subsidy
-	skippedTotal := 0
+	const blockCount = 10
+	expectedTotal := startingBal + blockCount*trsyBaseAmt
+	var skippedTotal int64
 	for i := 0; i < blockCount; i++ {
-		amount := i + 1
+		amount := int64(i + 1)
 		if i < blockCount-int(params.CoinbaseMaturity) {
 			expectedTotal += amount
 		} else {
@@ -2258,27 +1996,23 @@ func TestTreasuryBalance(t *testing.T) {
 		}
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			func(b *wire.MsgBlock) {
-				// Add TADD
-				tx := g.CreateTreasuryTAdd(&outs[0],
-					dcrutil.Amount(amount),
-					dcrutil.Amount(0))
-				b.AddSTransaction(tx)
-			})
+		_ = g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+			tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(amount),
+				dcrutil.Amount(0))
+			b.AddSTransaction(tx)
+		})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
+		numTrsyBases++
 	}
-	iterations := 1
-
-	g.ExpectTreasuryBalance(int64(expectedTotal))
+	g.ExpectTreasuryBalance(expectedTotal)
 	g.ExpectTreasuryBalanceChange(1, treasuryValueTAdd, int64(blockCount))
 
 	// ---------------------------------------------------------------------
 	// Create 10 blocks that has a tadd with change. Pretend that the TSpend
 	// transaction is in the mempool and vote on it.
 	//
-	//   ... -> b10
+	//   ... -> b10 -> ... -> b19
 	// ---------------------------------------------------------------------
 
 	// This looks a little funky but it was coppied from the prior TSPEND
@@ -2286,14 +2020,8 @@ func TestTreasuryBalance(t *testing.T) {
 	// possible use the for loop to get to the same totals.
 	var tspendAmount, tspendFee dcrutil.Amount
 	nextTipHeight := int64(g.Tip().Header.Height + 1)
-	expiry := standalone.CalcTSpendExpiry(nextTipHeight,
-		params.TreasuryVoteInterval,
-		params.TreasuryVoteIntervalMultiplier)
-	for i := 0; i < blockCount*2+int(params.CoinbaseMaturity); i++ {
-		if i > (blockCount * 2) {
-			// Skip last CoinbaseMaturity blocks.
-			break
-		}
+	expiry := standalone.CalcTSpendExpiry(nextTipHeight, tvi, mul)
+	for i := 0; i < blockCount*2; i++ {
 		tspendAmount += dcrutil.Amount(i) + 1
 		tspendFee++
 	}
@@ -2301,33 +2029,33 @@ func TestTreasuryBalance(t *testing.T) {
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
 	expectedTotal += skippedTotal
-	expectedTotal += devsub * blockCount // dev subsidy
+	expectedTotal += blockCount * trsyBaseAmt
 	for i := blockCount; i < blockCount*2; i++ {
-		amount := i + 1
+		amount := int64(i + 1)
 		if i < (blockCount*2)-int(params.CoinbaseMaturity) {
 			expectedTotal += amount
 		}
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend), func(b *wire.MsgBlock) {
-				tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(amount),
-					dcrutil.Amount(1))
-				b.AddSTransaction(tx)
-			})
+		_ = g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend), func(b *wire.MsgBlock) {
+			tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(amount),
+				dcrutil.Amount(1))
+			b.AddSTransaction(tx)
+		})
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
+		numTrsyBases++
 	}
-	iterations++
 
-	g.ExpectTreasuryBalance(int64(expectedTotal))
+	g.ExpectTreasuryBalance(expectedTotal)
 	g.ExpectTreasuryBalanceChange(1, treasuryValueTAdd, int64(blockCount*2))
 
 	// ---------------------------------------------------------------------
 	// Create 20 blocks that has a tspend and params.CoinbaseMaturity more
-	// to bring treasury balance back to 0.
+	// to bring treasury balance back to the starting amount.
 	//
-	//   ... -> b20
+	//   ... -> b19 -> ... -> b41
 	// ---------------------------------------------------------------------
 
 	var doneTSpend bool
@@ -2336,21 +2064,19 @@ func TestTreasuryBalance(t *testing.T) {
 		name := fmt.Sprintf("b%v", i+blockCount*2)
 		if (g.Tip().Header.Height+1)%4 == 0 && !doneTSpend {
 			// Insert TSPEND
-			g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-				func(b *wire.MsgBlock) {
-					// Add TSpend
-					b.AddSTransaction(tspend)
-				})
+			g.NextBlock(name, nil, outs[1:], func(b *wire.MsgBlock) {
+				b.AddSTransaction(tspend)
+			})
 			doneTSpend = true
 		} else {
-			g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+			g.NextBlock(name, nil, outs[1:])
 		}
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
+		numTrsyBases++
 	}
-	iterations += 2 // We generate 2*blockCount
 
-	expected := int64(devsub*blockCount*iterations) - int64(tspendFee)
+	expected := (numTrsyBases - int64(cbm)) * trsyBaseAmt
 	g.ExpectTreasuryBalance(expected)
 }
 
@@ -2402,52 +2128,26 @@ func createTAdd(spend chaingen.SpendableOut, changeDivisor dcrutil.Amount, param
 func TestTAddCorners(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
-	tvi := params.TreasuryVoteInterval
-	mul := params.TreasuryVoteIntervalMultiplier
 	cbm := params.CoinbaseMaturity
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with the
-	// treasury agenda version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// splitSecondRegularTxOutputs is a munge function which modifies the
 	// provided block by replacing its second regular transaction with one
@@ -2483,8 +2183,7 @@ func TestTAddCorners(t *testing.T) {
 	for i := uint16(0); i < genBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("bouts%v", i)
-		g.NextBlock(name, &outs[0], outs[1:], replaceTreasuryVersions,
-			splitSecondRegularTxOutputs)
+		g.NextBlock(name, &outs[0], outs[1:], splitSecondRegularTxOutputs)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 
@@ -2507,15 +2206,14 @@ func TestTAddCorners(t *testing.T) {
 			if !stake.IsTAdd(b.STransactions[k]) {
 				continue
 			}
-			b.STransactions[k].TxOut[1].Value =
-				-b.STransactions[k].TxOut[1].Value
+			b.STransactions[k].TxOut[1].Value *= -1
 			break
 		}
 	}
 
 	startTip := g.TipName()
-	g.NextBlock("bn0", nil, txOuts[0][1:], replaceTreasuryVersions,
-		createTAdd(txOuts[0][0], 10, params), mungeValueChange)
+	g.NextBlock("bn0", nil, txOuts[0][1:], createTAdd(txOuts[0][0], 10, params),
+		mungeValueChange)
 	g.RejectTipBlock(ErrBadTxOutValue)
 
 	// ---------------------------------------------------------------------
@@ -2536,8 +2234,8 @@ func TestTAddCorners(t *testing.T) {
 	}
 
 	g.SetTip(startTip)
-	g.NextBlock("bn1", nil, txOuts[0][1:], replaceTreasuryVersions,
-		createTAdd(txOuts[0][0], 10, params), mungeValueIn)
+	g.NextBlock("bn1", nil, txOuts[0][1:], createTAdd(txOuts[0][0], 10, params),
+		mungeValueIn)
 	g.RejectTipBlock(ErrFraudAmountIn)
 
 	// ---------------------------------------------------------------------
@@ -2558,8 +2256,8 @@ func TestTAddCorners(t *testing.T) {
 	}
 
 	g.SetTip(startTip)
-	g.NextBlock("bn2", nil, txOuts[0][1:], replaceTreasuryVersions,
-		createTAdd(txOuts[0][0], 10, params), mungeValueOut)
+	g.NextBlock("bn2", nil, txOuts[0][1:], createTAdd(txOuts[0][0], 10, params),
+		mungeValueOut)
 	g.RejectTipBlock(ErrBadTxOutValue)
 
 	// ---------------------------------------------------------------------
@@ -2579,39 +2277,20 @@ func TestTAddCorners(t *testing.T) {
 	}
 
 	g.SetTip(startTip)
-	g.NextBlock("bn3", nil, txOuts[0][1:], replaceTreasuryVersions,
-		createTAdd(txOuts[0][0], 10, params), mungeChangeValue)
+	g.NextBlock("bn3", nil, txOuts[0][1:], createTAdd(txOuts[0][0], 10, params),
+		mungeChangeValue)
 	g.RejectTipBlock(ErrInvalidTAddChange)
-
-	_ = tvi
-	_ = mul
 }
 
 func TestTreasuryBaseCorners(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
-
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
-	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the provided
-	// block by replacing the block, stake, and vote versions with the treasury
-	// deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// removeAllButTreasurybase is a munge function which modifies the provided
 	// block by removing all stake transactions other than the treasurybase.
@@ -2674,24 +2353,16 @@ func TestTreasuryBaseCorners(t *testing.T) {
 		b.STransactions[0].TxOut[0].Value--
 	}
 
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
+	g := newChaingenHarness(t, params)
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
+
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Append a treasurybase to STransactions.
@@ -2699,8 +2370,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 
 	outs := g.OldestCoinbaseOuts()
 	startTip := g.TipName()
-	g.NextBlock("twotb0", nil, outs[1:], replaceTreasuryVersions,
-		dupTreasurybase)
+	g.NextBlock("twotb0", nil, outs[1:], dupTreasurybase)
 	g.RejectTipBlock(ErrMultipleTreasurybases)
 
 	// ---------------------------------------------------------------------
@@ -2708,8 +2378,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("notbon0", nil, outs[1:], replaceTreasuryVersions,
-		flipTreasurybase)
+	g.NextBlock("notbon0", nil, outs[1:], flipTreasurybase)
 	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
 
 	// ---------------------------------------------------------------------
@@ -2717,8 +2386,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("notb0", nil, outs[1:], replaceTreasuryVersions,
-		removeTreasurybase)
+	g.NextBlock("notb0", nil, outs[1:], removeTreasurybase)
 	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
 
 	// ---------------------------------------------------------------------
@@ -2726,48 +2394,42 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("nothing0", nil, outs[1:], replaceTreasuryVersions,
-		removeStakeTxns)
+	g.NextBlock("nothing0", nil, outs[1:], removeStakeTxns)
 	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
 
 	// ---------------------------------------------------------------------
 	// Treasury base invalid height
 	// ---------------------------------------------------------------------
 	g.SetTip(startTip)
-	g.NextBlock("height0", nil, outs[1:], replaceTreasuryVersions,
-		changeHeightTreasurybase)
+	g.NextBlock("height0", nil, outs[1:], changeHeightTreasurybase)
 	g.RejectTipBlock(ErrTreasurybaseHeight)
 
 	// ---------------------------------------------------------------------
 	// Treasury base invalid OP_RETURN script length.
 	// ---------------------------------------------------------------------
 	g.SetTip(startTip)
-	g.NextBlock("length0", nil, outs[1:], replaceTreasuryVersions,
-		corruptLengthTreasurybase)
+	g.NextBlock("length0", nil, outs[1:], corruptLengthTreasurybase)
 	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
 
 	// ---------------------------------------------------------------------
 	// Only treasury base.
 	// ---------------------------------------------------------------------
 	g.SetTip(startTip)
-	g.NextBlock("novotes0", nil, outs[1:], replaceTreasuryVersions,
-		removeAllButTreasurybase)
+	g.NextBlock("novotes0", nil, outs[1:], removeAllButTreasurybase)
 	g.RejectTipBlock(ErrVotesMismatch)
 
 	// ---------------------------------------------------------------------
 	// Treasury base invalid TxIn[0].Value
 	// ---------------------------------------------------------------------
 	g.SetTip(startTip)
-	g.NextBlock("invalidin0", nil, outs[1:], replaceTreasuryVersions,
-		corruptTreasurybaseValueIn)
+	g.NextBlock("invalidin0", nil, outs[1:], corruptTreasurybaseValueIn)
 	g.RejectTipBlock(ErrBadTreasurybaseAmountIn)
 
 	// ---------------------------------------------------------------------
 	// Treasury base invalid TxOut[0].Value
 	// ---------------------------------------------------------------------
 	g.SetTip(startTip)
-	g.NextBlock("invalidout0", nil, outs[1:], replaceTreasuryVersions,
-		corruptTreasurybaseValueOut)
+	g.NextBlock("invalidout0", nil, outs[1:], corruptTreasurybaseValueOut)
 	g.RejectTipBlock(ErrTreasurybaseOutValue)
 
 	// Note we can't hit the following errors in consensus:
@@ -2782,57 +2444,33 @@ func TestTreasuryBaseCorners(t *testing.T) {
 func TestTSpendCorners(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
 	// Shorter versions of useful params for convenience.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the provided
-	// block by replacing the block, stake, and vote versions with the treasury
-	// deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
 	// Create TSpend in mempool
 	// ---------------------------------------------------------------------
 	nextBlockHeight := g.Tip().Header.Height + 1
-	tspendAmount := dcrutil.Amount(devsub)
+	const tspendAmount = 1000
 	const tspendFee = 100
 	expiry := standalone.CalcTSpendExpiry(int64(nextBlockHeight), tvi, mul)
 	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
@@ -2850,7 +2488,7 @@ func TestTSpendCorners(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2863,8 +2501,8 @@ func TestTSpendCorners(t *testing.T) {
 
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("btvi%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			chaingen.AddTreasurySpendYesVotes(tspend))
+		g.NextBlock(name, nil, outs[1:], chaingen.AddTreasurySpendYesVotes(
+			tspend))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -2877,11 +2515,9 @@ func TestTSpendCorners(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	tspend.TxIn[0].ValueIn++
-	g.NextBlock("btspend0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
+	g.NextBlock("btspend0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddSTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrInvalidTSpendValueIn)
 }
 
@@ -3090,28 +2726,17 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 func TestTreasuryInRegularTree(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the provided
-	// block by replacing the block, stake, and vote versions with the treasury
-	// deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// addTreasuryBaseRegular is a munge function which modifies the provided
 	// block to add a treasurybase to the regular transaction tree.
@@ -3132,57 +2757,42 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// ---------------------------------------------------------------------
-	// Append a treasurybase to transactions.
+	// Append a treasurybase to the regular transaction tree.
 	// ---------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
 	startTip := g.TipName()
-	g.NextBlock("tb0", nil, outs[1:], replaceTreasuryVersions,
-		addTreasuryBaseRegular)
+	g.NextBlock("tb0", nil, outs[1:], addTreasuryBaseRegular)
 	g.RejectTipBlock(ErrMultipleCoinbases)
 
 	// ---------------------------------------------------------------------
-	// Append tadd to transactions
+	// Append tadd to the regular transaction tree.
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	g.NextBlock("tadd0", nil, outs[1:], replaceTreasuryVersions,
-		createTAdd(outs[0], 15, params), moveTAddRegular)
+	g.NextBlock("tadd0", nil, outs[1:], createTAdd(outs[0], 15, params),
+		moveTAddRegular)
 	g.RejectTipBlock(ErrStakeTxInRegularTree)
 
 	// ---------------------------------------------------------------------
-	// Append TSpend to transactions.
+	// Append TSpend to the regular transaction tree.
 	// ---------------------------------------------------------------------
 
-	tspendAmount := dcrutil.Amount(devsub)
+	const tspendAmount = 10
 	const tspendFee = 0
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, 78) // Expiry check not hit.
 
 	g.SetTip(startTip)
-	g.NextBlock("tspend0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			b.AddTransaction(tspend)
-		})
+	g.NextBlock("tspend0", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.AddTransaction(tspend)
+	})
 	g.RejectTipBlock(ErrStakeTxInRegularTree)
 }
 
@@ -3659,28 +3269,17 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 func TestTSpendTooManyTAdds(t *testing.T) {
 	t.Parallel()
 
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and mark
+	// the treasury agenda as always active.
 	params := quickVoteActivationParams()
+	const voteID = chaincfg.VoteIDTreasury
+	forceDeploymentResult(t, params, voteID, "yes")
 
-	// Find the correct deployment for the treasury agenda, and, finally, ensure
-	// it is always available to vote by removing the time constraints to
-	// prevent test failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	tVersion, deployment := findDeployment(t, params, tVoteID)
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
 	g := newChaingenHarness(t, params)
-
-	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with
-	// the treasury deployment version.
-	replaceTreasuryVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
-		chaingen.ReplaceStakeVersion(tVersion)(b)
-		chaingen.ReplaceVoteVersions(tVersion)(b)
-	}
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
 
 	// addTAdds is a helper function that returns a munge function that
 	// includes the specified tadds in the stake tree of a block.
@@ -3693,28 +3292,15 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgendas(tVoteID)
-	g.UseTreasurySemantics(chaingen.TSDCP0006)
-
-	// Ensure treasury agenda is active.
-	tipHash := &g.chain.BestSnapshot().Hash
-	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 
 	// The maximum number of tadds is hardcoded here instead of using a
 	// global const so that any code changes that unintentionally cause
 	// this maximum to change in blockchain code are flagged by this test.
-	maxNbTadds := 20
+	const maxNbTadds = 20
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have spendable outputs to create the
@@ -3722,14 +3308,15 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	// maturity, we'll need to manually generate and store these outputs
 	// until we have enough.
 	//
-	//   ... -> bout0 -> .. boutn
+	//   ... -> bout0 -> ... -> bout#
 	// ---------------------------------------------------------------------
+
 	neededOuts := maxNbTadds + 1
 	var oldOuts []chaingen.SpendableOut
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < uint32(neededOuts); i++ {
 		name := fmt.Sprintf("bout%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions)
+		g.NextBlock(name, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -3737,34 +3324,33 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 	}
 
 	// Create more than the maximum allowed number of TAdds.
-	taddAmount := int64(1701)
+	taddAmount := dcrutil.Amount(1701)
 	taddFee := dcrutil.Amount(0)
 	tadds := make([]*wire.MsgTx, 0, maxNbTadds+1)
 	for i := 0; i < maxNbTadds+1; i++ {
-		tadd := g.CreateTreasuryTAdd(&oldOuts[i], dcrutil.Amount(taddAmount), taddFee)
+		tadd := g.CreateTreasuryTAdd(&oldOuts[i], taddAmount, taddFee)
 		tadds = append(tadds, tadd)
 	}
 
 	// ---------------------------------------------------------------------
 	// Attempt to mine a block with an invalid number of tadds.
 	//
-	// ... -> boutn -> btoomanytadds
+	// ... -> bout#
+	//             \ -> btoomanytadds
 	// ---------------------------------------------------------------------
+
 	tipName := g.TipName()
-	g.NextBlock("btoomanytadds", nil, outs[1:], replaceTreasuryVersions,
-		addTAdds(tadds))
-	g.SaveTipCoinbaseOuts()
+	g.NextBlock("btoomanytadds", nil, outs[1:], addTAdds(tadds))
 	g.RejectTipBlock(ErrTooManyTAdds)
 
 	// ---------------------------------------------------------------------
 	// Mine a block with the maximum number of tadds.
 	//
-	// ... -> boutn -> btoomanytadds
-	//             \-> bmaxtadds
+	// ... -> bout# -> bmaxtadds
 	// ---------------------------------------------------------------------
+
 	g.SetTip(tipName)
-	g.NextBlock("bmaxtadds", nil, outs[1:], replaceTreasuryVersions,
-		addTAdds(tadds[1:]))
+	g.NextBlock("bmaxtadds", nil, outs[1:], addTAdds(tadds[1:]))
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 }

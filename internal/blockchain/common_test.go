@@ -534,55 +534,6 @@ func reassignVoteMaskAndChoiceBits(agendas []chaincfg.ConsensusDeployment) {
 	}
 }
 
-// mergeAgendas moves all the specified agendas into the same deployment,
-// suitable for being voted at the same time.
-//
-// The agendas will be moved to the deployment that contains the first agenda
-// in the voteIDs slice.
-//
-// Returns the resulting deployment version or fails with a fatal test error if
-// any errors are encountered.
-func mergeAgendas(t *testing.T, params *chaincfg.Params, voteIDs []string) uint32 {
-	t.Helper()
-
-	if len(voteIDs) < 2 {
-		t.Fatal("at least 2 agenda IDs must be specified")
-	}
-
-	// The first agenda defines the destination deployment, where the
-	// others will be moved to.
-	targetDeployVer, _ := findDeployment(t, params, voteIDs[0])
-	voteIDs = voteIDs[1:]
-	targetDeploy := params.Deployments[targetDeployVer]
-
-nextvote:
-	for _, wantID := range voteIDs {
-		for version, deployments := range params.Deployments {
-			for i := 0; i < len(deployments); {
-				deployment := deployments[i]
-
-				if deployment.Vote.Id != wantID {
-					i++
-					continue
-				}
-
-				// Found where the agenda is. Move to target.
-				targetDeploy = append(targetDeploy, deployment)
-				params.Deployments[targetDeployVer] = targetDeploy
-				deployments[i] = deployments[len(deployments)-1]
-				deployments = deployments[:len(deployments)-1]
-				params.Deployments[version] = deployments
-				continue nextvote
-			}
-		}
-
-		t.Fatalf("unable to find vote id %s", wantID)
-	}
-	reassignVoteMaskAndChoiceBits(params.Deployments[targetDeployVer])
-
-	return targetDeployVer
-}
-
 // removeDeploymentTimeConstraints modifies the passed deployment to remove the
 // voting time constraints by making it always available to vote and to never
 // expire.
