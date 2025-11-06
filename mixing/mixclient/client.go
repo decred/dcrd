@@ -1142,6 +1142,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		mcounts:  make([]uint32, 0, len(prs)),
 	})
 	newRun := &ps.runs[len(ps.runs)-1]
+	altsesCounts := make(map[[32]byte]int)
 
 	for {
 		if newRun != nil {
@@ -1209,18 +1210,38 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			return
 
 		case errors.As(err, &altses):
-			// If this errored or has too few peers, keep
-			// retrying previous attempts until next epoch,
-			// instead of just going away.
 			if altses.err != nil {
 				r.logf("Unable to recreate session: %v", altses.err)
-				ps.deadlines.start(time.Now())
-				continue
-			}
-
-			if r.sid != altses.sid {
+			} else if r.sid != altses.sid {
 				r.logf("Recreating as session %x (pairid=%x)", altses.sid, ps.pairing)
 				unresponsive = append(unresponsive, altses.unresponsive...)
+			} else {
+				r.logf("Alternate session matches current run (pairid=%x)", ps.pairing)
+				// When the alternate session matches the
+				// currently tried one, assume peer agreement
+				// is reached.  If the same missing peers
+				// continue to be absent during the next run,
+				// they will be blamed for timeout, rather
+				// than incrementing the altses counter and
+				// disrupting the mix for all peers.
+				ps.peerAgreement = true
+				ps.peerAgreementRunIdx = r.idx
+			}
+			// Limit total alternateSession reattempts to prevent
+			// endlessly looping on erroring reforming sessions if
+			// no peer agreement was ever established.  This check
+			// also works when the error is non-nil (sid will be
+			// all zeros).
+			altsesCounts[altses.sid]++
+			if altsesCounts[altses.sid] > 2 {
+				r.logf("Aborting alternate session forming")
+				return
+			}
+			if altses.err != nil {
+				// Continue run attempts in case peer
+				// agreement can be established.
+				ps.deadlines.start(time.Now())
+				continue
 			}
 
 			// Required minimum run index is not incremented for
@@ -1493,18 +1514,6 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	// are immediately excluded.
 	completedSesRun, err := c.completePairing(ctx, ps)
 	if err != nil {
-		// Alternate session may need to be attempted.  Do not form an
-		// alternate session if we are about to enter into the next
-		// epoch.  The session forming will be performed by a new
-		// goroutine started by the epoch ticker, possibly with
-		// additional PRs.
-		nextEpoch := ps.epoch.Add(c.epoch)
-		if time.Now().Add(timeoutDuration).After(nextEpoch) {
-			c.logf("Aborting session %x after %d attempts",
-				sesRun.sid[:], len(ps.runs))
-			return sesRun, errOnlyKEsBroadcasted
-		}
-
 		// If peer agreement was never established, alternate sessions
 		// based on the seen PRs must be formed.
 		if !ps.peerAgreement {
@@ -1591,10 +1600,6 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	}
 
 	// Remove paired local peers from pending pairings.
-	//
-	// XXX might want to keep these instead of racing to add them back if
-	// this mix doesn't run to completion, and we start next epoch without
-	// some of our own peers.
 	c.mu.Lock()
 	if pending := c.pendingPairings[string(ps.pairing)]; pending != nil {
 		for id := range sesRun.localPeers {
