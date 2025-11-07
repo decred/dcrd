@@ -763,6 +763,48 @@ func (p *peer) signAndSubmit(deadline time.Time, m mixing.Message) error {
 	return p.submit(deadline, m)
 }
 
+func (p *peer) genDicemixKeys() error {
+	p.ke = nil
+
+	// Generate a new PRNG seed
+	rand.Read(p.prngSeed[:])
+	p.prng = chacha20prng.New(p.prngSeed[:], 0)
+
+	// Generate fresh keys from this run's PRNG
+	kx, err := mixing.NewKX(p.prng)
+	if err != nil {
+		return err
+	}
+	p.kx = kx
+
+	// Generate fresh SR messages.
+	// These must not be created from the PRNG; the Go
+	// standard library function is not guaranteed to read
+	// the same byte count in all versions.
+	p.srMsg = make([]*big.Int, p.pr.MessageCount)
+	for i := range p.srMsg {
+		p.srMsg[i] = rand.BigInt(mixing.F)
+	}
+
+	// Generate fresh DC messages
+	p.dcMsg, err = p.coinjoin.gen()
+	if err != nil {
+		return err
+	}
+	if len(p.dcMsg) != int(p.pr.MessageCount) {
+		return errors.New("gen returned wrong message count")
+	}
+	for _, m := range p.dcMsg {
+		if len(m) != msize {
+			err := fmt.Errorf("gen returned bad message "+
+				"length [%v != %v]", len(m), msize)
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c *Client) newPendingPairing(pairing []byte) *pendingPairing {
 	return &pendingPairing{
 		localPeers: make(map[identity]*peer),
@@ -862,7 +904,7 @@ func (c *Client) epochTicker(ctx context.Context) error {
 			localPeers := make(map[identity]*peer)
 			for id, peer := range p.localPeers {
 				if _, ok := prsMap[id]; ok {
-					localPeers[id] = peer.cloneLocalPeer(true)
+					localPeers[id] = peer.cloneLocalPeer(false)
 				}
 			}
 
@@ -935,6 +977,11 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 		return err
 	}
 	p.pr = pr
+
+	err = p.genDicemixKeys()
+	if err != nil {
+		return err
+	}
 
 	c.logf("Created local peer id=%x PR=%s", p.id[:], p.pr.Hash())
 
@@ -1027,6 +1074,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 	// unsuccessful or only some peers were included.
 	var mixedSession *sessionRun
 	var unresponsive []*wire.MsgMixPairReq
+	var revealedSecrets bool
 	defer func() {
 		c.removeUnresponsiveDuringEpoch(unresponsive, unixEpoch)
 
@@ -1056,11 +1104,34 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			pendingPairing = c.newPendingPairing(ps.pairing)
 			c.pendingPairings[string(ps.pairing)] = pendingPairing
 		} else {
-			for id, p := range ps.localPeers {
+			// Release client state mutex while potentially
+			// deriving new SR, DC keys.
+			c.mu.Unlock()
+
+			addPending := make([]*peer, 0, len(ps.localPeers))
+			for _, p := range ps.localPeers {
 				prHash := p.pr.Hash()
-				if c.mixpool.HaveMessage(&prHash) {
-					pendingPairing.localPeers[id] = p.cloneLocalPeer(true)
+				if !c.mixpool.HaveMessage(&prHash) {
+					continue
 				}
+				p2 := p.cloneLocalPeer(revealedSecrets)
+				if revealedSecrets {
+					err := p2.genDicemixKeys()
+					if err != nil {
+						p2.sendRes(err)
+						continue
+					}
+				}
+				addPending = append(addPending, p2)
+			}
+
+			c.mu.Lock()
+			for _, p := range addPending {
+				prHash := p.pr.Hash()
+				if !c.mixpool.HaveMessage(&prHash) {
+					continue
+				}
+				pendingPairing.localPeers[*p.id] = p
 			}
 		}
 		c.mu.Unlock()
@@ -1073,7 +1144,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 	ps.runs = append(ps.runs, sessionRun{
 		sid:      sid,
 		prs:      prs,
-		freshGen: true,
+		freshGen: false,
 		mcounts:  make([]uint32, 0, len(prs)),
 	})
 	newRun := &ps.runs[len(ps.runs)-1]
@@ -1134,8 +1205,8 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 		var altses *alternateSession
 		var sizeLimitedErr *sizeLimited
 		var blamed blamedIdentities
-		var revealedSecrets bool
 		var requirePeerAgreement bool
+		revealedSecrets = false
 		switch {
 		case errors.Is(err, errOnlyKEsBroadcasted):
 			// When only KEs are broadcasted, the session was not viable
@@ -1349,43 +1420,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	freshGen := sesRun.freshGen
 	err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
 		if freshGen {
-			p.ke = nil
-
-			// Generate a new PRNG seed
-			rand.Read(p.prngSeed[:])
-			p.prng = chacha20prng.New(p.prngSeed[:], 0)
-
-			// Generate fresh keys from this run's PRNG
-			kx, err := mixing.NewKX(p.prng)
-			if err != nil {
-				return err
-			}
-			p.kx = kx
-
-			// Generate fresh SR messages.
-			// These must not be created from the PRNG; the Go
-			// standard library function is not guaranteed to read
-			// the same byte count in all versions.
-			p.srMsg = make([]*big.Int, p.pr.MessageCount)
-			for i := range p.srMsg {
-				p.srMsg[i] = rand.BigInt(mixing.F)
-			}
-
-			// Generate fresh DC messages
-			p.dcMsg, err = p.coinjoin.gen()
-			if err != nil {
-				return err
-			}
-			if len(p.dcMsg) != int(p.pr.MessageCount) {
-				return errors.New("gen returned wrong message count")
-			}
-			for _, m := range p.dcMsg {
-				if len(m) != msize {
-					err := fmt.Errorf("gen returned bad message "+
-						"length [%v != %v]", len(m), msize)
-					return err
-				}
-			}
+			p.genDicemixKeys()
 		}
 
 		if p.ke == nil {
@@ -2245,8 +2280,8 @@ func (c *Client) alternateSession(ps *pairedSessions, prs []*wire.MsgMixPairReq)
 		}
 		pr := prsByHash[prHashByIdentity[ke.Identity]]
 		if pr == nil {
-			err := fmt.Errorf("missing PR %s by %x, but have their KE %s",
-				prHashByIdentity[ke.Identity], ke.Identity[:], ke.Hash())
+			err := fmt.Errorf("missing PR by %x, but have their KE %s",
+				ke.Identity[:], ke.Hash())
 			c.log(err)
 			continue
 		}
