@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.2.1
 	github.com/decred/dcrd/blockchain/v5 v5.0.1
 	github.com/decred/dcrd/certgen v1.1.3
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.4
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.5
 	github.com/decred/dcrd/chaincfg/v3 v3.2.1
 	github.com/decred/dcrd/connmgr/v3 v3.1.2
 	github.com/decred/dcrd/container/apbf v1.0.1
