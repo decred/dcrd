@@ -600,7 +600,7 @@ func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *s
 			msgs = append(msgs, msg)
 		}
 	}
-	if len(msgs) == 0 {
+	if len(msgs) == 0 && msgMask != 0 {
 		return errNoActiveLocalPeers
 	}
 	sort.SliceStable(msgs, func(i, j int) bool {
