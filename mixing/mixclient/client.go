@@ -1098,41 +1098,35 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			return
 		}
 
+		addPending := make([]*peer, 0, len(ps.localPeers))
+		for _, p := range ps.localPeers {
+			prHash := p.pr.Hash()
+			if !c.mixpool.HaveMessage(&prHash) {
+				continue
+			}
+			p2 := p.cloneLocalPeer(revealedSecrets)
+			if revealedSecrets {
+				err := p2.genDicemixKeys()
+				if err != nil {
+					p2.sendRes(err)
+					continue
+				}
+			}
+			addPending = append(addPending, p2)
+		}
+
 		c.mu.Lock()
 		pendingPairing := c.pendingPairings[string(ps.pairing)]
 		if pendingPairing == nil {
 			pendingPairing = c.newPendingPairing(ps.pairing)
 			c.pendingPairings[string(ps.pairing)] = pendingPairing
-		} else {
-			// Release client state mutex while potentially
-			// deriving new SR, DC keys.
-			c.mu.Unlock()
-
-			addPending := make([]*peer, 0, len(ps.localPeers))
-			for _, p := range ps.localPeers {
-				prHash := p.pr.Hash()
-				if !c.mixpool.HaveMessage(&prHash) {
-					continue
-				}
-				p2 := p.cloneLocalPeer(revealedSecrets)
-				if revealedSecrets {
-					err := p2.genDicemixKeys()
-					if err != nil {
-						p2.sendRes(err)
-						continue
-					}
-				}
-				addPending = append(addPending, p2)
+		}
+		for _, p := range addPending {
+			prHash := p.pr.Hash()
+			if !c.mixpool.HaveMessage(&prHash) {
+				continue
 			}
-
-			c.mu.Lock()
-			for _, p := range addPending {
-				prHash := p.pr.Hash()
-				if !c.mixpool.HaveMessage(&prHash) {
-					continue
-				}
-				pendingPairing.localPeers[*p.id] = p
-			}
+			pendingPairing.localPeers[*p.id] = p
 		}
 		c.mu.Unlock()
 	}()
