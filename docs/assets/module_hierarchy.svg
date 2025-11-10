@@ -175,7 +175,7 @@
 <g id="node25" class="node">
 <title>addrmgr</title>
 <path fill="lightsalmon" stroke="black" d="M950.28,-108C950.28,-108 895.38,-108 895.38,-108 889.38,-108 883.38,-102 883.38,-96 883.38,-96 883.38,-84 883.38,-84 883.38,-78 889.38,-72 895.38,-72 895.38,-72 950.28,-72 950.28,-72 956.28,-72 962.28,-78 962.28,-84 962.28,-84 962.28,-96 962.28,-96 962.28,-102 956.28,-108 950.28,-108"/>
-<text text-anchor="middle" x="922.83" y="-84.58" font-family="Times New Roman,serif" font-size="14.00">addrmgr/v2</text>
+<text text-anchor="middle" x="922.83" y="-84.58" font-family="Times New Roman,serif" font-size="14.00">addrmgr/v3</text>
 </g>
 <!-- wire&#45;&gt;addrmgr -->
 <g id="edge6" class="edge">
