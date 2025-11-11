@@ -1,5 +1,5 @@
 // Copyright 2015 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 // It is called by go generate and used to automatically generate pre-computed
 // tables used to accelerate operations.
 //go:build ignore
-// +build ignore
 
 package main
 
