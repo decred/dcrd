@@ -3,8 +3,10 @@
 set -ex
 
 # This script runs the tests for all packages in all Go modules in the
-# repository and then runs the linters for all Go modules in the repository by
-# invoking the separate linter script.
+# repository.
+#
+# It also runs the linters for all Go modules in the repository by invoking the
+# separate linter script when not running as a GitHub action.
 
 go version
 
@@ -28,8 +30,8 @@ for module in $MODULES; do
   )
 done
 
-# run linters on all modules
-. ./lint.sh
+# run linters on all modules when not running as a GitHub action
+[ -z "$GITHUB_ACTIONS" ] && source ./lint.sh
 
 echo "------------------------------------------"
 echo "Tests completed successfully!"
