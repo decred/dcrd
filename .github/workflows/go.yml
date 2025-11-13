@@ -4,6 +4,19 @@ permissions:
   contents: read
 
 jobs:
+  resolve-modules:
+    name: Resolve Go modules
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - id: set-matrix
+        run: |
+          echo "Resolving modules in $(pwd)" && \
+          MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '{"workdir":"%h"},') && \
+          echo "matrix={\"include\":[${MODPATHS%,}]}" >> $GITHUB_OUTPUT
   build:
     name: Go CI
     runs-on: ubuntu-latest
@@ -17,20 +30,30 @@ jobs:
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version: ${{ matrix.go }}
-      - name: Use lint cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ~/.cache/golangci-lint
-          key: go-lint-${{ matrix.go }}-${{ hashFiles('./go.sum') }}
-          restore-keys: go-lint-${{ matrix.go }}
       - name: Stablilize testdata timestamps
         run: |
           bash ./.github/stablilize_testdata_timestamps.sh "${{ github.workspace }}"
-      - name: Install Linters
-        run: "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.1"
       - name: Build
         run: go build ./...
       - name: Test
         run: |
           sh ./run_tests.sh
+  lint:
+    name: Lint
+    needs: resolve-modules
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.resolve-modules.outputs.matrix ) }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: "1.24"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@0a35821d5c230e903fcfe077583637dea1b27b47 # v9.0.0
+        with:
+          install-mode: "goinstall"
+          version: e3b3bac5dd24906c205db9224fde52efd4d238cf # v2.6.1
+          working-directory: ${{ matrix.workdir }}
