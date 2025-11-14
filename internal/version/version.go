@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -130,6 +131,31 @@ func parseSemVer(s string) (uint32, uint32, uint32, string, string, error) {
 	}
 
 	return major, minor, patch, preRel, build, nil
+}
+
+// vcsCommitID attempts to return the version control system short commit hash
+// that was used to build the binary.  It currently only detects git commits.
+func vcsCommitID() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	var vcs, revision string
+	for _, bs := range bi.Settings {
+		switch bs.Key {
+		case "vcs":
+			vcs = bs.Value
+		case "vcs.revision":
+			revision = bs.Value
+		}
+	}
+	if vcs == "" {
+		return ""
+	}
+	if vcs == "git" && len(revision) > 9 {
+		revision = revision[:9]
+	}
+	return revision
 }
 
 func init() {
