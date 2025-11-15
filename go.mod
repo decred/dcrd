@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/base58 v1.0.6
-	github.com/decred/dcrd/addrmgr/v3 v3.0.0
+	github.com/decred/dcrd/addrmgr/v4 v4.0.0
 	github.com/decred/dcrd/bech32 v1.1.4
 	github.com/decred/dcrd/blockchain/stake/v5 v5.0.2
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.2.2
@@ -61,7 +61,7 @@ require (
 )
 
 replace (
-	github.com/decred/dcrd/addrmgr/v3 => ./addrmgr
+	github.com/decred/dcrd/addrmgr/v4 => ./addrmgr
 	github.com/decred/dcrd/bech32 => ./bech32
 	github.com/decred/dcrd/blockchain/stake/v5 => ./blockchain/stake
 	github.com/decred/dcrd/blockchain/standalone/v2 => ./blockchain/standalone
