@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/connmgr/v3"
-	"github.com/decred/dcrd/peer/v3"
+	"github.com/decred/dcrd/peer/v4"
 )
 
 // Config is the configuration struct for the ban manager.

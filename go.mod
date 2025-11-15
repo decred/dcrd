@@ -27,7 +27,7 @@ require (
 	github.com/decred/dcrd/gcs/v4 v4.1.1
 	github.com/decred/dcrd/math/uint256 v1.0.2
 	github.com/decred/dcrd/mixing v0.6.0
-	github.com/decred/dcrd/peer/v3 v3.2.0
+	github.com/decred/dcrd/peer/v4 v4.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.4.0
 	github.com/decred/dcrd/rpcclient/v8 v8.1.0
 	github.com/decred/dcrd/txscript/v4 v4.1.2
@@ -85,7 +85,7 @@ replace (
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/math/uint256 => ./math/uint256
 	github.com/decred/dcrd/mixing => ./mixing
-	github.com/decred/dcrd/peer/v3 => ./peer
+	github.com/decred/dcrd/peer/v4 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v8 => ./rpcclient
 	github.com/decred/dcrd/txscript/v4 => ./txscript
