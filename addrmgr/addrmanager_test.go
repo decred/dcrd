@@ -30,6 +30,11 @@ func natfAny(addrType NetAddressType) bool {
 	return true
 }
 
+// natfOnlyIPv4 defines a filter that will only allow IPv4 netAddrs.
+func natfOnlyIPv4(addrType NetAddressType) bool {
+	return addrType == IPv4Address
+}
+
 // natfOnlyIPv6 defines a filter that will only allow IPv6 netAddrs.
 func natfOnlyIPv6(addrType NetAddressType) bool {
 	return addrType == IPv6Address
@@ -50,7 +55,7 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 func TestAddOrUpdateAddress(t *testing.T) {
 	amgr := New("testaddaddressupdate")
 	amgr.Start()
-	if ka := amgr.GetAddress(); ka != nil {
+	if ka := amgr.GetAddress(natfAny); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
 
@@ -61,7 +66,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 	na := NewNetAddressFromIPPort(net.ParseIP(nonRoutableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
-	if ka := amgr.GetAddress(); ka != nil {
+	if ka := amgr.GetAddress(natfAny); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
 
@@ -72,7 +77,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 	na = NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
-	ka := amgr.GetAddress()
+	ka := amgr.GetAddress(natfAny)
 	newlyAddedAddr := ka.NetAddress()
 	if ka == nil {
 		t.Fatal("address manager should contain newly added known address")
@@ -94,7 +99,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	// The address should be in the address manager with a new timestamp.
 	// The network address reference held by the known address should also
 	// differ.
-	updatedKnownAddress := amgr.GetAddress()
+	updatedKnownAddress := amgr.GetAddress(natfAny)
 	netAddrFromUpdate := updatedKnownAddress.NetAddress()
 	if updatedKnownAddress == nil {
 		t.Fatal("address manager should contain updated known address")
@@ -230,7 +235,7 @@ func TestStartStop(t *testing.T) {
 	amgr = New(dir)
 	amgr.Start()
 
-	knownAddress := amgr.GetAddress()
+	knownAddress := amgr.GetAddress(natfAny)
 	if knownAddress == nil {
 		t.Fatal("address manager should contain known address")
 	}
@@ -338,13 +343,13 @@ func TestGetAddress(t *testing.T) {
 	n := New("testgetaddress")
 
 	// Get an address from an empty set (should error).
-	if rv := n.GetAddress(); rv != nil {
+	if rv := n.GetAddress(natfAny); rv != nil {
 		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
 	}
 
 	// Add a new address and get it.
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 	if ka == nil {
 		t.Fatal("did not get an address where there is one in the pool")
 	}
@@ -363,7 +368,7 @@ func TestGetAddress(t *testing.T) {
 
 	// Verify that the previously added address still exists in the address
 	// manager after being marked as good.
-	ka = n.GetAddress()
+	ka = n.GetAddress(natfAny)
 	if ka == nil {
 		t.Fatal("did not get an address when one was expected")
 	}
@@ -394,7 +399,7 @@ func TestAttempt(t *testing.T) {
 
 	// Add a new address and get it.
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 
 	if !ka.LastAttempt().IsZero() {
 		t.Fatal("address should not have been attempted")
@@ -425,7 +430,7 @@ func TestConnected(t *testing.T) {
 
 	// Add a new address and get it
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 	na := ka.NetAddress()
 	// make it an hour ago
 	na.Timestamp = time.Unix(time.Now().Add(time.Hour*-1).Unix(), 0)
@@ -630,7 +635,7 @@ func TestSetServices(t *testing.T) {
 
 	// Ensure that the services field for a network address returned from the
 	// address manager is not mutated by a call to SetServices.
-	knownAddress := addressManager.GetAddress()
+	knownAddress := addressManager.GetAddress(natfAny)
 	if knownAddress == nil {
 		t.Fatal("expected known address, got nil")
 	}
@@ -1000,6 +1005,72 @@ func TestIsExternalAddrCandidate(t *testing.T) {
 		if reach != test.expectedReach {
 			t.Errorf("%q: unexpected return value for reach - want '%v', got '%v'",
 				test.name, test.expectedReach, reach)
+		}
+	}
+}
+
+// TestGetAddressWithFilter ensures that GetAddress returns addresses matching
+// the provided filter.
+func TestGetAddressWithFilter(t *testing.T) {
+	ipv4Addr := NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 8333, 0)
+	ipv6Addr := NewNetAddressFromIPPort(net.ParseIP(routableIPv6Addr), 8333, 0)
+
+	tests := []struct {
+		name      string
+		addresses []*NetAddress
+		filter    NetAddressTypeFilter
+		wantType  NetAddressType
+		wantNil   bool
+	}{{
+		name:      "returns address matching IPv4 filter",
+		addresses: []*NetAddress{ipv4Addr, ipv6Addr},
+		filter:    natfOnlyIPv4,
+		wantType:  IPv4Address,
+	}, {
+		name:      "returns address matching IPv6 filter",
+		addresses: []*NetAddress{ipv4Addr, ipv6Addr},
+		filter:    natfOnlyIPv6,
+		wantType:  IPv6Address,
+	}, {
+		name:      "returns nil when no matching IPv4 addresses",
+		addresses: []*NetAddress{ipv6Addr},
+		filter:    natfOnlyIPv4,
+		wantNil:   true,
+	}, {
+		name:      "returns nil when no matching IPv6 addresses",
+		addresses: []*NetAddress{ipv4Addr},
+		filter:    natfOnlyIPv6,
+		wantNil:   true,
+	}, {
+		name:      "returns nil when address manager empty",
+		addresses: []*NetAddress{},
+		filter:    natfAny,
+		wantNil:   true,
+	}}
+
+	for _, test := range tests {
+		amgr := New("TestGetAddressWithFilter")
+		amgr.AddAddresses(test.addresses, ipv4Addr)
+
+		ka := amgr.GetAddress(test.filter)
+
+		if test.wantNil {
+			if ka != nil {
+				t.Errorf("%q: expected nil, got address: %v", test.name, ka.NetAddress())
+			}
+			continue
+		}
+
+		if ka == nil {
+			t.Errorf("%q: expected address, got nil", test.name)
+			continue
+		}
+
+		// Verify the address type matches expected type.
+		gotType := ka.NetAddress().Type
+		if gotType != test.wantType {
+			t.Errorf("%q: unexpected address type: got %v, want %v",
+				test.name, gotType, test.wantType)
 		}
 	}
 }
