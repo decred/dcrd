@@ -418,20 +418,6 @@ func (ps *peerState) ForAllPeers(closure func(sp *serverPeer)) {
 	ps.Unlock()
 }
 
-// connectionsWithIP returns the number of connections with the given IP.
-//
-// This function MUST be called with the embedded mutex locked (for reads).
-func (ps *peerState) connectionsWithIP(ip net.IP) int {
-	var total int
-	ps.forAllPeers(func(sp *serverPeer) {
-		if ip.Equal(sp.NA().IP) {
-			total++
-		}
-
-	})
-	return total
-}
-
 type resolveIPFn func(string) ([]net.IP, error)
 
 // hostToNetAddress parses and returns an address manager network address given
@@ -973,6 +959,30 @@ func (sp *serverPeer) addressKnown(na *addrmgr.NetAddress) bool {
 	return sp.knownAddresses.Contains([]byte(na.Key()))
 }
 
+// wireToAddrmgrNetAddressType converts a wire network address type to
+// an address manager net address type.
+func wireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddressType {
+	switch addrType {
+	case wire.IPv4Address:
+		return addrmgr.IPv4Address
+	case wire.IPv6Address:
+		return addrmgr.IPv6Address
+	}
+	return addrmgr.UnknownAddressType
+}
+
+// addrmgrToWireNetAddressType converts an address manager net address type to
+// a wire net address type.
+func addrmgrToWireNetAddressType(addrType addrmgr.NetAddressType) wire.NetAddressType {
+	switch addrType {
+	case addrmgr.IPv4Address:
+		return wire.IPv4Address
+	case addrmgr.IPv6Address:
+		return wire.IPv6Address
+	}
+	return wire.UnknownAddressType
+}
+
 // wireToAddrmgrNetAddress converts a wire NetAddress to an address manager
 // NetAddress.
 func wireToAddrmgrNetAddress(netAddr *wire.NetAddress) *addrmgr.NetAddress {
@@ -997,6 +1007,14 @@ func wireToAddrmgrNetAddresses(netAddr []*wire.NetAddress) []*addrmgr.NetAddress
 func addrmgrToWireNetAddress(netAddr *addrmgr.NetAddress) *wire.NetAddress {
 	return wire.NewNetAddressTimestamp(netAddr.Timestamp, netAddr.Services,
 		netAddr.IP, netAddr.Port)
+}
+
+// addrmgrToWireNetAddressV2 converts an address manager net address to a v2 wire
+// net address.
+func addrmgrToWireNetAddressV2(netAddr *addrmgr.NetAddress) wire.NetAddressV2 {
+	addrType := addrmgrToWireNetAddressType(netAddr.Type)
+	return wire.NewNetAddressV2(addrType, netAddr.IP, netAddr.Port,
+		netAddr.Timestamp, netAddr.Services)
 }
 
 // pushAddrMsg sends an addr message to the connected peer using the provided
@@ -1076,6 +1094,28 @@ func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 	return isSupportedNetAddrTypeV1
 }
 
+// NA returns the address manager network address for the peer.
+//
+// This method shadows the embedded peer.Peer.NA() method to provide the
+// address manager representation directly, eliminating the need for explicit
+// conversion at call sites.
+//
+// This function is safe for concurrent access.
+func (sp *serverPeer) NA() *addrmgr.NetAddress {
+	wireNA := sp.Peer.NA()
+	if wireNA == nil {
+		return nil
+	}
+
+	return &addrmgr.NetAddress{
+		Type:      wireToAddrmgrNetAddressType(wireNA.Type),
+		IP:        wireNA.IP,
+		Port:      wireNA.Port,
+		Timestamp: wireNA.Timestamp,
+		Services:  wireNA.Services,
+	}
+}
+
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
@@ -1091,7 +1131,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// it is updated regardless in the case a new minimum protocol version is
 	// enforced and the remote node has not upgraded yet.
 	isInbound := sp.Inbound()
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	remoteAddr := sp.NA()
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
 		err := addrManager.SetServices(remoteAddr, msg.Services)
@@ -1804,7 +1844,7 @@ func (sp *serverPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 	// Add addresses to server address manager.  The address manager handles
 	// the details of things such as preventing duplicate addresses, max
 	// addresses, and last seen updates.
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	remoteAddr := sp.NA()
 	sp.server.addrManager.AddAddresses(addrList, remoteAddr)
 }
 
@@ -2334,12 +2374,13 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnNotFound:        sp.OnNotFound,
 		},
 		NewestBlock: sp.newestBlock,
-		HostToNetAddress: func(host string, port uint16, services wire.ServiceFlag) (*wire.NetAddress, error) {
+		HostToNetAddress: func(host string, port uint16, services wire.ServiceFlag) (*wire.NetAddressV2, error) {
 			address, err := hostToNetAddress(host, port, services, dcrdLookup)
 			if err != nil {
 				return nil, err
 			}
-			return addrmgrToWireNetAddress(address), nil
+			na := addrmgrToWireNetAddressV2(address)
+			return &na, nil
 		},
 		Proxy:             cfg.Proxy,
 		UserAgentName:     userAgentName,
@@ -2440,6 +2481,20 @@ out:
 	srvrLog.Tracef("Peer handler done")
 }
 
+// connectionsWithIP returns the number of connections with the given IP.
+//
+// This function MUST be called with the embedded mutex locked (for reads).
+func (ps *peerState) connectionsWithIP(ip net.IP) int {
+	var total int
+	ps.forAllPeers(func(sp *serverPeer) {
+		if ip.Equal(sp.NA().IP) {
+			total++
+		}
+
+	})
+	return total
+}
+
 // handleAddPeer deals with adding new peers and includes logic such as
 // categorizing the type of peer, limiting the maximum allowed number of peers,
 // and local external address resolution.
@@ -2462,7 +2517,7 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	// Limit max number of connections from a single IP.  However, allow
 	// whitelisted inbound peers and localhost connections regardless.
 	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := sp.NA().IP
+	peerIP := net.IP(sp.NA().IP)
 	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
 		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
 
@@ -2507,7 +2562,7 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	}
 
 	// The peer is an outbound peer at this point.
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	remoteAddr := sp.NA()
 	state.outboundGroups[remoteAddr.GroupKey()]++
 	if sp.persistent {
 		state.persistentPeers[sp.ID()] = sp
@@ -2614,7 +2669,7 @@ func (s *server) DonePeer(sp *serverPeer) {
 	}
 	if _, ok := list[sp.ID()]; ok {
 		if !sp.Inbound() && sp.VersionKnown() {
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			remoteAddr := sp.NA()
 			state.outboundGroups[remoteAddr.GroupKey()]--
 		}
 		if !sp.Inbound() {
@@ -2641,7 +2696,7 @@ func (s *server) DonePeer(sp *serverPeer) {
 	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() &&
 		sp.NA() != nil {
 
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		remoteAddr := sp.NA()
 		err := s.addrManager.Connected(remoteAddr)
 		if err != nil {
 			srvrLog.Errorf("Marking address as connected failed: %v", err)
