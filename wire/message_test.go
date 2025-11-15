@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -59,6 +59,9 @@ func TestMessage(t *testing.T) {
 	msgVerack := NewMsgVerAck()
 	msgGetAddr := NewMsgGetAddr()
 	msgAddr := NewMsgAddr()
+	msgAddrV2 := NewMsgAddrV2()
+	msgAddrV2.AddAddress(NewNetAddressV2IPPort(net.ParseIP("127.0.0.1").To4(),
+		8333, SFNodeNetwork))
 	msgGetBlocks := NewMsgGetBlocks(&chainhash.Hash{})
 	msgBlock := &testBlock
 	msgInv := NewMsgInv()
@@ -101,7 +104,8 @@ func TestMessage(t *testing.T) {
 		{msgVersion, msgVersion, pver, MainNet, 125},
 		{msgVerack, msgVerack, pver, MainNet, 24},
 		{msgGetAddr, msgGetAddr, pver, MainNet, 24},
-		{msgAddr, msgAddr, pver, MainNet, 25},
+		{msgAddr, msgAddr, AddrV2Version - 1, MainNet, 25},
+		{msgAddrV2, msgAddrV2, pver, MainNet, 48},
 		{msgGetBlocks, msgGetBlocks, pver, MainNet, 61},
 		{msgBlock, msgBlock, pver, MainNet, 522},
 		{msgInv, msgInv, pver, MainNet, 25},
@@ -334,7 +338,7 @@ func TestReadMessageWireErrors(t *testing.T) {
 		// Message with a valid header, but wrong format. [8]
 		{
 			badMessageBytes,
-			pver,
+			AddrV2Version - 1,
 			dcrnet,
 			len(badMessageBytes),
 			&MessageError{},
