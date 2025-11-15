@@ -120,6 +120,18 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		}
 		na.IP = ip[:]
 
+	case TORv3Address:
+		if addrLen != 32 {
+			msg := fmt.Sprintf("invalid TORv3 address length: %d", addrLen)
+			return messageError(op, ErrInvalidMsg, msg)
+		}
+		var ip [32]byte
+		err := readElement(r, &ip)
+		if err != nil {
+			return err
+		}
+		na.IP = ip[:]
+
 	default:
 		// Read and discard the bytes of unknown address types.
 		// Also, leave the IP field nil as a signal to discard
@@ -192,6 +204,23 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 		var ip [16]byte
 		copy(ip[:], net.IP(netAddrIP).To16())
+		err = writeElement(w, ip)
+		if err != nil {
+			return err
+		}
+
+	case TORv3Address:
+		if len(netAddrIP) != 32 {
+			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(netAddrIP))
+			return messageError(op, ErrInvalidMsg, msg)
+		}
+		// Write the address length.
+		err = WriteVarInt(w, pver, 32)
+		if err != nil {
+			return err
+		}
+		var ip [32]byte
+		copy(ip[:], netAddrIP)
 		err = writeElement(w, ip)
 		if err != nil {
 			return err

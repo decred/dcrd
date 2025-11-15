@@ -1001,6 +1001,8 @@ func wireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddres
 		return addrmgr.IPv4Address
 	case wire.IPv6Address:
 		return addrmgr.IPv6Address
+	case wire.TORv3Address:
+		return addrmgr.TORv3Address
 	}
 	return addrmgr.UnknownAddressType
 }
@@ -1014,7 +1016,7 @@ func addrmgrToWireNetAddressType(addrType addrmgr.NetAddressType) wire.NetAddres
 	case addrmgr.IPv6Address:
 		return wire.IPv6Address
 	case addrmgr.TORv3Address:
-		return wire.UnknownAddressType
+		return wire.TORv3Address
 	}
 	return wire.UnknownAddressType
 }
