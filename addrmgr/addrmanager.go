@@ -6,12 +6,14 @@
 package addrmgr
 
 import (
+	"encoding/base32"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -107,14 +109,16 @@ type AddrManager struct {
 // addrTypeFilter specifies the wanted network address types for address
 // selection.
 type addrTypeFilter struct {
-	wantIPv4 bool
-	wantIPv6 bool
+	wantIPv4  bool
+	wantIPv6  bool
+	wantTORv3 bool
 }
 
 // bucketStats tracks the number of addresses by type within a single bucket.
 type bucketStats struct {
-	numIPv4 uint16
-	numIPv6 uint16
+	numIPv4  uint16
+	numIPv6  uint16
+	numTORv3 uint16
 }
 
 // serializedKnownAddress is used to represent the serializable state of a
@@ -246,6 +250,8 @@ func (bc *bucketStats) increment(addrType NetAddressType) {
 		bc.numIPv4++
 	case IPv6Address:
 		bc.numIPv6++
+	case TORv3Address:
+		bc.numTORv3++
 	}
 }
 
@@ -256,6 +262,8 @@ func (bc *bucketStats) decrement(addrType NetAddressType) {
 		bc.numIPv4--
 	case IPv6Address:
 		bc.numIPv6--
+	case TORv3Address:
+		bc.numTORv3--
 	}
 }
 
@@ -268,19 +276,24 @@ func (bc *bucketStats) total(filter addrTypeFilter) int {
 	if filter.wantIPv6 {
 		sum += int(bc.numIPv6)
 	}
+	if filter.wantTORv3 {
+		sum += int(bc.numTORv3)
+	}
 	return sum
 }
 
 // matches returns true if the bucket statistics have any addresses matching the filter.
 func (bc *bucketStats) matches(filter addrTypeFilter) bool {
 	return (filter.wantIPv4 && bc.numIPv4 > 0) ||
-		(filter.wantIPv6 && bc.numIPv6 > 0)
+		(filter.wantIPv6 && bc.numIPv6 > 0) ||
+		(filter.wantTORv3 && bc.numTORv3 > 0)
 }
 
 // matches returns true if the address type matches the filter criteria.
 func (f addrTypeFilter) matches(addrType NetAddressType) bool {
 	return (f.wantIPv4 && addrType == IPv4Address) ||
-		(f.wantIPv6 && addrType == IPv6Address)
+		(f.wantIPv6 && addrType == IPv6Address) ||
+		(f.wantTORv3 && addrType == TORv3Address)
 }
 
 // addOrUpdateAddress is a helper function to either update an address already known
@@ -817,6 +830,20 @@ func (a *AddrManager) reset() {
 // returns the result.  If the host string is not recognized as any known type,
 // then an unknown address type is returned without error.
 func EncodeHost(host string) (NetAddressType, []byte) {
+	// Check if this is a valid TORv3 address.
+	if len(host) == 62 && strings.HasSuffix(host, ".onion") {
+		// TORv3 addresses tend to be lowercase by convention, but
+		// Go's base32.StdEncoding.DecodeString expects uppercase
+		// input.  Convert to uppercase for successful decoding.
+		torAddressBytes, err := base32.StdEncoding.DecodeString(
+			strings.ToUpper(host[:56]))
+		if err == nil {
+			if pubkey, valid := isTORv3(torAddressBytes); valid {
+				return TORv3Address, pubkey[:]
+			}
+		}
+	}
+
 	// Look for IPv4 or IPv6 addresses
 	if ip := net.ParseIP(host); ip != nil {
 		if isIPv4(ip) {
@@ -844,11 +871,12 @@ func (a *AddrManager) GetAddress(filterFn NetAddressTypeFilter) *KnownAddress {
 	}
 
 	filter := addrTypeFilter{
-		wantIPv4: filterFn(IPv4Address),
-		wantIPv6: filterFn(IPv6Address),
+		wantIPv4:  filterFn(IPv4Address),
+		wantIPv6:  filterFn(IPv6Address),
+		wantTORv3: filterFn(TORv3Address),
 	}
 
-	if !filter.wantIPv4 && !filter.wantIPv6 {
+	if !filter.wantIPv4 && !filter.wantIPv6 && !filter.wantTORv3 {
 		return nil
 	}
 
@@ -1213,6 +1241,9 @@ const (
 
 	// Ipv6Strong represents a connection state between two IPv6 addresses.
 	Ipv6Strong
+
+	// Private represents a connection state between two TORv3 addresses.
+	Private
 )
 
 // getRemoteReachabilityFromLocal returns the type of connection reachability
@@ -1223,6 +1254,16 @@ func getRemoteReachabilityFromLocal(localAddr, remoteAddr *NetAddress) NetAddres
 	switch {
 	case !remoteAddr.IsRoutable():
 		return Unreachable
+
+	case remoteAddr.Type == TORv3Address:
+		switch {
+		case localAddr.Type == TORv3Address:
+			return Private
+		case localAddr.IsRoutable() && localAddr.Type == IPv4Address:
+			return Ipv4
+		default:
+			return Default
+		}
 
 	case isRFC4380(remoteAddr.IP):
 		switch {
@@ -1239,6 +1280,8 @@ func getRemoteReachabilityFromLocal(localAddr, remoteAddr *NetAddress) NetAddres
 	case remoteAddr.Type == IPv4Address:
 		switch {
 		case localAddr.IsRoutable() && localAddr.Type == IPv4Address:
+			return Ipv4
+		case localAddr.Type == TORv3Address:
 			return Ipv4
 		default:
 			return Unreachable

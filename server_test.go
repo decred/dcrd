@@ -9,6 +9,7 @@ import (
 	"net"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/addrmgr/v4"
 	"github.com/decred/dcrd/wire"
@@ -21,6 +22,7 @@ func TestHostToNetAddress(t *testing.T) {
 	// lookupFunc provided to the address manager instance for each test.
 	const hostnameForLookup = "hostname.test"
 	const services = wire.SFNodeNetwork
+	const torv3Host = "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion"
 
 	tests := []struct {
 		name       string
@@ -30,22 +32,19 @@ func TestHostToNetAddress(t *testing.T) {
 		wantErr    bool
 		want       *addrmgr.NetAddress
 	}{{
-		// 	name:       "valid onion address",
-		// 	host:       "a5ccbdkubbr2jlcp.onion",
-		// 	port:       8333,
-		// 	lookupFunc: nil,
-		// 	wantErr:    false,
-		// 	want: NewNetAddressFromIPPort(
-		// 		net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
-		// 		services),
-		// }, {
-		// 	name:       "invalid onion address",
-		// 	host:       "0000000000000000.onion",
-		// 	port:       8333,
-		// 	lookupFunc: nil,
-		// 	wantErr:    true,
-		// 	want:       nil,
-		// }, {
+		name:       "valid TORv3 address",
+		host:       torv3Host,
+		port:       9108,
+		lookupFunc: nil,
+		wantErr:    false,
+		want: func() *addrmgr.NetAddress {
+			addrType, addrBytes := addrmgr.EncodeHost(torv3Host)
+			now := time.Unix(time.Now().Unix(), 0)
+			na, _ := addrmgr.NewNetAddressFromParams(addrType, addrBytes,
+				9108, now, services)
+			return na
+		}(),
+	}, {
 		name: "unresolvable host name",
 		host: hostnameForLookup,
 		port: 8333,
