@@ -77,7 +77,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.AddrV2Version
+	maxProtocolVersion = wire.TORv3Version
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
@@ -967,6 +967,8 @@ func wireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddres
 		return addrmgr.IPv4Address
 	case wire.IPv6Address:
 		return addrmgr.IPv6Address
+	case wire.TORv3Address:
+		return addrmgr.TORv3Address
 	}
 	return addrmgr.UnknownAddressType
 }
@@ -979,6 +981,8 @@ func addrmgrToWireNetAddressType(addrType addrmgr.NetAddressType) wire.NetAddres
 		return wire.IPv4Address
 	case addrmgr.IPv6Address:
 		return wire.IPv6Address
+	case addrmgr.TORv3Address:
+		return wire.TORv3Address
 	}
 	return wire.UnknownAddressType
 }
@@ -1106,10 +1110,24 @@ func isSupportedNetAddrTypeV1(addrType addrmgr.NetAddressType) bool {
 	return addrType == addrmgr.IPv4Address || addrType == addrmgr.IPv6Address
 }
 
+// isSupportedNetAddressTypeV2 returns whether the provided address manager
+// network address type is supported by the addrv2 wire message.
+func isSupportedNetAddressTypeV2(addrType addrmgr.NetAddressType) bool {
+	switch addrType {
+	case addrmgr.IPv4Address, addrmgr.IPv6Address, addrmgr.TORv3Address:
+		return true
+	}
+	return false
+}
+
 // natfSupported returns a filter for the address types supported by the
 // protocol version.
 func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
-	return isSupportedNetAddrTypeV1
+	switch {
+	case pver <= wire.AddrV2Version:
+		return isSupportedNetAddrTypeV1
+	}
+	return isSupportedNetAddressTypeV2
 }
 
 // pushAddrV2Msg sends an addrv2 message to the connected peer using the
@@ -4395,6 +4413,9 @@ func newServer(ctx context.Context, profiler *profileServer,
 			switch addrType {
 			case addrmgr.IPv4Address, addrmgr.IPv6Address:
 				return true
+			case addrmgr.TORv3Address:
+				// Require .onion reachability.
+				return !cfg.NoOnion && (cfg.Proxy != "" || cfg.OnionProxy != "")
 			}
 			return false
 		}
@@ -4641,11 +4662,22 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 
 // addrStringToNetAddr takes an address in the form of 'host:port' and returns
 // a net.Addr which maps to the original address with any host names resolved
-// to IP addresses.
+// to IP addresses, if applicable for the respective address type.
 func addrStringToNetAddr(addr string) (net.Addr, error) {
 	host, strPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Determine the network that the address belongs to and return early if
+	// a DNS lookup should not be performed for the address.
+	addrType, _ := addrmgr.EncodeHost(host)
+	switch addrType {
+	case addrmgr.TORv3Address:
+		return &simpleAddr{
+			net:  "tcp",
+			addr: addr,
+		}, nil
 	}
 
 	// Attempt to look up an IP address associated with the parsed host.
