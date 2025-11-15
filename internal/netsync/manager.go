@@ -24,7 +24,7 @@ import (
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/mixpool"
-	peerpkg "github.com/decred/dcrd/peer/v3"
+	peerpkg "github.com/decred/dcrd/peer/v4"
 	"github.com/decred/dcrd/wire"
 )
 
