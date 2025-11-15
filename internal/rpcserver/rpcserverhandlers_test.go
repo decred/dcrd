@@ -45,7 +45,7 @@ import (
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/mixpool"
-	"github.com/decred/dcrd/peer/v3"
+	"github.com/decred/dcrd/peer/v4"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"

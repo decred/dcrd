@@ -23,7 +23,7 @@ import (
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/mixing/mixpool"
-	"github.com/decred/dcrd/peer/v3"
+	"github.com/decred/dcrd/peer/v4"
 	"github.com/decred/dcrd/wire"
 )
 
