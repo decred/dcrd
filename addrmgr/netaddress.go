@@ -1,13 +1,15 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2021-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package addrmgr
 
 import (
+	"encoding/base32"
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/decred/dcrd/wire"
@@ -36,6 +38,9 @@ type NetAddress struct {
 // IsRoutable returns a boolean indicating whether the network address is
 // routable.
 func (netAddr *NetAddress) IsRoutable() bool {
+	if netAddr.Type == TORv3Address {
+		return true
+	}
 	return IsRoutable(netAddr.IP)
 }
 
@@ -48,6 +53,15 @@ func (netAddr *NetAddress) ipString() string {
 		return net.IP(netIP).String()
 	case IPv4Address:
 		return net.IP(netIP).String()
+	case TORv3Address:
+		var publicKey [32]byte
+		copy(publicKey[:], netIP)
+		checksum := calcTORv3Checksum(publicKey)
+		var torAddressBytes [35]byte
+		copy(torAddressBytes[:32], publicKey[:])
+		copy(torAddressBytes[32:34], checksum[:])
+		torAddressBytes[34] = torV3VersionByte
+		return strings.ToLower(base32.StdEncoding.EncodeToString(torAddressBytes[:])) + ".onion"
 	}
 
 	// If the netAddr.Type is not recognized in the switch:
@@ -83,13 +97,16 @@ func (netAddr *NetAddress) AddService(service wire.ServiceFlag) {
 
 // deriveNetAddressType attempts to determine the network address type from the
 // address' raw bytes.  If the type cannot be determined, an error is returned.
-func deriveNetAddressType(addrBytes []byte) (NetAddressType, error) {
+// The claimedType parameter provides a hint for ambiguous byte lengths.
+func deriveNetAddressType(claimedType NetAddressType, addrBytes []byte) (NetAddressType, error) {
 	len := len(addrBytes)
 	switch {
 	case isIPv4(addrBytes):
 		return IPv4Address, nil
 	case len == 16:
 		return IPv6Address, nil
+	case len == 32 && claimedType == TORv3Address:
+		return TORv3Address, nil
 	}
 	str := fmt.Sprintf("unable to determine address type from raw network "+
 		"address bytes: %v", addrBytes)
@@ -115,7 +132,7 @@ func canonicalizeIP(addrType NetAddressType, addrBytes []byte) []byte {
 // checkNetAddressType returns an error if the suggested address type does not
 // appear to match the provided address.
 func checkNetAddressType(addrType NetAddressType, addrBytes []byte) error {
-	derivedAddressType, err := deriveNetAddressType(addrBytes)
+	derivedAddressType, err := deriveNetAddressType(addrType, addrBytes)
 	if err != nil {
 		return err
 	}
@@ -131,14 +148,14 @@ func checkNetAddressType(addrType NetAddressType, addrBytes []byte) error {
 // NewNetAddressFromParams creates a new network address from the given
 // parameters. If the provided address type does not appear to match the
 // address, an error is returned.
-func NewNetAddressFromParams(netAddressType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services wire.ServiceFlag) (*NetAddress, error) {
-	canonicalizedIP := canonicalizeIP(netAddressType, addrBytes)
-	err := checkNetAddressType(netAddressType, canonicalizedIP)
+func NewNetAddressFromParams(addrType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services wire.ServiceFlag) (*NetAddress, error) {
+	canonicalizedIP := canonicalizeIP(addrType, addrBytes)
+	err := checkNetAddressType(addrType, canonicalizedIP)
 	if err != nil {
 		return nil, err
 	}
 	return &NetAddress{
-		Type:      netAddressType,
+		Type:      addrType,
 		IP:        canonicalizedIP,
 		Port:      port,
 		Services:  services,
@@ -173,7 +190,7 @@ func (a *AddrManager) newNetAddressFromString(addr string) (*NetAddress, error) 
 // the derived network address type.  Furthermore, other types of network
 // addresses (like Tor) will not be recognized.
 func NewNetAddressFromIPPort(ip net.IP, port uint16, services wire.ServiceFlag) *NetAddress {
-	netAddressType, _ := deriveNetAddressType(ip)
+	netAddressType, _ := deriveNetAddressType(UnknownAddressType, ip)
 	timestamp := time.Unix(time.Now().Unix(), 0)
 	canonicalizedIP := canonicalizeIP(netAddressType, ip)
 	return &NetAddress{
