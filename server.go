@@ -4369,12 +4369,13 @@ func newServer(ctx context.Context, profiler *profileServer,
 	// network.
 	var newAddressFunc func() (net.Addr, error)
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
+		// Accept all address types.
+		filter := func(addrType addrmgr.NetAddressType) bool {
+			return true
+		}
 		newAddressFunc = func() (net.Addr, error) {
 			for tries := 0; tries < 100; tries++ {
-				// Note that this does not filter by address type.  Unsupported
-				// network address types should be pruned from the address
-				// manager's internal storage prior to calling this function.
-				addr := s.addrManager.GetAddress()
+				addr := s.addrManager.GetAddress(filter)
 				if addr == nil {
 					break
 				}
