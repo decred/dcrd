@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ package wire
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -855,40 +854,6 @@ func TestVarBytesOverflowErrors(t *testing.T) {
 			t.Errorf("ReadVarBytes #%d wrong error got: %v, "+
 				"want: %v", i, err, reflect.TypeOf(test.err))
 			continue
-		}
-	}
-}
-
-// TestRandomUint64 exercises the randomness of the random number generator on
-// the system by ensuring the probability of the generated numbers.  If the RNG
-// is evenly distributed as a proper cryptographic RNG should be, there really
-// should only be 1 number < 2^56 in 2^8 tries for a 64-bit number.  However,
-// use a higher number of 5 to really ensure the test doesn't fail unless the
-// RNG is just horrendous.
-func TestRandomUint64(t *testing.T) {
-	tries := 1 << 8              // 2^8
-	watermark := uint64(1 << 56) // 2^56
-	maxHits := 5
-	badRNG := "The random number generator on this system is clearly " +
-		"terrible since we got %d values less than %d in %d runs " +
-		"when only %d was expected"
-
-	numHits := 0
-	for i := 0; i < tries; i++ {
-		nonce, err := RandomUint64()
-		if err != nil {
-			t.Errorf("RandomUint64 iteration %d failed - err %v",
-				i, err)
-			return
-		}
-		if nonce < watermark {
-			numHits++
-		}
-		if numHits > maxHits {
-			str := fmt.Sprintf(badRNG, numHits, watermark, tries, maxHits)
-			t.Errorf("Random Uint64 iteration %d failed - %v %v", i,
-				str, numHits)
-			return
 		}
 	}
 }
