@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/decred/dcrd/addrmgr/v3"
+	"github.com/decred/dcrd/addrmgr/v4"
 	"github.com/decred/dcrd/wire"
 )
 
