@@ -179,7 +179,7 @@ func (cm *rpcConnManager) removeNode(cmp func(*serverPeer) bool) error {
 	found := disconnectPeer(state.persistentPeers, cmp, func(sp *serverPeer) {
 		// Update the group counts since the peer will be removed from the
 		// persistent peers just after this func returns.
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		remoteAddr := sp.NA()
 		state.outboundGroups[remoteAddr.GroupKey()]--
 
 		connReq := sp.connReq.Load()
@@ -255,7 +255,7 @@ func (cm *rpcConnManager) disconnectNode(cmp func(sp *serverPeer) bool) error {
 		found = disconnectPeer(state.outboundPeers, cmp, func(sp *serverPeer) {
 			// Update the group counts since the peer will be removed from the
 			// persistent peers just after this func returns.
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			remoteAddr := sp.NA()
 			state.outboundGroups[remoteAddr.GroupKey()]--
 		})
 		if !found {
