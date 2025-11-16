@@ -30,7 +30,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.BatchedCFiltersV2Version
+	MaxProtocolVersion = wire.AddrV2Version
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -107,6 +107,9 @@ type MessageListeners struct {
 
 	// OnAddr is invoked when a peer receives an addr wire message.
 	OnAddr func(p *Peer, msg *wire.MsgAddr)
+
+	// OnAddrV2 is invoked when a peer receives an addrv2 wire message.
+	OnAddrV2 func(p *Peer, msg *wire.MsgAddrV2)
 
 	// OnPing is invoked when a peer receives a ping wire message.
 	OnPing func(p *Peer, msg *wire.MsgPing)
@@ -870,6 +873,38 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 	return msg.AddrList, nil
 }
 
+// PushAddrV2Msg sends an addrv2 message to the connected peer using the
+// provided addresses.  This function is useful over manually sending the
+// message via QueueMessage since it automatically limits the addresses to the
+// maximum number allowed by the message and randomizes the chosen addresses
+// when there are too many.  It returns the addresses that were actually sent
+// and no message will be sent if there are no entries in the provided addresses
+// slice.
+//
+// This function is safe for concurrent access.
+func (p *Peer) PushAddrV2Msg(addresses []wire.NetAddressV2) []wire.NetAddressV2 {
+	// Nothing to send.
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	// Copy the addresses to avoid mutating the caller's slice.
+	addrs := make([]wire.NetAddressV2, len(addresses))
+	copy(addrs, addresses)
+
+	// Randomize the addresses sent if there are more than the maximum allowed.
+	if len(addrs) > wire.MaxAddrPerV2Msg {
+		rand.ShuffleSlice(addrs)
+		addrs = addrs[:wire.MaxAddrPerV2Msg]
+	}
+
+	msg := wire.NewMsgAddrV2()
+	msg.AddrList = addrs
+
+	p.QueueMessage(msg, nil)
+	return addrs
+}
+
 // PushGetBlocksMsg sends a getblocks message for the provided block locator
 // and stop hash.  It will ignore back-to-back duplicate requests.
 //
@@ -1403,6 +1438,11 @@ out:
 		case *wire.MsgAddr:
 			if p.cfg.Listeners.OnAddr != nil {
 				p.cfg.Listeners.OnAddr(p, msg)
+			}
+
+		case *wire.MsgAddrV2:
+			if p.cfg.Listeners.OnAddrV2 != nil {
+				p.cfg.Listeners.OnAddrV2(p, msg)
 			}
 
 		case *wire.MsgPing:

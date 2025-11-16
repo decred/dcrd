@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2024 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -135,6 +135,9 @@ func messageSummary(msg wire.Message) string {
 
 	case *wire.MsgAddr:
 		return fmt.Sprintf("%d addr", len(msg.AddrList))
+
+	case *wire.MsgAddrV2:
+		return fmt.Sprintf("%d addrv2", len(msg.AddrList))
 
 	case *wire.MsgPing:
 		// No summary - perhaps add nonce.
