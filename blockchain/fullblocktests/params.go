@@ -70,6 +70,11 @@ const (
 	// block reward subsidy split to 1% PoW, 89% PoS, and 10% Treasury as
 	// defined in DCP0012.
 	voteIDChangeSubsidySplitR2 = "changesubsidysplitr2"
+
+	// voteIDMaxTreasurySpend is the vote ID for the agenda that changes the
+	// maximum expenditure policy of the treasury account to be limited to 4% of
+	// the total available treasury per month as defined in DCP0013.
+	voteIDMaxTreasurySpend = "maxtreasuryspend"
 )
 
 // newHashFromStr converts the passed big-endian hex string into a
@@ -530,6 +535,34 @@ var regNetParams = &chaincfg.Params{
 					Id:          "yes",
 					Description: "change to the new consensus rules",
 					Bits:        0x0040, // Bit 6
+					IsAbstain:   false,
+					IsNo:        false,
+				}},
+			},
+			StartTime:  0,             // Always available for vote
+			ExpireTime: math.MaxInt64, // Never expires
+		}},
+		12: {{
+			Vote: chaincfg.Vote{
+				Id:          voteIDMaxTreasurySpend,
+				Description: "Change maximum treasury expenditure policy as defined in DCP0013",
+				Mask:        0x0006, // Bits 1 and 2
+				Choices: []chaincfg.Choice{{
+					Id:          "abstain",
+					Description: "abstain voting for change",
+					Bits:        0x0000,
+					IsAbstain:   true,
+					IsNo:        false,
+				}, {
+					Id:          "no",
+					Description: "keep the existing consensus rules",
+					Bits:        0x0002, // Bit 1
+					IsAbstain:   false,
+					IsNo:        true,
+				}, {
+					Id:          "yes",
+					Description: "change to the new consensus rules",
+					Bits:        0x0004, // Bit 2
 					IsAbstain:   false,
 					IsNo:        false,
 				}},
