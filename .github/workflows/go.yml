@@ -8,7 +8,7 @@ jobs:
     name: Resolve Go modules
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      module_dirs: ${{ steps.set-matrix.outputs.module_dirs }}
     steps:
       - name: Check out source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -16,7 +16,7 @@ jobs:
         run: |
           echo "Resolving modules in $(pwd)" && \
           MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '{"workdir":"%h"},') && \
-          echo "matrix={\"include\":[${MODPATHS%,}]}" >> $GITHUB_OUTPUT
+          echo "module_dirs={\"include\":[${MODPATHS%,}]}" >> $GITHUB_OUTPUT
   build:
     name: Go CI
     runs-on: ubuntu-latest
@@ -43,7 +43,7 @@ jobs:
     needs: resolve-modules
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.resolve-modules.outputs.matrix ) }}
+      matrix: ${{ fromJson(needs.resolve-modules.outputs.module_dirs ) }}
     steps:
       - name: Check out source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
