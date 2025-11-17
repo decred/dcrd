@@ -8,11 +8,11 @@ jobs:
     name: Resolve Go modules
     runs-on: ubuntu-latest
     outputs:
-      module_dirs: ${{ steps.set-matrix.outputs.module_dirs }}
+      module_dirs: ${{ steps.resolve_module_dirs.outputs.module_dirs }}
     steps:
       - name: Check out source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - id: set-matrix
+      - id: resolve_module_dirs
         run: |
           echo "Resolving modules in $(pwd)" && \
           MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '{"workdir":"%h"},') && \
