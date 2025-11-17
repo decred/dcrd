@@ -16,7 +16,7 @@ jobs:
         id: resolve_module_dirs
         run: |
           echo "Resolving modules in $(pwd)" && \
-          MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '"%h",') && \
+          MODPATHS=$(find . -type f -name go.mod -printf '"%h",') && \
           echo "module_dirs=[${MODPATHS%,}]" >> $GITHUB_OUTPUT
   build:
     name: Go CI
