@@ -9,7 +9,7 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0
 	github.com/decred/dcrd/crypto/rand v1.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.1
-	github.com/decred/dcrd/wire v1.8.0
+	github.com/decred/dcrd/wire v1.9.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 )
