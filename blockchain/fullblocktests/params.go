@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2023 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,63 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/wire"
+)
+
+const (
+	// voteIDMaxBlockSize is the vote ID for the maximum block size
+	// increase agenda used for the hard fork demo.
+	voteIDMaxBlockSize = "maxblocksize"
+
+	// voteIDSDiffAlgorithm is the vote ID for the new stake difficulty
+	// algorithm (aka ticket price) agenda defined by DCP0001.
+	voteIDSDiffAlgorithm = "sdiffalgorithm"
+
+	// voteIDLNFeatures is the vote ID for the agenda that introduces
+	// features useful for the Lightning Network (among other uses) defined
+	// by DCP0002 and DCP0003.
+	voteIDLNFeatures = "lnfeatures"
+
+	// voteIDFixLNSeqLocks is the vote ID for the agenda that corrects the
+	// sequence lock functionality needed for Lightning Network (among other
+	// uses) defined by DCP0004.
+	voteIDFixLNSeqLocks = "fixlnseqlocks"
+
+	// voteIDHeaderCommitments is the vote ID for the agenda that repurposes
+	// the stake root header field to support header commitments and provides
+	// an initial commitment to version 2 GCS filters defined by DCP0005.
+	voteIDHeaderCommitments = "headercommitments"
+
+	// voteIDTreasury is the vote ID for the agenda that enables the
+	// decentralized treasury opcodes defined by DCP0006.
+	voteIDTreasury = "treasury"
+
+	// voteIDRevertTreasuryPolicy is the vote ID for the agenda that
+	// reverts the maximum expenditure policy of the treasury account as
+	// defined by DCP0007.
+	voteIDRevertTreasuryPolicy = "reverttreasurypolicy"
+
+	// voteIDExplicitVersionUpgrades is the vote ID for the agenda that enables
+	// rejection of new transaction and script versions until they are
+	// explicitly enabled via a consensus vote as defined by DCP0008.
+	voteIDExplicitVersionUpgrades = "explicitverupgrades"
+
+	// voteIDAutoRevocations is the vote ID for the agenda that enables automatic
+	// ticket revocations as defined in DCP0009.
+	voteIDAutoRevocations = "autorevocations"
+
+	// voteIDChangeSubsidySplit is the vote ID for the agenda that changes the
+	// block reward subsidy split to 10% PoW, 80% PoS, and 10% Treasury as
+	// defined in DCP0010.
+	voteIDChangeSubsidySplit = "changesubsidysplit"
+
+	// voteIDBlake3Pow is the vote ID for the agenda that changes the proof of
+	// work hashing algorithm to BLAKE3 as defined in DCP0011.
+	voteIDBlake3Pow = "blake3pow"
+
+	// voteIDChangeSubsidySplitR2 is the vote ID for the agenda that changes the
+	// block reward subsidy split to 1% PoW, 89% PoS, and 10% Treasury as
+	// defined in DCP0012.
+	voteIDChangeSubsidySplitR2 = "changesubsidysplitr2"
 )
 
 // newHashFromStr converts the passed big-endian hex string into a
@@ -150,7 +207,7 @@ var regNetParams = &chaincfg.Params{
 	Deployments: map[uint32][]chaincfg.ConsensusDeployment{
 		4: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDMaxBlockSize,
+				Id:          voteIDMaxBlockSize,
 				Description: "Change maximum allowed block size from 1MiB to 1.25MB",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -178,7 +235,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		5: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDSDiffAlgorithm,
+				Id:          voteIDSDiffAlgorithm,
 				Description: "Change stake difficulty algorithm as defined in DCP0001",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -206,7 +263,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		6: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDLNFeatures,
+				Id:          voteIDLNFeatures,
 				Description: "Enable features defined in DCP0002 and DCP0003 necessary to support Lightning Network (LN)",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -234,7 +291,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		7: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDFixLNSeqLocks,
+				Id:          voteIDFixLNSeqLocks,
 				Description: "Modify sequence lock handling as defined in DCP0004",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -262,7 +319,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		8: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDHeaderCommitments,
+				Id:          voteIDHeaderCommitments,
 				Description: "Enable header commitments as defined in DCP0005",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -290,7 +347,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		9: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDTreasury,
+				Id:          voteIDTreasury,
 				Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -318,7 +375,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		10: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDRevertTreasuryPolicy,
+				Id:          voteIDRevertTreasuryPolicy,
 				Description: "Change maximum treasury expenditure policy as defined in DCP0007",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -345,7 +402,7 @@ var regNetParams = &chaincfg.Params{
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDExplicitVersionUpgrades,
+				Id:          voteIDExplicitVersionUpgrades,
 				Description: "Enable explicit version upgrades as defined in DCP0008",
 				Mask:        0x0018, // Bits 3 and 4
 				Choices: []chaincfg.Choice{{
@@ -372,7 +429,7 @@ var regNetParams = &chaincfg.Params{
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDAutoRevocations,
+				Id:          voteIDAutoRevocations,
 				Description: "Enable automatic ticket revocations as defined in DCP0009",
 				Mask:        0x0060, // Bits 5 and 6
 				Choices: []chaincfg.Choice{{
@@ -399,7 +456,7 @@ var regNetParams = &chaincfg.Params{
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDChangeSubsidySplit,
+				Id:          voteIDChangeSubsidySplit,
 				Description: "Change block reward subsidy split to 10/80/10 as defined in DCP0010",
 				Mask:        0x0180, // Bits 7 and 8
 				Choices: []chaincfg.Choice{{
@@ -427,7 +484,7 @@ var regNetParams = &chaincfg.Params{
 		}},
 		11: {{
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDBlake3Pow,
+				Id:          voteIDBlake3Pow,
 				Description: "Change proof of work hashing algorithm to BLAKE3 as defined in DCP0011",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
@@ -454,7 +511,7 @@ var regNetParams = &chaincfg.Params{
 			ExpireTime: math.MaxInt64, // Never expires
 		}, {
 			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDChangeSubsidySplitR2,
+				Id:          voteIDChangeSubsidySplitR2,
 				Description: "Change block reward subsidy split to 1/89/10 as defined in DCP0012",
 				Mask:        0x0060, // Bits 5 and 6
 				Choices: []chaincfg.Choice{{
