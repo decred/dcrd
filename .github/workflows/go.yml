@@ -15,8 +15,8 @@ jobs:
       - id: resolve_module_dirs
         run: |
           echo "Resolving modules in $(pwd)" && \
-          MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '{"workdir":"%h"},') && \
-          echo "module_dirs={\"include\":[${MODPATHS%,}]}" >> $GITHUB_OUTPUT
+          MODPATHS=$(find . -mindepth 2 -type f -name go.mod -printf '"%h",') && \
+          echo "module_dirs=[${MODPATHS%,}]" >> $GITHUB_OUTPUT
   build:
     name: Go CI
     runs-on: ubuntu-latest
@@ -43,7 +43,8 @@ jobs:
     needs: resolve-modules
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.resolve-modules.outputs.module_dirs ) }}
+      matrix:
+        module_dirs: ${{ fromJson(needs.resolve-modules.outputs.module_dirs ) }}
     steps:
       - name: Check out source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -56,4 +57,4 @@ jobs:
         with:
           install-mode: "goinstall"
           version: e3b3bac5dd24906c205db9224fde52efd4d238cf # v2.6.1
-          working-directory: ${{ matrix.workdir }}
+          working-directory: ${{ matrix.module_dirs }}
