@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 12
+	ProtocolVersion uint32 = 13
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -61,6 +61,10 @@ const (
 
 	// AddrV2Version is the protocol version which adds the addrv2 message.
 	AddrV2Version uint32 = 12
+
+	// TORv3Version is the protocol version which adds support for TORv3
+	// network addresses to the addrv2 message.
+	TORv3Version uint32 = 13
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

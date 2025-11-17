@@ -97,6 +97,19 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		}
 		na.IP = ip[:]
 
+	case TORv3Address:
+		if pver < TORv3Version {
+			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
+				"or higher", TORv3Version)
+			return messageError(op, ErrMsgInvalidForPVer, msg)
+		}
+		var ip [32]byte
+		err := readElement(r, &ip)
+		if err != nil {
+			return err
+		}
+		na.IP = ip[:]
+
 	default:
 		msg := fmt.Sprintf("cannot decode unknown network address type %v",
 			na.Type)
@@ -147,6 +160,23 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 		var ip [16]byte
 		copy(ip[:], net.IP(netAddrIP).To16())
+		err = writeElement(w, ip)
+		if err != nil {
+			return err
+		}
+
+	case TORv3Address:
+		if pver < TORv3Version {
+			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
+				"or higher", TORv3Version)
+			return messageError(op, ErrMsgInvalidForPVer, msg)
+		}
+		if len(netAddrIP) != 32 {
+			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(netAddrIP))
+			return messageError(op, ErrInvalidMsg, msg)
+		}
+		var ip [32]byte
+		copy(ip[:], netAddrIP)
 		err = writeElement(w, ip)
 		if err != nil {
 			return err
@@ -248,14 +278,19 @@ func (msg *MsgAddrV2) Command() string {
 
 // maxNetAddressPayloadV2 returns the max payload size for an address manager
 // network address based on the protocol version.
-func maxNetAddressPayloadV2() uint32 {
+func maxNetAddressPayloadV2(pver uint32) uint32 {
 	const (
 		timestampSize   = 8
 		servicesSize    = 8
 		addressTypeSize = 1
 		portSize        = 2
-		maxAddressSize  = 16 // IPv6 is 16 bytes
 	)
+
+	maxAddressSize := uint32(16) // IPv6 is 16 bytes
+	if pver >= TORv3Version {
+		maxAddressSize = 32
+	}
+
 	return timestampSize + servicesSize + addressTypeSize +
 		maxAddressSize + portSize
 }
@@ -267,7 +302,7 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 		return 0
 	}
 	return uint32(VarIntSerializeSize(MaxAddrPerV2Msg)) +
-		(MaxAddrPerV2Msg * maxNetAddressPayloadV2())
+		(MaxAddrPerV2Msg * maxNetAddressPayloadV2(pver))
 }
 
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the
