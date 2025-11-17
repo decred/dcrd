@@ -30,9 +30,16 @@ var (
 		0x26, 0x20, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 	}
+	torV3IpBytes = []byte{
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2,
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80,
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce,
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93,
+	}
 
-	ipv4NetAddress = newNetAddressV2(IPv4Address, ipv4IpBytes, 8333)
-	ipv6NetAddress = newNetAddressV2(IPv6Address, ipv6IpBytes, 8333)
+	ipv4NetAddress  = newNetAddressV2(IPv4Address, ipv4IpBytes, 8333)
+	ipv6NetAddress  = newNetAddressV2(IPv6Address, ipv6IpBytes, 8333)
+	torv3NetAddress = newNetAddressV2(TORv3Address, torV3IpBytes, 8333)
 
 	serializedIPv4NetAddressBytes = []byte{
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00, // Timestamp
@@ -56,6 +63,16 @@ var (
 		0x7f, 0x00, 0x00, 0x01, // IP
 		0x8d, 0x20, // Port 8333 (little-endian)
 	}
+	serializedTORv3NetAddressBytes = []byte{
+		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x03,                                           // Type (TORv3)
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2, // IP
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80, // IP
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce, // IP
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93, // IP
+		0x8d, 0x20, // Port 8333 (little-endian)
+	}
 )
 
 // TestAddrV2MaxPayloadLength verifies the maximum payload length equals the
@@ -77,7 +94,7 @@ func TestAddrV2MaxPayloadLength(t *testing.T) {
 	}, {
 		name: "latest protocol version",
 		pver: ProtocolVersion,
-		want: 35003,
+		want: 51003,
 	}}
 
 	for _, test := range tests {
@@ -168,11 +185,13 @@ func TestAddrV2Wire(t *testing.T) {
 		addrs: []NetAddressV2{
 			ipv4NetAddress,
 			ipv6NetAddress,
+			torv3NetAddress,
 		},
 		wantBytes: bytes.Join([][]byte{
-			{0x02},
+			{0x03},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
+			serializedTORv3NetAddressBytes,
 		}, []byte{}),
 	}, {
 		name: "latest protocol version with maximum addresses",
@@ -288,23 +307,38 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		name: "message with valid types and unknown type",
 		pver: pver,
 		wireBytes: bytes.Join([][]byte{
-			{0x03},
+			{0x04},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
+			serializedTORv3NetAddressBytes,
 			serializedUnknownNetAddressBytes,
 		}, []byte{}),
 		wantAddrs: nil,
 		wantErr:   ErrUnknownNetAddrType,
 	}, {
+		name: "message with TORv3 address invalid on pver 12",
+		pver: AddrV2Version,
+		wireBytes: bytes.Join([][]byte{
+			{0x01},
+			serializedTORv3NetAddressBytes,
+		}, []byte{}),
+		wantAddrs: nil,
+		wantErr:   ErrMsgInvalidForPVer,
+	}, {
 		name: "message with multiple valid addresses",
 		pver: pver,
 		wireBytes: bytes.Join([][]byte{
-			{0x02},
+			{0x03},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
+			serializedTORv3NetAddressBytes,
 		}, []byte{}),
-		wantAddrs: []NetAddressV2{ipv4NetAddress, ipv6NetAddress},
-		wantErr:   nil,
+		wantAddrs: []NetAddressV2{
+			ipv4NetAddress,
+			ipv6NetAddress,
+			torv3NetAddress,
+		},
+		wantErr: nil,
 	}}
 
 	for _, test := range tests {
@@ -378,6 +412,28 @@ func TestAddrV2BtcEncode(t *testing.T) {
 			Port:      8333,
 		}},
 		wantErr: ErrInvalidMsg,
+	}, {
+		name: "message with wrong size TORv3 address",
+		pver: pver,
+		addrs: []NetAddressV2{{
+			Timestamp: time.Unix(0x495fab29, 0),
+			Services:  SFNodeNetwork,
+			Type:      TORv3Address,
+			IP:        make([]byte, 1),
+			Port:      8333,
+		}},
+		wantErr: ErrInvalidMsg,
+	}, {
+		name: "message with TORv3 address invalid on pver 12",
+		pver: AddrV2Version,
+		addrs: []NetAddressV2{{
+			Timestamp: time.Unix(0x495fab29, 0),
+			Services:  SFNodeNetwork,
+			Type:      TORv3Address,
+			IP:        torV3IpBytes,
+			Port:      8333,
+		}},
+		wantErr: ErrMsgInvalidForPVer,
 	}, {
 		name: "message with unknown address type",
 		pver: pver,
