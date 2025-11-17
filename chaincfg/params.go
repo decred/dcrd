@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -173,6 +173,11 @@ const (
 	// block reward subsidy split to 1% PoW, 89% PoS, and 10% Treasury as
 	// defined in DCP0012.
 	VoteIDChangeSubsidySplitR2 = "changesubsidysplitr2"
+
+	// VoteIDMaxTreasurySpend is the vote ID for the agenda that changes the
+	// maximum expenditure policy of the treasury account to be limited to 4% of
+	// the total available treasury per month as defined in DCP0013.
+	VoteIDMaxTreasurySpend = "maxtreasuryspend"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
@@ -599,15 +604,20 @@ type Params struct {
 	// that define a single "expenditure window".
 	TreasuryExpenditureWindow uint64
 
-	// TreasuryExpenditurePolicy is the number of previous
-	// TreasuryExpenditureWindows that defines how far back to calculate
-	// the average expenditure of the treasury for an expenditure policy
-	// check.
+	// TreasuryExpenditurePolicy defines the number of previous expenditure
+	// windows to use when calculating the average expenditure of the treasury
+	// for an expenditure policy check.
+	//
+	// NOTE: This only applies to the treasury expenditure policy introduced by
+	// DCP0006.  Later iterations of the policy do not make use of it.
 	TreasuryExpenditurePolicy uint64
 
 	// TreasuryExpenditureBootstrap is the value to use as previous average
-	// expenditure when there are no treasury spends inside the entire
-	// window defined by TreasuryExpenditurePolicy.
+	// expenditure when there are no treasury spends inside the entire window
+	// defined by TreasuryExpenditurePolicy.
+	//
+	// NOTE: This only applies to the treasury expenditure policy introduced by
+	// DCP0006.  Later iterations of the policy do not make use of it.
 	TreasuryExpenditureBootstrap uint64
 
 	// seeders defines a list of seeders for the network that are used
