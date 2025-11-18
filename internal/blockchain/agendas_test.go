@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023 The Decred developers
+// Copyright (c) 2017-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1295,4 +1295,112 @@ func testSubsidySplitR2Deployment(t *testing.T, params *chaincfg.Params) {
 func TestSubsidySplitR2Deployment(t *testing.T) {
 	testSubsidySplitR2Deployment(t, chaincfg.MainNetParams())
 	testSubsidySplitR2Deployment(t, chaincfg.RegNetParams())
+}
+
+// testMaxTreasurySpendDeployment ensures the deployment of the max treasury
+// spend agenda activates for the provided network parameters.
+func testMaxTreasurySpendDeployment(t *testing.T, params *chaincfg.Params) {
+	// Find the correct deployment for the max treasury spend agenda and ensure
+	// it is always available to vote by removing the time constraints to
+	// prevent test failures when the real expiration time passes.
+	const voteID = chaincfg.VoteIDMaxTreasurySpend
+	deploymentVer, deployment := findDeployment(t, params, voteID)
+	yesChoice := findDeploymentChoice(t, deployment, "yes")
+	removeDeploymentTimeConstraints(deployment)
+
+	// Shorter versions of params for convenience.
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+	ruleChangeActivationInterval := params.RuleChangeActivationInterval
+
+	tests := []struct {
+		name       string
+		numNodes   uint32 // num fake nodes to create
+		curActive  bool   // whether agenda active for current block
+		nextActive bool   // whether agenda active for NEXT block
+	}{{
+		name:       "stake validation height",
+		numNodes:   stakeValidationHeight,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "started",
+		numNodes:   ruleChangeActivationInterval,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "lockedin",
+		numNodes:   ruleChangeActivationInterval,
+		curActive:  false,
+		nextActive: false,
+	}, {
+		name:       "one before active",
+		numNodes:   ruleChangeActivationInterval - 1,
+		curActive:  false,
+		nextActive: true,
+	}, {
+		name:       "exactly active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}, {
+		name:       "one after active",
+		numNodes:   1,
+		curActive:  true,
+		nextActive: true,
+	}}
+
+	curTimestamp := time.Now()
+	bc := newFakeChain(params)
+	node := bc.bestChain.Tip()
+	for _, test := range tests {
+		for i := uint32(0); i < test.numNodes; i++ {
+			node = newFakeNode(node, int32(deploymentVer), deploymentVer, 0,
+				curTimestamp)
+
+			// Create fake votes that vote yes on the agenda to ensure it is
+			// activated.
+			for j := uint16(0); j < params.TicketsPerBlock; j++ {
+				node.votes = append(node.votes, stake.VoteVersionTuple{
+					Version: deploymentVer,
+					Bits:    yesChoice.Bits | 0x01,
+				})
+			}
+			bc.index.AddNode(node)
+			bc.bestChain.SetTip(node)
+			curTimestamp = curTimestamp.Add(time.Second)
+		}
+
+		// Ensure the agenda reports the expected activation status for the
+		// current block.
+		gotActive, err := bc.isMaxTreasurySpendAgendaActive(node.parent)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.curActive {
+			t.Errorf("%s: mismatched current active status - got: %v, want: %v",
+				test.name, gotActive, test.curActive)
+			continue
+		}
+
+		// Ensure the agenda reports the expected activation status for the NEXT
+		// block
+		gotActive, err = bc.IsMaxTreasurySpendAgendaActive(&node.hash)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.nextActive {
+			t.Errorf("%s: mismatched next active status - got: %v, want: %v",
+				test.name, gotActive, test.nextActive)
+			continue
+		}
+	}
+}
+
+// TestMaxTreasurySpendDeployment ensures the deployment of the max treasury
+// spend agenda activates as expected.
+func TestMaxTreasurySpendDeployment(t *testing.T) {
+	testMaxTreasurySpendDeployment(t, chaincfg.MainNetParams())
+	testMaxTreasurySpendDeployment(t, chaincfg.RegNetParams())
 }

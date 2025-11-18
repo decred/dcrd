@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1011,7 +1011,7 @@ func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, bloc
 func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, blockHash *chainhash.Hash, prevNode *blockNode) bool {
 	// Note that the latest block version for all networks other than the main
 	// network is one higher.
-	latestBlockVersion := int32(10)
+	latestBlockVersion := int32(11)
 	if b.chainParams.Net != wire.MainNet {
 		latestBlockVersion++
 	}
