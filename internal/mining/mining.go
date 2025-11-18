@@ -265,11 +265,11 @@ const (
 	// will require changes to the generated block.  Using the wire constant
 	// for generated block version could allow creation of invalid blocks
 	// for the updated version.
-	generatedBlockVersion = 10
+	generatedBlockVersion = 11
 
 	// generatedBlockVersionTest is the version of the block being generated
 	// for networks other than the main network.
-	generatedBlockVersionTest = 11
+	generatedBlockVersionTest = 12
 
 	// blockHeaderOverhead is the max number of bytes it takes to serialize
 	// a block header and max possible transaction count.

@@ -16,7 +16,7 @@ import (
 )
 
 // TestTSpendLegacyExpendituresPolicy performs tests against the treasury
-// policy expenditure rule that were originally activated with the treasury
+// expenditure policy rules that were originally activated with the treasury
 // agenda.  The following is the rough test plan:
 //
 //   - Mine and mature 4 treasury spends that spend the maximum allowed by the
@@ -805,4 +805,616 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 		t.Fatalf("unexpected max expenditure - got %d, want %d",
 			maxExpenditure, wantExpenditure)
 	}
+}
+
+// TestTSpendExpendituresPolicyDCP0013 ensures the maximum expenditure policy
+// defined in DCP0013 is enforced as intended.
+//
+// The test is split into two sections with each section split into two parts.
+// The two parts of each section ensure the policy is equally applied when
+// multiple treasury spends are included in the same block at the end of the
+// policy window as well as when multiple treasury spends are split up across
+// the policy window.  This distinction is important because the policy is based
+// on a percentage that excludes any other treasury spends that have already
+// happened in the window.  That proviso of the policy exists to avoid earlier
+// spends in the window artificially reducing the amount of later spends.  In
+// other words, it ensures that the same amount can be spent in a given window
+// regardless of how many individual treasury spend transactions there are and
+// when they took place.
+//
+// The first section ensures the 4% max expenditure policy is enforced when it
+// is greater than the treasury spend floor.
+//
+// The second section ensures the treasury spend floor is enforced when the
+// treasury balance falls enough such that 4% of its balance is under the floor
+// but the overall balance is still above it.
+//
+// An overview of the first section is as follows:
+//
+//   - Temporarily set the treasury spend floor to 0 so the 4% policy can be
+//     tested without needing to create a ton of blocks
+//   - Create 5 treasury spends such that 1 of them is exactly one atom and the
+//     other 4 of them total to exactly 4% of the treasury balance as of the
+//     block that will include them
+//   - Mine enough blocks to cover an entire treasury expenditure policy window
+//     while simultaneously approving the 5 treasury spends
+//   - Ensure a block that includes all 5 of the treasury spends is rejected
+//     since they sum to one atom more than the max allowed
+//   - Ensure a block that includes the 4 treasury spends that sum to exactly
+//     the max allowed is accepted
+//   - Reset the chain back to undo the previous
+//   - Mine enough blocks to approve the 5 treasury spends, but this time do NOT
+//     cover the entire treasury expenditure window
+//   - Ensure a block that includes half of the 4 treasury spends that sum to
+//     exactly the max allowed is accepted
+//   - Mine enough blocks to reach the end of the entire treasury expenditure
+//     policy window
+//   - Ensure a block that includes the remaining 3 treasury spends is rejected
+//     since, together with the 2 that were already included earlier in the
+//     policy window, they sum to one atom more than the max allowed
+//   - Ensure a block that includes the remaining 2 treasury spends is accepted
+//     since, together with the 2 that were already included earlier in the
+//     policy window, sum to exactly the max allowed
+//
+// An overview of the second section is as follows:
+//
+//   - Reset the spend limit floor to its original value
+//   - Repeat everything from the first section, except with treasury spends
+//     that sum to exactly the spend limit floor
+func TestTSpendExpendituresPolicyDCP0013(t *testing.T) {
+	t.Parallel()
+
+	// Use a set of test chain parameters which allow for faster and more
+	// efficient testing as compared to various existing network params and
+	// significantly increase the SRI so that the treasurybase isn't reduced
+	// throughout these tests to simplify the arithmetic.
+	//
+	// Also, mark the agendas the tests apply to as always active.
+	const voteID1 = chaincfg.VoteIDTreasury
+	const voteID2 = chaincfg.VoteIDMaxTreasurySpend
+	params := quickVoteActivationParams()
+	params.SubsidyReductionInterval = 1000
+	forceDeploymentResult(t, params, voteID1, "yes")
+	forceDeploymentResult(t, params, voteID2, "yes")
+
+	// Shorter versions of useful params for convenience.
+	cbm := params.CoinbaseMaturity
+	tpb := uint64(params.TicketsPerBlock)
+	tvi := params.TreasuryVoteInterval
+	tvim := params.TreasuryVoteIntervalMultiplier
+	tvrm := params.TreasuryVoteRequiredMultiplier
+	tvrd := params.TreasuryVoteRequiredDivisor
+	tew := params.TreasuryExpenditureWindow
+
+	// Assert params do not violate assumptions used in the tests:
+	//
+	// - The coinbase maturity must be less than or equal to the treasury vote
+	//   interval
+	// - The number of blocks it takes to approve a treasury spend must leave at
+	//   least one treasury vote interval in the overall vote window in order to
+	//   ensure treasury spends can be approved and included more than once
+	//   prior to reaching the end of the window
+	if uint64(cbm) > tvi {
+		t.Fatal("The coinbase maturity must be less than or equal to the " +
+			"treasury vote interval for these tests")
+	}
+	reqApprovalBlocks := (((tvi * tvim * tpb * tvrm) / tvrd) + tpb - 1) / tpb
+	if tvi+reqApprovalBlocks > tvi*tvim {
+		t.Fatalf("The number of blocks required to approve a treasury spend "+
+			"must leave at least one treasury vote interval in the vote window"+
+			" (required %d, TVI %d, window %d)",
+			reqApprovalBlocks, tvi, tvi*tvim)
+	}
+
+	// Create a test harness initialized with the genesis block as the tip and
+	// configure it to use the decentralized treasury semantics.
+	g := newChaingenHarness(t, params)
+	g.UseTreasurySemantics(chaingen.TSDCP0006)
+
+	// -------------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	// -------------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	svhTipName := g.TipName()
+	g.SnapshotCoinbaseOuts(svhTipName)
+
+	// numTrsyBases tracks how many blocks with a treasurybase have been added
+	// to the chain.
+	tipHeight := int64(g.Tip().Header.Height)
+	numTrsyBases := tipHeight - 1
+
+	// Ensure the treasury balance is the expected value at this point.  It is
+	// the number of treasurybases added minus the coinbase maturity all times
+	// the amount of each treasurybase.
+	trsyBaseAmt := g.Tip().STransactions[0].TxIn[0].ValueIn
+	expectedBal := (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Section 1, Part 1.
+	//
+	// This section ensures the max expenditure policy allows a maximum of 4% of
+	// the total treasury balance when it is greater than the treasury spend
+	// floor and multiple treasury spends are included in the same block at the
+	// end of the expenditure policy window.
+	//
+	// Start by saving the current treasury spend limit floor and overriding it
+	// to avoid the need to create a large number of blocks that would otherwise
+	// be needed.  It is reset back to its original value later in order to
+	// ensure the floor is enforced as expected.
+	// -------------------------------------------------------------------------
+
+	origTreasurySpendLimitFloor := g.chain.treasurySpendLimitFloor
+	g.chain.treasurySpendLimitFloor = 0
+
+	// Calculate what the future balance of the treasury will be after the
+	// policy window and set the target total payout amount to be 4% of it so
+	// that it is exactly the maximum allowed.
+	policyWindow := tvi * tvim * tew
+	blocksNeeded := policyWindow + (tvi - (uint64(tipHeight) % tvi)) - 1
+	futureBal := expectedBal + int64(blocksNeeded+1)*trsyBaseAmt
+	targetTotalPaid := futureBal * 4 / 100
+
+	// Create 4 treasury spends that sum to exactly the max allowed and one that
+	// is exactly one atom.  Set their expiration such that the voting window
+	// allows them to be approved by the upcoming blocks.
+	const numTreasurySpends = 4
+	const spendFee = 2550
+	futureNextBlockHeight := tipHeight + int64(blocksNeeded-tvi*tvim)
+	expiry := standalone.CalcTSpendExpiry(futureNextBlockHeight, tvi, tvim)
+	spends := make([]*wire.MsgTx, numTreasurySpends)
+	payoutAmt := dcrutil.Amount(targetTotalPaid/numTreasurySpends - spendFee)
+	var totalPaid dcrutil.Amount
+	for i := 0; i < numTreasurySpends; i++ {
+		if i == numTreasurySpends-1 {
+			payoutAmt = dcrutil.Amount(targetTotalPaid) - totalPaid - spendFee
+		}
+		payouts := []chaingen.AddressAmountTuple{{Amount: payoutAmt}}
+		spends[i] = g.CreateTreasuryTSpend(privKey, payouts, spendFee, expiry)
+		totalPaid += payoutAmt + spendFee
+	}
+	smallSpendPayouts := []chaingen.AddressAmountTuple{{Amount: 1}}
+	smallSpend := g.CreateTreasuryTSpend(privKey, smallSpendPayouts, 0, expiry)
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to cover an entire treasury expenditure
+	// policy window and reach one block prior to a TVI while also voting to
+	// approve the previously created treasury spends.
+	//
+	// ... -> bpwa#
+	// -------------------------------------------------------------------------
+
+	outs := g.OldestCoinbaseOuts()
+	for i := uint64(0); i < blocksNeeded; i++ {
+		name := fmt.Sprintf("bpwa%d", i)
+		g.NextBlock(name, nil, outs[1:],
+			chaingen.AddTreasurySpendYesVotes(spends...),
+			chaingen.AddTreasurySpendYesVotes(smallSpend))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	expectedBal = (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the previously created (and now approved)
+	// treasury spends which sum to exactly one atom more than the maximum
+	// allowed spend at this point.
+	//
+	// The block should be rejected due to exceeding the max expenditure policy.
+	//
+	// ... -> bpwa#
+	//             \-> btspendbad0
+	// -------------------------------------------------------------------------
+
+	tipName := g.TipName()
+	g.NextBlock("btspendbad0", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := 0; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+		b.AddSTransaction(smallSpend)
+	})
+	g.RejectTipBlock(ErrInvalidExpenditure)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the previously created (and now approved)
+	// treasury spends which sum to exactly the maximum allowed spend at this
+	// point.
+	//
+	// Note that this block and all other blocks above back to stake validation
+	// height will be undone later so the same treasury spends can be used in a
+	// different way below.
+	//
+	// ... -> bpwa# -> bmaxtspend0
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.NextBlock("bmaxtspend0", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := 0; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+	})
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Section 1, Part 2.
+	//
+	// This section ensures the max expenditure policy prevents the maximum
+	// allowed expenditure from falling below the spend limit floor when the
+	// treasury balance is still above it and multiple treasury spends are
+	// split up across the policy window.
+	//
+	// Set the harness tip and state back to stake validation height and
+	// invalidate the blocks above so the underlying chain is also set back to
+	// svh.
+	//
+	// ... -> bsv#
+	// -------------------------------------------------------------------------
+
+	g.SetTip(svhTipName)
+	g.InvalidateBlockAndExpectTip("bpwa0", nil, svhTipName)
+	g.RestoreCoinbaseOutsSnapshot(svhTipName)
+	tipHeight = int64(g.Tip().Header.Height)
+	numTrsyBases = tipHeight - 1
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to reach one block prior to the final TVI
+	// of an entire treasury expenditure policy window while also voting to
+	// approve the previously created treasury spends.
+	//
+	// ... -> bsv# -> bpwapre#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint64(0); i < blocksNeeded-tvi; i++ {
+		name := fmt.Sprintf("bpwapre%d", i)
+		g.NextBlock(name, nil, outs[1:],
+			chaingen.AddTreasurySpendYesVotes(spends...),
+			chaingen.AddTreasurySpendYesVotes(smallSpend))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	expectedBal = (numTrsyBases - int64(cbm)) * trsyBaseAmt
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes half of the previously created (and now
+	// approved) treasury spends in the middle of an expenditure policy window.
+	//
+	// ... -> bpwapre# -> btspendmid0
+	// -------------------------------------------------------------------------
+
+	// totalSpent tracks the total amount already spent from the treasury in
+	// the expenditure policy window for the purposes of asserting treasury
+	// balances.
+	var totalSpent int64
+	g.NextBlock("btspendmid0", nil, outs[1:],
+		chaingen.AddTreasurySpendYesVotes(spends...),
+		chaingen.AddTreasurySpendYesVotes(smallSpend),
+		func(b *wire.MsgBlock) {
+			for i := 0; i < numTreasurySpends/2; i++ {
+				b.AddSTransaction(spends[i])
+				totalSpent += spends[i].TxIn[0].ValueIn
+			}
+		})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	numTrsyBases++
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to reach the end of the treasury
+	// expenditure policy window as well as one block prior to a TVI.
+	//
+	// ... -> bpwapre# -> btspendmid0 -> bpwapost#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint64(0); i < tvi-1; i++ {
+		name := fmt.Sprintf("bpwapost%d", i)
+		g.NextBlock(name, nil, outs[1:])
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the remaining previously created (and now
+	// approved) treasury spends which, when combined with the treasury spends
+	// already included in the expenditure policy window above, sum to exactly
+	// one atom more than the maximum allowed spend at this point.
+	//
+	// The block should be rejected due to exceeding the max expenditure policy.
+	//
+	// ... -> bpwapre# -> btspendmid -> bpwapost#
+	//                                           \-> btspendbad1
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	g.NextBlock("btspendbad1", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := numTreasurySpends / 2; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+		b.AddSTransaction(smallSpend)
+	})
+	g.RejectTipBlock(ErrInvalidExpenditure)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the remaining previously created (and now
+	// approved) treasury spends which, when combined with the treasury spends
+	// already included in the expenditure policy window above, sum to exactly
+	// the maximum allowed spend at this point.
+	//
+	// Note that this ensures previous spends in the expenditure window do not
+	// incorrectly lower the maximum allowed total overall expenditure in the
+	// window.
+	//
+	// ... -> bpwapost# -> bmaxtspend1
+	// -------------------------------------------------------------------------
+
+	var immatureSpent int64
+	g.SetTip(tipName)
+	g.NextBlock("bmaxtspend1", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := numTreasurySpends / 2; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+			immatureSpent += spends[i].TxIn[0].ValueIn
+		}
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	numTrsyBases++
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Section 2, Part 1.
+	//
+	// This section ensures the max expenditure policy prevents the maximum
+	// allowed expenditure from falling below the spend limit floor when the
+	// treasury balance is still above it and multiple treasury spends are
+	// included in the same block at the end of the expenditure policy window.
+	//
+	// Reset the spend limit floor to its original value and save the current
+	// tip name and snapshot the spendable outputs so the test can later be
+	// reset back to this point.
+	//
+	// Also, calculate the expected spend limit floor independently to prevent
+	// any possible regressions that might otherwise inadvertently change it.
+	// -------------------------------------------------------------------------
+
+	g.chain.treasurySpendLimitFloor = origTreasurySpendLimitFloor
+	splitMaxTipName := g.TipName()
+	g.SnapshotCoinbaseOuts(splitMaxTipName)
+	expectedSpendLimitFloor := params.BaseSubsidy / 10 * int64(tvi*tvim)
+
+	// Create 4 treasury spends that sum to exactly the max allowed and one that
+	// is exactly one atom.  Set their expiration such that the voting window
+	// allows them to be approved by the upcoming blocks.
+	targetTotalPaid = expectedSpendLimitFloor
+	tipHeight = int64(g.Tip().Header.Height)
+	blocksNeeded = policyWindow + (tvi - (uint64(tipHeight) % tvi)) - 1
+	futureNextBlockHeight = tipHeight + int64(blocksNeeded-tvi*tvim)
+	expiry = standalone.CalcTSpendExpiry(futureNextBlockHeight, tvi, tvim)
+	spends = make([]*wire.MsgTx, numTreasurySpends)
+	payoutAmt = dcrutil.Amount(targetTotalPaid/numTreasurySpends - spendFee)
+	totalPaid = 0
+	for i := 0; i < numTreasurySpends; i++ {
+		if i == numTreasurySpends-1 {
+			payoutAmt = dcrutil.Amount(targetTotalPaid) - totalPaid - spendFee
+		}
+		payouts := []chaingen.AddressAmountTuple{{Amount: payoutAmt}}
+		spends[i] = g.CreateTreasuryTSpend(privKey, payouts, spendFee, expiry)
+		totalPaid += payoutAmt + spendFee
+	}
+	smallSpend = g.CreateTreasuryTSpend(privKey, smallSpendPayouts, 0, expiry)
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to cover an entire treasury expenditure
+	// policy window and reach one block prior to a TVI while also voting to
+	// approve the previously created treasury spends.
+	//
+	// ... -> bmaxtspend1 -> bpwb#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint64(0); i < blocksNeeded; i++ {
+		name := fmt.Sprintf("bpwb%d", i)
+		g.NextBlock(name, nil, outs[1:],
+			chaingen.AddTreasurySpendYesVotes(spends...),
+			chaingen.AddTreasurySpendYesVotes(smallSpend))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	totalSpent += immatureSpent
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// Assert 4% balance is under the spend limit floor to ensure the floor is
+	// actually being tested.
+	fourPercentOfBalance := (expectedBal * 4) / 100
+	if fourPercentOfBalance > g.chain.treasurySpendLimitFloor {
+		tipHash := g.Tip().BlockHash()
+		t.Fatalf("block %q (hash %s, height %d) failed test assertion - 4%% "+
+			"of treasury balance %v is greater than the spending floor %v",
+			g.TipName(), tipHash, tipHeight, fourPercentOfBalance,
+			g.chain.treasurySpendLimitFloor)
+	}
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the previously created (and now approved)
+	// treasury spends which sum to exactly one atom more than the maximum
+	// allowed spend at this point.
+	//
+	// The block should be rejected due to exceeding the max expenditure policy.
+	//
+	// ... -> bpwb#
+	//             \-> btspendbad2
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	g.NextBlock("btspendbad2", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := 0; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+		b.AddSTransaction(smallSpend)
+	})
+	g.RejectTipBlock(ErrInvalidExpenditure)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the previously created (and now approved)
+	// treasury spends which sum to exactly the maximum allowed spend at this
+	// point.
+	//
+	// Note that this block and all other blocks above back to the previously
+	// saved point will be undone later so the same treasury spends can be used
+	// in a different way below.
+	//
+	// ... -> bpwb# -> bmaxtspend2
+	// -------------------------------------------------------------------------
+
+	g.SetTip(tipName)
+	g.NextBlock("bmaxtspend2", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := 0; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+	})
+	g.AcceptTipBlock()
+
+	// -------------------------------------------------------------------------
+	// Section 2, Part 2.
+	//
+	// This section ensures the max expenditure policy allows a maximum of 4% of
+	// the total treasury balance when it is greater than the treasury spend
+	// floor and multiple treasury spends are split up across the policy window.
+	//
+	// Set the harness tip and state back to the previously saved point and
+	// invalidate the blocks above so the underlying chain is also set back to
+	// the same point.
+	//
+	// ... -> bmaxtspend1
+	// -------------------------------------------------------------------------
+
+	g.SetTip(splitMaxTipName)
+	g.InvalidateBlockAndExpectTip("bpwb0", nil, splitMaxTipName)
+	g.RestoreCoinbaseOutsSnapshot(splitMaxTipName)
+	tipHeight = int64(g.Tip().Header.Height)
+	numTrsyBases = tipHeight - 1
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to reach one block prior to the final TVI
+	// of an entire treasury expenditure policy window while also voting to
+	// approve the previously created treasury spends.
+	//
+	// ... -> bmaxtspend1 -> bpwbpre#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint64(0); i < blocksNeeded-tvi; i++ {
+		name := fmt.Sprintf("bpwbpre%d", i)
+		g.NextBlock(name, nil, outs[1:],
+			chaingen.AddTreasurySpendYesVotes(spends...),
+			chaingen.AddTreasurySpendYesVotes(smallSpend))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes half of the previously created (and now
+	// approved) treasury spends in the middle of an expenditure policy window.
+	//
+	// ... -> bpwbpre# -> btspendmid1
+	// -------------------------------------------------------------------------
+
+	g.NextBlock("btspendmid", nil, outs[1:],
+		chaingen.AddTreasurySpendYesVotes(spends...),
+		chaingen.AddTreasurySpendYesVotes(smallSpend),
+		func(b *wire.MsgBlock) {
+			for i := 0; i < numTreasurySpends/2; i++ {
+				b.AddSTransaction(spends[i])
+				totalSpent += spends[i].TxIn[0].ValueIn
+			}
+		})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	numTrsyBases++
+
+	// -------------------------------------------------------------------------
+	// Create as many blocks as needed to reach the end of the treasury
+	// expenditure policy window as well as one block prior to a TVI.
+	//
+	// ... -> bpwbpre# -> btspendmid1 -> bpwbpost#
+	// -------------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	for i := uint64(0); i < tvi-1; i++ {
+		name := fmt.Sprintf("bpwbpost%d", i)
+		g.NextBlock(name, nil, outs[1:])
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+		numTrsyBases++
+	}
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the remaining previously created (and now
+	// approved) treasury spends which, when combined with the treasury spends
+	// already included in the expenditure policy window above, sum to exactly
+	// one atom more than the maximum allowed spend at this point.
+	//
+	// The block should be rejected due to exceeding the max expenditure policy.
+	//
+	// ... -> bpwbpre# -> btspendmid -> bpwbpost#
+	//                                           \-> btspendbad3
+	// -------------------------------------------------------------------------
+
+	tipName = g.TipName()
+	g.NextBlock("btspendbad3", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := numTreasurySpends / 2; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+		}
+		b.AddSTransaction(smallSpend)
+	})
+	g.RejectTipBlock(ErrInvalidExpenditure)
+
+	// -------------------------------------------------------------------------
+	// Create block that includes the remaining previously created (and now
+	// approved) treasury spends which, when combined with the treasury spends
+	// already included in the expenditure policy window above, sum to exactly
+	// the maximum allowed spend at this point.
+	//
+	// Note that this ensures previous spends in the expenditure window do not
+	// incorrectly lower the maximum allowed total overall expenditure in the
+	// window.
+	//
+	// ... -> bpwbpost# -> bmaxtspend3
+	// -------------------------------------------------------------------------
+
+	immatureSpent = 0
+	g.SetTip(tipName)
+	g.NextBlock("bmaxtspend3", nil, outs[1:], func(b *wire.MsgBlock) {
+		for i := numTreasurySpends / 2; i < numTreasurySpends; i++ {
+			b.AddSTransaction(spends[i])
+			immatureSpent += spends[i].TxIn[0].ValueIn
+		}
+	})
+	g.SaveTipCoinbaseOuts()
+	g.AcceptTipBlock()
+	numTrsyBases++
+	expectedBal = (numTrsyBases-int64(cbm))*trsyBaseAmt - totalSpent
+	g.ExpectTreasuryBalance(expectedBal)
 }

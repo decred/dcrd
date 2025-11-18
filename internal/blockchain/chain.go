@@ -172,6 +172,7 @@ type BlockChain struct {
 	db                       database.DB
 	dbInfo                   *databaseInfo
 	chainParams              *chaincfg.Params
+	treasurySpendLimitFloor  int64
 	timeSource               MedianTimeSource
 	notifications            NotificationCallback
 	sigCache                 *txscript.SigCache
@@ -2431,6 +2432,14 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// overridden in the passed config since fork rejection affects consensus.
 	allowOldForks := config.AllowOldForks || params.AssumeValid == *zeroHash
 
+	// Establish the floor for maximum limits placed on treasury spends as
+	// defined by DCP0013.  In other words, this value will be used whenever the
+	// maximum allowed spendable value in a treasury expenditure window would
+	// otherwise be lower.  Note that the max expenditure is always limited by
+	// the overall balance of the treasury regardless.
+	treasurySpendLimitFloor := (params.BaseSubsidy / 10) *
+		int64(params.TreasuryVoteInterval*params.TreasuryVoteIntervalMultiplier)
+
 	b := BlockChain{
 		assumeValid:                   config.AssumeValid,
 		allowOldForks:                 allowOldForks,
@@ -2441,6 +2450,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		minTestNetDiffBits:            minTestNetDiffBits,
 		db:                            config.DB,
 		chainParams:                   params,
+		treasurySpendLimitFloor:       treasurySpendLimitFloor,
 		timeSource:                    config.TimeSource,
 		notifications:                 config.Notifications,
 		sigCache:                      config.SigCache,
