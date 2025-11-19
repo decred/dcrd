@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -42,6 +42,7 @@ type config struct {
 	CAKey string   `short:"K" description:"key of CA certificate"`
 	Hosts []string `short:"H" description:"hostname or IP certificate is valid for; may be specified multiple times"`
 	Local bool     `short:"L" description:"append localhost, 127.0.0.1, and ::1 to hosts if not already specified"`
+	Signs bool     `short:"S" description:"Allow certificate to sign leaf certificates"`
 	Org   string   `short:"o" description:"organization"`
 	Algo  string   `short:"a" description:"key algorithm (one of: P-256, P-384, P-521, Ed25519, RSA4096)"`
 	Years int      `short:"y" description:"years certificate is valid for"`
@@ -123,8 +124,13 @@ func main() {
 	if err != nil {
 		fatalf("%s\n", err)
 	}
+	keyUsage := x509.KeyUsageDigitalSignature
+	if cfg.Signs {
+		keyUsage |= x509.KeyUsageCertSign
+	}
 	if cfg.CA == "" {
-		cert, err = generateAuthority(pub, priv, cfg.Hosts, cfg.Org, cfg.Years)
+		cert, err = generateAuthority(pub, priv, cfg.Hosts, cfg.Org,
+			cfg.Years, keyUsage)
 		if err != nil {
 			fatalf("generate certificate authority: %v\n", err)
 		}
@@ -140,7 +146,7 @@ func main() {
 		caPriv = tlsCert.PrivateKey
 
 		cert, err = createIssuedCert(pub, caPriv, ca,
-			cfg.Hosts, cfg.Org, cfg.Years)
+			cfg.Hosts, cfg.Org, cfg.Years, keyUsage)
 		if err != nil {
 			fatalf("issue certificate: %v\n", err)
 		}
@@ -276,13 +282,15 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	return template, nil
 }
 
-func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*certWithPEM, error) {
+func generateAuthority(pub, priv interface{}, hosts []string, org string,
+	years int, keyUsage x509.KeyUsage) (*certWithPEM, error) {
+
 	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
 	template, err := newTemplate(hosts, org, validUntil)
 	if err != nil {
 		return nil, err
 	}
-	template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	template.KeyUsage = keyUsage
 	template.BasicConstraintsValid = true
 	template.IsCA = true
 
@@ -310,7 +318,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 }
 
 func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
-	hosts []string, org string, years int) (*certWithPEM, error) {
+	hosts []string, org string, years int, keyUsage x509.KeyUsage) (*certWithPEM, error) {
 
 	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
 		return nil, fmt.Errorf("parent certificate cannot sign other certificates")
@@ -323,7 +331,7 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 	if err != nil {
 		return nil, err
 	}
-	template.KeyUsage = x509.KeyUsageDigitalSignature
+	template.KeyUsage = keyUsage
 	template.BasicConstraintsValid = true
 
 	cert, err := x509.CreateCertificate(rand.Reader(), template, ca, pub, caPriv)
