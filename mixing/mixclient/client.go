@@ -76,7 +76,7 @@ const (
 	msgRS
 )
 
-func blameTimedOut(sesRun *sessionRun, timeoutMessage int) error {
+func (c *Client) blameTimedOut(sesRun *sessionRun, timeoutMessage int) error {
 	var blamed blamedIdentities
 	var stage string
 	for _, p := range sesRun.peers {
@@ -368,8 +368,9 @@ type Client struct {
 	atomicPRFlags  uint32
 	atomicStopping uint32
 
-	wallet  Wallet
-	mixpool *mixpool.Pool
+	wallet   Wallet
+	mixpool  *mixpool.Pool
+	observer *mixpool.Observer
 
 	// Pending and active sessions and peers (both local and, when
 	// blaming, remote).
@@ -409,6 +410,7 @@ func NewClient(w Wallet) *Client {
 		atomicPRFlags:   uint32(prFlags),
 		wallet:          w,
 		mixpool:         w.Mixpool(),
+		observer:        mixpool.NewObserver(w.Mixpool()),
 		pendingPairings: make(map[string]*pendingPairing),
 		height:          height,
 		warming:         make(chan struct{}),
@@ -866,6 +868,8 @@ func (c *Client) epochTicker(ctx context.Context) error {
 	close(c.warming)
 	c.mu.Unlock()
 
+	prevEpoch := firstEpoch
+
 	for {
 		epoch, err := c.waitForEpoch(ctx)
 		if err != nil {
@@ -873,6 +877,12 @@ func (c *Client) epochTicker(ctx context.Context) error {
 		}
 
 		c.log("Epoch tick")
+
+		err = c.observer.CheckPrevEpoch(uint64(prevEpoch.Unix()))
+		if err != nil {
+			return err
+		}
+		prevEpoch = epoch
 
 		// Wait for any previous pairSession calls to timeout if they
 		// have not yet formed a session before the next epoch tick.
@@ -890,6 +900,11 @@ func (c *Client) epochTicker(ctx context.Context) error {
 
 		for _, p := range c.pendingPairings {
 			prs := c.mixpool.CompatiblePRs(p.pairing)
+
+			// Exclude identities who have timed out too many
+			// times.
+			prs = c.observer.ExcludePRs(prs)
+
 			prsMap := make(map[identity]struct{})
 			for _, pr := range prs {
 				prsMap[pr.Identity] = struct{}{}
@@ -1695,7 +1710,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(cts) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d CTs for %d peers; rerunning", len(cts), len(prs))
-		return sesRun, blameTimedOut(sesRun, ctTimeout)
+		return sesRun, c.blameTimedOut(sesRun, ctTimeout)
 	}
 	sort.Slice(cts, func(i, j int) bool {
 		a := identityIndices[cts[i].Identity]
@@ -1788,7 +1803,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(srs) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d SRs for %d peers; rerunning", len(srs), len(prs))
-		return sesRun, blameTimedOut(sesRun, srTimeout)
+		return sesRun, c.blameTimedOut(sesRun, srTimeout)
 	}
 	sort.Slice(srs, func(i, j int) bool {
 		a := identityIndices[srs[i].Identity]
@@ -1872,7 +1887,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(dcs) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d DCs for %d peers; rerunning", len(dcs), len(prs))
-		return sesRun, blameTimedOut(sesRun, dcTimeout)
+		return sesRun, c.blameTimedOut(sesRun, dcTimeout)
 	}
 	sort.Slice(dcs, func(i, j int) bool {
 		a := identityIndices[dcs[i].Identity]
@@ -1958,7 +1973,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(cms) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d CMs for %d peers; rerunning", len(cms), len(prs))
-		return sesRun, blameTimedOut(sesRun, cmTimeout)
+		return sesRun, c.blameTimedOut(sesRun, cmTimeout)
 	}
 	sort.Slice(cms, func(i, j int) bool {
 		a := identityIndices[cms[i].Identity]
