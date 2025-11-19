@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -79,6 +79,9 @@ var (
 	ErrRequestCanceled = errors.New("request was canceled by the caller")
 )
 
+// AuthType defines the RPC authorization method.
+type AuthType string
+
 const (
 	// sendBufferSize is the number of elements the websocket send channel
 	// can queue before blocking.
@@ -95,6 +98,12 @@ const (
 	// pingInterval is the amount of time between ping messages sent to
 	// the server.
 	pingInterval = time.Second * 10
+
+	// AuthTypeBasic specifies basic RPC authorization.  This is the default.
+	AuthTypeBasic = AuthType("basic")
+
+	// AuthTypeClientCert specifies clientcert RPC authorization.
+	AuthTypeClientCert = AuthType("clientcert")
 )
 
 // cmdRes holds command results.
@@ -1120,9 +1129,15 @@ type ConnConfig struct {
 	Endpoint string
 
 	// User is the username to use to authenticate to the RPC server.
+	//
+	// This only applies when the authorization type is set to [AuthTypeBasic].
+	// It must be unset for [AuthTypeClientCert].
 	User string
 
 	// Pass is the passphrase to use to authenticate to the RPC server.
+	//
+	// This only applies when the authorization type is set to [AuthTypeBasic].
+	// It must be unset for [AuthTypeClientCert].
 	Pass string
 
 	// DisableTLS specifies whether transport layer security should be
@@ -1167,6 +1182,34 @@ type ConnConfig struct {
 	// however, not all servers support the websocket extensions, so this
 	// flag can be set to true to use basic HTTP POST requests instead.
 	HTTPPostMode bool
+
+	// AuthType defines the RPC authorization method.
+	//
+	// This defaults to [AuthTypeBasic] if not specified.
+	//
+	// When set to [AuthTypeBasic]
+	//   - The User and Pass fields are used to specify the credentials
+	//   - The ClientCert and ClientKey fields MUST NOT be set
+	//
+	// When set to [AuthTypeClientCert]
+	//   - The ClientCert and ClientKey fields are used to specify credentials
+	//   - The User and Pass fields MUST NOT be set
+	AuthType AuthType
+
+	// ClientCert is the pathname of the client certificate used for
+	// dcrd authorization.
+	//
+	// This only applies when the authorization type is set to
+	// [AuthTypeClientCert].
+	// It must be unset for [AuthTypeBasic].
+	ClientCert string
+
+	// ClientKey is the pathname of the client key for the certificate above.
+	//
+	// This only applies when the authorization type is set to
+	// [AuthTypeClientCert].
+	// It must be unset for [AuthTypeBasic].
+	ClientKey string
 }
 
 // newHTTPClient returns a new http client that is configured according to the
@@ -1192,6 +1235,13 @@ func newHTTPClient(config *ConnConfig) (*http.Client, error) {
 				RootCAs:    pool,
 				MinVersion: tls.VersionTLS12,
 			}
+		}
+		if config.AuthType == AuthTypeClientCert {
+			keypair, err := tls.LoadX509KeyPair(config.ClientCert, config.ClientKey)
+			if err != nil {
+				return nil, fmt.Errorf("read client keypair: %w", err)
+			}
+			tlsConfig.Certificates = []tls.Certificate{keypair}
 		}
 	}
 
@@ -1220,6 +1270,14 @@ func dial(config *ConnConfig) (*websocket.Conn, error) {
 			pool.AppendCertsFromPEM(config.Certificates)
 			tlsConfig.RootCAs = pool
 		}
+		if config.AuthType == AuthTypeClientCert {
+			keypair, err := tls.LoadX509KeyPair(config.ClientCert, config.ClientKey)
+			if err != nil {
+				return nil, fmt.Errorf("read client keypair: %w", err)
+			}
+			tlsConfig.Certificates = []tls.Certificate{keypair}
+		}
+
 		scheme = "wss"
 	}
 
@@ -1305,6 +1363,22 @@ func (c *Client) keepAlive() {
 // interested in receiving notifications and will be ignored if the
 // configuration is set to run in HTTP POST mode.
 func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error) {
+	if config.AuthType == "" {
+		config.AuthType = AuthTypeBasic
+	}
+	switch config.AuthType {
+	case AuthTypeBasic:
+		if config.ClientCert != "" || config.ClientKey != "" {
+			return nil, fmt.Errorf("clientcert and clientkey must not be set when using basic authorization")
+		}
+	case AuthTypeClientCert:
+		if config.User != "" || config.Pass != "" {
+			return nil, fmt.Errorf("user and pass must not be set when using clientcert authorization")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported authorization method %q", config.AuthType)
+	}
+
 	// Either open a websocket connection or create an HTTP client depending
 	// on the HTTP POST mode.  Also, set the notification handlers to nil
 	// when running in HTTP POST mode.
