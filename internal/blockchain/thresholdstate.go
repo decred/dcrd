@@ -891,20 +891,7 @@ func (b *BlockChain) isSubsidySplitR2AgendaActive(prevNode *blockNode) (bool, er
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsSubsidySplitR2AgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// The agenda is never active for the genesis block.
-	if *prevHash == *zeroHash {
-		return false, nil
-	}
-
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.CanValidate(prevNode) {
-		return false, unknownBlockError(prevHash)
-	}
-
-	b.chainLock.Lock()
-	isActive, err := b.isSubsidySplitR2AgendaActive(prevNode)
-	b.chainLock.Unlock()
-	return isActive, err
+	return b.isAgendaActiveByHash(prevHash, b.isSubsidySplitR2AgendaActive)
 }
 
 // VoteCounts is a compacted struct that is used to message vote counts.
