@@ -864,7 +864,7 @@ func TestExpendituresReorg(t *testing.T) {
 
 	// Generate a TSpend for some amount.
 	const tspendAmount = 1e7
-	const tspendFee = 0
+	const tspendFee = 2550
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
@@ -1062,9 +1062,9 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 
 	// Generate a TSpend for some amount.
 	const tspendAmount = 1e7
-	const tspendFee = 0
+	const tspendFee = 2550
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
-		{Amount: tspendAmount - tspendFee, Address: spendP2pkhAddr},
+		{Amount: tspendAmount, Address: spendP2pkhAddr},
 		{Amount: tspendAmount - tspendFee, Address: spendP2shAddr},
 	}, tspendFee, expiry)
 	tspendHash := tspend.TxHash()
@@ -1154,7 +1154,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 			Tree:  1,
 		},
 		Sequence:        wire.MaxTxInSequenceNum,
-		ValueIn:         int64(tspendAmount),
+		ValueIn:         int64(tspendAmount - tspendFee),
 		BlockHeight:     tspendHeight,
 		BlockIndex:      tspendIndex,
 		SignatureScript: append([]byte{txscript.OP_DATA_2}, spendP2shScript...),
@@ -1269,7 +1269,7 @@ func TestTSpendDupVote(t *testing.T) {
 	}
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 2550
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 	tspend2 := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
@@ -1359,7 +1359,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	}
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 2550
 	const maxTspends = 7
 	tspends := make([]*wire.MsgTx, maxTspends+1)
 	for i := 0; i < maxTspends+1; i++ {
@@ -1433,7 +1433,7 @@ func TestTSpendWindow(t *testing.T) {
 	}
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 1
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
@@ -1675,7 +1675,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	wrongKey[len(wrongKey)-1] = ^wrongKey[len(wrongKey)-1]
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 1
 	tspend := g.CreateTreasuryTSpend(wrongKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
@@ -1812,7 +1812,7 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 1
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{{
 		Amount: tspendAmount - tspendFee}}, tspendFee, expiry)
 
@@ -2785,7 +2785,7 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	const tspendAmount = 10
-	const tspendFee = 0
+	const tspendFee = 1
 	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{Amount: tspendAmount - tspendFee}}, tspendFee, 78) // Expiry check not hit.
 
