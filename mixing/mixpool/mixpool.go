@@ -251,6 +251,13 @@ func NewPool(blockchain BlockChain) *Pool {
 	if u, ok := blockchain.(UtxoFetcher); ok {
 		pool.utxoFetcher = u
 	}
+
+	pool.observer = &Observer{
+		mixpool: pool,
+		epoch:   pool.epoch,
+		strikes: make(map[wire.OutPoint]*strikeSet),
+	}
+
 	return pool
 }
 

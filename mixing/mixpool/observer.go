@@ -74,15 +74,10 @@ type Observer struct {
 	mu      sync.RWMutex
 }
 
-// NewObserver creates an observer client watching the mixpool.
-func NewObserver(mixpool *Pool) *Observer {
-	o := &Observer{
-		mixpool: mixpool,
-		epoch:   mixpool.Epoch(),
-		strikes: make(map[wire.OutPoint]*strikeSet),
-	}
-	mixpool.observer = o
-	return o
+// Observer returns the mixpool misbehavior observer.  It must be ran with Run
+// to check for misbehavior in previous epochs in the background.
+func (p *Pool) Observer() *Observer {
+	return p.observer
 }
 
 // waitForEpoch blocks until the next epoch, or errors when the context is

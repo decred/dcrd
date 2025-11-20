@@ -406,11 +406,12 @@ func NewClient(w Wallet) *Client {
 	}
 
 	height, _ := w.BestBlock()
+	mixPool := w.Mixpool()
 	return &Client{
 		atomicPRFlags:   uint32(prFlags),
 		wallet:          w,
-		mixpool:         w.Mixpool(),
-		observer:        mixpool.NewObserver(w.Mixpool()),
+		mixpool:         mixPool,
+		observer:        mixPool.Observer(),
 		pendingPairings: make(map[string]*pendingPairing),
 		height:          height,
 		warming:         make(chan struct{}),
