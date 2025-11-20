@@ -76,7 +76,7 @@ const (
 	msgRS
 )
 
-func (c *Client) blameTimedOut(sesRun *sessionRun, timeoutMessage int) error {
+func blameTimedOut(sesRun *sessionRun, timeoutMessage int) error {
 	var blamed blamedIdentities
 	var stage string
 	for _, p := range sesRun.peers {
@@ -1711,7 +1711,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(cts) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d CTs for %d peers; rerunning", len(cts), len(prs))
-		return sesRun, c.blameTimedOut(sesRun, ctTimeout)
+		return sesRun, blameTimedOut(sesRun, ctTimeout)
 	}
 	sort.Slice(cts, func(i, j int) bool {
 		a := identityIndices[cts[i].Identity]
@@ -1804,7 +1804,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(srs) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d SRs for %d peers; rerunning", len(srs), len(prs))
-		return sesRun, c.blameTimedOut(sesRun, srTimeout)
+		return sesRun, blameTimedOut(sesRun, srTimeout)
 	}
 	sort.Slice(srs, func(i, j int) bool {
 		a := identityIndices[srs[i].Identity]
@@ -1888,7 +1888,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(dcs) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d DCs for %d peers; rerunning", len(dcs), len(prs))
-		return sesRun, c.blameTimedOut(sesRun, dcTimeout)
+		return sesRun, blameTimedOut(sesRun, dcTimeout)
 	}
 	sort.Slice(dcs, func(i, j int) bool {
 		a := identityIndices[dcs[i].Identity]
@@ -1974,7 +1974,7 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	if len(cms) != len(prs) {
 		// Blame peers
 		sesRun.logf("received %d CMs for %d peers; rerunning", len(cms), len(prs))
-		return sesRun, c.blameTimedOut(sesRun, cmTimeout)
+		return sesRun, blameTimedOut(sesRun, cmTimeout)
 	}
 	sort.Slice(cms, func(i, j int) bool {
 		a := identityIndices[cms[i].Identity]
