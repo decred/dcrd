@@ -660,9 +660,7 @@ func (p *Pool) RemoveSpentPRs(txs []*wire.MsgTx) {
 		txHash := tx.TxHash()
 		ses, ok := p.sessionsByTxHash[txHash]
 		if ok {
-			if p.observer != nil {
-				p.observer.removeStrikesForMix(tx)
-			}
+			p.observer.removeStrikesForMix(tx)
 			p.removeSession(ses.sid, &txHash, true)
 			continue
 		}
@@ -1298,9 +1296,7 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 	}
 	p.messagesByIdentity[*id] = append(make([]chainhash.Hash, 0, 16), *hash)
 
-	if p.observer != nil {
-		p.observer.mergeAcceptedPRStrikes(pr)
-	}
+	p.observer.mergeAcceptedPRStrikes(pr)
 
 	return pr, nil
 }
