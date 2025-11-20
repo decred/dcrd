@@ -139,7 +139,7 @@ func TestTSpendLegacyExpendituresPolicy(t *testing.T) {
 	// treasury expenditure policy window.
 	const nbTSpends = 4
 	tspendAmount := dcrutil.Amount(expendBootstrap / nbTSpends)
-	const tspendFee = 0
+	const tspendFee = 2550
 	tspends := make([]*wire.MsgTx, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
@@ -531,7 +531,7 @@ func TestTSpendExpendituresPolicyDCP0007(t *testing.T) {
 	taddAmount := nbTSpends*10 - tbaseAmount%nbTSpends
 	incomeAmount := taddAmount + tbaseAmount
 	tspendAmount := (incomeAmount + incomeAmount/2) / nbTSpends
-	const tspendFee = 0
+	const tspendFee = 2550
 	tspends := make([]*wire.MsgTx, nbTSpends)
 	for i := 0; i < nbTSpends; i++ {
 		tspends[i] = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
