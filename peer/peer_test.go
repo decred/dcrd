@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2024 The Decred developers
+// Copyright (c) 2016-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -336,6 +336,9 @@ func TestPeerListeners(t *testing.T) {
 			OnAddr: func(p *Peer, msg *wire.MsgAddr) {
 				ok <- msg
 			},
+			OnAddrV2: func(p *Peer, msg *wire.MsgAddrV2) {
+				ok <- msg
+			},
 			OnPing: func(p *Peer, msg *wire.MsgPing) {
 				ok <- msg
 			},
@@ -458,130 +461,145 @@ func TestPeerListeners(t *testing.T) {
 		return
 	}
 
+	const pver = wire.ProtocolVersion
 	tests := []struct {
 		listener string
 		msg      wire.Message
-	}{
-		{
-			"OnGetAddr",
-			wire.NewMsgGetAddr(),
-		},
-		{
-			"OnAddr",
-			wire.NewMsgAddr(),
-		},
-		{
-			"OnPing",
-			wire.NewMsgPing(42),
-		},
-		{
-			"OnPong",
-			wire.NewMsgPong(42),
-		},
-		{
-			"OnMemPool",
-			wire.NewMsgMemPool(),
-		},
-		{
-			"OnTx",
-			wire.NewMsgTx(),
-		},
-		{
-			"OnBlock",
-			wire.NewMsgBlock(wire.NewBlockHeader(0, &chainhash.Hash{},
-				&chainhash.Hash{}, &chainhash.Hash{}, 1, [6]byte{},
-				1, 1, 1, 1, 1, 1, 1, 1, 1, [32]byte{},
-				binary.LittleEndian.Uint32([]byte{0xb0, 0x1d, 0xfa, 0xce}))),
-		},
-		{
-			"OnInv",
-			wire.NewMsgInv(),
-		},
-		{
-			"OnHeaders",
-			wire.NewMsgHeaders(),
-		},
-		{
-			"OnNotFound",
-			wire.NewMsgNotFound(),
-		},
-		{
-			"OnGetData",
-			wire.NewMsgGetData(),
-		},
-		{
-			"OnGetBlocks",
-			wire.NewMsgGetBlocks(&chainhash.Hash{}),
-		},
-		{
-			"OnGetHeaders",
-			wire.NewMsgGetHeaders(),
-		},
-		{
-			"OnGetCFilter",
-			wire.NewMsgGetCFilter(&chainhash.Hash{},
-				wire.GCSFilterRegular),
-		},
-		{
-			"OnGetCFHeaders",
-			wire.NewMsgGetCFHeaders(),
-		},
-		{
-			"OnGetCFTypes",
-			wire.NewMsgGetCFTypes(),
-		},
-		{
-			"OnCFilter",
-			wire.NewMsgCFilter(&chainhash.Hash{},
-				wire.GCSFilterRegular, []byte("payload")),
-		},
-		{
-			"OnCFHeaders",
-			wire.NewMsgCFHeaders(),
-		},
-		{
-			"OnCFTypes",
-			wire.NewMsgCFTypes([]wire.FilterType{
-				wire.GCSFilterRegular, wire.GCSFilterExtended,
-			}),
-		},
-		{
-			"OnFeeFilter",
-			wire.NewMsgFeeFilter(15000),
-		},
-		{
-			"OnGetCFilterV2",
-			wire.NewMsgGetCFilterV2(&chainhash.Hash{}),
-		},
-		{
-			"OnCFilterV2",
-			wire.NewMsgCFilterV2(&chainhash.Hash{}, nil, 0, nil),
-		},
+		pver     uint32
+	}{{
+		listener: "OnGetAddr",
+		msg:      wire.NewMsgGetAddr(),
+		pver:     pver,
+	}, {
+		listener: "OnAddr",
+		msg:      wire.NewMsgAddr(),
+		pver:     wire.AddrV2Version - 1,
+	}, {
+		listener: "OnAddrV2",
+		msg: func() *wire.MsgAddrV2 {
+			msg := wire.NewMsgAddrV2()
+			msg.AddAddress(wire.NewNetAddressV2(wire.IPv4Address,
+				net.ParseIP("127.0.0.1").To4(), 8333, time.Now(), wire.SFNodeNetwork))
+			return msg
+		}(),
+		pver: pver,
+	}, {
+		listener: "OnPing",
+		msg:      wire.NewMsgPing(42),
+		pver:     pver,
+	}, {
+		listener: "OnPong",
+		msg:      wire.NewMsgPong(42),
+		pver:     pver,
+	}, {
+		listener: "OnMemPool",
+		msg:      wire.NewMsgMemPool(),
+		pver:     pver,
+	}, {
+		listener: "OnTx",
+		msg:      wire.NewMsgTx(),
+		pver:     pver,
+	}, {
+		listener: "OnBlock",
+		msg: wire.NewMsgBlock(wire.NewBlockHeader(0, &chainhash.Hash{},
+			&chainhash.Hash{}, &chainhash.Hash{}, 1, [6]byte{},
+			1, 1, 1, 1, 1, 1, 1, 1, 1, [32]byte{},
+			binary.LittleEndian.Uint32([]byte{0xb0, 0x1d, 0xfa, 0xce}))),
+		pver: pver,
+	}, {
+		listener: "OnInv",
+		msg:      wire.NewMsgInv(),
+		pver:     pver,
+	}, {
+		listener: "OnHeaders",
+		msg:      wire.NewMsgHeaders(),
+		pver:     pver,
+	}, {
+		listener: "OnNotFound",
+		msg:      wire.NewMsgNotFound(),
+		pver:     pver,
+	}, {
+		listener: "OnGetData",
+		msg:      wire.NewMsgGetData(),
+		pver:     pver,
+	}, {
+		listener: "OnGetBlocks",
+		msg:      wire.NewMsgGetBlocks(&chainhash.Hash{}),
+		pver:     pver,
+	}, {
+		listener: "OnGetHeaders",
+		msg:      wire.NewMsgGetHeaders(),
+		pver:     pver,
+	}, {
+		listener: "OnGetCFilter",
+		msg: wire.NewMsgGetCFilter(&chainhash.Hash{},
+			wire.GCSFilterRegular),
+		pver: pver,
+	}, {
+		listener: "OnGetCFHeaders",
+		msg:      wire.NewMsgGetCFHeaders(),
+		pver:     pver,
+	}, {
+		listener: "OnGetCFTypes",
+		msg:      wire.NewMsgGetCFTypes(),
+		pver:     pver,
+	}, {
+		listener: "OnCFilter",
+		msg: wire.NewMsgCFilter(&chainhash.Hash{},
+			wire.GCSFilterRegular, []byte("payload")),
+		pver: pver,
+	}, {
+		listener: "OnCFHeaders",
+		msg:      wire.NewMsgCFHeaders(),
+		pver:     pver,
+	}, {
+		listener: "OnCFTypes",
+		msg: wire.NewMsgCFTypes([]wire.FilterType{
+			wire.GCSFilterRegular, wire.GCSFilterExtended,
+		}),
+		pver: pver,
+	}, {
+		listener: "OnFeeFilter",
+		msg:      wire.NewMsgFeeFilter(15000),
+		pver:     pver,
+	}, {
+		listener: "OnGetCFilterV2",
+		msg:      wire.NewMsgGetCFilterV2(&chainhash.Hash{}),
+		pver:     pver,
+	}, {
+		listener: "OnCFilterV2",
+		msg:      wire.NewMsgCFilterV2(&chainhash.Hash{}, nil, 0, nil),
+		pver:     pver,
+	},
 		// only one version message is allowed
 		// only one verack message is allowed
 		{
-			"OnSendHeaders",
-			wire.NewMsgSendHeaders(),
-		},
-		{
-			"OnGetInitState",
-			wire.NewMsgGetInitState(),
-		},
-		{
-			"OnInitState",
-			wire.NewMsgInitState(),
-		},
-		{
-			"OnGetCFiltersV2",
-			wire.NewMsgGetCFsV2(&chainhash.Hash{}, &chainhash.Hash{}),
-		},
-		{
-			"OnCFiltersV2",
-			wire.NewMsgCFiltersV2([]wire.MsgCFilterV2{}),
+			listener: "OnSendHeaders",
+			msg:      wire.NewMsgSendHeaders(),
+			pver:     pver,
+		}, {
+			listener: "OnGetInitState",
+			msg:      wire.NewMsgGetInitState(),
+			pver:     pver,
+		}, {
+			listener: "OnInitState",
+			msg:      wire.NewMsgInitState(),
+			pver:     pver,
+		}, {
+			listener: "OnGetCFiltersV2",
+			msg:      wire.NewMsgGetCFsV2(&chainhash.Hash{}, &chainhash.Hash{}),
+			pver:     pver,
+		}, {
+			listener: "OnCFiltersV2",
+			msg:      wire.NewMsgCFiltersV2([]wire.MsgCFilterV2{}),
+			pver:     pver,
 		},
 	}
 	t.Logf("Running %d tests", len(tests))
 	for _, test := range tests {
+		testPver := test.pver
+		inPeer.protocolVersion = testPver
+		outPeer.protocolVersion = testPver
 		// Queue the test message
 		outPeer.QueueMessage(test.msg, nil)
 		select {
@@ -932,6 +950,85 @@ func TestUpdateLastBlockHeight(t *testing.T) {
 		t.Fatalf("height not allowed to advance - got %d, want %d", height,
 			remotePeerHeight+1)
 	}
+}
+
+// TestPushAddrV2Msg ensures that the PushAddrV2Msg returns the expected
+// number of addresses.
+func TestPushAddrV2Msg(t *testing.T) {
+	addr := wire.NewNetAddressV2(wire.IPv4Address, net.ParseIP("192.168.0.1"),
+		8333, time.Now(), wire.SFNodeNetwork)
+
+	tests := []struct {
+		name        string
+		addrs       []wire.NetAddressV2
+		wantSentLen int
+	}{
+		{
+			name:        "nil address list",
+			addrs:       nil,
+			wantSentLen: 0,
+		}, {
+			name:        "empty address list",
+			addrs:       []wire.NetAddressV2{},
+			wantSentLen: 0,
+		}, {
+			name:        "single address",
+			addrs:       []wire.NetAddressV2{addr},
+			wantSentLen: 1,
+		}, {
+			name: "multiple addresses under limit",
+			addrs: func() []wire.NetAddressV2 {
+				addrs := make([]wire.NetAddressV2, 10)
+				for i := range addrs {
+					addrs[i] = addr
+				}
+				return addrs
+			}(),
+			wantSentLen: 10,
+		}, {
+			name: "addresses over MaxAddrPerV2Msg limit",
+			addrs: func() []wire.NetAddressV2 {
+				addrs := make([]wire.NetAddressV2, wire.MaxAddrPerV2Msg+100)
+				for i := range addrs {
+					addrs[i] = addr
+				}
+				return addrs
+			}(),
+			wantSentLen: wire.MaxAddrPerV2Msg,
+		},
+	}
+
+	// Create a mock connection.
+	inConn, outConn := pipe(
+		&conn{laddr: "10.0.0.1:9108", raddr: "10.0.0.2:9108"},
+		&conn{laddr: "10.0.0.2:9108", raddr: "10.0.0.1:9108"},
+	)
+
+	// Create a peer with the connection.
+	cfg := &Config{}
+	peer, err := NewOutboundPeer(cfg, inConn.laddr)
+	if err != nil {
+		t.Fatalf("NewOutboundPeer: unexpected err: %v", err)
+	}
+	peer.AssociateConnection(outConn)
+
+	for _, test := range tests {
+		// Test the PushAddrV2Msg function.
+		sent := peer.PushAddrV2Msg(test.addrs)
+
+		// Check the number of addresses sent.
+		gotSentLen := 0
+		if sent != nil {
+			gotSentLen = len(sent)
+		}
+		if gotSentLen != test.wantSentLen {
+			t.Errorf("%s: expected %d addresses sent, got %d",
+				test.name, test.wantSentLen, gotSentLen)
+		}
+	}
+
+	peer.Disconnect()
+	peer.WaitForDisconnect()
 }
 
 func init() {
