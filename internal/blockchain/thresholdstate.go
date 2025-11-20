@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2023 The Decred developers
+// Copyright (c) 2017-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -892,6 +892,43 @@ func (b *BlockChain) isSubsidySplitR2AgendaActive(prevNode *blockNode) (bool, er
 // This function is safe for concurrent access.
 func (b *BlockChain) IsSubsidySplitR2AgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	return b.isAgendaActiveByHash(prevHash, b.isSubsidySplitR2AgendaActive)
+}
+
+// isMaxTreasurySpendAgendaActive returns whether or not the agenda to change
+// the maximum treasury spend to 4% per expenditure policy window, as defined in
+// DCP0013, has passed and is now active from the point of view of the passed
+// block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isMaxTreasurySpendAgendaActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment details for the max treasury spend
+	// consensus vote as defined in DCP0013.
+	const deploymentID = chaincfg.VoteIDMaxTreasurySpend
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined here
+	// because there is only one possible choice that can be active for the
+	// agenda, which is yes, so there is no need to check it.
+	state := b.deploymentState(prevNode, &deployment)
+	return state.State == ThresholdActive, nil
+}
+
+// IsMaxTreasurySpendAgendaActive returns whether or not the agenda to change
+// the maximum treasury spend to 4% per expenditure policy window, as defined in
+// DCP0013, has passed and is now active for the block AFTER the given block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsMaxTreasurySpendAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	return b.isAgendaActiveByHash(prevHash, b.isMaxTreasurySpendAgendaActive)
 }
 
 // VoteCounts is a compacted struct that is used to message vote counts.
