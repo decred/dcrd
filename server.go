@@ -4081,7 +4081,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 
 	mixchain := &mixpoolChain{s.chain, s.txMemPool}
 	s.mixMsgPool = mixpool.NewPool(mixchain)
-	s.mixObserver = mixpool.NewObserver(s.mixMsgPool)
+	s.mixObserver = s.mixMsgPool.Observer()
 
 	targetOutbound := defaultTargetOutbound
 	if cfg.MaxPeers < targetOutbound {
