@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/connmgr/v3
 
-go 1.18
+go 1.19
 
 require (
 	github.com/decred/dcrd/crypto/rand v1.0.1

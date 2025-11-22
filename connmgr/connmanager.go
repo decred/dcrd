@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2024 The Decred developers
+// Copyright (c) 2017-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,13 +56,11 @@ const (
 // ConnReq is the connection request to a network address. If permanent, the
 // connection will be retried on disconnection.
 type ConnReq struct {
-	// The following variables must only be used atomically.
-	//
 	// id is the unique identifier for this connection request.
-	//
+	id atomic.Uint64
+
 	// state is the current connection state for this connection request.
-	id    uint64
-	state uint32
+	state atomic.Uint32
 
 	// The following fields are owned by the connection handler and must not
 	// be accessed outside of it.
@@ -87,17 +85,17 @@ type ConnReq struct {
 
 // updateState updates the state of the connection request.
 func (c *ConnReq) updateState(state ConnState) {
-	atomic.StoreUint32(&c.state, uint32(state))
+	c.state.Store(uint32(state))
 }
 
 // ID returns a unique identifier for the connection request.
 func (c *ConnReq) ID() uint64 {
-	return atomic.LoadUint64(&c.id)
+	return c.id.Load()
 }
 
 // State is the connection state of the requested connection.
 func (c *ConnReq) State() ConnState {
-	return ConnState(atomic.LoadUint32(&c.state))
+	return ConnState(c.state.Load())
 }
 
 // String returns a human-readable string for the connection request.
@@ -209,11 +207,9 @@ type handleForEachConnReq struct {
 
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
-	// The following variables must only be used atomically.
-	//
 	// connReqCount is the number of connection requests that have been made and
 	// is primarily used to assign unique connection request IDs.
-	connReqCount uint64
+	connReqCount atomic.Uint64
 
 	// assignIDMtx synchronizes the assignment of an ID to a connection request
 	// with overall connection request count above.
@@ -469,7 +465,8 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 		return
 	}
 
-	c := &ConnReq{id: atomic.AddUint64(&cm.connReqCount, 1)}
+	c := &ConnReq{}
+	c.id.Store(cm.connReqCount.Add(1))
 
 	// Submit a request of a pending connection attempt to the connection
 	// manager. By registering the id before the connection is even
@@ -547,7 +544,7 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 	var doRegisterPending bool
 	cm.assignIDMtx.Lock()
 	if c.ID() == 0 {
-		atomic.StoreUint64(&c.id, atomic.AddUint64(&cm.connReqCount, 1))
+		c.id.Store(cm.connReqCount.Add(1))
 		doRegisterPending = true
 	}
 	cm.assignIDMtx.Unlock()
@@ -718,7 +715,7 @@ func (cm *ConnManager) Run(ctx context.Context) {
 	// Start enough outbound connections to reach the target number when not
 	// in manual connect mode.
 	if cm.cfg.GetNewAddress != nil {
-		curConnReqCount := atomic.LoadUint64(&cm.connReqCount)
+		curConnReqCount := cm.connReqCount.Load()
 		for i := curConnReqCount; i < uint64(cm.cfg.TargetOutbound); i++ {
 			go cm.newConnReq(ctx)
 		}
