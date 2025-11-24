@@ -35,7 +35,8 @@ import (
 )
 
 // MinPeers is the minimum number of peers required for a mix run to proceed.
-const MinPeers = 4
+// This value may change over time and is not a stable part of the package API.
+const MinPeers = mixing.MinPeers
 
 const pairingVersion byte = 1
 
@@ -368,8 +369,9 @@ type Client struct {
 	atomicPRFlags  uint32
 	atomicStopping uint32
 
-	wallet  Wallet
-	mixpool *mixpool.Pool
+	wallet   Wallet
+	mixpool  *mixpool.Pool
+	observer *mixpool.Observer
 
 	// Pending and active sessions and peers (both local and, when
 	// blaming, remote).
@@ -405,10 +407,12 @@ func NewClient(w Wallet) *Client {
 	}
 
 	height, _ := w.BestBlock()
+	mixPool := w.Mixpool()
 	return &Client{
 		atomicPRFlags:   uint32(prFlags),
 		wallet:          w,
-		mixpool:         w.Mixpool(),
+		mixpool:         mixPool,
+		observer:        mixPool.Observer(),
 		pendingPairings: make(map[string]*pendingPairing),
 		height:          height,
 		warming:         make(chan struct{}),
@@ -866,6 +870,8 @@ func (c *Client) epochTicker(ctx context.Context) error {
 	close(c.warming)
 	c.mu.Unlock()
 
+	prevEpoch := firstEpoch
+
 	for {
 		epoch, err := c.waitForEpoch(ctx)
 		if err != nil {
@@ -873,6 +879,12 @@ func (c *Client) epochTicker(ctx context.Context) error {
 		}
 
 		c.log("Epoch tick")
+
+		err = c.observer.CheckPrevEpoch(uint64(prevEpoch.Unix()))
+		if err != nil {
+			return err
+		}
+		prevEpoch = epoch
 
 		// Wait for any previous pairSession calls to timeout if they
 		// have not yet formed a session before the next epoch tick.
@@ -890,6 +902,11 @@ func (c *Client) epochTicker(ctx context.Context) error {
 
 		for _, p := range c.pendingPairings {
 			prs := c.mixpool.CompatiblePRs(p.pairing)
+
+			// Exclude identities who have timed out too many
+			// times.
+			prs = c.observer.ExcludePRs(prs)
+
 			prsMap := make(map[identity]struct{})
 			for _, pr := range prs {
 				prsMap[pr.Identity] = struct{}{}
