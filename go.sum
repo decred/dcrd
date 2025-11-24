@@ -8,10 +8,10 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dchest/siphash v1.2.3 h1:QXwFc8cFOR2dSa/gE6o/HokBMWtLUaNDVd+22aKHeEA=
 github.com/dchest/siphash v1.2.3/go.mod h1:0NvQU092bT0ipiFN++/rXm69QG9tVxLAlQHIXMPAkHc=
-github.com/decred/base58 v1.0.5 h1:hwcieUM3pfPnE/6p3J100zoRfGkQxBulZHo7GZfOqic=
-github.com/decred/base58 v1.0.5/go.mod h1:s/8lukEHFA6bUQQb/v3rjUySJ2hu+RioCzLukAVkrfw=
-github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 h1:l/lhv2aJCUignzls81+wvga0TFlyoZx8QxRMQgXpZik=
-github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3/go.mod h1:AKpV6+wZ2MfPRJnTbQ6NPgWrKzbe9RCIlCF/FKzMtM8=
+github.com/decred/base58 v1.0.6 h1:NXndBcO+ubGZORV3EulvqeBcMuQM7doqVGa7pBhMOs4=
+github.com/decred/base58 v1.0.6/go.mod h1:KR7Oh9njDPXTagD4P67KJZwroL8jT653u8CffkYqhcQ=
+github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 h1:xmmdtnGxF/Od2doiP56zBv5a3LgJ3PA6mlx3Luf622I=
+github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4/go.mod h1:07Ke2V+uJkG72M1Eiek8CF6NUB3XPlZ38cIit57R0UU=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1 h1:RbUvO7dsxdNgb2DvP2/h34eS2Ej1T4a7opzvOzz+YFI=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1/go.mod h1:kbRQzyWu1IfukYZqCioVyJokzu1ifvIXzVDrXReeOsQ=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
