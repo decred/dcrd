@@ -180,6 +180,8 @@ type Pool struct {
 	utxoFetcher UtxoFetcher
 	feeRate     int64
 	params      *chaincfg.Params
+
+	observer *Observer
 }
 
 // UtxoEntry provides details regarding unspent transaction outputs.
@@ -249,6 +251,13 @@ func NewPool(blockchain BlockChain) *Pool {
 	if u, ok := blockchain.(UtxoFetcher); ok {
 		pool.utxoFetcher = u
 	}
+
+	pool.observer = &Observer{
+		mixpool: pool,
+		epoch:   pool.epoch,
+		strikes: make(map[wire.OutPoint]*strikeSet),
+	}
+
 	return pool
 }
 
@@ -572,8 +581,13 @@ func (p *Pool) removeSession(sid [32]byte, txHash *chainhash.Hash, success bool)
 	for hash := range ses.hashes {
 		e, ok := p.pool[hash]
 		if ok {
-			log.Debugf("Removing session %x %T %v by %x",
-				sid[:], e.msg, hash, e.msg.Pub())
+			if txHash == nil {
+				log.Debugf("Removing session %x %T %v by %x",
+					sid[:], e.msg, hash, e.msg.Pub())
+			} else {
+				log.Debugf("Removing session %x %T %v by %x (completed mix %v)",
+					sid[:], e.msg, hash, e.msg.Pub(), txHash)
+			}
 			p.removeMessage(hash)
 		}
 	}
@@ -646,6 +660,7 @@ func (p *Pool) RemoveSpentPRs(txs []*wire.MsgTx) {
 		txHash := tx.TxHash()
 		ses, ok := p.sessionsByTxHash[txHash]
 		if ok {
+			p.observer.removeStrikesForMix(tx)
 			p.removeSession(ses.sid, &txHash, true)
 			continue
 		}
@@ -654,10 +669,31 @@ func (p *Pool) RemoveSpentPRs(txs []*wire.MsgTx) {
 			prHash := p.outPoints[in.PreviousOutPoint]
 			pr, ok := p.prs[prHash]
 			if ok {
-				p.removePR(pr, "double spent")
+				reason := fmt.Sprintf("double spent (outpoint %v)",
+					in.PreviousOutPoint)
+				p.removePR(pr, reason)
 			}
 		}
 	}
+}
+
+// NonMixSpendsPR returns whether a transaction (that is not known to be the
+// mix tx for any confirmed session) spends a current pair request UTXO.
+func (p *Pool) NonMixSpendsPR(tx *wire.MsgTx) bool {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	if _, ok := p.sessionsByTxHash[tx.TxHash()]; ok {
+		return false
+	}
+
+	for _, in := range tx.TxIn {
+		if _, ok := p.outPoints[in.PreviousOutPoint]; ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ReceiveKEsByPairing returns the most recently received run-0 KE messages by
@@ -684,6 +720,63 @@ func (p *Pool) ReceiveKEsByPairing(pairing []byte, epoch uint64) []*wire.MsgMixK
 	return kes
 }
 
+type activePeer struct {
+	pr  *wire.MsgMixPairReq
+	kes []*wire.MsgMixKeyExchange
+}
+
+// activeInEpoch returns all key exchange messages that were received for a
+// particular epoch (as its Unix time) from peers who formed sessions (as
+// indicated by a received CT), and all of their previous pair request
+// messages.
+//
+// This is only called by the mixpool observer.
+func (p *Pool) activeInEpoch(epoch uint64) map[[33]byte]activePeer {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	var epochKEs []*wire.MsgMixKeyExchange
+	for _, e := range p.pool {
+		ke, ok := e.msg.(*wire.MsgMixKeyExchange)
+		if !ok {
+			continue
+		}
+		if ke.Epoch != epoch {
+			continue
+		}
+		epochKEs = append(epochKEs, ke)
+	}
+	kes := make([]*wire.MsgMixKeyExchange, 0, len(epochKEs))
+NextKE:
+	for _, ke := range epochKEs {
+		for _, msgHash := range p.messagesByIdentity[ke.Identity] {
+			e := p.pool[msgHash]
+			if e.msgtype == msgtypeCT && e.sid == ke.SessionID {
+				kes = append(kes, ke)
+				continue NextKE
+			}
+		}
+	}
+
+	// TODO: sorting the key exchanges by identity and subslicing would be
+	// more memory efficient.
+	activeKEs := make(map[[33]byte][]*wire.MsgMixKeyExchange)
+	for _, ke := range kes {
+		activeKEs[ke.Identity] = append(activeKEs[ke.Identity], ke)
+	}
+	active := make(map[idPubKey]activePeer)
+	for _, pr := range p.prs {
+		if kes, ok := activeKEs[pr.Identity]; ok {
+			active[pr.Identity] = activePeer{
+				pr:  pr,
+				kes: kes,
+			}
+		}
+	}
+
+	return active
+}
+
 // RemoveUnresponsiveDuringEpoch removes pair requests of unresponsive peers
 // that did not provide any key exchange messages during the epoch in which a
 // mix occurred.
@@ -708,10 +801,10 @@ PRLoop:
 }
 
 // Received is a parameter for Pool.Receive describing the session to receive
-// messages for, and slices for returning results.  A single non-nil slice
-// with capacity of the expected number of messages is required and indicates
-// which message slice will be will be appended to.  Received messages are
-// unsorted.
+// messages for, and slices for returning results.  Unless ReceiveAll is true,
+// a single non-nil slice with capacity of the expected number of messages is
+// required and indicates which message slice will be will be appended to.
+// Received messages are unsorted.
 type Received struct {
 	Sid [32]byte
 	KEs []*wire.MsgMixKeyExchange
@@ -721,6 +814,8 @@ type Received struct {
 	CMs []*wire.MsgMixConfirm
 	FPs []*wire.MsgMixFactoredPoly
 	RSs []*wire.MsgMixSecrets
+
+	ReceiveAll bool
 }
 
 // Receive returns messages matching a session and message type, waiting until
@@ -779,7 +874,7 @@ func (p *Pool) Receive(ctx context.Context, r *Received) error {
 		capSlices++
 		expectedMessages = cap(r.RSs)
 	}
-	if capSlices != 1 {
+	if capSlices != 1 && !r.ReceiveAll {
 		return fmt.Errorf("mixpool: exactly one Received slice must have non-zero capacity")
 	}
 
@@ -1200,6 +1295,8 @@ func (p *Pool) acceptPR(pr *wire.MsgMixPairReq, hash *chainhash.Hash, id *idPubK
 		p.outPoints[pr.UTXOs[i].OutPoint] = *hash
 	}
 	p.messagesByIdentity[*id] = append(make([]chainhash.Hash, 0, 16), *hash)
+
+	p.observer.mergeAcceptedPRStrikes(pr)
 
 	return pr, nil
 }

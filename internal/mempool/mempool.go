@@ -161,6 +161,11 @@ type Config struct {
 	// TSpendMinedOnAncestor returns an error if the provided tspend has
 	// been mined in an ancestor block.
 	TSpendMinedOnAncestor func(tspend chainhash.Hash) error
+
+	// NonMixSpendsPairRequest returns whether the transaction spends outputs
+	// described by a currently-accepted pair request message in the
+	// mixpool while not being the confirmed mix tx for any session.
+	NonMixSpendsPairRequest func(tx *dcrutil.Tx) bool
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -1341,6 +1346,14 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 				txHash, msgTx.TxOut[0].Value, sDiff)
 			return nil, txRuleError(ErrInsufficientFee, str)
 		}
+	}
+
+	// Don't allow non-mix transactions which spend current pair requests
+	// in the mixpool.
+	if mp.cfg.NonMixSpendsPairRequest != nil && mp.cfg.NonMixSpendsPairRequest(tx) {
+		str := fmt.Sprintf("non-mix transaction %v spends current mixpool "+
+			"pair request UTXOs", txHash)
+		return nil, txRuleError(ErrMixpoolDoubleSpend, str)
 	}
 
 	// Aside from a few exceptions for votes and revocations, the transaction

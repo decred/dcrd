@@ -29,6 +29,10 @@ const (
 	// coins already spent by other transactions in the pool.
 	ErrMempoolDoubleSpend = ErrorKind("ErrMempoolDoubleSpend")
 
+	// ErrMixpoolDoubleSpend indicates a non-mix transaction that attempts
+	// to double spend current pair request UTXOs in the mixpool.
+	ErrMixpoolDoubleSpend = ErrorKind("ErrMixpoolDoubleSpend")
+
 	// ErrAlreadyVoted indicates a ticket already voted.
 	ErrAlreadyVoted = ErrorKind("ErrorAlreadyVoted")
 
