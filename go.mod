@@ -59,35 +59,3 @@ require (
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 )
-
-replace (
-	github.com/decred/dcrd/addrmgr/v3 => ./addrmgr
-	github.com/decred/dcrd/bech32 => ./bech32
-	github.com/decred/dcrd/blockchain/stake/v5 => ./blockchain/stake
-	github.com/decred/dcrd/blockchain/standalone/v2 => ./blockchain/standalone
-	github.com/decred/dcrd/blockchain/v5 => ./blockchain
-	github.com/decred/dcrd/certgen => ./certgen
-	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
-	github.com/decred/dcrd/chaincfg/v3 => ./chaincfg
-	github.com/decred/dcrd/connmgr/v3 => ./connmgr
-	github.com/decred/dcrd/container/apbf => ./container/apbf
-	github.com/decred/dcrd/container/lru => ./container/lru
-	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
-	github.com/decred/dcrd/crypto/rand => ./crypto/rand
-	github.com/decred/dcrd/crypto/ripemd160 => ./crypto/ripemd160
-	github.com/decred/dcrd/database/v3 => ./database
-	github.com/decred/dcrd/dcrec => ./dcrec
-	github.com/decred/dcrd/dcrec/secp256k1/v4 => ./dcrec/secp256k1
-	github.com/decred/dcrd/dcrjson/v4 => ./dcrjson
-	github.com/decred/dcrd/dcrutil/v4 => ./dcrutil
-	github.com/decred/dcrd/gcs/v4 => ./gcs
-	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
-	github.com/decred/dcrd/limits => ./limits
-	github.com/decred/dcrd/math/uint256 => ./math/uint256
-	github.com/decred/dcrd/mixing => ./mixing
-	github.com/decred/dcrd/peer/v3 => ./peer
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
-	github.com/decred/dcrd/rpcclient/v8 => ./rpcclient
-	github.com/decred/dcrd/txscript/v4 => ./txscript
-	github.com/decred/dcrd/wire => ./wire
-)
