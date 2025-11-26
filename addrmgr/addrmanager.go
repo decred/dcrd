@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -57,13 +57,12 @@ type AddrManager struct {
 	// serialized and saved to the file system.
 	addrChanged bool
 
-	// started signals whether the address manager has been started.  Its value
-	// is 1 or more if started.
-	started int32
+	// started signals whether the address manager has been started.
+	started atomic.Bool
 
 	// shutdown signals whether a shutdown of the address manager has been
-	// initiated.  Its value is 1 or more if a shutdown is done or in progress.
-	shutdown int32
+	// initiated.
+	shutdown atomic.Bool
 
 	// The following fields are used for lifecycle management of the
 	// address manager.
@@ -608,7 +607,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 // This function is safe for concurrent access.
 func (a *AddrManager) Start() {
 	// Return early if the address manager has already been started.
-	if atomic.AddInt32(&a.started, 1) != 1 {
+	if !a.started.CompareAndSwap(false, true) {
 		return
 	}
 
@@ -627,7 +626,7 @@ func (a *AddrManager) Start() {
 // This function is safe for concurrent access.
 func (a *AddrManager) Stop() error {
 	// Return early if the address manager has already been stopped.
-	if atomic.AddInt32(&a.shutdown, 1) != 1 {
+	if !a.shutdown.CompareAndSwap(false, true) {
 		log.Warnf("Address manager is already in the process of shutting down")
 		return nil
 	}
