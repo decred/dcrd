@@ -57,7 +57,7 @@ var (
 	// the package will panic at runtime.  Of particular note is the pre-release
 	// and build metadata portions MUST only contain characters from
 	// semanticAlphabet.
-	Version = "2.1.0+release.local"
+	Version = "2.1.1+release.local"
 
 	// NOTE: The following values are set via init by parsing the above Version
 	// string.
