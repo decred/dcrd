@@ -23,6 +23,7 @@ const (
 	routableIPv6Addr    = "2003::"
 	nonRoutableIPv4Addr = "255.255.255.255"
 	nonRoutableIPv6Addr = "::1"
+	torv3Host           = "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion"
 )
 
 // natfAny defines a filter that will allow network addresses of any type.
@@ -30,9 +31,19 @@ func natfAny(addrType NetAddressType) bool {
 	return true
 }
 
+// natfOnlyIPv4 defines a filter that will only allow IPv4 netAddrs.
+func natfOnlyIPv4(addrType NetAddressType) bool {
+	return addrType == IPv4Address
+}
+
 // natfOnlyIPv6 defines a filter that will only allow IPv6 netAddrs.
 func natfOnlyIPv6(addrType NetAddressType) bool {
 	return addrType == IPv6Address
+}
+
+// natfOnlyTORv3 defines a filter that will only allow TORv3 netAddrs.
+func natfOnlyTORv3(addrType NetAddressType) bool {
+	return addrType == TORv3Address
 }
 
 // addAddressByIP is a convenience function that adds an address to the
@@ -50,7 +61,7 @@ func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 func TestAddOrUpdateAddress(t *testing.T) {
 	amgr := New("testaddaddressupdate")
 	amgr.Start()
-	if ka := amgr.GetAddress(); ka != nil {
+	if ka := amgr.GetAddress(natfAny); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
 
@@ -61,7 +72,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 	na := NewNetAddressFromIPPort(net.ParseIP(nonRoutableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
-	if ka := amgr.GetAddress(); ka != nil {
+	if ka := amgr.GetAddress(natfAny); ka != nil {
 		t.Fatal("address manager should contain no addresses")
 	}
 
@@ -72,7 +83,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	}
 	na = NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 8333, 0)
 	amgr.addOrUpdateAddress(na, na)
-	ka := amgr.GetAddress()
+	ka := amgr.GetAddress(natfAny)
 	newlyAddedAddr := ka.NetAddress()
 	if ka == nil {
 		t.Fatal("address manager should contain newly added known address")
@@ -94,7 +105,7 @@ func TestAddOrUpdateAddress(t *testing.T) {
 	// The address should be in the address manager with a new timestamp.
 	// The network address reference held by the known address should also
 	// differ.
-	updatedKnownAddress := amgr.GetAddress()
+	updatedKnownAddress := amgr.GetAddress(natfAny)
 	netAddrFromUpdate := updatedKnownAddress.NetAddress()
 	if updatedKnownAddress == nil {
 		t.Fatal("address manager should contain updated known address")
@@ -230,7 +241,7 @@ func TestStartStop(t *testing.T) {
 	amgr = New(dir)
 	amgr.Start()
 
-	knownAddress := amgr.GetAddress()
+	knownAddress := amgr.GetAddress(natfAny)
 	if knownAddress == nil {
 		t.Fatal("address manager should contain known address")
 	}
@@ -338,13 +349,13 @@ func TestGetAddress(t *testing.T) {
 	n := New("testgetaddress")
 
 	// Get an address from an empty set (should error).
-	if rv := n.GetAddress(); rv != nil {
+	if rv := n.GetAddress(natfAny); rv != nil {
 		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
 	}
 
 	// Add a new address and get it.
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 	if ka == nil {
 		t.Fatal("did not get an address where there is one in the pool")
 	}
@@ -363,7 +374,7 @@ func TestGetAddress(t *testing.T) {
 
 	// Verify that the previously added address still exists in the address
 	// manager after being marked as good.
-	ka = n.GetAddress()
+	ka = n.GetAddress(natfAny)
 	if ka == nil {
 		t.Fatal("did not get an address when one was expected")
 	}
@@ -394,7 +405,7 @@ func TestAttempt(t *testing.T) {
 
 	// Add a new address and get it.
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 
 	if !ka.LastAttempt().IsZero() {
 		t.Fatal("address should not have been attempted")
@@ -425,7 +436,7 @@ func TestConnected(t *testing.T) {
 
 	// Add a new address and get it
 	n.addAddressByIP(routableIPv4Addr, 8333)
-	ka := n.GetAddress()
+	ka := n.GetAddress(natfAny)
 	na := ka.NetAddress()
 	// make it an hour ago
 	na.Timestamp = time.Unix(time.Now().Add(time.Hour*-1).Unix(), 0)
@@ -630,7 +641,7 @@ func TestSetServices(t *testing.T) {
 
 	// Ensure that the services field for a network address returned from the
 	// address manager is not mutated by a call to SetServices.
-	knownAddress := addressManager.GetAddress()
+	knownAddress := addressManager.GetAddress(natfAny)
 	if knownAddress == nil {
 		t.Fatal("expected known address, got nil")
 	}
@@ -663,38 +674,43 @@ func TestSetServices(t *testing.T) {
 func TestAddLocalAddress(t *testing.T) {
 	var tests = []struct {
 		name     string
-		ip       net.IP
+		host     string
 		priority AddressPriority
 		valid    bool
 	}{{
 		name:     "non-routable local IPv4 address",
-		ip:       net.ParseIP("192.168.0.100"),
+		host:     "192.168.0.100",
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "routable IPv4 address",
-		ip:       net.ParseIP("204.124.1.1"),
+		host:     "204.124.1.1",
 		priority: InterfacePrio,
 		valid:    true,
 	}, {
 		name:     "routable IPv4 address with bound priority",
-		ip:       net.ParseIP("204.124.1.1"),
+		host:     "204.124.1.1",
 		priority: BoundPrio,
 		valid:    true,
 	}, {
 		name:     "non-routable local IPv6 address",
-		ip:       net.ParseIP("::1"),
+		host:     "::1",
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "non-routable local IPv6 address 2",
-		ip:       net.ParseIP("fe80::1"),
+		host:     "fe80::1",
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "routable IPv6 address",
-		ip:       net.ParseIP("2620:100::1"),
+		host:     "2620:100::1",
 		priority: InterfacePrio,
+		valid:    true,
+	}, {
+		name:     "routable TORv3 address",
+		host:     torv3Host,
+		priority: ManualPrio,
 		valid:    true,
 	}}
 
@@ -704,7 +720,14 @@ func TestAddLocalAddress(t *testing.T) {
 	amgr := New("testaddlocaladdress")
 	validLocalAddresses := make(map[string]struct{})
 	for _, test := range tests {
-		netAddr := NewNetAddressFromIPPort(test.ip, testPort, testServices)
+		addrType, addrBytes := EncodeHost(test.host)
+		netAddr, err := NewNetAddressFromParams(addrType, addrBytes, testPort,
+			time.Unix(time.Now().Unix(), 0), testServices)
+		if err != nil {
+			t.Fatalf("%q: failed to create NetAddress: %v", test.name, err)
+			return
+		}
+
 		result := amgr.AddLocalAddress(netAddr, test.priority)
 		if result == nil && !test.valid {
 			t.Errorf("%q: address should have been accepted", test.name)
@@ -732,8 +755,12 @@ func TestAddLocalAddress(t *testing.T) {
 	// Ensure that all of the addresses that were expected to be added to the
 	// address manager are also returned from a call to LocalAddresses.
 	for _, localAddr := range amgr.LocalAddresses() {
-		localAddrIP := net.ParseIP(localAddr.Address)
-		netAddr := NewNetAddressFromIPPort(localAddrIP, testPort, testServices)
+		addrType, addrBytes := EncodeHost(localAddr.Address)
+		netAddr, err := NewNetAddressFromParams(addrType, addrBytes, testPort,
+			time.Unix(time.Now().Unix(), 0), testServices)
+		if err != nil {
+			t.Fatalf("failed to create NetAddress from LocalAddr: %v", err)
+		}
 		netAddrKey := netAddr.Key()
 		if _, ok := validLocalAddresses[netAddrKey]; !ok {
 			t.Errorf("expected to find local address with key %v", netAddrKey)
@@ -760,12 +787,21 @@ func TestGetBestLocalAddress(t *testing.T) {
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}
 
+	// TORv3 address.
+	torAddrType, torAddrBytes := EncodeHost(torv3Host)
+	torAddr, err := NewNetAddressFromParams(torAddrType, torAddrBytes, 0,
+		time.Unix(time.Now().Unix(), 0), wire.SFNodeNetwork)
+	if err != nil {
+		t.Fatalf("failed to create TORv3 NetAddress: %v", err)
+	}
+
 	var tests = []struct {
 		remoteAddr *NetAddress
 		want0      *NetAddress
 		want1      *NetAddress
 		want2      *NetAddress
 		want3      *NetAddress
+		want4      *NetAddress
 	}{{
 		// Remote connection from public IPv4.
 		newAddressFromIP(net.ParseIP("204.124.8.1")),
@@ -773,9 +809,11 @@ func TestGetBestLocalAddress(t *testing.T) {
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.ParseIP("204.124.8.100")),
 		newAddressFromIP(net.IPv4zero),
+		torAddr,
 	}, {
 		// Remote connection from private IPv4.
 		newAddressFromIP(net.ParseIP("172.16.0.254")),
+		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
 		newAddressFromIP(net.IPv4zero),
@@ -787,6 +825,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 		newAddressFromIP(net.IPv6zero),
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 		newAddressFromIP(net.ParseIP("2001:470::1")),
+		torAddr,
 	}}
 
 	amgr := New("testgetbestlocaladdress")
@@ -852,21 +891,18 @@ func TestGetBestLocalAddress(t *testing.T) {
 			continue
 		}
 	}
-	/*
-		// Add a Tor generated IP address
-		localAddr = wire.NetAddress{IP: net.ParseIP("fd87:d87e:eb43:25::1")}
-		amgr.AddLocalAddress(&localAddr, ManualPrio)
 
-		// Test against want3
-		for x, test := range tests {
-			got := amgr.GetBestLocalAddress(&test.remoteAddr)
-			if !test.want3.IP.Equal(got.IP) {
-				t.Errorf("TestGetBestLocalAddress test3 #%d failed for remote address %s: want %s got %s",
-					x, test.remoteAddr.IP, test.want3.IP, got.IP)
-				continue
-			}
+	// Test4: Add TORv3 address with ManualPrio
+	amgr.AddLocalAddress(torAddr, ManualPrio)
+	for x, test := range tests {
+		remoteAddr := test.remoteAddr
+		want := test.want4
+		got := amgr.GetBestLocalAddress(remoteAddr, natfAny)
+		if got.Type != want.Type || !reflect.DeepEqual(got.IP, want.IP) {
+			t.Errorf("TestGetBestLocalAddress test4 #%d failed for remote address %s: want %s, got %s",
+				x, remoteAddr, want, got)
 		}
-	*/
+	}
 }
 
 // TestIsExternalAddrCandidate makes sure that when a remote peer suggests that
@@ -982,14 +1018,67 @@ func TestIsExternalAddrCandidate(t *testing.T) {
 		remoteAddr:    routableIPv6Addr,
 		expectedBool:  true,
 		expectedReach: Ipv6Weak,
+	}, {
+		name:          "torv3 to torv3",
+		localAddr:     torAddress,
+		remoteAddr:    torAddress,
+		expectedBool:  false,
+		expectedReach: Private,
+	}, {
+		name:          "routable ipv4 to torv3",
+		localAddr:     routableIPv4Addr,
+		remoteAddr:    torAddress,
+		expectedBool:  true,
+		expectedReach: Ipv4,
+	}, {
+		name:          "non-routable ipv4 to torv3",
+		localAddr:     nonRoutableIPv4Addr,
+		remoteAddr:    torAddress,
+		expectedBool:  false,
+		expectedReach: Default,
+	}, {
+		name:          "routable ipv6 to torv3",
+		localAddr:     routableIPv6Addr,
+		remoteAddr:    torAddress,
+		expectedBool:  true,
+		expectedReach: Default,
+	}, {
+		name:          "non-routable ipv6 to torv3",
+		localAddr:     nonRoutableIPv6Addr,
+		remoteAddr:    torAddress,
+		expectedBool:  false,
+		expectedReach: Default,
+	}, {
+		name:          "torv3 to routable ipv4",
+		localAddr:     torAddress,
+		remoteAddr:    routableIPv4Addr,
+		expectedBool:  false,
+		expectedReach: Ipv4,
+	}, {
+		name:          "torv3 to routable ipv6",
+		localAddr:     torAddress,
+		remoteAddr:    routableIPv6Addr,
+		expectedBool:  false,
+		expectedReach: Ipv6Strong,
 	}}
+
+	createNetAddr := func(addr string) *NetAddress {
+		addrType, addrBytes := EncodeHost(addr)
+		if addrType == UnknownAddressType {
+			t.Fatalf("unable to parse address: %s", addr)
+		}
+		na, err := NewNetAddressFromParams(addrType, addrBytes, 8333,
+			time.Time{}, wire.SFNodeNetwork)
+		if err != nil {
+			t.Fatalf("failed to create NetAddress from %s: %v", addr, err)
+		}
+		return na
+	}
 
 	addressManager := New("TestIsExternalAddrCandidate")
 	for _, test := range tests {
-		localIP := net.ParseIP(test.localAddr)
-		remoteIP := net.ParseIP(test.remoteAddr)
-		localNa := NewNetAddressFromIPPort(localIP, 8333, wire.SFNodeNetwork)
-		remoteNa := NewNetAddressFromIPPort(remoteIP, 8333, wire.SFNodeNetwork)
+		localNa := createNetAddr(test.localAddr)
+		remoteNa := createNetAddr(test.remoteAddr)
 
 		goodReach, reach := addressManager.IsExternalAddrCandidate(localNa, remoteNa)
 		if goodReach != test.expectedBool {
@@ -1000,6 +1089,81 @@ func TestIsExternalAddrCandidate(t *testing.T) {
 		if reach != test.expectedReach {
 			t.Errorf("%q: unexpected return value for reach - want '%v', got '%v'",
 				test.name, test.expectedReach, reach)
+		}
+	}
+}
+
+// TestGetAddressWithFilter ensures that GetAddress returns addresses matching
+// the provided filter.
+func TestGetAddressWithFilter(t *testing.T) {
+	ipv4Addr := NewNetAddressFromIPPort(net.ParseIP(routableIPv4Addr), 8333, 0)
+	ipv6Addr := NewNetAddressFromIPPort(net.ParseIP(routableIPv6Addr), 8333, 0)
+
+	addrType, addrBytes := EncodeHost(torv3Host)
+	torv3Addr, _ := NewNetAddressFromParams(addrType, addrBytes, 8333,
+		time.Unix(time.Now().Unix(), 0), 0)
+
+	tests := []struct {
+		name      string
+		addresses []*NetAddress
+		filter    NetAddressTypeFilter
+		wantType  NetAddressType
+		wantNil   bool
+	}{{
+		name:      "returns address matching IPv4 filter",
+		addresses: []*NetAddress{ipv4Addr, ipv6Addr},
+		filter:    natfOnlyIPv4,
+		wantType:  IPv4Address,
+	}, {
+		name:      "returns address matching IPv6 filter",
+		addresses: []*NetAddress{ipv4Addr, ipv6Addr},
+		filter:    natfOnlyIPv6,
+		wantType:  IPv6Address,
+	}, {
+		name:      "returns address matching TORv3 filter",
+		addresses: []*NetAddress{ipv4Addr, ipv6Addr, torv3Addr},
+		filter:    natfOnlyTORv3,
+		wantType:  TORv3Address,
+	}, {
+		name:      "returns nil when no matching IPv4 addresses",
+		addresses: []*NetAddress{ipv6Addr},
+		filter:    natfOnlyIPv4,
+		wantNil:   true,
+	}, {
+		name:      "returns nil when no matching IPv6 addresses",
+		addresses: []*NetAddress{ipv4Addr},
+		filter:    natfOnlyIPv6,
+		wantNil:   true,
+	}, {
+		name:      "returns nil when address manager empty",
+		addresses: []*NetAddress{},
+		filter:    natfAny,
+		wantNil:   true,
+	}}
+
+	for _, test := range tests {
+		amgr := New("TestGetAddressWithFilter")
+		amgr.AddAddresses(test.addresses, ipv4Addr)
+
+		ka := amgr.GetAddress(test.filter)
+
+		if test.wantNil {
+			if ka != nil {
+				t.Errorf("%q: expected nil, got address: %v", test.name, ka.NetAddress())
+			}
+			continue
+		}
+
+		if ka == nil {
+			t.Errorf("%q: expected address, got nil", test.name)
+			continue
+		}
+
+		// Verify the address type matches expected type.
+		gotType := ka.NetAddress().Type
+		if gotType != test.wantType {
+			t.Errorf("%q: unexpected address type: got %v, want %v",
+				test.name, gotType, test.wantType)
 		}
 	}
 }
