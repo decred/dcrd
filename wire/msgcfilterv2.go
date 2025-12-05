@@ -115,7 +115,7 @@ func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	err = writeElement(w, msg.ProofIndex)
+	err = writeElement(w, &msg.ProofIndex)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, hash := range msg.ProofHashes {
-		err := writeElement(w, hash)
+		err := writeElement(w, &hash)
 		if err != nil {
 			return err
 		}

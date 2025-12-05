@@ -140,7 +140,8 @@ func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
 	// working somewhere around 2106.  Also timestamp wasn't added until
 	// protocol version >= NetAddressTimeVersion.
 	if ts {
-		err := writeElement(w, uint32(na.Timestamp.Unix()))
+		ts := uint32(na.Timestamp.Unix())
+		err := writeElement(w, &ts)
 		if err != nil {
 			return err
 		}
@@ -151,11 +152,11 @@ func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
 	if na.IP != nil {
 		copy(ip[:], na.IP.To16())
 	}
-	err := writeElements(w, na.Services, ip)
+	err := writeElements(w, &na.Services, &ip)
 	if err != nil {
 		return err
 	}
 
 	// Sigh.  Decred protocol mixes little and big endian.
-	return binary.Write(w, bigEndian, na.Port)
+	return binary.Write(w, bigEndian, &na.Port)
 }

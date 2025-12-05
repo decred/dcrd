@@ -89,7 +89,7 @@ func (msg *MsgMixPairReq) Pairing() ([]byte, error) {
 		1 // Pairing flags
 	w := bytes.NewBuffer(make([]byte, 0, bufLen))
 
-	err := writeElement(w, msg.MixAmount)
+	err := writeElement(w, &msg.MixAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (msg *MsgMixPairReq) Pairing() ([]byte, error) {
 		return nil, err
 	}
 
-	err = writeElements(w, msg.TxVersion, msg.LockTime, msg.PairingFlags)
+	err = writeElements(w, &msg.TxVersion, &msg.LockTime, &msg.PairingFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		return messageError(op, ErrTooManyMixPairReqUTXOs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, msg.Expiry, msg.MixAmount)
+	err := writeElements(w, &msg.Identity, &msg.Expiry, &msg.MixAmount)
 	if err != nil {
 		return err
 	}
@@ -304,8 +304,8 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		return err
 	}
 
-	err = writeElements(w, msg.TxVersion, msg.LockTime, msg.MessageCount,
-		msg.InputValue)
+	err = writeElements(w, &msg.TxVersion, &msg.LockTime, &msg.MessageCount,
+		&msg.InputValue)
 	if err != nil {
 		return err
 	}
@@ -352,7 +352,7 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 			return err
 		}
 
-		err = writeElement(w, utxo.Opcode)
+		err = writeElement(w, &utxo.Opcode)
 		if err != nil {
 			return err
 		}
@@ -362,7 +362,7 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 	if msg.Change != nil {
 		hasChange = 1
 	}
-	err = writeElement(w, hasChange)
+	err = writeElement(w, &hasChange)
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func (msg *MsgMixPairReq) writeMessageNoSignature(op string, w io.Writer, pver u
 		}
 	}
 
-	err = writeElements(w, msg.Flags, msg.PairingFlags)
+	err = writeElements(w, &msg.Flags, &msg.PairingFlags)
 	if err != nil {
 		return err
 	}

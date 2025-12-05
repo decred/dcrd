@@ -163,7 +163,7 @@ func (msg *MsgMixFactoredPoly) writeMessageNoSignature(op string, w io.Writer, p
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
 	if err != nil {
 		return err
 	}
