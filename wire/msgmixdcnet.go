@@ -146,7 +146,7 @@ func (msg *MsgMixDCNet) writeMessageNoSignature(op string, w io.Writer, pver uin
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
 	if err != nil {
 		return err
 	}

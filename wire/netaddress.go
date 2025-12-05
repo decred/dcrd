@@ -136,26 +136,31 @@ func readNetAddress(r io.Reader, pver uint32, na *NetAddress, ts bool) error {
 // version and whether or not the timestamp is included per ts.  Some messages
 // like version do not include the timestamp.
 func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
+	var elems struct {
+		ts uint32
+		ip [16]byte
+	}
+
 	// NOTE: The Decred protocol uses a uint32 for the timestamp so it will stop
 	// working somewhere around 2106.  Also timestamp wasn't added until
 	// protocol version >= NetAddressTimeVersion.
 	if ts {
-		err := writeElement(w, uint32(na.Timestamp.Unix()))
+		elems.ts = uint32(na.Timestamp.Unix())
+		err := writeElement(w, &elems.ts)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Ensure to always write 16 bytes even if the ip is nil.
-	var ip [16]byte
 	if na.IP != nil {
-		copy(ip[:], na.IP.To16())
+		copy(elems.ip[:], na.IP.To16())
 	}
-	err := writeElements(w, na.Services, ip)
+	err := writeElements(w, &na.Services, &elems.ip)
 	if err != nil {
 		return err
 	}
 
 	// Sigh.  Decred protocol mixes little and big endian.
-	return binary.Write(w, bigEndian, na.Port)
+	return binary.Write(w, bigEndian, &na.Port)
 }

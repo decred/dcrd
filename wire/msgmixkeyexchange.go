@@ -148,8 +148,8 @@ func (msg *MsgMixKeyExchange) writeMessageNoSignature(op string, w io.Writer, pv
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Epoch,
-		msg.Run, &msg.Pos, &msg.ECDH, &msg.PQPK, &msg.Commitment)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Epoch,
+		&msg.Run, &msg.Pos, &msg.ECDH, &msg.PQPK, &msg.Commitment)
 	if err != nil {
 		return err
 	}

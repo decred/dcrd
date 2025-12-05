@@ -239,7 +239,7 @@ func (msg *MsgMixSecrets) writeMessageNoSignature(op string, w io.Writer, pver u
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run, &msg.Seed)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run, &msg.Seed)
 	if err != nil {
 		return err
 	}

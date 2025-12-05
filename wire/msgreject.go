@@ -169,7 +169,7 @@ func (msg *MsgReject) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	// Code indicating why the command was rejected.
-	err = writeElement(w, msg.Code)
+	err = writeElement(w, &msg.Code)
 	if err != nil {
 		return err
 	}
