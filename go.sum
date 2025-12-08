@@ -66,8 +66,8 @@ github.com/decred/dcrd/rpcclient/v8 v8.1.0 h1:FLZ1j4ub7+O9oCIcKf+frYCrZW++G3FSzk
 github.com/decred/dcrd/rpcclient/v8 v8.1.0/go.mod h1:iTHqLrHnS2VLJPHQk7guy0BP3jKvMew9STDqWWhFNA4=
 github.com/decred/dcrd/txscript/v4 v4.1.2 h1:1EP7ZmBDl2LBeAMTEygxY8rVNN3+lkGqrsb4u64x+II=
 github.com/decred/dcrd/txscript/v4 v4.1.2/go.mod h1:r5/8qfCnl6TFrE369gggUayVIryM1oC7BLoRfa27Ckw=
-github.com/decred/dcrd/wire v1.7.1 h1:kDuHBiY1Qv9rBxYKgC2RgyPy7IOA2WRf00jqHwpr16I=
-github.com/decred/dcrd/wire v1.7.1/go.mod h1:eP9XRsMloy+phlntkTAaAm611JgLv8NqY1YJoRxkNKU=
+github.com/decred/dcrd/wire v1.7.2 h1:04vpHHE3t78rDztjZx82JV2EEOMDUtUUB1347H32kho=
+github.com/decred/dcrd/wire v1.7.2/go.mod h1:eP9XRsMloy+phlntkTAaAm611JgLv8NqY1YJoRxkNKU=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1 h1:RbUvO7dsxdNgb2DvP2/h34eS2Ej1T4a7opzvOzz+YFI=
 github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1/go.mod h1:kbRQzyWu1IfukYZqCioVyJokzu1ifvIXzVDrXReeOsQ=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
