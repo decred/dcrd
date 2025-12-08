@@ -291,14 +291,21 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 	const op = "WriteMessage"
 	totalBytes := 0
 
+	var elems struct {
+		dcrnet   CurrencyNet
+		command  [CommandSize]byte
+		lenp     uint32
+		checksum [4]byte
+	}
+	elems.dcrnet = dcrnet
+
 	// Enforce max command size.
-	var command [CommandSize]byte
 	cmd := msg.Command()
 	if len(cmd) > CommandSize {
 		msg := fmt.Sprintf("command [%s] is too long [max %v]", cmd, CommandSize)
 		return totalBytes, messageError(op, ErrCmdTooLong, msg)
 	}
-	copy(command[:], []byte(cmd))
+	copy(elems.command[:], []byte(cmd))
 
 	// Encode the message payload.
 	var bw bytes.Buffer
@@ -307,32 +314,33 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 		return totalBytes, err
 	}
 	payload := bw.Bytes()
-	lenp := len(payload)
 
 	// Enforce maximum overall message payload.
-	if lenp > MaxMessagePayload {
+	if len(payload) > MaxMessagePayload {
 		msg := fmt.Sprintf("message payload is too large - encoded "+
 			"%d bytes, but maximum message payload is %d bytes",
-			lenp, MaxMessagePayload)
+			len(payload), MaxMessagePayload)
 		return totalBytes, messageError(op, ErrPayloadTooLarge, msg)
 	}
+	elems.lenp = uint32(len(payload))
 
 	// Enforce maximum message payload based on the message type.
 	mpl := msg.MaxPayloadLength(pver)
-	if uint32(lenp) > mpl {
+	if elems.lenp > mpl {
 		str := fmt.Sprintf("message payload is too large - encoded "+
 			"%d bytes, but maximum message payload size for "+
-			"messages of type [%s] is %d.", lenp, cmd, mpl)
+			"messages of type [%s] is %d.", elems.lenp, cmd, mpl)
 		return totalBytes, messageError(op, ErrPayloadTooLarge, str)
 	}
 
 	// Encode the header for the message.  This is done to a buffer
 	// rather than directly to the writer since writeElements doesn't
 	// return the number of bytes written.
-	var checksum [4]byte
-	copy(checksum[:], chainhash.HashB(payload)[0:4])
-	hw := bytes.NewBuffer(make([]byte, 0, MessageHeaderSize))
-	writeElements(hw, dcrnet, command, uint32(lenp), checksum)
+	cksumHash := chainhash.HashH(payload)
+	copy(elems.checksum[:], cksumHash[0:4])
+	var buf [MessageHeaderSize]byte
+	hw := bytes.NewBuffer(buf[:0])
+	writeElements(hw, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
 
 	// Write header.
 	n, err := w.Write(hw.Bytes())
