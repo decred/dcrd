@@ -173,7 +173,7 @@ func TestElementWire(t *testing.T) {
 	for i, test := range tests {
 		// Write to wire format.
 		var buf bytes.Buffer
-		err := writeElement(&buf, test.in)
+		_, err := writeElement(&buf, test.in)
 		if err != nil {
 			t.Errorf("writeElement #%d error %v", i, err)
 			continue
@@ -253,11 +253,15 @@ func TestElementWireErrors(t *testing.T) {
 	for i, test := range tests {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
-		err := writeElement(w, test.in)
+		n, err := writeElement(w, test.in)
 		if !errors.Is(err, test.writeErr) {
 			t.Errorf("writeElement #%d wrong error got: %v, want: %v",
 				i, err, test.writeErr)
 			continue
+		}
+		if n != test.max {
+			t.Errorf("writeElement #%d wrong written byte count got: %v, "+
+				"want: %v", i, n, test.max)
 		}
 
 		// Decode from wire format.

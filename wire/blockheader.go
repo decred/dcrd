@@ -222,9 +222,10 @@ func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
 // opposed to encoding for the wire.
 func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
 	sec := uint32(bh.Timestamp.Unix())
-	return writeElements(w, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
+	_, err := writeElements(w, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
 		&bh.StakeRoot, &bh.VoteBits, &bh.FinalState, &bh.Voters,
 		&bh.FreshStake, &bh.Revocations, &bh.PoolSize, &bh.Bits, &bh.SBits,
 		&bh.Height, &bh.Size, &sec, &bh.Nonce, &bh.ExtraData,
 		&bh.StakeVersion)
+	return err
 }

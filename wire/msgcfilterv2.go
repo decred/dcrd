@@ -105,7 +105,7 @@ func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrTooManyProofs, msg)
 	}
 
-	err := writeElement(w, &msg.BlockHash)
+	_, err := writeElement(w, &msg.BlockHash)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	err = writeElement(w, &msg.ProofIndex)
+	_, err = writeElement(w, &msg.ProofIndex)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for i := range msg.ProofHashes {
-		err := writeElement(w, &msg.ProofHashes[i])
+		_, err := writeElement(w, &msg.ProofHashes[i])
 		if err != nil {
 			return err
 		}

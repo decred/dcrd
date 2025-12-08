@@ -146,7 +146,7 @@ func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
 	// protocol version >= NetAddressTimeVersion.
 	if ts {
 		elems.ts = uint32(na.Timestamp.Unix())
-		err := writeElement(w, &elems.ts)
+		_, err := writeElement(w, &elems.ts)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func writeNetAddress(w io.Writer, pver uint32, na *NetAddress, ts bool) error {
 	if na.IP != nil {
 		copy(elems.ip[:], na.IP.To16())
 	}
-	err := writeElements(w, &na.Services, &elems.ip)
+	_, err := writeElements(w, &na.Services, &elems.ip)
 	if err != nil {
 		return err
 	}

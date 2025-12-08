@@ -43,7 +43,8 @@ func (msg *MsgFeeFilter) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	return writeElement(w, &msg.MinFee)
+	_, err := writeElement(w, &msg.MinFee)
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

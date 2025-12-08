@@ -123,12 +123,12 @@ func (msg *MsgMiningState) BtcDecode(r io.Reader, pver uint32) error {
 // This is part of the Message interface implementation.
 func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
 	const op = "MsgMiningState.BtcEncode"
-	err := writeElement(w, &msg.Version)
+	_, err := writeElement(w, &msg.Version)
 	if err != nil {
 		return err
 	}
 
-	err = writeElement(w, &msg.Height)
+	_, err = writeElement(w, &msg.Height)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, hash := range msg.BlockHashes {
-		err = writeElement(w, hash)
+		_, err = writeElement(w, hash)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, hash := range msg.VoteHashes {
-		err = writeElement(w, hash)
+		_, err = writeElement(w, hash)
 		if err != nil {
 			return err
 		}

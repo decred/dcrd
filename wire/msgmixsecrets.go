@@ -54,7 +54,7 @@ func writeMixVect(op string, w io.Writer, pver uint32, vec MixVect) error {
 
 	// Write messages
 	for i := range vec {
-		err = writeElement(w, &vec[i])
+		_, err = writeElement(w, &vec[i])
 		if err != nil {
 			return err
 		}
@@ -174,7 +174,7 @@ func (msg *MsgMixSecrets) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	err := writeElement(w, &msg.Signature)
+	_, err := writeElement(w, &msg.Signature)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (msg *MsgMixSecrets) writeMessageNoSignature(op string, w io.Writer, pver u
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run, &msg.Seed)
+	_, err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run, &msg.Seed)
 	if err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func (msg *MsgMixSecrets) writeMessageNoSignature(op string, w io.Writer, pver u
 		return err
 	}
 	for i := range msg.SeenSecrets {
-		err := writeElement(w, &msg.SeenSecrets[i])
+		_, err := writeElement(w, &msg.SeenSecrets[i])
 		if err != nil {
 			return err
 		}

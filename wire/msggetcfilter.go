@@ -50,11 +50,12 @@ func (msg *MsgGetCFilter) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	err := writeElement(w, &msg.BlockHash)
+	_, err := writeElement(w, &msg.BlockHash)
 	if err != nil {
 		return err
 	}
-	return binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	_, err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

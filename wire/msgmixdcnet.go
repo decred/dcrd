@@ -82,7 +82,7 @@ func (msg *MsgMixDCNet) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	err := writeElement(w, &msg.Signature)
+	_, err := writeElement(w, &msg.Signature)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (msg *MsgMixDCNet) writeMessageNoSignature(op string, w io.Writer, pver uin
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
+	_, err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (msg *MsgMixDCNet) writeMessageNoSignature(op string, w io.Writer, pver uin
 		return err
 	}
 	for i := range msg.SeenSlotReserves {
-		err = writeElement(w, &msg.SeenSlotReserves[i])
+		_, err = writeElement(w, &msg.SeenSlotReserves[i])
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func writeMixVects(w io.Writer, pver uint32, vecs []MixVect) error {
 	// Write messages
 	for i := range vecs {
 		for j := range vecs[i] {
-			err = writeElement(w, &vecs[i][j])
+			_, err = writeElement(w, &vecs[i][j])
 			if err != nil {
 				return err
 			}

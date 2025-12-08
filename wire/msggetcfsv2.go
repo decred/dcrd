@@ -47,7 +47,8 @@ func (msg *MsgGetCFsV2) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	return writeElements(w, &msg.StartHash, &msg.EndHash)
+	_, err := writeElements(w, &msg.StartHash, &msg.EndHash)
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

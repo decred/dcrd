@@ -129,7 +129,7 @@ func (msg *MsgMixSlotReserve) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	err := writeElement(w, &msg.Signature)
+	_, err := writeElement(w, &msg.Signature)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (msg *MsgMixSlotReserve) WriteHash(h hash.Hash) {
 func (msg *MsgMixSlotReserve) writeMessageNoSignature(op string, w io.Writer, pver uint32) error {
 	_, hashing := w.(hash.Hash)
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
+	_, err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (msg *MsgMixSlotReserve) writeMessageNoSignature(op string, w io.Writer, pv
 		return err
 	}
 	for i := range msg.SeenCiphertexts {
-		err = writeElement(w, &msg.SeenCiphertexts[i])
+		_, err = writeElement(w, &msg.SeenCiphertexts[i])
 		if err != nil {
 			return err
 		}

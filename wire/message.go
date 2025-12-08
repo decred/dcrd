@@ -333,17 +333,10 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 		return totalBytes, messageError(op, ErrPayloadTooLarge, str)
 	}
 
-	// Encode the header for the message.  This is done to a buffer
-	// rather than directly to the writer since writeElements doesn't
-	// return the number of bytes written.
+	// Write header.
 	cksumHash := chainhash.HashH(payload)
 	copy(elems.checksum[:], cksumHash[0:4])
-	var buf [MessageHeaderSize]byte
-	hw := bytes.NewBuffer(buf[:0])
-	writeElements(hw, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
-
-	// Write header.
-	n, err := w.Write(hw.Bytes())
+	n, err := writeElements(w, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
 	totalBytes += n
 	if err != nil {
 		return totalBytes, err

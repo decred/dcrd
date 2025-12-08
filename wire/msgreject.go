@@ -169,7 +169,7 @@ func (msg *MsgReject) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	// Code indicating why the command was rejected.
-	err = writeElement(w, &msg.Code)
+	_, err = writeElement(w, &msg.Code)
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (msg *MsgReject) BtcEncode(w io.Writer, pver uint32) error {
 	// CmdBlock and CmdTx messages have an additional hash field that
 	// identifies the specific block or transaction.
 	if msg.Cmd == CmdBlock || msg.Cmd == CmdTx {
-		err := writeElement(w, &msg.Hash)
+		_, err := writeElement(w, &msg.Hash)
 		if err != nil {
 			return err
 		}

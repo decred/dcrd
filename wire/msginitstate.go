@@ -171,7 +171,7 @@ func (msg *MsgInitState) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for i := range msg.BlockHashes {
-		err = writeElement(w, &msg.BlockHashes[i])
+		_, err = writeElement(w, &msg.BlockHashes[i])
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func (msg *MsgInitState) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for i := range msg.VoteHashes {
-		err = writeElement(w, &msg.VoteHashes[i])
+		_, err = writeElement(w, &msg.VoteHashes[i])
 		if err != nil {
 			return err
 		}
@@ -211,7 +211,7 @@ func (msg *MsgInitState) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for i := range msg.TSpendHashes {
-		err = writeElement(w, &msg.TSpendHashes[i])
+		_, err = writeElement(w, &msg.TSpendHashes[i])
 		if err != nil {
 			return err
 		}

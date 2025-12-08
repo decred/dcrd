@@ -110,13 +110,13 @@ func (msg *MsgCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	// Write stop hash
-	err := writeElement(w, &msg.StopHash)
+	_, err := writeElement(w, &msg.StopHash)
 	if err != nil {
 		return err
 	}
 
 	// Write filter type
-	err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	_, err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (msg *MsgCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, cfh := range msg.HeaderHashes {
-		err := writeElement(w, cfh)
+		_, err := writeElement(w, cfh)
 		if err != nil {
 			return err
 		}

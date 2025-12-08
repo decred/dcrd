@@ -104,18 +104,19 @@ func (msg *MsgGetCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, hash := range msg.BlockLocatorHashes {
-		err := writeElement(w, hash)
+		_, err := writeElement(w, hash)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = writeElement(w, &msg.HashStop)
+	_, err = writeElement(w, &msg.HashStop)
 	if err != nil {
 		return err
 	}
 
-	return binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	_, err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

@@ -44,7 +44,8 @@ func (msg *MsgGetCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	return writeElement(w, &msg.BlockHash)
+	_, err := writeElement(w, &msg.BlockHash)
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

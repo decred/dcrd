@@ -75,12 +75,12 @@ func (msg *MsgCFilter) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrFilterTooLarge, msg)
 	}
 
-	err := writeElement(w, &msg.BlockHash)
+	_, err := writeElement(w, &msg.BlockHash)
 	if err != nil {
 		return err
 	}
 
-	err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	_, err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
 	if err != nil {
 		return err
 	}

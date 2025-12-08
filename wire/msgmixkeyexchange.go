@@ -92,7 +92,7 @@ func (msg *MsgMixKeyExchange) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
-	err := writeElement(w, &msg.Signature)
+	_, err := writeElement(w, &msg.Signature)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (msg *MsgMixKeyExchange) writeMessageNoSignature(op string, w io.Writer, pv
 		return messageError(op, ErrTooManyPrevMixMsgs, msg)
 	}
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Epoch,
+	_, err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Epoch,
 		&msg.Run, &msg.Pos, &msg.ECDH, &msg.PQPK, &msg.Commitment)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (msg *MsgMixKeyExchange) writeMessageNoSignature(op string, w io.Writer, pv
 		return err
 	}
 	for i := range msg.SeenPRs {
-		err := writeElement(w, &msg.SeenPRs[i])
+		_, err := writeElement(w, &msg.SeenPRs[i])
 		if err != nil {
 			return err
 		}

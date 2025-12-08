@@ -29,7 +29,8 @@ func (msg *MsgPong) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgPong) BtcEncode(w io.Writer, pver uint32) error {
-	return writeElement(w, &msg.Nonce)
+	_, err := writeElement(w, &msg.Nonce)
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

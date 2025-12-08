@@ -97,7 +97,7 @@ func (msg *MsgGetBlocks) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrTooManyLocators, msg)
 	}
 
-	err := writeElement(w, &msg.ProtocolVersion)
+	_, err := writeElement(w, &msg.ProtocolVersion)
 	if err != nil {
 		return err
 	}
@@ -108,13 +108,14 @@ func (msg *MsgGetBlocks) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for _, hash := range msg.BlockLocatorHashes {
-		err = writeElement(w, hash)
+		_, err = writeElement(w, hash)
 		if err != nil {
 			return err
 		}
 	}
 
-	return writeElement(w, &msg.HashStop)
+	_, err = writeElement(w, &msg.HashStop)
+	return err
 }
 
 // Command returns the protocol command string for the message.  This is part

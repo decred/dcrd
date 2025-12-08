@@ -92,7 +92,7 @@ func (msg *MsgCFTypes) BtcEncode(w io.Writer, pver uint32) error {
 	}
 
 	for i := range msg.SupportedFilters {
-		err = binarySerializer.PutUint8(w, uint8(msg.SupportedFilters[i]))
+		_, err = binarySerializer.PutUint8(w, uint8(msg.SupportedFilters[i]))
 		if err != nil {
 			return err
 		}
