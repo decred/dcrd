@@ -177,7 +177,7 @@ func (msg *MsgMixSlotReserve) WriteHash(h hash.Hash) {
 func (msg *MsgMixSlotReserve) writeMessageNoSignature(op string, w io.Writer, pver uint32) error {
 	_, hashing := w.(hash.Hash)
 
-	err := writeElements(w, &msg.Identity, &msg.SessionID, msg.Run)
+	err := writeElements(w, &msg.Identity, &msg.SessionID, &msg.Run)
 	if err != nil {
 		return err
 	}

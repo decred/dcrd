@@ -96,7 +96,7 @@ func (msg *MsgGetHeaders) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrTooManyLocators, msg)
 	}
 
-	err := writeElement(w, msg.ProtocolVersion)
+	err := writeElement(w, &msg.ProtocolVersion)
 	if err != nil {
 		return err
 	}
