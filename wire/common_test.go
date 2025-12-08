@@ -52,6 +52,38 @@ func (r *fakeRandReader) Read(p []byte) (int, error) {
 	return n, r.err
 }
 
+func newInt32(v int32) *int32 {
+	return &v
+}
+
+func newUint32(v uint32) *uint32 {
+	return &v
+}
+
+func newInt64(v int64) *int64 {
+	return &v
+}
+
+func newUint64(v uint64) *uint64 {
+	return &v
+}
+
+func newBool(v bool) *bool {
+	return &v
+}
+
+func newServiceFlag(v ServiceFlag) *ServiceFlag {
+	return &v
+}
+
+func newInvType(v InvType) *InvType {
+	return &v
+}
+
+func newCurrencyNet(v CurrencyNet) *CurrencyNet {
+	return &v
+}
+
 // TestElementWire tests wire encode and decode for various element types.  This
 // is mainly to test the "fast" paths in readElement and writeElement which use
 // type assertions to avoid reflection when possible.
@@ -62,30 +94,30 @@ func TestElementWire(t *testing.T) {
 		in  interface{} // Value to encode
 		buf []byte      // Wire encoding
 	}{
-		{int32(1), []byte{0x01, 0x00, 0x00, 0x00}},
-		{uint32(256), []byte{0x00, 0x01, 0x00, 0x00}},
+		{newInt32(1), []byte{0x01, 0x00, 0x00, 0x00}},
+		{newUint32(256), []byte{0x00, 0x01, 0x00, 0x00}},
 		{
-			int64(65536),
+			newInt64(65536),
 			[]byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00},
 		},
 		{
-			uint64(4294967296),
+			newUint64(4294967296),
 			[]byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00},
 		},
 		{
-			true,
+			newBool(true),
 			[]byte{0x01},
 		},
 		{
-			false,
+			newBool(false),
 			[]byte{0x00},
 		},
 		{
-			[4]byte{0x01, 0x02, 0x03, 0x04},
+			&[4]byte{0x01, 0x02, 0x03, 0x04},
 			[]byte{0x01, 0x02, 0x03, 0x04},
 		},
 		{
-			[CommandSize]byte{
+			&[CommandSize]byte{
 				0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 				0x09, 0x0a, 0x0b, 0x0c,
 			},
@@ -95,7 +127,7 @@ func TestElementWire(t *testing.T) {
 			},
 		},
 		{
-			[16]byte{
+			&[16]byte{
 				0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 				0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 			},
@@ -119,15 +151,15 @@ func TestElementWire(t *testing.T) {
 			},
 		},
 		{
-			SFNodeNetwork,
+			newServiceFlag(SFNodeNetwork),
 			[]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		},
 		{
-			InvTypeTx,
+			newInvType(InvTypeTx),
 			[]byte{0x01, 0x00, 0x00, 0x00},
 		},
 		{
-			MainNet,
+			newCurrencyNet(MainNet),
 			[]byte{0xf9, 0x00, 0xb4, 0xd9},
 		},
 		// Type not supported by the "fast" path and requires reflection.
@@ -184,20 +216,20 @@ func TestElementWireErrors(t *testing.T) {
 		writeErr error       // Expected write error
 		readErr  error       // Expected read error
 	}{
-		{int32(1), 0, io.ErrShortWrite, io.EOF},
-		{uint32(256), 0, io.ErrShortWrite, io.EOF},
-		{int64(65536), 0, io.ErrShortWrite, io.EOF},
-		{true, 0, io.ErrShortWrite, io.EOF},
-		{[4]byte{0x01, 0x02, 0x03, 0x04}, 0, io.ErrShortWrite, io.EOF},
+		{newInt32(1), 0, io.ErrShortWrite, io.EOF},
+		{newUint32(256), 0, io.ErrShortWrite, io.EOF},
+		{newInt64(65536), 0, io.ErrShortWrite, io.EOF},
+		{newBool(true), 0, io.ErrShortWrite, io.EOF},
+		{&[4]byte{0x01, 0x02, 0x03, 0x04}, 0, io.ErrShortWrite, io.EOF},
 		{
-			[CommandSize]byte{
+			&[CommandSize]byte{
 				0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 				0x09, 0x0a, 0x0b, 0x0c,
 			},
 			0, io.ErrShortWrite, io.EOF,
 		},
 		{
-			[16]byte{
+			&[16]byte{
 				0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 				0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 			},
@@ -212,9 +244,9 @@ func TestElementWireErrors(t *testing.T) {
 			}),
 			0, io.ErrShortWrite, io.EOF,
 		},
-		{SFNodeNetwork, 0, io.ErrShortWrite, io.EOF},
-		{InvTypeTx, 0, io.ErrShortWrite, io.EOF},
-		{MainNet, 0, io.ErrShortWrite, io.EOF},
+		{newServiceFlag(SFNodeNetwork), 0, io.ErrShortWrite, io.EOF},
+		{newInvType(InvTypeTx), 0, io.ErrShortWrite, io.EOF},
+		{newCurrencyNet(MainNet), 0, io.ErrShortWrite, io.EOF},
 	}
 
 	t.Logf("Running %d tests", len(tests))

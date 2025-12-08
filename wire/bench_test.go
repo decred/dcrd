@@ -665,3 +665,14 @@ func BenchmarkHashH(b *testing.B) {
 		_ = chainhash.HashH(txBytes)
 	}
 }
+
+// BenchmarkWriteMessageN benchmarks the genesis coinbase serialization
+// using the WriteMessageN function.
+func BenchmarkWriteMessageN(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, err := WriteMessageN(io.Discard, &genesisCoinbaseTx, ProtocolVersion, MainNet)
+		if err != nil {
+			b.Fatalf("WriteMessageN: unexpected error: %v", err)
+		}
+	}
+}
