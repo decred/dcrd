@@ -38,7 +38,7 @@ detail and provides full technical specifications:
 latest release even if you don't intend to vote in favor of the agenda.  This
 particularly applies to PoW miners as failure to upgrade will result in lost
 rewards after block height 1035288.  That is estimated to be around December
-19th, 2025.**
+9th, 2025.**
 
 ## Notable Changes
 
