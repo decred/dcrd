@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"lukechampine.com/blake3"
 )
 
@@ -93,10 +94,9 @@ func (h *BlockHeader) BlockHash() chainhash.Hash {
 	// Encode the header and hash everything prior to the number of
 	// transactions.  Ignore the error returns since there is no way the encode
 	// could fail except being out of memory which would cause a run-time panic.
-	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, 0, h)
-
-	return chainhash.HashH(buf.Bytes())
+	hasher := blake256.NewHasher256()
+	_ = writeBlockHeader(hasher, 0, h)
+	return hasher.Sum256()
 }
 
 // PowHashV1 calculates and returns the version 1 proof of work hash for the
@@ -114,10 +114,11 @@ func (h *BlockHeader) PowHashV2() chainhash.Hash {
 	// Encode the header and hash everything prior to the number of
 	// transactions.  Ignore the error returns since there is no way the encode
 	// could fail except being out of memory which would cause a run-time panic.
-	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, 0, h)
-
-	return blake3.Sum256(buf.Bytes())
+	var digest chainhash.Hash
+	hasher := blake3.New(len(digest), nil)
+	_ = writeBlockHeader(hasher, 0, h)
+	hasher.Sum(digest[:0])
+	return digest
 }
 
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.
