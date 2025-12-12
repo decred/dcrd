@@ -115,7 +115,7 @@ func (msg *MsgGetCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	return binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	return writeUint8(w, uint8(msg.FilterType))
 }
 
 // Command returns the protocol command string for the message.  This is part
