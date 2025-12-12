@@ -286,14 +286,23 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 	}
 	copy(elems.command[:], []byte(cmd))
 
+	// Allocate enough buffer space for the entire message size if it is
+	// known.  When it is not known, use an extra size hint of 64 bytes,
+	// which matches the default small allocation size of a bytes.Buffer
+	// as of Go 1.25.
+	extraCap := 64
+	switch msg := msg.(type) {
+	case interface{ SerializeSize() int }:
+		extraCap = msg.SerializeSize()
+	}
+
 	// Initialize buffer with zeroed bytes for the message header (to be
 	// filled in, with checksum, after appending the payload
-	// serialization).
-	var buf bytes.Buffer
-	buf.Write(make([]byte, MessageHeaderSize))
+	// serialization), plus additional capacity for writing the payload.
+	buf := bytes.NewBuffer(make([]byte, MessageHeaderSize, MessageHeaderSize+extraCap))
 
 	// Encode the message payload.
-	err := msg.BtcEncode(&buf, pver)
+	err := msg.BtcEncode(buf, pver)
 	if err != nil {
 		return 0, err
 	}
@@ -322,7 +331,10 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 	cksumHash := chainhash.HashH(payload)
 	copy(elems.checksum[:], cksumHash[0:4])
 	buf.Reset()
-	writeElements(&buf, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
+	writeUint32(buf, uint32(elems.dcrnet))
+	buf.Write(elems.command[:])
+	writeUint32(buf, elems.lenp)
+	buf.Write(elems.checksum[:])
 	if buf.Len() != MessageHeaderSize {
 		// The length of data written for the header is always
 		// constant, is not dependent on the message being serialized,
