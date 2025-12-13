@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -32,6 +32,7 @@ const (
 	CmdVerAck          = "verack"
 	CmdGetAddr         = "getaddr"
 	CmdAddr            = "addr"
+	CmdAddrV2          = "addrv2"
 	CmdGetBlocks       = "getblocks"
 	CmdInv             = "inv"
 	CmdGetData         = "getdata"
@@ -119,6 +120,9 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdAddr:
 		msg = &MsgAddr{}
+
+	case CmdAddrV2:
+		msg = &MsgAddrV2{}
 
 	case CmdGetBlocks:
 		msg = &MsgGetBlocks{}

@@ -9,7 +9,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/decred/dcrd/addrmgr/v3"
+	"github.com/decred/dcrd/addrmgr/v4"
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -20,7 +20,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
-	"github.com/decred/dcrd/peer/v3"
+	"github.com/decred/dcrd/peer/v4"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
