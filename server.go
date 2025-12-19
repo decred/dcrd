@@ -1663,12 +1663,15 @@ func (sp *serverPeer) enforceNodeCFFlag(cmd string) {
 	// Ban the peer if the protocol version is high enough that the peer is
 	// knowingly violating the protocol and banning is enabled.
 	//
-	// NOTE: Even though the addBanScore function already examines whether
-	// or not banning is enabled, it is checked here as well to ensure the
-	// violation is logged and the peer is disconnected regardless.
+	// NOTE: Even though BanPeer already examines whether or not banning is
+	// enabled, it is checked here as well to ensure the violation is logged and
+	// the peer is disconnected regardless.
 	if sp.ProtocolVersion() >= wire.NodeCFVersion && !cfg.DisableBanning {
-		// Disconnect the peer regardless of whether it was banned.
-		sp.addBanScore(100, 0, cmd)
+		reason := fmt.Sprintf("sent %s request with protocol version %d >= %d",
+			cmd, sp.ProtocolVersion(), wire.NodeCFVersion)
+		sp.server.BanPeer(sp, reason)
+
+		// Disconnect the peer regardless of whether it gets banned.
 		sp.Disconnect()
 		return
 	}
