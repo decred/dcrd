@@ -56,8 +56,8 @@ github.com/decred/dcrd/hdkeychain/v3 v3.1.3 h1:Kn2wfj5cOR6pQO/WrYOMT1KK12IgWFEeQ
 github.com/decred/dcrd/hdkeychain/v3 v3.1.3/go.mod h1:mDAuGaH6InRD+hKVeVJsjLD/ih1mD3aCKURNHS8Tq2s=
 github.com/decred/dcrd/math/uint256 v1.0.2 h1:o8peafL5QmuXGTergI3YDpDU0eq5Z0pQi88B8ym4PRA=
 github.com/decred/dcrd/math/uint256 v1.0.2/go.mod h1:7M/y9wJJvlyNG/f/X6mxxhxo9dgloZHFiOfbiscl75A=
-github.com/decred/dcrd/mixing v0.6.0 h1:c7qW7DjBBCiB3bmu5c/JRIKxqbaB0EZ+Eog61QCk5kI=
-github.com/decred/dcrd/mixing v0.6.0/go.mod h1:M+Ao9h49usdSEsC0N6kMafijwgYh7E57RTKh8cCw02o=
+github.com/decred/dcrd/mixing v0.6.1 h1:nysHraShVbgKIrqpa04364YTchmVtqgaphTNWqs7nHc=
+github.com/decred/dcrd/mixing v0.6.1/go.mod h1:M+Ao9h49usdSEsC0N6kMafijwgYh7E57RTKh8cCw02o=
 github.com/decred/dcrd/peer/v3 v3.2.0 h1:6PxoGcsyjV3me/WLjIZdmWs4Pma5jYGi40CmzNCzeNY=
 github.com/decred/dcrd/peer/v3 v3.2.0/go.mod h1:OUFvMboEQvnq4V8CRw2RUn/fFls0rpVuDN0QT0zq8RA=
 github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.4.0 h1:BBVaYemabsFsaqNVlCmacoZlSsLDqwHYIs8ty6fg59Q=

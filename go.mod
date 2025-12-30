@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/dcrutil/v4 v4.0.3
 	github.com/decred/dcrd/gcs/v4 v4.1.1
 	github.com/decred/dcrd/math/uint256 v1.0.2
-	github.com/decred/dcrd/mixing v0.6.0
+	github.com/decred/dcrd/mixing v0.6.1
 	github.com/decred/dcrd/peer/v3 v3.2.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.4.0
 	github.com/decred/dcrd/rpcclient/v8 v8.1.0
