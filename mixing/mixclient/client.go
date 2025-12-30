@@ -1819,8 +1819,23 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 
 	// Recover roots
 	vs := make([][][]byte, 0, len(prs))
-	for _, sr := range srs {
+SRs:
+	for i, sr := range srs {
+		if uint32(len(sr.DCMix)) != sesRun.mcounts[i] {
+			blamed = append(blamed, sr.Identity)
+			continue
+		}
+		for _, srMixVec := range sr.DCMix {
+			if uint32(len(srMixVec)) != sesRun.mtot {
+				blamed = append(blamed, sr.Identity)
+				continue SRs
+			}
+		}
 		vs = append(vs, sr.DCMix...)
+	}
+	if len(blamed) != 0 {
+		sesRun.logf("blaming %x during run (wrong SR DC-mix dimensions)", []identity(blamed))
+		return sesRun, blamed
 	}
 	powerSums := mixing.AddVectors(mixing.IntVectorsFromBytes(vs)...)
 	coeffs := mixing.Coefficients(powerSums)
@@ -1903,17 +1918,22 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 
 	// Solve XOR dc-net
 	dcVecs := make([]mixing.Vec, 0, sesRun.mtot)
+DCs:
 	for i, dc := range dcs {
 		if uint32(len(dc.DCNet)) != sesRun.mcounts[i] {
 			blamed = append(blamed, dc.Identity)
 			continue
 		}
 		for _, vec := range dc.DCNet {
+			if uint32(len(vec)) != sesRun.mtot {
+				blamed = append(blamed, dc.Identity)
+				continue DCs
+			}
 			dcVecs = append(dcVecs, mixing.Vec(vec))
 		}
 	}
 	if len(blamed) > 0 {
-		sesRun.logf("blaming %x during run (wrong DC-net count)", []identity(blamed))
+		sesRun.logf("blaming %x during run (wrong DC-net dimensions)", []identity(blamed))
 		return sesRun, blamed
 	}
 	mixedMsgs := mixing.XorVectors(dcVecs)
