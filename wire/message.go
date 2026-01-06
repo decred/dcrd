@@ -270,13 +270,11 @@ func readMessageHeader(r io.Reader) (int, *messageHeader, error) {
 func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (int, error) {
 	const op = "WriteMessage"
 
-	var elems struct {
-		dcrnet   CurrencyNet
+	var (
 		command  [CommandSize]byte
 		lenp     uint32
 		checksum [4]byte
-	}
-	elems.dcrnet = dcrnet
+	)
 
 	// Enforce max command size.
 	cmd := msg.Command()
@@ -284,16 +282,25 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 		msg := fmt.Sprintf("command [%s] is too long [max %v]", cmd, CommandSize)
 		return 0, messageError(op, ErrCmdTooLong, msg)
 	}
-	copy(elems.command[:], []byte(cmd))
+	copy(command[:], []byte(cmd))
+
+	// Allocate enough buffer space for the entire message size if it is
+	// known.  When it is not known, use an extra size hint of 64 bytes,
+	// which matches the default small allocation size of a bytes.Buffer
+	// as of Go 1.25.
+	extraCap := 64
+	switch msg := msg.(type) {
+	case interface{ SerializeSize() int }:
+		extraCap = msg.SerializeSize()
+	}
 
 	// Initialize buffer with zeroed bytes for the message header (to be
 	// filled in, with checksum, after appending the payload
-	// serialization).
-	var buf bytes.Buffer
-	buf.Write(make([]byte, MessageHeaderSize))
+	// serialization), plus additional capacity for writing the payload.
+	buf := bytes.NewBuffer(make([]byte, MessageHeaderSize, MessageHeaderSize+extraCap))
 
 	// Encode the message payload.
-	err := msg.BtcEncode(&buf, pver)
+	err := msg.BtcEncode(buf, pver)
 	if err != nil {
 		return 0, err
 	}
@@ -307,22 +314,25 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 			len(payload), MaxMessagePayload)
 		return 0, messageError(op, ErrPayloadTooLarge, msg)
 	}
-	elems.lenp = uint32(len(payload))
+	lenp = uint32(len(payload))
 
 	// Enforce maximum message payload based on the message type.
 	mpl := msg.MaxPayloadLength(pver)
-	if elems.lenp > mpl {
+	if lenp > mpl {
 		str := fmt.Sprintf("message payload is too large - encoded "+
 			"%d bytes, but maximum message payload size for "+
-			"messages of type [%s] is %d.", elems.lenp, cmd, mpl)
+			"messages of type [%s] is %d.", lenp, cmd, mpl)
 		return 0, messageError(op, ErrPayloadTooLarge, str)
 	}
 
 	// Encode the message header.
 	cksumHash := chainhash.HashH(payload)
-	copy(elems.checksum[:], cksumHash[0:4])
+	copy(checksum[:], cksumHash[0:4])
 	buf.Reset()
-	writeElements(&buf, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
+	writeUint32LE(buf, uint32(dcrnet))
+	buf.Write(command[:])
+	writeUint32LE(buf, lenp)
+	buf.Write(checksum[:])
 	if buf.Len() != MessageHeaderSize {
 		// The length of data written for the header is always
 		// constant, is not dependent on the message being serialized,
