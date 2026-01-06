@@ -172,7 +172,7 @@ func (kx *KX) SharedSecrets(k *RevealedKeys, sid []byte, run uint32, mcounts []u
 			// XOR ECDH and both sntrup4591761 keys into a single
 			// shared key. If sntrup4591761 is discovered to be
 			// broken in the future, the security only reduces to
-			// that of x25519.
+			// that of ECDH.
 			// If the message belongs to our own peer, only XOR
 			// the sntrup4591761 key once.  The decapsulated and
 			// cleartext keys are equal in this case, and would
