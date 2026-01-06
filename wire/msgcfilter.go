@@ -80,7 +80,7 @@ func (msg *MsgCFilter) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	err = binarySerializer.PutUint8(w, uint8(msg.FilterType))
+	err = writeUint8(w, uint8(msg.FilterType))
 	if err != nil {
 		return err
 	}
