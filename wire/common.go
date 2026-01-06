@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
+	"lukechampine.com/blake3"
 )
 
 const (
@@ -379,6 +381,18 @@ func shortWrite(w io.Writer, cb func() (data [8]byte, size int)) error {
 	// to its existing capacity instead of paying the synchronization cost to
 	// serialize to temporary buffers pulled from the binary freelist.
 	case *bytes.Buffer:
+		w.Write(data[:size])
+		return nil
+
+	// Hashing transactions can be optimized by writing directly to the
+	// BLAKE-256 hasher.
+	case *blake256.Hasher256:
+		w.Write(data[:size])
+		return nil
+
+	// Hashing block headers can be optimized by writing directly to the
+	// BLAKE-3 hasher.
+	case *blake3.Hasher:
 		w.Write(data[:size])
 		return nil
 
@@ -813,6 +827,8 @@ func WriteVarString(w io.Writer, pver uint32, str string) error {
 	switch w := w.(type) {
 	case *bytes.Buffer:
 		_, err = w.WriteString(str)
+	case *blake256.Hasher256:
+		w.WriteString(str)
 	default:
 		_, err = w.Write([]byte(str))
 	}

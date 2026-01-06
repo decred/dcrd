@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 )
 
 // genesisCoinbaseTx is the coinbase transaction for the genesis blocks for
@@ -631,6 +632,28 @@ func BenchmarkDecodeNotFound(b *testing.B) {
 func BenchmarkTxHash(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		genesisCoinbaseTx.TxHash()
+	}
+}
+
+// BenchmarkTxHashReuseHasher performs a benchmark on how long it takes to hash a
+// transaction by reusing the *blake256.Hasher256 object.
+func BenchmarkTxHashReuseHasher(b *testing.B) {
+	h := blake256.NewHasher256()
+
+	txHash := func(h *blake256.Hasher256, tx *MsgTx) chainhash.Hash {
+		txCopy := *tx
+		txCopy.SerType = TxSerializeNoWitness
+		err := txCopy.Serialize(h)
+		if err != nil {
+			panic(err)
+		}
+		return h.Sum256()
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Reset()
+		_ = txHash(h, &genesisCoinbaseTx)
 	}
 }
 
