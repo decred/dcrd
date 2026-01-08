@@ -699,3 +699,25 @@ func BenchmarkWriteMessageN(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkReadMessageN benchmarks the genesis coinbase deserialization using
+// the ReadMessageN function.
+func BenchmarkReadMessageN(b *testing.B) {
+	var buf bytes.Buffer
+	_, err := WriteMessageN(&buf, &genesisCoinbaseTx, ProtocolVersion, MainNet)
+	if err != nil {
+		b.Fatal(err)
+	}
+	msgBytes := buf.Bytes()
+
+	r := new(bytes.Reader)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Reset(msgBytes)
+		_, _, _, err := ReadMessageN(r, ProtocolVersion, MainNet)
+		if err != nil {
+			b.Fatalf("ReadMessageN: unexpected error: %v", err)
+		}
+	}
+}
