@@ -481,8 +481,6 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	}
 
 	// Unmarshal message using the unread payload in the buffer.
-	// NOTE: This must be a *bytes.Buffer since the MsgVersion BtcDecode
-	// function requires it.
 	err = msg.BtcDecode(buf, pver)
 	if err != nil {
 		return totalBytes, nil, nil, err
