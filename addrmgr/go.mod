@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/addrmgr/v3
+module github.com/decred/dcrd/addrmgr/v4
 
 go 1.19
 

@@ -23,8 +23,6 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvw
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
 github.com/decred/dcrd/txscript/v4 v4.1.2 h1:1EP7ZmBDl2LBeAMTEygxY8rVNN3+lkGqrsb4u64x+II=
 github.com/decred/dcrd/txscript/v4 v4.1.2/go.mod h1:r5/8qfCnl6TFrE369gggUayVIryM1oC7BLoRfa27Ckw=
-github.com/decred/dcrd/wire v1.7.1 h1:kDuHBiY1Qv9rBxYKgC2RgyPy7IOA2WRf00jqHwpr16I=
-github.com/decred/dcrd/wire v1.7.1/go.mod h1:eP9XRsMloy+phlntkTAaAm611JgLv8NqY1YJoRxkNKU=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
 github.com/decred/go-socks v1.1.0/go.mod h1:sDhHqkZH0X4JjSa02oYOGhcGHYp12FsY1jQ/meV8md0=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
