@@ -89,7 +89,8 @@ transactions.
 
 ## Minimum Recommended Specifications (dcrd only)
 
-* 16 GB disk space (as of April 2022, increases over time, ~2 GB/yr)
+* 30 GB disk space (as of January 2026, increases over time, ~2.5 GB/yr)
+  * 16.5 GB blockchain data + 5.5 GB metadata
 * 2 GB memory (RAM)
 * ~150 MB/day download, ~1.5 GB/day upload
   * Plus one-time initial download of the entire block chain
