@@ -1,13 +1,20 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package addrmgr
 
 import (
+	"fmt"
 	"net"
+
+	"golang.org/x/crypto/sha3"
 )
+
+// torV3VersionByte represents the version byte used when encoding and decoding
+// a torv3 host name.
+const torV3VersionByte = byte(3)
 
 var (
 	// rfc1918Nets specifies the IPv4 private address blocks as defined by
@@ -105,6 +112,7 @@ const (
 	IPv4Address        NetAddressType = 1
 	IPv6Address        NetAddressType = 2
 	// TorV2Address       NetAddressType = 3  // No longer supported
+	TORv3Address NetAddressType = 4
 )
 
 // NetAddressTypeFilter represents a function that returns whether a particular
@@ -204,6 +212,51 @@ func isRFC6598(netIP net.IP) bool {
 	return rfc6598Net.Contains(netIP)
 }
 
+// calcTORv3Checksum returns the checksum bytes given a 32 byte
+// TORv3 public key.
+func calcTORv3Checksum(publicKey [32]byte) [2]byte {
+	const (
+		prefix    = ".onion checksum"
+		prefixLen = len(prefix)
+		inputLen  = prefixLen + len(publicKey) + 1
+	)
+	var input [inputLen]byte
+	copy(input[:], prefix)
+	copy(input[prefixLen:], publicKey[:])
+	input[inputLen-1] = torV3VersionByte
+	digest := sha3.Sum256(input[:])
+
+	var result [2]byte
+	copy(result[:], digest[:])
+	return result
+}
+
+// isTORv3 returns whether or not the passed address is a valid TORv3 address
+// with the checksum and version bytes. If it is valid, it also returns the
+// public key of the tor v3 address.
+func isTORv3(addressBytes []byte) ([32]byte, bool) {
+	var publicKey [32]byte
+	if len(addressBytes) != 35 {
+		return publicKey, false
+	}
+
+	version := addressBytes[34]
+	if version != torV3VersionByte {
+		return publicKey, false
+	}
+
+	copy(publicKey[:], addressBytes[:32])
+	computedChecksum := calcTORv3Checksum(publicKey)
+
+	var checksum [2]byte
+	copy(checksum[:], addressBytes[32:34])
+	if computedChecksum != checksum {
+		return publicKey, false
+	}
+
+	return publicKey, true
+}
+
 // isValid returns whether or not the passed address is valid.  The address is
 // considered invalid under the following circumstances:
 // IPv4: It is either a zero or all bits set address.
@@ -231,6 +284,10 @@ func IsRoutable(netIP net.IP) bool {
 // address.
 func (na *NetAddress) GroupKey() string {
 	netIP := net.IP(na.IP)
+	if na.Type == TORv3Address {
+		// Group is keyed off the first 4 bits of the public key.
+		return fmt.Sprintf("torv3:%d", netIP[0]&0xf)
+	}
 	if isLocal(netIP) {
 		return "local"
 	}
