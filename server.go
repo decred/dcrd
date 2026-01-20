@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2257,6 +2257,39 @@ func disconnectPeer(peerList map[int32]*serverPeer, compareFunc func(*serverPeer
 	return false
 }
 
+// handleBannedConn closes the provided connection if the remote address
+// associated with it is banned or the address can't be properly parsed.  It
+// returns true when the connection is closed.
+//
+// This is intended to be invoked when new inbound or outbound connections are
+// established prior to any further peer setup.
+//
+// This function is safe for concurrent access.
+func (s *server) handleBannedConn(conn net.Conn) bool {
+	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		srvrLog.Debugf("can't split hostport %v", err)
+		conn.Close()
+		return true
+	}
+
+	s.peerState.Lock()
+	defer s.peerState.Unlock()
+	if banEnd, ok := s.peerState.banned[host]; ok {
+		if time.Now().Before(banEnd) {
+			srvrLog.Debugf("Peer %s is banned for another %v - disconnecting",
+				host, time.Until(banEnd))
+			conn.Close()
+			return true
+		}
+
+		srvrLog.Infof("Peer %s is no longer banned", host)
+		delete(s.peerState.banned, host)
+	}
+
+	return false
+}
+
 // newPeerConfig returns the configuration for the given serverPeer.
 func newPeerConfig(sp *serverPeer) *peer.Config {
 	var userAgentComments []string
@@ -2324,6 +2357,11 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // instance, associates it with the connection, and starts all additional server
 // peer processing goroutines.
 func (s *server) inboundPeerConnected(conn net.Conn) {
+	// Disconnect banned connections.
+	if disconnected := s.handleBannedConn(conn); disconnected {
+		return
+	}
+
 	sp := newServerPeer(s, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
@@ -2338,6 +2376,13 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 // request instance and the connection itself, and start all additional server
 // peer processing goroutines.
 func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
+	// Disconnect banned connections.  Ideally we would never connect to a
+	// banned peer, but the connection manager is currently unaware of banned
+	// addresses, so this is needed.
+	if disconnected := s.handleBannedConn(conn); disconnected {
+		return
+	}
+
 	sp := newServerPeer(s, c.Permanent)
 	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr.String())
 	if err != nil {
@@ -2412,25 +2457,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	state := &s.peerState
 	defer state.Unlock()
 	state.Lock()
-
-	// Disconnect banned peers.
-	host, _, err := net.SplitHostPort(sp.Addr())
-	if err != nil {
-		srvrLog.Debugf("can't split hostport %v", err)
-		sp.Disconnect()
-		return false
-	}
-	if banEnd, ok := state.banned[host]; ok {
-		if time.Now().Before(banEnd) {
-			srvrLog.Debugf("Peer %s is banned for another %v - disconnecting",
-				host, time.Until(banEnd))
-			sp.Disconnect()
-			return false
-		}
-
-		srvrLog.Infof("Peer %s is no longer banned", host)
-		delete(state.banned, host)
-	}
 
 	// Limit max number of connections from a single IP.  However, allow
 	// whitelisted inbound peers and localhost connections regardless.
