@@ -1626,11 +1626,25 @@ func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
 				m.syncHeight.Store(newBestHeaderHeight)
 			}
 
+			// When the error is a rule error, it means the header was simply
+			// rejected as opposed to something actually going wrong, so log it
+			// as such.  Otherwise, something really did go wrong, so log it as
+			// an actual error.
+			//
 			// Note that there is no need to check for an orphan header here
 			// because they were already verified to connect above.
+			var rErr blockchain.RuleError
+			if errors.As(err, &rErr) {
+				log.Debugf("Rejected block header %s from peer %s: %v -- "+
+					"disconnecting", header.BlockHash(), peer, err)
+			} else {
+				log.Errorf("Failed to process block header %s from peer %s: %v"+
+					" -- disconnecting", header.BlockHash(), peer, err)
+			}
+			if errors.Is(err, database.ErrCorruption) {
+				log.Errorf("Criticial failure: %v", err)
+			}
 
-			log.Debugf("Failed to process block header %s from peer %s: %v -- "+
-				"disconnecting", header.BlockHash(), peer, err)
 			peer.Disconnect()
 			return
 		}
