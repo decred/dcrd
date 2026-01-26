@@ -417,7 +417,7 @@ func NewClient(w Wallet) *Client {
 		height:          height,
 		warming:         make(chan struct{}),
 		workQueue:       make(chan *queueWork, runtime.NumCPU()),
-		blake256Hasher:  blake256.New(),
+		blake256Hasher:  blake256.NewHasher256(),
 		epoch:           w.Mixpool().Epoch(),
 		stopping:        make(chan struct{}),
 	}
