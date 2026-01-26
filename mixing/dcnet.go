@@ -15,9 +15,8 @@ import (
 // SRMixPads creates a vector of exponential DC-net pads from a vector of
 // shared secrets with each participating peer in the DC-net.
 func SRMixPads(kp [][]byte, my uint32) []*big.Int {
-	h := blake256.New()
+	h := blake256.NewHasher256()
 	scratch := make([]byte, 8)
-	digest := make([]byte, blake256.Size)
 	pads := make([]*big.Int, len(kp))
 	partialPad := new(big.Int)
 	for j := uint32(0); j < uint32(len(kp)); j++ {
@@ -30,8 +29,8 @@ func SRMixPads(kp [][]byte, my uint32) []*big.Int {
 			h.Reset()
 			h.Write(kp[i])
 			h.Write(scratch)
-			digest = h.Sum(digest[:0])
-			partialPad.SetBytes(digest)
+			digest := h.Sum256()
+			partialPad.SetBytes(digest[:])
 			if my > i {
 				pads[j].Add(pads[j], partialPad)
 			} else {

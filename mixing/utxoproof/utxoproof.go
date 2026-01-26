@@ -5,8 +5,6 @@
 package utxoproof
 
 import (
-	"encoding/binary"
-
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
@@ -23,7 +21,7 @@ const (
 	secp256k1P2PKH = "P2PKH(EC-Schnorr-DCRv0)"
 )
 
-var sep = []byte{','}
+const sep = ","
 
 // The signature hash is created from the serialization of:
 //   tag , scheme , expiry pubkey
@@ -43,17 +41,14 @@ type Secp256k1KeyPair struct {
 func (k *Secp256k1KeyPair) SignUtxoProof(expires uint32) ([]byte, error) {
 	const scheme = secp256k1P2PKH
 
-	h := blake256.New()
-	h.Write([]byte(tag))
-	h.Write(sep)
-	h.Write([]byte(scheme))
-	h.Write(sep)
-	expiresBytes := binary.BigEndian.AppendUint32(make([]byte, 0, 4), expires)
-	h.Write(expiresBytes)
-	h.Write(k.Pub)
-	hash := h.Sum(nil)
+	h := blake256.NewHasher256()
+	const preamble = tag + sep + scheme + sep
+	h.WriteBytes([]byte(preamble))
+	h.WriteUint32BE(expires)
+	h.WriteBytes(k.Pub)
+	hash := h.Sum256()
 
-	sig, err := schnorr.Sign(k.Priv, hash)
+	sig, err := schnorr.Sign(k.Priv, hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -76,15 +71,12 @@ func ValidateSecp256k1P2PKH(pubkey, proof []byte, expires uint32) bool {
 		return false
 	}
 
-	h := blake256.New()
-	h.Write([]byte(tag))
-	h.Write(sep)
-	h.Write([]byte(scheme))
-	h.Write(sep)
-	expiresBytes := binary.BigEndian.AppendUint32(make([]byte, 0, 4), expires)
-	h.Write(expiresBytes)
+	h := blake256.NewHasher256()
+	const preamble = tag + sep + scheme + sep
+	h.WriteBytes([]byte(preamble))
+	h.WriteUint32BE(expires)
 	h.Write(pubkey)
-	hash := h.Sum(nil)
+	hash := h.Sum256()
 
-	return proofParsed.Verify(hash, pubkeyParsed)
+	return proofParsed.Verify(hash[:], pubkeyParsed)
 }
