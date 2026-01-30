@@ -147,7 +147,7 @@ type Pool struct {
 	outPoints          map[wire.OutPoint]chainhash.Hash
 	pool               map[chainhash.Hash]entry
 	orphans            map[chainhash.Hash]*orphanMsg
-	orphansByID        map[idPubKey]map[chainhash.Hash]mixing.Message
+	orphansByID        map[idPubKey]map[chainhash.Hash]*orphanMsg
 	messagesByIdentity map[idPubKey][]chainhash.Hash
 	latestKE           map[idPubKey]*wire.MsgMixKeyExchange
 	sessions           map[[32]byte]*session
@@ -230,7 +230,7 @@ func NewPool(blockchain BlockChain) *Pool {
 		outPoints:          make(map[wire.OutPoint]chainhash.Hash),
 		pool:               make(map[chainhash.Hash]entry),
 		orphans:            make(map[chainhash.Hash]*orphanMsg),
-		orphansByID:        make(map[idPubKey]map[chainhash.Hash]mixing.Message),
+		orphansByID:        make(map[idPubKey]map[chainhash.Hash]*orphanMsg),
 		messagesByIdentity: make(map[idPubKey][]chainhash.Hash),
 		latestKE:           make(map[idPubKey]*wire.MsgMixKeyExchange),
 		sessions:           make(map[[32]byte]*session),
@@ -1000,15 +1000,16 @@ func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey)
 		return
 	}
 
-	p.orphans[*hash] = &orphanMsg{
+	orphan := &orphanMsg{
 		message:  msg,
 		accepted: time.Now(),
 	}
+	p.orphans[*hash] = orphan
 	if orphansByID == nil {
-		orphansByID = make(map[chainhash.Hash]mixing.Message)
+		orphansByID = make(map[chainhash.Hash]*orphanMsg)
 		p.orphansByID[*id] = orphansByID
 	}
-	orphansByID[*hash] = msg
+	orphansByID[*hash] = orphan
 
 	log.Debugf("Stored orphan message %T %v (pool size: %d)", msg, hash,
 		len(p.orphans))
@@ -1350,7 +1351,7 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 	if pr, ok := accepted.(*wire.MsgMixPairReq); ok {
 		var orphanKEs []*wire.MsgMixKeyExchange
 		for _, orphan := range p.orphansByID[*id] {
-			orphanKE, ok := orphan.(*wire.MsgMixKeyExchange)
+			orphanKE, ok := orphan.message.(*wire.MsgMixKeyExchange)
 			if !ok {
 				continue
 			}
@@ -1390,7 +1391,8 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 			continue
 		}
 
-		for orphanHash, orphan := range p.orphansByID[*id] {
+		for orphanHash, omsg := range p.orphansByID[*id] {
+			orphan := omsg.message
 			if !bytes.Equal(orphan.Sid(), ke.SessionID[:]) {
 				continue
 			}
