@@ -933,11 +933,12 @@ func (sp *serverPeer) Run() {
 	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
 
 	if sp.VersionKnown() {
-		// Evict any remaining orphans that were sent by the peer.
+		// Evict any remaining mempool orphans that were sent by the peer.
 		numEvicted := srvr.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
 		if numEvicted > 0 {
-			srvrLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
-				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
+			srvrLog.Debugf("Evicted %d mempool %s from peer %v (id %d)",
+				numEvicted, pickNoun(numEvicted, "orphan", "orphans"), sp,
+				sp.ID())
 		}
 	}
 
