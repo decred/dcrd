@@ -86,6 +86,27 @@ func (m msgtype) String() string {
 	}
 }
 
+// Source represents a source of mixing messages.  This is typically the peer
+// that first relayed them, but the caller may choose any scheme it desires.
+type Source interface {
+	// ID returns an opaque identifier that uniquely identifies the source.
+	ID() uint64
+}
+
+// Uint64Source implements the [Source] interface by returning the associated
+// uint64 as the ID.  This is primarily useful as a convenience for callers that
+// do not require an additional object associated with the source.
+type Uint64Source uint64
+
+// ID returns the underlying uint64 associated with the source.
+func (s Uint64Source) ID() uint64 { return uint64(s) }
+
+// Ensure [Uint64Source] implements the [Source] interface.
+var _ Source = (*Uint64Source)(nil)
+
+// ZeroSource implements the [Source] interface by returning 0 for the ID.
+const ZeroSource = Uint64Source(0)
+
 // entry describes non-PR messages accepted to the pool.
 type entry struct {
 	hash     chainhash.Hash
@@ -97,6 +118,7 @@ type entry struct {
 
 type orphanMsg struct {
 	message  mixing.Message
+	src      Source
 	accepted time.Time
 }
 
@@ -993,7 +1015,7 @@ var zeroHash chainhash.Hash
 // present.
 //
 // This function MUST be called with the mixpool lock held (for writes).
-func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey) {
+func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey, src Source) {
 	orphansByID := p.orphansByID[*id]
 	if _, ok := orphansByID[*hash]; ok {
 		// Already an orphan.
@@ -1002,6 +1024,7 @@ func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey)
 
 	orphan := &orphanMsg{
 		message:  msg,
+		src:      src,
 		accepted: time.Now(),
 	}
 	p.orphans[*hash] = orphan
@@ -1026,7 +1049,7 @@ func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey)
 //
 // All newly accepted messages, including any orphan key exchange messages
 // that were processed after processing missing pair requests, are returned.
-func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err error) {
+func (p *Pool) AcceptMessage(msg mixing.Message, src Source) (accepted []mixing.Message, err error) {
 	defer func() {
 		if err == nil && len(accepted) == 0 {
 			// Don't log duplicate messages or non-KE orphans.
@@ -1121,7 +1144,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 		p.mtx.Lock()
 		defer p.mtx.Unlock()
 
-		accepted, err := p.acceptKE(msg, &hash, id)
+		accepted, err := p.acceptKE(msg, &hash, id, src)
 		if err != nil {
 			return nil, err
 		}
@@ -1179,7 +1202,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 	}
 	// Save as an orphan if their KE is not (yet) accepted.
 	if !haveKE {
-		p.addOrphan(msg, &hash, id)
+		p.addOrphan(msg, &hash, id, src)
 
 		// TODO: Consider return an error containing the unknown
 		// messages, so they can be getdata'd.
@@ -1349,7 +1372,7 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 	// If the accepted message was a PR, there may be KE orphans that can
 	// be accepted now.
 	if pr, ok := accepted.(*wire.MsgMixPairReq); ok {
-		var orphanKEs []*wire.MsgMixKeyExchange
+		var orphanKEs []*orphanMsg
 		for _, orphan := range p.orphansByID[*id] {
 			orphanKE, ok := orphan.message.(*wire.MsgMixKeyExchange)
 			if !ok {
@@ -1359,12 +1382,14 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 				continue
 			}
 
-			orphanKEs = append(orphanKEs, orphanKE)
+			orphanKEs = append(orphanKEs, orphan)
 		}
 
-		for _, orphanKE := range orphanKEs {
+		for _, orphan := range orphanKEs {
+			orphanKE := orphan.message.(*wire.MsgMixKeyExchange)
 			orphanKEHash := orphanKE.Hash()
-			_, err := p.acceptKE(orphanKE, &orphanKEHash, &orphanKE.Identity)
+			_, err := p.acceptKE(orphanKE, &orphanKEHash, &orphanKE.Identity,
+				orphan.src)
 			if err != nil {
 				log.Debugf("orphan KE could not be accepted: %v", err)
 				continue
@@ -1516,7 +1541,7 @@ func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
 	return nil
 }
 
-func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *idPubKey) (accepted *wire.MsgMixKeyExchange, err error) {
+func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *idPubKey, src Source) (accepted *wire.MsgMixKeyExchange, err error) {
 	// Check if already accepted.
 	if _, ok := p.pool[*hash]; ok {
 		return nil, nil
@@ -1568,7 +1593,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		}
 	}
 	if missingOwnPR != nil {
-		p.addOrphan(ke, hash, id)
+		p.addOrphan(ke, hash, id, src)
 		err := &MissingOwnPRError{
 			MissingPR: *missingOwnPR,
 		}

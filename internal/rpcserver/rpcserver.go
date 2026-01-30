@@ -50,6 +50,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -4348,7 +4349,8 @@ func handleSendRawMixMessage(_ context.Context, s *Server, cmd interface{}) (int
 	msg.WriteHash(s.blake256Hasher)
 	s.blake256HaserMu.Unlock()
 
-	err = s.cfg.SyncMgr.AcceptMixMessage(msg)
+	// Use 0 for the source to represent the local node.
+	err = s.cfg.SyncMgr.AcceptMixMessage(msg, mixpool.ZeroSource)
 	if err != nil {
 		// XXX: consider a better error code/function
 		str := fmt.Sprintf("Rejected mix message: %s", err)

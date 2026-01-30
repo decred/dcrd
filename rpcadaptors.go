@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -446,8 +447,8 @@ func (b *rpcSyncMgr) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
 
 // AcceptMixMessage attempts to accept a mixing message to the local mixing
 // pool.
-func (b *rpcSyncMgr) AcceptMixMessage(msg mixing.Message) error {
-	_, err := b.server.mixMsgPool.AcceptMessage(msg)
+func (b *rpcSyncMgr) AcceptMixMessage(msg mixing.Message, src mixpool.Source) error {
+	_, err := b.server.mixMsgPool.AcceptMessage(msg, src)
 	return err
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -114,7 +114,7 @@ func (w *testWallet) SignInput(tx *wire.MsgTx, index int, prevScript []byte) err
 }
 
 func (w *testWallet) SubmitMixMessage(ctx context.Context, msg mixing.Message) error {
-	_, err := w.mixpool.AcceptMessage(msg)
+	_, err := w.mixpool.AcceptMessage(msg, mixpool.ZeroSource)
 	return err
 }
 

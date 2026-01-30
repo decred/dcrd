@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -225,7 +225,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(pr)
+	_, err = p.AcceptMessage(pr, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +271,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(ke)
+	_, err = p.AcceptMessage(ke, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(ct)
+	_, err = p.AcceptMessage(ct, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(sr)
+	_, err = p.AcceptMessage(sr, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +365,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(dc)
+	_, err = p.AcceptMessage(dc, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +399,7 @@ func TestAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.AcceptMessage(cm)
+	_, err = p.AcceptMessage(cm, ZeroSource)
 	if err != nil {
 		t.Fatal(err)
 	}
