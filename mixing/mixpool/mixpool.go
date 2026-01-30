@@ -475,6 +475,26 @@ func (p *Pool) removeMessage(hash chainhash.Hash) {
 	p.maybeLogRecentMixMsgsNumEvicted()
 }
 
+// removeOrphan removes the message associated with the passed hash from the
+// orphan pool and orphans by ID index.
+//
+// This function MUST be called with the mixpool lock held (for writes).
+func (p *Pool) removeOrphan(hash *chainhash.Hash, id *idPubKey) {
+	// Remove the message from the orphan pool and the reference from the
+	// orphans by ID index.
+	delete(p.orphans, *hash)
+	orphansByID := p.orphansByID[*id]
+	delete(orphansByID, *hash)
+
+	// Remove the map entry altogether if there are no longer any orphans which
+	// depend on it.
+	if len(orphansByID) == 0 {
+		delete(p.orphansByID, *id)
+	}
+
+	log.Tracef("Removed orphan %v (pool size %v)", hash, len(p.orphans))
+}
+
 // ExpireMessages immediately expires all pair requests and sessions built
 // from them that indicate expiry at or after a block height.
 func (p *Pool) ExpireMessages(height uint32) {
@@ -518,8 +538,7 @@ func (p *Pool) expireMessagesNow(height uint32) {
 			}
 		}
 		if expire {
-			delete(p.orphans, hash)
-			delete(p.orphansByID, *(*idPubKey)(o.message.Pub()))
+			p.removeOrphan(&hash, (*idPubKey)(o.message.Pub()))
 		}
 	}
 }
@@ -1210,9 +1229,8 @@ func (p *Pool) removePR(pr *wire.MsgMixPairReq, reason string) {
 	delete(p.messagesByIdentity, pr.Identity)
 	delete(p.latestKE, pr.Identity)
 	for orphanHash := range p.orphansByID[pr.Identity] {
-		delete(p.orphans, orphanHash)
+		p.removeOrphan(&orphanHash, &pr.Identity)
 	}
-	delete(p.orphansByID, pr.Identity)
 	for i := range pr.UTXOs {
 		delete(p.outPoints, pr.UTXOs[i].OutPoint)
 	}
@@ -1352,13 +1370,11 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 			}
 
 			kes = append(kes, orphanKE)
-			delete(p.orphansByID[*id], orphanKEHash)
-			delete(p.orphans, orphanKEHash)
+			p.removeOrphan(&orphanKEHash, id)
 
 			acceptedMessages = append(acceptedMessages, orphanKE)
 		}
 		if len(p.orphansByID[*id]) == 0 {
-			delete(p.orphansByID, *id)
 			return acceptedMessages
 		}
 	}
@@ -1374,7 +1390,6 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 			continue
 		}
 
-		var acceptedOrphans []mixing.Message
 		for orphanHash, orphan := range p.orphansByID[*id] {
 			if !bytes.Equal(orphan.Sid(), ke.SessionID[:]) {
 				continue
@@ -1401,16 +1416,10 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 
 			p.acceptEntry(orphan, msgtype, &orphanHash, id, ses)
 
-			acceptedOrphans = append(acceptedOrphans, orphan)
 			acceptedMessages = append(acceptedMessages, orphan)
-		}
-		for _, orphan := range acceptedOrphans {
-			orphanHash := orphan.Hash()
-			delete(p.orphansByID[*id], orphanHash)
-			delete(p.orphans, orphanHash)
+			p.removeOrphan(&orphanHash, id)
 		}
 		if len(p.orphansByID[*id]) == 0 {
-			delete(p.orphansByID, *id)
 			return acceptedMessages
 		}
 	}
