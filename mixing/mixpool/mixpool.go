@@ -95,7 +95,7 @@ type entry struct {
 	msgtype  msgtype
 }
 
-type orphan struct {
+type orphanMsg struct {
 	message  mixing.Message
 	accepted time.Time
 }
@@ -146,7 +146,7 @@ type Pool struct {
 	prs                map[chainhash.Hash]*wire.MsgMixPairReq
 	outPoints          map[wire.OutPoint]chainhash.Hash
 	pool               map[chainhash.Hash]entry
-	orphans            map[chainhash.Hash]*orphan
+	orphans            map[chainhash.Hash]*orphanMsg
 	orphansByID        map[idPubKey]map[chainhash.Hash]mixing.Message
 	messagesByIdentity map[idPubKey][]chainhash.Hash
 	latestKE           map[idPubKey]*wire.MsgMixKeyExchange
@@ -229,7 +229,7 @@ func NewPool(blockchain BlockChain) *Pool {
 		prs:                make(map[chainhash.Hash]*wire.MsgMixPairReq),
 		outPoints:          make(map[wire.OutPoint]chainhash.Hash),
 		pool:               make(map[chainhash.Hash]entry),
-		orphans:            make(map[chainhash.Hash]*orphan),
+		orphans:            make(map[chainhash.Hash]*orphanMsg),
 		orphansByID:        make(map[idPubKey]map[chainhash.Hash]mixing.Message),
 		messagesByIdentity: make(map[idPubKey][]chainhash.Hash),
 		latestKE:           make(map[idPubKey]*wire.MsgMixKeyExchange),
@@ -1143,7 +1143,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 			orphansByID = make(map[chainhash.Hash]mixing.Message)
 			p.orphansByID[*id] = orphansByID
 		}
-		p.orphans[hash] = &orphan{
+		p.orphans[hash] = &orphanMsg{
 			message:  msg,
 			accepted: time.Now(),
 		}
@@ -1545,7 +1545,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		}
 	}
 	if missingOwnPR != nil {
-		p.orphans[*hash] = &orphan{
+		p.orphans[*hash] = &orphanMsg{
 			message:  ke,
 			accepted: time.Now(),
 		}
