@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -200,9 +200,9 @@ type SyncManager interface {
 	// This method may report a false positive, but never a false negative.
 	RecentlyConfirmedTxn(hash *chainhash.Hash) bool
 
-	// SubmitMixMessage submits the mixing message to the network after
-	// processing it locally.
-	SubmitMixMessage(msg mixing.Message) error
+	// AcceptMixMessage attempts to accept a mixing message to the local mixing
+	// pool.
+	AcceptMixMessage(msg mixing.Message) error
 }
 
 // UtxoEntry represents a utxo entry for use with the RPC server.

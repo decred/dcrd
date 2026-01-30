@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -444,8 +444,9 @@ func (b *rpcSyncMgr) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
 	return b.server.recentlyConfirmedTxns.Contains(hash[:])
 }
 
-// SubmitMixMessage locally processes the mixing message.
-func (b *rpcSyncMgr) SubmitMixMessage(msg mixing.Message) error {
+// AcceptMixMessage attempts to accept a mixing message to the local mixing
+// pool.
+func (b *rpcSyncMgr) AcceptMixMessage(msg mixing.Message) error {
 	_, err := b.server.mixMsgPool.AcceptMessage(msg)
 	return err
 }

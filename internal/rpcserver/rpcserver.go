@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -4348,7 +4348,7 @@ func handleSendRawMixMessage(_ context.Context, s *Server, cmd interface{}) (int
 	msg.WriteHash(s.blake256Hasher)
 	s.blake256HaserMu.Unlock()
 
-	err = s.cfg.SyncMgr.SubmitMixMessage(msg)
+	err = s.cfg.SyncMgr.AcceptMixMessage(msg)
 	if err != nil {
 		// XXX: consider a better error code/function
 		str := fmt.Sprintf("Rejected mix message: %s", err)
