@@ -31,6 +31,17 @@ const minconf = 1
 const feeRate = 0.0001e8
 const earlyKEDuration = 5 * time.Second
 
+const (
+	// maxOrphans specifies the maximum number of orphans allowed in the orphan
+	// pool at one time.
+	maxOrphans = 250
+
+	// maxPostEvictionOrphans is the maximum number of orphans to keep in the
+	// pool after a forced eviction occurs due to exceeding the overall max
+	// limit.  It is set to 75% of the overall max limit.
+	maxPostEvictionOrphans = maxOrphans * 3 / 4
+)
+
 type idPubKey = [33]byte
 
 type msgtype int
@@ -515,6 +526,26 @@ func (p *Pool) removeOrphan(hash *chainhash.Hash, id *idPubKey) {
 	}
 
 	log.Tracef("Removed orphan %v (pool size %v)", hash, len(p.orphans))
+}
+
+// removeOrphansBySourceID removes up to the maximum specified number of orphan
+// messages associated with the provided source ID and returns the number of
+// entries removed.
+
+// This function MUST be called with the mixpool lock held (for writes).
+func (p *Pool) removeOrphansBySourceID(srcID uint64, maxToEvict uint64) uint64 {
+	var numEvicted uint64
+	for hash, orphan := range p.orphans {
+		if numEvicted >= maxToEvict {
+			break
+		}
+		if orphan.src.ID() == srcID {
+			id := (*idPubKey)(orphan.message.Pub())
+			p.removeOrphan(&hash, id)
+			numEvicted++
+		}
+	}
+	return numEvicted
 }
 
 // ExpireMessages immediately expires all pair requests and sessions built
@@ -1011,8 +1042,60 @@ Loop:
 
 var zeroHash chainhash.Hash
 
+// limitNumOrphans limits the number of orphan mixing messages by evicting a
+// subset of the existing orphans when adding a new one would cause it to
+// overflow the max allowed.
+//
+// This function MUST be called with the mixpool lock held (for writes).
+func (p *Pool) limitNumOrphans() {
+	// Nothing to do if adding another orphan will not cause the pool to exceed
+	// the limit.
+	if len(p.orphans)+1 <= maxOrphans {
+		return
+	}
+
+	// Determine which sources have the most orphans associated with them and
+	// then remove all of the orphans associated with each source in descending
+	// order until the orphan pool has reached the target maximum number of post
+	// eviction orphans allowed.
+	//
+	// This approach is fairly efficient since it naturally limits the frequency
+	// of eviction algorithm execution.  Further, in practice, orphan messages
+	// are quite rare after initial startup where ongoing mixing sessions are
+	// discovered, so any peer sending a lot of orphans is likely experiencing
+	// severe connectivity issues or otherwise misbehaving.  This approach also
+	// has the added benefit of handling a variety of orphan flooding
+	// misbehavior well.
+	srcCounters := make(map[uint64]int)
+	for _, orphan := range p.orphans {
+		srcCounters[orphan.src.ID()]++
+	}
+	type srcWithCount struct {
+		srcID uint64
+		count int
+	}
+	srcCounts := make([]srcWithCount, 0, len(srcCounters))
+	for srcID, count := range srcCounters {
+		srcCounts = append(srcCounts, srcWithCount{srcID, count})
+	}
+	slices.SortFunc(srcCounts, func(a, b srcWithCount) int {
+		return b.count - a.count
+	})
+	numOrphans := uint64(len(p.orphans))
+	for numOrphans > maxPostEvictionOrphans && len(srcCounts) > 0 {
+		srcID := srcCounts[0].srcID
+		maxToEvict := numOrphans - maxPostEvictionOrphans
+		numEvicted := p.removeOrphansBySourceID(srcID, maxToEvict)
+		log.Tracef("Removed %d orphans with source ID %d", numEvicted, srcID)
+		numOrphans -= numEvicted
+		srcCounts = srcCounts[1:]
+	}
+}
+
 // addOrphan adds the passed message to the orphan pool when it is not already
 // present.
+//
+// It also potentially removes orphans to make room when necessary.
 //
 // This function MUST be called with the mixpool lock held (for writes).
 func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey, src Source) {
@@ -1021,6 +1104,9 @@ func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey,
 		// Already an orphan.
 		return
 	}
+
+	// Limit the number of orphan mixing messages to prevent memory exhaustion.
+	p.limitNumOrphans()
 
 	orphan := &orphanMsg{
 		message:  msg,
