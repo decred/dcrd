@@ -970,6 +970,31 @@ Loop:
 
 var zeroHash chainhash.Hash
 
+// addOrphan adds the passed message to the orphan pool when it is not already
+// present.
+//
+// This function MUST be called with the mixpool lock held (for writes).
+func (p *Pool) addOrphan(msg mixing.Message, hash *chainhash.Hash, id *idPubKey) {
+	orphansByID := p.orphansByID[*id]
+	if _, ok := orphansByID[*hash]; ok {
+		// Already an orphan.
+		return
+	}
+
+	p.orphans[*hash] = &orphanMsg{
+		message:  msg,
+		accepted: time.Now(),
+	}
+	if orphansByID == nil {
+		orphansByID = make(map[chainhash.Hash]mixing.Message)
+		p.orphansByID[*id] = orphansByID
+	}
+	orphansByID[*hash] = msg
+
+	log.Debugf("Stored orphan message %T %v (pool size: %d)", msg, hash,
+		len(p.orphans))
+}
+
 // AcceptMessage accepts a mixing message to the pool.
 //
 // Messages must contain the mixing participant's identity and contain a valid
@@ -1134,20 +1159,7 @@ func (p *Pool) AcceptMessage(msg mixing.Message) (accepted []mixing.Message, err
 	}
 	// Save as an orphan if their KE is not (yet) accepted.
 	if !haveKE {
-		orphansByID := p.orphansByID[*id]
-		if _, ok := orphansByID[hash]; ok {
-			// Already an orphan.
-			return nil, nil
-		}
-		if orphansByID == nil {
-			orphansByID = make(map[chainhash.Hash]mixing.Message)
-			p.orphansByID[*id] = orphansByID
-		}
-		p.orphans[hash] = &orphanMsg{
-			message:  msg,
-			accepted: time.Now(),
-		}
-		orphansByID[hash] = msg
+		p.addOrphan(msg, &hash, id)
 
 		// TODO: Consider return an error containing the unknown
 		// messages, so they can be getdata'd.
@@ -1545,16 +1557,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		}
 	}
 	if missingOwnPR != nil {
-		p.orphans[*hash] = &orphanMsg{
-			message:  ke,
-			accepted: time.Now(),
-		}
-		orphansByID := p.orphansByID[*id]
-		if orphansByID == nil {
-			orphansByID = make(map[chainhash.Hash]mixing.Message)
-			p.orphansByID[*id] = orphansByID
-		}
-		orphansByID[*hash] = ke
+		p.addOrphan(ke, hash, id)
 		err := &MissingOwnPRError{
 			MissingPR: *missingOwnPR,
 		}
