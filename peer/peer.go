@@ -198,13 +198,6 @@ type MessageListeners struct {
 	// OnVerAck is invoked when a peer receives a verack wire message.
 	OnVerAck func(p *Peer, msg *wire.MsgVerAck)
 
-	// OnReject is invoked when a peer receives a reject wire message.
-	//
-	// Deprecated: This will be removed in a future release.  The underlying
-	// message is no longer valid and thus this will no longer ever be invoked.
-	// Callers should avoid using it.
-	OnReject func(p *Peer, msg *wire.MsgReject)
-
 	// OnSendHeaders is invoked when a peer receives a sendheaders wire
 	// message.
 	OnSendHeaders func(p *Peer, msg *wire.MsgSendHeaders)
