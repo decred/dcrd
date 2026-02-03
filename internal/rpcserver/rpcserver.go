@@ -266,7 +266,6 @@ var rpcAskWallet = map[string]struct{}{
 	"createmultisig":            {},
 	"createnewaccount":          {},
 	"createsignature":           {},
-	"createvotingaccount":       {},
 	"discoverusage":             {},
 	"dumpprivkey":               {},
 	"fundrawtransaction":        {},
