@@ -141,8 +141,7 @@ func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
 	// Create a file at the database path to force the open below to fail.
-	dbPath := t.TempDir()
-	_ = os.RemoveAll(dbPath)
+	dbPath := filepath.Join(t.TempDir(), "db")
 	fi, err := os.Create(dbPath)
 	if err != nil {
 		t.Errorf("os.Create: unexpected error: %v", err)

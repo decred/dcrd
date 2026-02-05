@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,25 +9,26 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 // TestCertCreationWithHosts creates a certificate pair with extra hosts and
 // ensures the extra hosts are present in the generated files.
 func TestCertCreationWithHosts(t *testing.T) {
-	certFile, err := os.CreateTemp(t.TempDir(), "certfile")
+	tempDir := t.TempDir()
+
+	certFile, err := os.Create(filepath.Join(tempDir, "certfile"))
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
-	defer os.Remove(certFile.Name())
 
-	keyFile, err := os.CreateTemp(t.TempDir(), "keyfile")
+	keyFile, err := os.Create(filepath.Join(tempDir, "keyfile"))
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
 	keyFile.Close()
-	defer os.Remove(keyFile.Name())
 
 	// Generate cert pair with extra hosts.
 	hostnames := []string{"hostname1", "hostname2"}
@@ -57,19 +58,19 @@ func TestCertCreationWithHosts(t *testing.T) {
 // TestCertCreationWithOutHosts ensures the creating a certificate pair without
 // any hosts works as intended.
 func TestCertCreationWithOutHosts(t *testing.T) {
-	certFile, err := os.CreateTemp(t.TempDir(), "certfile")
+	tempDir := t.TempDir()
+
+	certFile, err := os.Create(filepath.Join(tempDir, "certfile"))
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
 	certFile.Close()
-	defer os.Remove(certFile.Name())
 
-	keyFile, err := os.CreateTemp(t.TempDir(), "keyfile")
+	keyFile, err := os.Create(filepath.Join(tempDir, "keyfile"))
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
 	keyFile.Close()
-	defer os.Remove(keyFile.Name())
 
 	// Generate cert pair with no extra hosts.
 	err = genCertPair(certFile.Name(), keyFile.Name(), nil, elliptic.P521())
