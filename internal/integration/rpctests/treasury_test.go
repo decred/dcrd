@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -242,8 +242,7 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	err = hn.SetUp(ctx, false, 0)
 	if err != nil {
