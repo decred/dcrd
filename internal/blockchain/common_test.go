@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -107,7 +106,6 @@ func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
 	// the caller to be invoked when it is done testing.
 	teardown := func() {
 		_ = db.Close()
-		_ = os.RemoveAll(dbPath)
 	}
 
 	return db, teardown, nil

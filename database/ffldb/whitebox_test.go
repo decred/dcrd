@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -141,8 +141,7 @@ func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
 	// Create a file at the database path to force the open below to fail.
-	dbPath := t.TempDir()
-	_ = os.RemoveAll(dbPath)
+	dbPath := filepath.Join(t.TempDir(), "db")
 	fi, err := os.Create(dbPath)
 	if err != nil {
 		t.Errorf("os.Create: unexpected error: %v", err)
