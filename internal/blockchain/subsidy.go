@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -122,7 +122,8 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 // checkTreasuryBase checks to see if a given block's treasurybase correctly
 // pays the treasury. This is the new function that uses the treasury base for
 // the payout.
-func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
+func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
+	height int64, voters uint16) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
 		return nil
