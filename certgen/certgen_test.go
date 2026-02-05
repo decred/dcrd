@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -38,7 +38,7 @@ func TestNewTLSCertPair(t *testing.T) {
 
 	// Ensure the PEM-encoded key that is returned can be decoded.
 	pemKey, _ := pem.Decode(key)
-	if pemCert == nil {
+	if pemKey == nil {
 		t.Fatalf("pem.Decode was unable to decode the key")
 	}
 
