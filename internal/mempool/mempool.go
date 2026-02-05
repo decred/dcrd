@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -898,7 +898,7 @@ func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
 // helper for maybeAcceptTransaction and maybeUnstageTransaction.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, txDesc *TxDesc) {
+func (mp *TxPool) addTransaction(txDesc *TxDesc) {
 	tx := txDesc.Tx
 	txHash := tx.Hash()
 	txType := txDesc.Type
@@ -1129,8 +1129,8 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 
 // newTxDesc returns a new TxDesc instance that captures mempool state
 // relevant to the provided transaction at the current time.
-func (mp *TxPool) newTxDesc(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
-	txType stake.TxType, height int64, fee int64, totalSigOps int, txSize int64) *TxDesc {
+func (mp *TxPool) newTxDesc(tx *dcrutil.Tx, txType stake.TxType, height int64,
+	fee int64, totalSigOps int, txSize int64) *TxDesc {
 
 	return &TxDesc{
 		TxDesc: mining.TxDesc{
@@ -1161,11 +1161,11 @@ func (mp *TxPool) maybeUnstageTransaction(txDesc *TxDesc, isTreasuryEnabled bool
 		// main pool or back to the stage pool. In the event of an error, the
 		// transaction will be discarded.
 		mp.removeStagedTransaction(tx)
-		utxoView, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled)
+		_, err := mp.fetchInputUtxos(txDesc.Tx, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
-		mp.addTransaction(utxoView, txDesc)
+		mp.addTransaction(txDesc)
 	}
 	return nil
 }
@@ -1747,7 +1747,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 			tvi, mul, tspends)
 	}
 
-	txDesc := mp.newTxDesc(utxoView, tx, txType, bestHeight, txFee, totalSigOps,
+	txDesc := mp.newTxDesc(tx, txType, bestHeight, txFee, totalSigOps,
 		serializedSize)
 
 	// Tickets cannot be included in a block until all inputs have
@@ -1768,7 +1768,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	}
 
 	// Add to transaction pool.
-	mp.addTransaction(utxoView, txDesc)
+	mp.addTransaction(txDesc)
 
 	// A regular transaction entering the mempool causes
 	// mempool tickets that redeem it to move to the stage pool.
