@@ -1,11 +1,10 @@
-// Copyright (c) 2021-2023 The Decred developers
+// Copyright (c) 2021-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package indexers
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -326,8 +325,7 @@ func TestTxIndexAsync(t *testing.T) {
 	bk3 := addBlock(t, chain, &g, "bk3")
 
 	// Initialize the tx index.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	subber := NewIndexSubscriber(ctx)
 	go subber.Run(ctx)

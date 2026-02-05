@@ -1,11 +1,10 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2021-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package indexers
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -34,8 +33,7 @@ func TestIndexSubscriberAsync(t *testing.T) {
 	bk3 := addBlock(t, chain, &g, "bk3")
 
 	// Initialize all indexes.
-	ctx, pCancel := context.WithCancel(context.Background())
-	defer pCancel()
+	ctx := t.Context()
 
 	subber := NewIndexSubscriber(ctx)
 
