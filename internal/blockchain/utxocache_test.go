@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Decred developers
+// Copyright (c) 2022-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1255,10 +1255,7 @@ func TestMaybeFlush(t *testing.T) {
 				backendEntries[outpoint] = entry
 			}
 		}
-		if err != nil {
-			t.Fatalf("%q: unexpected error fetching entries from test "+
-				"backend: %v", test.name, err)
-		}
+
 		if !reflect.DeepEqual(backendEntries, test.wantBackendEntries) {
 			t.Fatalf("%q: mismatched backend entries:\nwant: %+v\n got: %+v\n",
 				test.name, test.wantBackendEntries, backendEntries)
