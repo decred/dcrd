@@ -143,7 +143,7 @@ func TestGetInitStateWire(t *testing.T) {
 	}
 }
 
-// TestGetInitState performs negative tests against wire encode and decode of
+// TestGetInitStateWireErrors performs negative tests against wire encode and decode of
 // MsgGetInitState to confirm error paths work correctly.
 func TestGetInitStateWireErrors(t *testing.T) {
 	pver := ProtocolVersion
