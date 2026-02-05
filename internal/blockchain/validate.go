@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -4089,7 +4089,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 	if isTreasuryEnabled {
 		err := checkTreasuryBase(b.subsidyCache, block.STransactions()[0],
-			node.height, node.voters, b.chainParams)
+			node.height, node.voters)
 		if err != nil {
 			return err
 		}
