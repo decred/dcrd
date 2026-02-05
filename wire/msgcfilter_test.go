@@ -251,7 +251,7 @@ func TestCFilterWireErrors(t *testing.T) {
 	}
 }
 
-// TestCFilter performs negative tests against wire decode of MsgCFilter to
+// TestCFilterMalformedErrors performs negative tests against wire decode of MsgCFilter to
 // confirm malformed encoded data doesn't pass through.
 func TestCFilterMalformedErrors(t *testing.T) {
 	pver := ProtocolVersion
