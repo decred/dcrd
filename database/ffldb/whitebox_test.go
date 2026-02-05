@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -41,7 +41,7 @@ var (
 
 // loadBlocks loads the blocks contained in the testdata directory and returns
 // a slice of them.
-func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcrutil.Block, error) {
+func loadBlocks(t *testing.T, dataFile string) ([]*dcrutil.Block, error) {
 	t.Helper()
 
 	// Open the file that contains the blocks for reading.
@@ -656,7 +656,7 @@ func TestFailureScenarios(t *testing.T) {
 
 	// Load the test blocks and save in the test context for use throughout
 	// the tests.
-	blocks, err := loadBlocks(t, blockDataFile, blockDataNet)
+	blocks, err := loadBlocks(t, blockDataFile)
 	if err != nil {
 		t.Errorf("loadBlocks: Unexpected error: %v", err)
 		return
