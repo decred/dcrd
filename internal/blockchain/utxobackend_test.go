@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023 The Decred developers
+// Copyright (c) 2021-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,16 +17,13 @@ import (
 )
 
 // createTestUtxoBackend creates a test backend with the utxo set bucket.
-func createTestUtxoBackend(t *testing.T) UtxoBackend {
+func createTestUtxoBackend(t testing.TB) UtxoBackend {
 	t.Helper()
 
-	db, teardown, err := createTestUtxoDatabase(t)
+	db, err := createTestUtxoDatabase(t)
 	if err != nil {
 		t.Fatalf("error creating test database: %v", err)
 	}
-	t.Cleanup(func() {
-		teardown()
-	})
 
 	return NewLevelDbUtxoBackend(db)
 }

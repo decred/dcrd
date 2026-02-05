@@ -85,10 +85,9 @@ func createTestDatabase(t testing.TB, dbType string, net wire.CurrencyNet) (data
 }
 
 // createTestUtxoDatabase creates a test UTXO database with the provided
-// database name. It also returns a teardown function the caller should invoke
-// when done testing to clean up.
-func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
-	// Construct the database filepath
+// database name, and ensures the database is closed when the test is completed.
+func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, error) {
+	// Construct the database filepath.
 	dbPath := t.TempDir()
 
 	// Open the database (will create it if needed).
@@ -99,16 +98,15 @@ func createTestUtxoDatabase(t testing.TB) (*leveldb.DB, func(), error) {
 	}
 	db, err := leveldb.OpenFile(dbPath, &opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Setup a teardown function for cleaning up.  This function is returned to
-	// the caller to be invoked when it is done testing.
-	teardown := func() {
+	// Close database when the test is complete.
+	t.Cleanup(func() {
 		_ = db.Close()
-	}
+	})
 
-	return db, teardown, nil
+	return db, nil
 }
 
 // chainSetup is used to create a new db and chain instance with the genesis
@@ -125,13 +123,7 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 	}
 
 	// Create a test UTXO database.
-	utxoDb, teardownUtxoDb, err := createTestUtxoDatabase(t)
-	if err != nil {
-		return nil, err
-	}
-	t.Cleanup(func() {
-		teardownUtxoDb()
-	})
+	utxoBackend := createTestUtxoBackend(t)
 
 	// Copy the chain params to ensure any modifications the tests do to
 	// the chain parameters do not affect the global instance.
@@ -144,7 +136,6 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 	}
 
 	// Create the main chain instance.
-	utxoBackend := NewLevelDbUtxoBackend(utxoDb)
 	chain, err := New(context.Background(),
 		&Config{
 			DB:          db,
