@@ -117,7 +117,8 @@ func readNetAddress(r io.Reader, pver uint32, na *NetAddress, ts bool) error {
 		return err
 	}
 	// Sigh.  Decred protocol mixes little and big endian.
-	port, err := binarySerializer.Uint16(r, bigEndian)
+	var port uint16
+	err = readUint16BE(r, &port)
 	if err != nil {
 		return err
 	}

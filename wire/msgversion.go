@@ -80,8 +80,15 @@ func (msg *MsgVersion) AddService(service ServiceFlag) {
 // This is part of the Message interface implementation.
 func (msg *MsgVersion) BtcDecode(r io.Reader, pver uint32) error {
 	const op = "MsgVersion.BtcDecode"
-	buf, ok := r.(*bytes.Buffer)
-	if !ok {
+	// In addition to a *bytes.Buffer as described by the public
+	// documentation, the internal *wireBuffer type is also allowed.
+	var buf *bytes.Buffer
+	switch r := r.(type) {
+	case *wireBuffer:
+		buf = (*bytes.Buffer)(r)
+	case *bytes.Buffer:
+		buf = r
+	default:
 		return messageError(op, ErrInvalidMsg, "reader is not a *bytes.Buffer")
 	}
 
