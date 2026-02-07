@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -153,6 +153,13 @@ type uint32Time time.Time
 // time.Time since it is otherwise ambiguous.
 type int64Time time.Time
 
+// uint64Time represents a unix timestamp encoded with a uint64.  It is used as
+// a way to signal the readElement function how to decode a timestamp into a Go
+// time.Time since it is otherwise ambiguous.  The uint64 value is rejected if
+// it is larger than the maximum int64 value since it would overflow when
+// converted to an int64 for the time.Unix call.
+type uint64Time time.Time
+
 // readElement reads the next sequence of bytes from r using little endian
 // depending on the concrete type of element pointed to.
 func readElement(r io.Reader, element interface{}) error {
@@ -235,6 +242,19 @@ func readElement(r io.Reader, element interface{}) error {
 			return err
 		}
 		*e = int64Time(time.Unix(int64(rv), 0))
+		return nil
+
+	case *uint64Time:
+		rv, err := binarySerializer.Uint64(r, binary.LittleEndian)
+		if err != nil {
+			return err
+		}
+		// Reject timestamps that would overflow when converted to int64.
+		if rv > math.MaxInt64 {
+			return messageError("readElement", ErrInvalidMsg,
+				"timestamp exceeds maximum allowed value")
+		}
+		*e = uint64Time(time.Unix(int64(rv), 0))
 		return nil
 
 	// Message header checksum.
@@ -352,6 +372,14 @@ func readElement(r io.Reader, element interface{}) error {
 			return err
 		}
 		*e = RejectCode(rv)
+		return nil
+
+	case *NetAddressType:
+		rv, err := binarySerializer.Uint8(r)
+		if err != nil {
+			return err
+		}
+		*e = NetAddressType(rv)
 		return nil
 	}
 

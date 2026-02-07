@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2025 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,7 +19,9 @@ import (
 
 // TestAddr tests the MsgAddr API.
 func TestAddr(t *testing.T) {
-	pver := ProtocolVersion
+	// Use protocol version before AddrV2Version since addr message is
+	// deprecated as of AddrV2Version.
+	pver := AddrV2Version - 1
 
 	// Ensure the command is expected value.
 	wantCmd := "addr"
@@ -132,20 +134,20 @@ func TestAddrWire(t *testing.T) {
 		buf  []byte   // Wire encoding
 		pver uint32   // Protocol version for wire encoding
 	}{
-		// Latest protocol version with no addresses.
+		// Protocol version before AddrV2Version with no addresses.
 		{
 			noAddr,
 			noAddr,
 			noAddrEncoded,
-			ProtocolVersion,
+			AddrV2Version - 1,
 		},
 
-		// Latest protocol version with multiple addresses.
+		// Protocol version before AddrV2Version with multiple addresses.
 		{
 			multiAddr,
 			multiAddr,
 			multiAddrEncoded,
-			ProtocolVersion,
+			AddrV2Version - 1,
 		},
 	}
 
@@ -183,7 +185,9 @@ func TestAddrWire(t *testing.T) {
 // TestAddrWireErrors performs negative tests against wire encode and decode
 // of MsgAddr to confirm error paths work correctly.
 func TestAddrWireErrors(t *testing.T) {
-	pver := ProtocolVersion
+	// Use protocol version before AddrV2Version since addr message is
+	// deprecated as of AddrV2Version.
+	pver := AddrV2Version - 1
 
 	// A couple of NetAddresses to use for testing.
 	na := &NetAddress{
@@ -264,6 +268,75 @@ func TestAddrWireErrors(t *testing.T) {
 			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
 				test.readErr)
 			continue
+		}
+	}
+}
+
+// TestAddrVersionEnforcement verifies that addr messages are properly rejected
+// for protocol versions >= AddrV2Version.
+func TestAddrVersionEnforcement(t *testing.T) {
+	tests := []struct {
+		name           string
+		pver           uint32
+		wantErr        error
+		wantMaxPayload uint32
+	}{{
+		name:           "addr message rejected for AddrV2Version",
+		pver:           AddrV2Version,
+		wantErr:        ErrMsgInvalidForPVer,
+		wantMaxPayload: 0,
+	}, {
+		name:           "addr message rejected for ProtocolVersion",
+		pver:           ProtocolVersion,
+		wantErr:        ErrMsgInvalidForPVer,
+		wantMaxPayload: 0,
+	}, {
+		name:           "addr message works for version before AddrV2Version",
+		pver:           AddrV2Version - 1,
+		wantErr:        nil,
+		wantMaxPayload: 30003,
+	}}
+
+	// Create a basic addr message with one address.
+	na := &NetAddress{
+		Timestamp: time.Unix(0x495fab29, 0), // 2009-01-03 12:15:05 -0600 CST
+		Services:  SFNodeNetwork,
+		IP:        net.ParseIP("127.0.0.1"),
+		Port:      8333,
+	}
+	msg := NewMsgAddr()
+	msg.AddAddress(na)
+
+	// Encode message with old protocol version to use for decode tests.
+	var validEncoded bytes.Buffer
+	if err := msg.BtcEncode(&validEncoded, AddrV2Version-1); err != nil {
+		t.Fatalf("failed to encode with old version: %v", err)
+	}
+	encodedBytes := validEncoded.Bytes()
+
+	for _, test := range tests {
+		// Test BtcEncode
+		var buf bytes.Buffer
+		err := msg.BtcEncode(&buf, test.pver)
+		if !errors.Is(err, test.wantErr) {
+			t.Errorf("%q: BtcEncode wrong error - got: %v, want: %v",
+				test.name, err, test.wantErr)
+		}
+
+		// Test BtcDecode
+		var decoded MsgAddr
+		rbuf := bytes.NewReader(encodedBytes)
+		err = decoded.BtcDecode(rbuf, test.pver)
+		if !errors.Is(err, test.wantErr) {
+			t.Errorf("%q: BtcDecode wrong error - got: %v, want: %v",
+				test.name, err, test.wantErr)
+		}
+
+		// Test MaxPayloadLength
+		maxPayload := msg.MaxPayloadLength(test.pver)
+		if maxPayload != test.wantMaxPayload {
+			t.Errorf("%q: MaxPayloadLength wrong value - got: %d, want: %d",
+				test.name, maxPayload, test.wantMaxPayload)
 		}
 	}
 }
