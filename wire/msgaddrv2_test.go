@@ -145,7 +145,7 @@ func TestAddrV2Wire(t *testing.T) {
 		wantBytes: bytes.Join([][]byte{
 			{0x01},
 			serializedIPv4NetAddressBytes,
-		}, []byte{}),
+		}, nil),
 	}, {
 		name: "latest protocol version with multiple addresses",
 		addrs: []NetAddressV2{
@@ -158,7 +158,7 @@ func TestAddrV2Wire(t *testing.T) {
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
 			serializedTORv3NetAddressBytes,
-		}, []byte{}),
+		}, nil),
 	}, {
 		name: "latest protocol version with maximum addresses",
 		addrs: func() []NetAddressV2 {
@@ -173,7 +173,7 @@ func TestAddrV2Wire(t *testing.T) {
 			for i := 0; i < MaxAddrPerV2Msg; i++ {
 				parts = append(parts, serializedIPv6NetAddressBytes)
 			}
-			return bytes.Join(parts, []byte{})
+			return bytes.Join(parts, nil)
 		}(),
 	}}
 
@@ -228,7 +228,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		wireBytes: bytes.Join([][]byte{
 			{0x01},
 			serializedIPv4NetAddressBytes,
-		}, []byte{}),
+		}, nil),
 		wantAddrs: nil,
 		wantErr:   ErrMsgInvalidForPVer,
 	}, {
@@ -277,7 +277,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 			serializedIPv6NetAddressBytes,
 			serializedTORv3NetAddressBytes,
 			serializedUnknownNetAddressBytes,
-		}, []byte{}),
+		}, nil),
 		wantAddrs: nil,
 		wantErr:   ErrUnknownNetAddrType,
 	}, {
@@ -286,7 +286,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		wireBytes: bytes.Join([][]byte{
 			{0x01},
 			serializedTORv3NetAddressBytes,
-		}, []byte{}),
+		}, nil),
 		wantAddrs: nil,
 		wantErr:   ErrMsgInvalidForPVer,
 	}, {
@@ -297,7 +297,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
 			serializedTORv3NetAddressBytes,
-		}, []byte{}),
+		}, nil),
 		wantAddrs: []NetAddressV2{
 			ipv4NetAddress,
 			ipv6NetAddress,

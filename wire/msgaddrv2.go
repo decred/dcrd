@@ -177,9 +177,10 @@ func (msg *MsgAddrV2) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 
+	// Require at least one address per message.
 	if count == 0 {
-		return messageError(op, ErrTooFewAddrs,
-			"no addresses for message [count 0, min 1]")
+		const msg = "no addresses for message [count 0, min 1]"
+		return messageError(op, ErrTooFewAddrs, msg)
 	}
 
 	// Limit to max addresses per message.
@@ -211,16 +212,18 @@ func (msg *MsgAddrV2) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
+	// Require at least one address per message.
 	count := len(msg.AddrList)
+	if count == 0 {
+		const msg = "no addresses for message [count 0, min 1]"
+		return messageError(op, ErrTooFewAddrs, msg)
+	}
+
+	// Limit to max addresses per message.
 	if count > MaxAddrPerV2Msg {
 		msg := fmt.Sprintf("too many addresses for message [count %v, max %v]",
 			count, MaxAddrPerV2Msg)
 		return messageError(op, ErrTooManyAddrs, msg)
-	}
-
-	if count == 0 {
-		return messageError(op, ErrTooFewAddrs,
-			"no addresses for message [count 0, min 1]")
 	}
 
 	err := WriteVarInt(w, pver, uint64(count))
@@ -244,8 +247,8 @@ func (msg *MsgAddrV2) Command() string {
 	return CmdAddrV2
 }
 
-// maxNetAddressPayloadV2 returns the max payload size for an address manager
-// network address based on the protocol version.
+// maxNetAddressPayloadV2 returns the max payload size for a network address
+// based on the protocol version.
 func maxNetAddressPayloadV2(pver uint32) uint32 {
 	const (
 		timestampSize   = 8

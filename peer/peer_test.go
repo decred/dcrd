@@ -571,31 +571,30 @@ func TestPeerListeners(t *testing.T) {
 		listener: "OnCFilterV2",
 		msg:      wire.NewMsgCFilterV2(&chainhash.Hash{}, nil, 0, nil),
 		pver:     pver,
-	},
+	}, {
 		// only one version message is allowed
 		// only one verack message is allowed
-		{
-			listener: "OnSendHeaders",
-			msg:      wire.NewMsgSendHeaders(),
-			pver:     pver,
-		}, {
-			listener: "OnGetInitState",
-			msg:      wire.NewMsgGetInitState(),
-			pver:     pver,
-		}, {
-			listener: "OnInitState",
-			msg:      wire.NewMsgInitState(),
-			pver:     pver,
-		}, {
-			listener: "OnGetCFiltersV2",
-			msg:      wire.NewMsgGetCFsV2(&chainhash.Hash{}, &chainhash.Hash{}),
-			pver:     pver,
-		}, {
-			listener: "OnCFiltersV2",
-			msg:      wire.NewMsgCFiltersV2([]wire.MsgCFilterV2{}),
-			pver:     pver,
-		},
-	}
+		listener: "OnSendHeaders",
+		msg:      wire.NewMsgSendHeaders(),
+		pver:     pver,
+	}, {
+		listener: "OnGetInitState",
+		msg:      wire.NewMsgGetInitState(),
+		pver:     pver,
+	}, {
+		listener: "OnInitState",
+		msg:      wire.NewMsgInitState(),
+		pver:     pver,
+	}, {
+		listener: "OnGetCFiltersV2",
+		msg:      wire.NewMsgGetCFsV2(&chainhash.Hash{}, &chainhash.Hash{}),
+		pver:     pver,
+	}, {
+		listener: "OnCFiltersV2",
+		msg:      wire.NewMsgCFiltersV2([]wire.MsgCFilterV2{}),
+		pver:     pver,
+	}}
+
 	t.Logf("Running %d tests", len(tests))
 	for _, test := range tests {
 		testPver := test.pver
@@ -963,41 +962,39 @@ func TestPushAddrV2Msg(t *testing.T) {
 		name        string
 		addrs       []wire.NetAddressV2
 		wantSentLen int
-	}{
-		{
-			name:        "nil address list",
-			addrs:       nil,
-			wantSentLen: 0,
-		}, {
-			name:        "empty address list",
-			addrs:       []wire.NetAddressV2{},
-			wantSentLen: 0,
-		}, {
-			name:        "single address",
-			addrs:       []wire.NetAddressV2{addr},
-			wantSentLen: 1,
-		}, {
-			name: "multiple addresses under limit",
-			addrs: func() []wire.NetAddressV2 {
-				addrs := make([]wire.NetAddressV2, 10)
-				for i := range addrs {
-					addrs[i] = addr
-				}
-				return addrs
-			}(),
-			wantSentLen: 10,
-		}, {
-			name: "addresses over MaxAddrPerV2Msg limit",
-			addrs: func() []wire.NetAddressV2 {
-				addrs := make([]wire.NetAddressV2, wire.MaxAddrPerV2Msg+100)
-				for i := range addrs {
-					addrs[i] = addr
-				}
-				return addrs
-			}(),
-			wantSentLen: wire.MaxAddrPerV2Msg,
-		},
-	}
+	}{{
+		name:        "nil address list",
+		addrs:       nil,
+		wantSentLen: 0,
+	}, {
+		name:        "empty address list",
+		addrs:       []wire.NetAddressV2{},
+		wantSentLen: 0,
+	}, {
+		name:        "single address",
+		addrs:       []wire.NetAddressV2{addr},
+		wantSentLen: 1,
+	}, {
+		name: "multiple addresses under limit",
+		addrs: func() []wire.NetAddressV2 {
+			addrs := make([]wire.NetAddressV2, 10)
+			for i := range addrs {
+				addrs[i] = addr
+			}
+			return addrs
+		}(),
+		wantSentLen: 10,
+	}, {
+		name: "addresses over MaxAddrPerV2Msg limit",
+		addrs: func() []wire.NetAddressV2 {
+			addrs := make([]wire.NetAddressV2, wire.MaxAddrPerV2Msg+100)
+			for i := range addrs {
+				addrs[i] = addr
+			}
+			return addrs
+		}(),
+		wantSentLen: wire.MaxAddrPerV2Msg,
+	}}
 
 	// Create a mock connection.
 	inConn, outConn := pipe(
@@ -1018,13 +1015,9 @@ func TestPushAddrV2Msg(t *testing.T) {
 		sent := peer.PushAddrV2Msg(test.addrs)
 
 		// Check the number of addresses sent.
-		gotSentLen := 0
-		if sent != nil {
-			gotSentLen = len(sent)
-		}
-		if gotSentLen != test.wantSentLen {
-			t.Errorf("%s: expected %d addresses sent, got %d",
-				test.name, test.wantSentLen, gotSentLen)
+		if got := len(sent); got != test.wantSentLen {
+			t.Errorf("%s: expected %d addresses sent, got %d", test.name,
+				test.wantSentLen, got)
 		}
 	}
 
