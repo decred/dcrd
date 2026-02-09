@@ -1039,9 +1039,9 @@ func addrmgrToWireNetAddressV2(netAddr *addrmgr.NetAddress) wire.NetAddressV2 {
 		netAddr.Timestamp, netAddr.Services)
 }
 
-// pushAddrMsg sends an addr message to the connected peer using the provided
-// addresses.
-func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
+// pushAddrV1Msg sends a legacy version 1 addr message to the connected peer
+// using the provided addresses.
+func (sp *serverPeer) pushAddrV1Msg(addresses []*addrmgr.NetAddress) {
 	// Filter addresses already known to the peer.
 	addrs := make([]*wire.NetAddress, 0, len(addresses))
 	for _, addr := range addresses {
@@ -1059,6 +1059,36 @@ func (sp *serverPeer) pushAddrMsg(addresses []*addrmgr.NetAddress) {
 
 	knownNetAddrs := wireToAddrmgrNetAddresses(known)
 	sp.addKnownAddresses(knownNetAddrs)
+}
+
+// pushAddrV2Msg sends an addrv2 message to the connected peer using the
+// provided addresses.
+func (sp *serverPeer) pushAddrV2Msg(addresses []*addrmgr.NetAddress) {
+	// Filter addresses already known to the peer.
+	addrs := make([]wire.NetAddressV2, 0, len(addresses))
+	for _, addr := range addresses {
+		if !sp.addressKnown(addr) {
+			wireNetAddr := addrmgrToWireNetAddressV2(addr)
+			addrs = append(addrs, wireNetAddr)
+		}
+	}
+	known := sp.PushAddrV2Msg(addrs)
+	knownNetAddrs, err := wireToAddrmgrNetAddressesV2(known)
+	if err != nil {
+		peerLog.Errorf("Failed to convert known addresses: %v", err)
+		return
+	}
+	sp.addKnownAddresses(knownNetAddrs)
+}
+
+// pushAddrMsg sends an appropriate version address message to the connected
+// peer using the provided addresses depending on the protocol version.
+func (sp *serverPeer) pushAddrMsg(pver uint32, addresses []*addrmgr.NetAddress) {
+	if pver >= wire.AddrV2Version {
+		sp.pushAddrV2Msg(addresses)
+		return
+	}
+	sp.pushAddrV1Msg(addresses)
 }
 
 // addBanScore increases the persistent and decaying ban score fields by the
@@ -1128,26 +1158,6 @@ func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 		return isSupportedNetAddrTypeV1
 	}
 	return isSupportedNetAddressTypeV2
-}
-
-// pushAddrV2Msg sends an addrv2 message to the connected peer using the
-// provided addresses.
-func (sp *serverPeer) pushAddrV2Msg(addresses []*addrmgr.NetAddress) {
-	// Filter addresses already known to the peer.
-	addrs := make([]wire.NetAddressV2, 0, len(addresses))
-	for _, addr := range addresses {
-		if !sp.addressKnown(addr) {
-			wireNetAddr := addrmgrToWireNetAddressV2(addr)
-			addrs = append(addrs, wireNetAddr)
-		}
-	}
-	known := sp.PushAddrV2Msg(addrs)
-	knownNetAddrs, err := wireToAddrmgrNetAddressesV2(known)
-	if err != nil {
-		peerLog.Errorf("Failed to convert known addresses: %v", err)
-		return
-	}
-	sp.addKnownAddresses(knownNetAddrs)
 }
 
 // NA returns the address manager network address for the peer.
@@ -1258,16 +1268,12 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// known tip.
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
-			msgProtocolVersion := uint32(msg.ProtocolVersion)
-			addrTypeFilter := natfSupported(msgProtocolVersion)
+			pver := uint32(msg.ProtocolVersion)
+			addrTypeFilter := natfSupported(pver)
 			lna := addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
 			if lna.IsRoutable() {
 				addresses := []*addrmgr.NetAddress{lna}
-				if msgProtocolVersion >= wire.AddrV2Version {
-					sp.pushAddrV2Msg(addresses)
-				} else {
-					sp.pushAddrMsg(addresses)
-				}
+				sp.pushAddrMsg(pver, addresses)
 			} else {
 				srvrLog.Debugf("Local address %s is not routable and will not "+
 					"be broadcast to outbound peer %v", lna.Key(), sp.Addr())
@@ -1863,11 +1869,7 @@ func (sp *serverPeer) OnGetAddr(_ *peer.Peer, msg *wire.MsgGetAddr) {
 	addrCache := sp.server.addrManager.AddressCache(addrTypeFilter)
 
 	// Push addresses using version-appropriate message type.
-	if pver >= wire.AddrV2Version {
-		sp.pushAddrV2Msg(addrCache)
-	} else {
-		sp.pushAddrMsg(addrCache)
-	}
+	sp.pushAddrMsg(pver, addrCache)
 }
 
 // OnAddr is invoked when a peer receives an addr wire message and is used to
