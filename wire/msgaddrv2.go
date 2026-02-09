@@ -55,7 +55,7 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = ip[:]
 
 	case IPv6Address:
 		var ip [16]byte
@@ -63,7 +63,7 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = ip[:]
 
 	case TORv3Address:
 		if pver < TORv3Version {
@@ -71,12 +71,12 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 				"or higher", TORv3Version)
 			return messageError(op, ErrMsgInvalidForPVer, msg)
 		}
-		var ip [32]byte
-		err := readElement(r, &ip)
+		var addr [32]byte
+		err := readElement(r, &addr)
 		if err != nil {
 			return err
 		}
-		na.IP = ip[:]
+		na.EncodedAddr = addr[:]
 
 	default:
 		msg := fmt.Sprintf("cannot decode unknown network address type %v",
@@ -92,8 +92,8 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 	return nil
 }
 
-// writeNetAddressV2 serializes an address manager network address to the
-// provided writer.
+// writeNetAddressV2 serializes a version 2 network address to the provided
+// writer.
 func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) error {
 	err := writeElement(w, uint64(na.Timestamp.Unix()))
 	if err != nil {
@@ -105,8 +105,8 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		return err
 	}
 
-	netAddrIP := na.IP
-	addrLen := len(netAddrIP)
+	encodedAddr := na.EncodedAddr
+	addrLen := len(encodedAddr)
 
 	switch na.Type {
 	case IPv4Address:
@@ -115,7 +115,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 			return messageError(op, ErrInvalidMsg, msg)
 		}
 		var ip [4]byte
-		copy(ip[:], netAddrIP)
+		copy(ip[:], encodedAddr)
 		err = writeElement(w, ip)
 		if err != nil {
 			return err
@@ -127,7 +127,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 			return messageError(op, ErrInvalidMsg, msg)
 		}
 		var ip [16]byte
-		copy(ip[:], net.IP(netAddrIP).To16())
+		copy(ip[:], net.IP(encodedAddr).To16())
 		err = writeElement(w, ip)
 		if err != nil {
 			return err
@@ -139,13 +139,13 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 				"or higher", TORv3Version)
 			return messageError(op, ErrMsgInvalidForPVer, msg)
 		}
-		if len(netAddrIP) != 32 {
-			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(netAddrIP))
+		if len(encodedAddr) != 32 {
+			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(encodedAddr))
 			return messageError(op, ErrInvalidMsg, msg)
 		}
-		var ip [32]byte
-		copy(ip[:], netAddrIP)
-		err = writeElement(w, ip)
+		var addr [32]byte
+		copy(addr[:], encodedAddr)
+		err = writeElement(w, addr)
 		if err != nil {
 			return err
 		}

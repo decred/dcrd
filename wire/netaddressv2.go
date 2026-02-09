@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Decred developers
+// Copyright (c) 2025-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -32,24 +32,24 @@ type NetAddressV2 struct {
 	// Type represents the type of network that the network address belongs to.
 	Type NetAddressType
 
-	// IP address of the peer. It is defined as a byte array to support various
-	// address types that are not standard to the net package and therefore not
-	// entirely appropriate to store as a net.IP.
-	IP []byte
+	// EncodedAddr is the encoded network address.  Its contents varies
+	// depending on the address type discriminator.
+	EncodedAddr []byte
 
-	// Port is the port of the remote peer.
+	// Port is the port of the remote peer.  It will be 0 if a port does not
+	// apply for the specified address type discriminator.
 	Port uint16
 }
 
-// NewNetAddressV2 creates a new network address using the provided
-// parameters without validation.
+// NewNetAddressV2 creates a new network address using the provided parameters
+// without validation.
 func NewNetAddressV2(netAddressType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services ServiceFlag) NetAddressV2 {
 	return NetAddressV2{
-		Timestamp: timestamp,
-		Services:  services,
-		Type:      netAddressType,
-		IP:        addrBytes,
-		Port:      port,
+		Timestamp:   timestamp,
+		Services:    services,
+		Type:        netAddressType,
+		EncodedAddr: addrBytes,
+		Port:        port,
 	}
 }
 
@@ -72,10 +72,10 @@ func NewNetAddressV2IPPort(ip net.IP, port uint16, services ServiceFlag) NetAddr
 	// doesn't support better.
 	timestamp := time.Unix(time.Now().Unix(), 0)
 	return NetAddressV2{
-		Timestamp: timestamp,
-		Services:  services,
-		Type:      addrType,
-		IP:        addrBytes,
-		Port:      port,
+		Timestamp:   timestamp,
+		Services:    services,
+		Type:        addrType,
+		EncodedAddr: addrBytes,
+		Port:        port,
 	}
 }

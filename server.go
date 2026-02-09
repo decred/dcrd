@@ -1014,8 +1014,9 @@ func wireToAddrmgrNetAddressesV2(netAddrs []wire.NetAddressV2) ([]*addrmgr.NetAd
 	for i := range netAddrs {
 		wireAddr := &netAddrs[i]
 		addrType := wireToAddrmgrNetAddressType(wireAddr.Type)
-		addr, err := addrmgr.NewNetAddressFromParams(addrType, wireAddr.IP,
-			wireAddr.Port, wireAddr.Timestamp, wireAddr.Services)
+		addr, err := addrmgr.NewNetAddressFromParams(addrType,
+			wireAddr.EncodedAddr, wireAddr.Port, wireAddr.Timestamp,
+			wireAddr.Services)
 		if err != nil {
 			return nil, err
 		}
@@ -1175,7 +1176,7 @@ func (sp *serverPeer) NA() *addrmgr.NetAddress {
 
 	return &addrmgr.NetAddress{
 		Type:      wireToAddrmgrNetAddressType(wireNA.Type),
-		IP:        wireNA.IP,
+		IP:        wireNA.EncodedAddr,
 		Port:      wireNA.Port,
 		Timestamp: wireNA.Timestamp,
 		Services:  wireNA.Services,

@@ -60,17 +60,17 @@ var (
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00, // Timestamp
 		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Services
 		0x00,                   // Type (Unknown)
-		0x7f, 0x00, 0x00, 0x01, // IP
+		0x7f, 0x00, 0x00, 0x01, // EncodedAddr
 		0x8d, 0x20, // Port 8333 (little-endian)
 	}
 	serializedTORv3NetAddressBytes = []byte{
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00,
 		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x03,                                           // Type (TORv3)
-		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2, // IP
-		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80, // IP
-		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce, // IP
-		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93, // IP
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2, // EncodedAddr
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80, // EncodedAddr
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce, // EncodedAddr
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93, // EncodedAddr
 		0x8d, 0x20, // Port 8333 (little-endian)
 	}
 )
@@ -338,11 +338,11 @@ func TestAddrV2BtcEncode(t *testing.T) {
 		name: "addrv2 message invalid for pver 11",
 		pver: AddrV2Version - 1,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      IPv4Address,
-			IP:        ipv4IpBytes,
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        IPv4Address,
+			EncodedAddr: ipv4IpBytes,
+			Port:        8333,
 		}},
 		wantErr: ErrMsgInvalidForPVer,
 	}, {
@@ -359,55 +359,55 @@ func TestAddrV2BtcEncode(t *testing.T) {
 		name: "message with wrong size IPv4 address",
 		pver: pver,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      IPv4Address,
-			IP:        make([]byte, 1),
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        IPv4Address,
+			EncodedAddr: make([]byte, 1),
+			Port:        8333,
 		}},
 		wantErr: ErrInvalidMsg,
 	}, {
 		name: "message with wrong size IPv6 address",
 		pver: pver,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      IPv6Address,
-			IP:        make([]byte, 1),
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        IPv6Address,
+			EncodedAddr: make([]byte, 1),
+			Port:        8333,
 		}},
 		wantErr: ErrInvalidMsg,
 	}, {
 		name: "message with wrong size TORv3 address",
 		pver: pver,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      TORv3Address,
-			IP:        make([]byte, 1),
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        TORv3Address,
+			EncodedAddr: make([]byte, 1),
+			Port:        8333,
 		}},
 		wantErr: ErrInvalidMsg,
 	}, {
 		name: "message with TORv3 address invalid on pver 12",
 		pver: AddrV2Version,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      TORv3Address,
-			IP:        torV3IpBytes,
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        TORv3Address,
+			EncodedAddr: torV3IpBytes,
+			Port:        8333,
 		}},
 		wantErr: ErrMsgInvalidForPVer,
 	}, {
 		name: "message with unknown address type",
 		pver: pver,
 		addrs: []NetAddressV2{{
-			Timestamp: time.Unix(0x495fab29, 0),
-			Services:  SFNodeNetwork,
-			Type:      UnknownAddressType,
-			IP:        make([]byte, 1),
-			Port:      8333,
+			Timestamp:   time.Unix(0x495fab29, 0),
+			Services:    SFNodeNetwork,
+			Type:        UnknownAddressType,
+			EncodedAddr: make([]byte, 1),
+			Port:        8333,
 		}},
 		wantErr: ErrUnknownNetAddrType,
 	}}

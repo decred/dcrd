@@ -2074,14 +2074,14 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 	if p.cfg.Proxy != "" {
 		proxyaddress, _, err := net.SplitHostPort(p.cfg.Proxy)
 		// invalid proxy means poorly configured, be on the safe side.
-		if err != nil || net.IP(p.na.IP).String() == proxyaddress {
+		if err != nil || net.IP(p.na.EncodedAddr).String() == proxyaddress {
 			theirNA = wire.NewNetAddressIPPort(net.IP([]byte{0, 0, 0, 0}), 0,
 				peerNA.Services)
 		}
 	}
 	if theirNA == nil {
 		theirNA = wire.NewNetAddressTimestamp(peerNA.Timestamp, peerNA.Services,
-			peerNA.IP, peerNA.Port)
+			peerNA.EncodedAddr, peerNA.Port)
 	}
 
 	// Create a wire.NetAddress with only the services set to use as the
