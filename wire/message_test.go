@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -59,9 +59,9 @@ func TestMessage(t *testing.T) {
 	msgVerack := NewMsgVerAck()
 	msgGetAddr := NewMsgGetAddr()
 	msgAddr := NewMsgAddr()
-	msgAddrV2 := NewMsgAddrV2()
-	msgAddrV2.AddAddress(NewNetAddressV2IPPort(net.ParseIP("127.0.0.1").To4(),
-		8333, SFNodeNetwork))
+	v2Addr := NewNetAddressV2IPPort(net.ParseIP("127.0.0.1").To4(), 8333,
+		SFNodeNetwork)
+	msgAddrV2 := NewMsgAddrV2([]NetAddressV2{v2Addr})
 	msgGetBlocks := NewMsgGetBlocks(&chainhash.Hash{})
 	msgBlock := &testBlock
 	msgInv := NewMsgInv()

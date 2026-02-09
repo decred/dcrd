@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -898,10 +898,7 @@ func (p *Peer) PushAddrV2Msg(addresses []wire.NetAddressV2) []wire.NetAddressV2 
 		addrs = addrs[:wire.MaxAddrPerV2Msg]
 	}
 
-	msg := wire.NewMsgAddrV2()
-	msg.AddrList = addrs
-
-	p.QueueMessage(msg, nil)
+	p.QueueMessage(wire.NewMsgAddrV2(addrs), nil)
 	return addrs
 }
 

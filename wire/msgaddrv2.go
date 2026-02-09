@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Decred developers
+// Copyright (c) 2025-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,41 +22,9 @@ const MaxAddrPerV2Msg = 1000
 // addresses.
 type MsgAddrV2 struct {
 	// AddrList contains the addresses that will be sent to or have been
-	// received from a peer.  Instead of manually appending addresses to this
-	// field directly, consumers should use the convenience functions on an
-	// instance of this message to add addresses.
+	// received from a peer.  This MUST have a maximum of [MaxAddrPerV2Msg]
+	// entries or the message will error during encode and decode.
 	AddrList []NetAddressV2
-}
-
-// AddAddress adds a known address to the message.  If the maximum number of
-// addresses has been reached, then an error is returned.
-func (msg *MsgAddrV2) AddAddress(na NetAddressV2) error {
-	const op = "MsgAddrV2.AddAddress"
-	if len(msg.AddrList)+1 > MaxAddrPerV2Msg {
-		msg := fmt.Sprintf("too many addresses in message [max %v]",
-			MaxAddrPerV2Msg)
-		return messageError(op, ErrTooManyAddrs, msg)
-	}
-
-	msg.AddrList = append(msg.AddrList, na)
-	return nil
-}
-
-// AddAddresses adds multiple known addresses to the message.  If the number of
-// addresses exceeds the maximum allowed then an error is returned.
-func (msg *MsgAddrV2) AddAddresses(netAddrs ...NetAddressV2) error {
-	for _, na := range netAddrs {
-		err := msg.AddAddress(na)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ClearAddresses removes all addresses from the message.
-func (msg *MsgAddrV2) ClearAddresses() {
-	msg.AddrList = []NetAddressV2{}
 }
 
 // readNetAddressV2 reads an encoded version 2 wire network address from the
@@ -307,8 +275,10 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the
 // Message interface.  See MsgAddrV2 for details.
-func NewMsgAddrV2() *MsgAddrV2 {
-	return &MsgAddrV2{
-		AddrList: make([]NetAddressV2, 0, MaxAddrPerV2Msg),
-	}
+//
+// The provided slice is expected to have a minimum of one address and a maximum
+// of [MaxAddrPerV2Msg].  The message will fail to decode and encode if it does
+// not satisfy those requirements at the time of decoding and encoding.
+func NewMsgAddrV2(addrs []NetAddressV2) *MsgAddrV2 {
+	return &MsgAddrV2{addrs}
 }

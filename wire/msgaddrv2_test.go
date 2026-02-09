@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Decred developers
+// Copyright (c) 2025-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -99,7 +99,7 @@ func TestAddrV2MaxPayloadLength(t *testing.T) {
 
 	for _, test := range tests {
 		// Ensure max payload is expected value for latest protocol version.
-		msg := NewMsgAddrV2()
+		msg := NewMsgAddrV2(nil)
 		result := msg.MaxPayloadLength(test.pver)
 		if result != test.want {
 			t.Errorf("%s: wrong max payload length - got %v, want %d",
@@ -122,44 +122,10 @@ func TestAddrV2MaxPayloadLength(t *testing.T) {
 func TestAddrV2(t *testing.T) {
 	// Ensure the command is expected value.
 	wantCmd := "addrv2"
-	msg := NewMsgAddrV2()
+	msg := NewMsgAddrV2(nil)
 	if cmd := msg.Command(); cmd != wantCmd {
 		t.Errorf("NewMsgAddrV2: wrong command - got %v want %v",
 			cmd, wantCmd)
-	}
-
-	// Ensure NetAddresses are added properly.
-	err := msg.AddAddress(ipv4NetAddress)
-	if err != nil {
-		t.Errorf("AddAddress: %v", err)
-	}
-	if !reflect.DeepEqual(msg.AddrList[0], ipv4NetAddress) {
-		t.Errorf("AddAddress: wrong address added - got %v, want %v",
-			spew.Sprint(msg.AddrList[0]), spew.Sprint(ipv4NetAddress))
-	}
-
-	// Ensure the address list is cleared properly.
-	msg.ClearAddresses()
-	if len(msg.AddrList) != 0 {
-		t.Errorf("ClearAddresses: address list is not empty - "+
-			"got %v [%v], want %v", len(msg.AddrList),
-			spew.Sprint(msg.AddrList[0]), 0)
-	}
-
-	// Ensure adding more than the max allowed addresses per message returns
-	// error.
-	for i := 0; i < MaxAddrPerV2Msg+1; i++ {
-		err = msg.AddAddress(ipv4NetAddress)
-	}
-	if !errors.Is(err, ErrTooManyAddrs) {
-		t.Errorf("AddAddress: expected ErrTooManyAddrs, got %v", err)
-	}
-
-	// Make sure adding multiple addresses also returns an error when the
-	// message is at max capacity.
-	err = msg.AddAddresses(ipv4NetAddress)
-	if !errors.Is(err, ErrTooManyAddrs) {
-		t.Errorf("AddAddresses: expected ErrTooManyAddrs, got %v", err)
 	}
 }
 
@@ -213,8 +179,7 @@ func TestAddrV2Wire(t *testing.T) {
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		subject := NewMsgAddrV2()
-		subject.AddAddresses(test.addrs...)
+		subject := NewMsgAddrV2(test.addrs)
 
 		// Encode the message to the wire format and ensure it serializes
 		// correctly.
@@ -448,8 +413,7 @@ func TestAddrV2BtcEncode(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		msg := NewMsgAddrV2()
-		msg.AddrList = test.addrs
+		msg := NewMsgAddrV2(test.addrs)
 		ioLimit := int(msg.MaxPayloadLength(test.pver))
 
 		// Encode to wire format.

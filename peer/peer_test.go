@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -477,9 +477,10 @@ func TestPeerListeners(t *testing.T) {
 	}, {
 		listener: "OnAddrV2",
 		msg: func() *wire.MsgAddrV2 {
-			msg := wire.NewMsgAddrV2()
-			msg.AddAddress(wire.NewNetAddressV2(wire.IPv4Address,
-				net.ParseIP("127.0.0.1").To4(), 8333, time.Now(), wire.SFNodeNetwork))
+			ipv4Localhost := net.ParseIP("127.0.0.1").To4()
+			addr := wire.NewNetAddressV2(wire.IPv4Address, ipv4Localhost, 8333,
+				time.Now(), wire.SFNodeNetwork)
+			msg := wire.NewMsgAddrV2([]wire.NetAddressV2{addr})
 			return msg
 		}(),
 		pver: pver,
