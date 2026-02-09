@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 13
+	ProtocolVersion uint32 = 12
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -61,10 +61,6 @@ const (
 
 	// AddrV2Version is the protocol version which adds the addrv2 message.
 	AddrV2Version uint32 = 12
-
-	// TORv3Version is the protocol version which adds support for TORv3
-	// network addresses to the addrv2 message.
-	TORv3Version uint32 = 13
 )
 
 // ServiceFlag identifies services supported by a Decred peer.

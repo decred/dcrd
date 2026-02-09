@@ -66,11 +66,6 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		na.EncodedAddr = ip[:]
 
 	case TORv3Address:
-		if pver < TORv3Version {
-			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
-				"or higher", TORv3Version)
-			return messageError(op, ErrMsgInvalidForPVer, msg)
-		}
 		var addr [32]byte
 		err := readElement(r, &addr)
 		if err != nil {
@@ -134,11 +129,6 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 
 	case TORv3Address:
-		if pver < TORv3Version {
-			msg := fmt.Sprintf("TORv3 addresses require protocol version %d "+
-				"or higher", TORv3Version)
-			return messageError(op, ErrMsgInvalidForPVer, msg)
-		}
 		if len(encodedAddr) != 32 {
 			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(encodedAddr))
 			return messageError(op, ErrInvalidMsg, msg)
@@ -249,7 +239,7 @@ func (msg *MsgAddrV2) Command() string {
 
 // maxNetAddressPayloadV2 returns the max payload size for a network address
 // based on the protocol version.
-func maxNetAddressPayloadV2(pver uint32) uint32 {
+func maxNetAddressPayloadV2() uint32 {
 	const (
 		timestampSize   = 8
 		servicesSize    = 8
@@ -257,13 +247,9 @@ func maxNetAddressPayloadV2(pver uint32) uint32 {
 		portSize        = 2
 	)
 
-	maxAddressSize := uint32(16) // IPv6 is 16 bytes
-	if pver >= TORv3Version {
-		maxAddressSize = 32
-	}
-
-	return timestampSize + servicesSize + addressTypeSize +
-		maxAddressSize + portSize
+	const maxAddressSize = 32 // TorV3 is a 32-byte pubkey
+	return timestampSize + servicesSize + addressTypeSize + maxAddressSize +
+		portSize
 }
 
 // MaxPayloadLength returns the maximum length the payload can be for the
@@ -273,7 +259,7 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 		return 0
 	}
 	return uint32(VarIntSerializeSize(MaxAddrPerV2Msg)) +
-		(MaxAddrPerV2Msg * maxNetAddressPayloadV2(pver))
+		(MaxAddrPerV2Msg * maxNetAddressPayloadV2())
 }
 
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the

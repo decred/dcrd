@@ -30,7 +30,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.TORv3Version
+	MaxProtocolVersion = wire.AddrV2Version
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000

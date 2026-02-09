@@ -90,7 +90,7 @@ func TestAddrV2MaxPayloadLength(t *testing.T) {
 	}, {
 		name: "protocol version 12",
 		pver: AddrV2Version,
-		want: 35003,
+		want: 51003,
 	}, {
 		name: "latest protocol version",
 		pver: ProtocolVersion,
@@ -281,15 +281,6 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		wantAddrs: nil,
 		wantErr:   ErrUnknownNetAddrType,
 	}, {
-		name: "message with TORv3 address invalid on pver 12",
-		pver: AddrV2Version,
-		wireBytes: bytes.Join([][]byte{
-			{0x01},
-			serializedTORv3NetAddressBytes,
-		}, nil),
-		wantAddrs: nil,
-		wantErr:   ErrMsgInvalidForPVer,
-	}, {
 		name: "message with multiple valid addresses",
 		pver: pver,
 		wireBytes: bytes.Join([][]byte{
@@ -312,7 +303,8 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		err := msg.BtcDecode(rbuf, test.pver)
 
 		if !errors.Is(err, test.wantErr) {
-			t.Errorf("%q: wrong error - got: %v, want: %v", test.name, err, test.wantErr)
+			t.Errorf("%q: wrong error - got: %v, want: %v", test.name, err,
+				test.wantErr)
 			continue
 		}
 
@@ -388,17 +380,6 @@ func TestAddrV2BtcEncode(t *testing.T) {
 			Port:        8333,
 		}},
 		wantErr: ErrInvalidMsg,
-	}, {
-		name: "message with TORv3 address invalid on pver 12",
-		pver: AddrV2Version,
-		addrs: []NetAddressV2{{
-			Timestamp:   time.Unix(0x495fab29, 0),
-			Services:    SFNodeNetwork,
-			Type:        TORv3Address,
-			EncodedAddr: torV3IpBytes,
-			Port:        8333,
-		}},
-		wantErr: ErrMsgInvalidForPVer,
 	}, {
 		name: "message with unknown address type",
 		pver: pver,

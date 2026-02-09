@@ -77,7 +77,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.TORv3Version
+	maxProtocolVersion = wire.AddrV2Version
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
@@ -1155,7 +1155,7 @@ func isSupportedNetAddressTypeV2(addrType addrmgr.NetAddressType) bool {
 // protocol version.
 func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 	switch {
-	case pver <= wire.AddrV2Version:
+	case pver < wire.AddrV2Version:
 		return isSupportedNetAddrTypeV1
 	}
 	return isSupportedNetAddressTypeV2
