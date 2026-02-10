@@ -492,8 +492,23 @@ func writeElement(w io.Writer, element interface{}) error {
 		}
 		return nil
 
+	case *NetAddressType:
+		err := writeUint8(w, uint8(*e))
+		if err != nil {
+			return err
+		}
+		return nil
+
 	case *uint16:
 		err := writeUint16LE(w, *e)
+		if err != nil {
+			return err
+		}
+		return nil
+
+	// IPv4 address.
+	case *[4]byte:
+		_, err := w.Write(e[:])
 		if err != nil {
 			return err
 		}
@@ -522,6 +537,13 @@ func writeElement(w io.Writer, element interface{}) error {
 
 	case *uint64:
 		err := writeUint64LE(w, *e)
+		if err != nil {
+			return err
+		}
+		return nil
+
+	case *uint64Time:
+		err := writeUint64LE(w, uint64(time.Time(*e).Unix()))
 		if err != nil {
 			return err
 		}

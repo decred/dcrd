@@ -89,13 +89,13 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 
 // writeNetAddressV2 serializes a version 2 network address to the provided
 // writer.
-func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) error {
-	err := writeElement(w, uint64(na.Timestamp.Unix()))
+func writeNetAddressV2(op string, w io.Writer, pver uint32, na *NetAddressV2) error {
+	err := writeElement(w, (*uint64Time)(&na.Timestamp))
 	if err != nil {
 		return err
 	}
 
-	err = writeElements(w, na.Services, na.Type)
+	err = writeElements(w, &na.Services, &na.Type)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 		var ip [4]byte
 		copy(ip[:], encodedAddr)
-		err = writeElement(w, ip)
+		err = writeElement(w, &ip)
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 		var ip [16]byte
 		copy(ip[:], net.IP(encodedAddr).To16())
-		err = writeElement(w, ip)
+		err = writeElement(w, &ip)
 		if err != nil {
 			return err
 		}
@@ -135,7 +135,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		}
 		var addr [32]byte
 		copy(addr[:], encodedAddr)
-		err = writeElement(w, addr)
+		err = writeElement(w, &addr)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na NetAddressV2) err
 		return messageError(op, ErrUnknownNetAddrType, msg)
 	}
 
-	return writeElement(w, na.Port)
+	return writeElement(w, &na.Port)
 }
 
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
@@ -221,8 +221,8 @@ func (msg *MsgAddrV2) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	for _, na := range msg.AddrList {
-		err = writeNetAddressV2(op, w, pver, na)
+	for i := range msg.AddrList {
+		err = writeNetAddressV2(op, w, pver, &msg.AddrList[i])
 		if err != nil {
 			return err
 		}
