@@ -165,7 +165,7 @@ var (
 	}
 )
 
-type commandHandler func(context.Context, *Server, interface{}) (interface{}, error)
+type commandHandler func(context.Context, *Server, any) (any, error)
 
 // rpcHandlers maps RPC command strings to appropriate handler functions.
 // This is set by init because help references rpcHandlers and thus causes
@@ -423,28 +423,28 @@ func rpcInternalErr(err error, context string) *dcrjson.RPCError {
 
 // rpcInvalidError is a convenience function to convert an invalid parameter
 // error to an RPC error with the appropriate code set.
-func rpcInvalidError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcInvalidError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCInvalidParameter,
 		fmt.Sprintf(fmtStr, args...))
 }
 
 // rpcDeserializationError is a convenience function to convert a
 // deserialization error to an RPC error with the appropriate code set.
-func rpcDeserializationError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcDeserializationError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCDeserialization,
 		fmt.Sprintf(fmtStr, args...))
 }
 
 // rpcRuleError is a convenience function to convert a
 // rule error to an RPC error with the appropriate code set.
-func rpcRuleError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcRuleError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc,
 		fmt.Sprintf(fmtStr, args...))
 }
 
 // rpcDuplicateTxError is a convenience function to convert a
 // rejected duplicate tx error to an RPC error with the appropriate code set.
-func rpcDuplicateTxError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcDuplicateTxError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCDuplicateTx,
 		fmt.Sprintf(fmtStr, args...))
 }
@@ -454,7 +454,7 @@ func rpcDuplicateTxError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
 // RPC server subsystem since internal errors really should not occur.  The
 // context parameter is only used in the log message and may be empty if it's
 // not needed.
-func rpcAddressKeyError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcAddressKeyError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCInvalidAddressOrKey,
 		fmt.Sprintf(fmtStr, args...))
 }
@@ -504,7 +504,7 @@ func rpcConnectionClosedError() *dcrjson.RPCError {
 // rpcCancelError is a convenience function for returning an RPC error which
 // indicates the associated call has been canceled, most likely due to a caller
 // request.
-func rpcCancelError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
+func rpcCancelError(fmtStr string, args ...any) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCCancel,
 		fmt.Sprintf(fmtStr, args...))
 }
@@ -598,7 +598,7 @@ func newWorkState() *workState {
 }
 
 // handleAddNode handles addnode commands.
-func handleAddNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleAddNode(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.AddNodeCmd)
 
 	addr := normalizeAddress(c.Addr, s.cfg.ChainParams.DefaultPort)
@@ -624,7 +624,7 @@ func handleAddNode(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 }
 
 // handleNode handles node commands.
-func handleNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleNode(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.NodeCmd)
 
 	connMgr := s.cfg.ConnMgr
@@ -738,7 +738,7 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 }
 
 // handleCreateRawTransaction handles createrawtransaction commands.
-func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleCreateRawTransaction(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.CreateRawTransactionCmd)
 
 	// Validate expiry, if given.
@@ -837,7 +837,7 @@ func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 }
 
 // handleCreateRawSStx handles createrawsstx commands.
-func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleCreateRawSStx(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.CreateRawSStxCmd)
 
 	// Basic sanity checks for the information coming from the cmd.
@@ -996,7 +996,7 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleCreateRawSSRtx handles createrawssrtx commands.
-func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleCreateRawSSRtx(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.CreateRawSSRtxCmd)
 
 	// Only a single SStx should be given
@@ -1117,7 +1117,7 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 }
 
 // handleDebugLevel handles debuglevel commands.
-func handleDebugLevel(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleDebugLevel(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.DebugLevelCmd)
 
 	// Special show command to list supported subsystems.
@@ -1350,7 +1350,7 @@ func (s *Server) createTxRawResult(chainParams *chaincfg.Params,
 }
 
 // handleDecodeRawTransaction handles decoderawtransaction commands.
-func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleDecodeRawTransaction(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.DecodeRawTransactionCmd)
 
 	// Deserialize the transaction.
@@ -1389,7 +1389,7 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 }
 
 // handleDecodeScript handles decodescript commands.
-func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleDecodeScript(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.DecodeScriptCmd)
 
 	// Convert the hex script to bytes.
@@ -1450,7 +1450,7 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 // handleEstimateFee implements the estimatefee command.
 // TODO this is a very basic implementation.  It should be
 // modified to match the bitcoin-core one.
-func handleEstimateFee(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleEstimateFee(_ context.Context, s *Server, cmd any) (any, error) {
 	return s.cfg.MinRelayTxFee.ToCoin(), nil
 }
 
@@ -1458,7 +1458,7 @@ func handleEstimateFee(_ context.Context, s *Server, cmd interface{}) (interface
 //
 // The default estimation mode when unset is assumed as "conservative". As of
 // 2018-12, the only supported mode is "conservative".
-func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleEstimateSmartFee(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.EstimateSmartFeeCmd)
 
 	mode := types.EstimateSmartFeeConservative
@@ -1483,7 +1483,7 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleEstimateStakeDiff implements the estimatestakediff command.
-func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleEstimateStakeDiff(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.EstimateStakeDiffCmd)
 
 	// Minimum possible stake difficulty.
@@ -1554,7 +1554,7 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleExistsAddress implements the existsaddress command.
-func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleExistsAddress(_ context.Context, s *Server, cmd any) (any, error) {
 	if s.cfg.ExistsAddresser == nil {
 		err := errors.New("exists address index disabled")
 		return nil, rpcInternalErr(err, "Configuration")
@@ -1609,7 +1609,7 @@ sync:
 //
 // TODO: Add an upper bound to the number of addresses that can be checked.
 // This will come with a major RPC version bump.
-func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleExistsAddresses(_ context.Context, s *Server, cmd any) (any, error) {
 	if s.cfg.ExistsAddresser == nil {
 		err := errors.New("exists address index disabled")
 		return nil, rpcInternalErr(err, "Configuration")
@@ -1701,7 +1701,7 @@ func decodeHashPointers(strs []string) ([]*chainhash.Hash, error) {
 }
 
 // handleExistsLiveTicket implements the existsliveticket command.
-func handleExistsLiveTicket(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleExistsLiveTicket(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.ExistsLiveTicketCmd)
 
 	hash, err := chainhash.NewHashFromStr(c.TxHash)
@@ -1716,7 +1716,7 @@ func handleExistsLiveTicket(_ context.Context, s *Server, cmd interface{}) (inte
 //
 // TODO: Add an upper bound to the number of hashes that can be checked. This
 // will come with a major RPC version bump.
-func handleExistsLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleExistsLiveTickets(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.ExistsLiveTicketsCmd)
 
 	hashes, err := decodeHashes(c.TxHashes)
@@ -1745,7 +1745,7 @@ func handleExistsLiveTickets(_ context.Context, s *Server, cmd interface{}) (int
 //
 // TODO: Add an upper bound to the number of hashes that can be checked. This
 // will come with a major RPC version bump.
-func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleExistsMempoolTxs(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.ExistsMempoolTxsCmd)
 
 	hashes, err := decodeHashPointers(c.TxHashes)
@@ -1771,7 +1771,7 @@ func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGenerate handles generate commands.
-func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGenerate(ctx context.Context, s *Server, cmd any) (any, error) {
 	// Respond with an error if there are no addresses to pay the
 	// created blocks to.
 	if len(s.cfg.MiningAddrs) == 0 {
@@ -1820,7 +1820,7 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 }
 
 // handleGetAddedNodeInfo handles getaddednodeinfo commands.
-func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetAddedNodeInfoCmd)
 
 	// Retrieve a list of persistent (added) peers from the Decred server
@@ -1901,7 +1901,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetBestBlock implements the getbestblock command.
-func handleGetBestBlock(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetBestBlock(_ context.Context, s *Server, _ any) (any, error) {
 	// All other "get block" commands give either the height, the hash, or
 	// both but require the block SHA.  This gets both for the best block.
 	best := s.cfg.Chain.BestSnapshot()
@@ -1913,7 +1913,7 @@ func handleGetBestBlock(_ context.Context, s *Server, _ interface{}) (interface{
 }
 
 // handleGetBestBlockHash implements the getbestblockhash command.
-func handleGetBestBlockHash(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetBestBlockHash(_ context.Context, s *Server, _ any) (any, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Hash.String(), nil
 }
@@ -1939,7 +1939,7 @@ func getDifficultyRatio(bits uint32, params *chaincfg.Params) float64 {
 }
 
 // handleGetBlock implements the getblock command.
-func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlock(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetBlockCmd)
 
 	// Load the raw block bytes from the database.
@@ -2115,7 +2115,7 @@ func thresholdStateToAgendaStatus(state blockchain.ThresholdStateTuple) string {
 }
 
 // handleGetBlockchainInfo implements the getblockchaininfo command.
-func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetBlockchainInfo(_ context.Context, s *Server, _ any) (any, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	_, bestHeaderHeight := chain.BestHeader()
@@ -2205,13 +2205,13 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, _ interface{}) (inter
 }
 
 // handleGetBlockCount implements the getblockcount command.
-func handleGetBlockCount(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetBlockCount(_ context.Context, s *Server, _ any) (any, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Height, nil
 }
 
 // handleGetBlockHash implements the getblockhash command.
-func handleGetBlockHash(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlockHash(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetBlockHashCmd)
 	hash, err := s.cfg.Chain.BlockHashByHeight(c.Index)
 	if err != nil {
@@ -2226,7 +2226,7 @@ func handleGetBlockHash(_ context.Context, s *Server, cmd interface{}) (interfac
 }
 
 // handleGetBlockHeader implements the getblockheader command.
-func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlockHeader(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetBlockHeaderCmd)
 
 	// Fetch the header from chain.
@@ -2326,7 +2326,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 }
 
 // handleGetBlockSubsidy implements the getblocksubsidy command.
-func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetBlockSubsidy(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetBlockSubsidyCmd)
 
 	height := c.Height
@@ -2387,7 +2387,7 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleGetChainTips implements the getchaintips command.
-func handleGetChainTips(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetChainTips(_ context.Context, s *Server, _ any) (any, error) {
 	chainTips := s.cfg.Chain.ChainTips()
 	result := make([]types.GetChainTipsResult, 0, len(chainTips))
 	for _, tip := range chainTips {
@@ -2402,38 +2402,38 @@ func handleGetChainTips(_ context.Context, s *Server, _ interface{}) (interface{
 }
 
 // handleGetCoinSupply implements the getcoinsupply command.
-func handleGetCoinSupply(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetCoinSupply(_ context.Context, s *Server, cmd any) (any, error) {
 	return s.cfg.Chain.BestSnapshot().TotalSubsidy, nil
 }
 
 // handleGetConnectionCount implements the getconnectioncount command.
-func handleGetConnectionCount(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetConnectionCount(_ context.Context, s *Server, cmd any) (any, error) {
 	return s.cfg.ConnMgr.ConnectedCount(), nil
 }
 
 // handleGetCurrentNet implements the getcurrentnet command.
-func handleGetCurrentNet(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetCurrentNet(_ context.Context, s *Server, cmd any) (any, error) {
 	return s.cfg.ChainParams.Net, nil
 }
 
 // handleGetDifficulty implements the getdifficulty command.
-func handleGetDifficulty(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetDifficulty(_ context.Context, s *Server, _ any) (any, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return getDifficultyRatio(best.Bits, s.cfg.ChainParams), nil
 }
 
 // handleGetGenerate implements the getgenerate command.
-func handleGetGenerate(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetGenerate(_ context.Context, s *Server, _ any) (any, error) {
 	return s.cfg.CPUMiner.IsMining(), nil
 }
 
 // handleGetHashesPerSec implements the gethashespersec command.
-func handleGetHashesPerSec(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetHashesPerSec(_ context.Context, s *Server, _ any) (any, error) {
 	return int64(s.cfg.CPUMiner.HashesPerSecond()), nil
 }
 
 // handleGetHeaders implements the getheaders command.
-func handleGetHeaders(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetHeaders(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetHeadersCmd)
 	blockLocators, err := decodeHashes(c.BlockLocators)
 	if err != nil {
@@ -2477,7 +2477,7 @@ func handleGetHeaders(_ context.Context, s *Server, cmd interface{}) (interface{
 }
 
 // handleGetCFilterV2 implements the getcfilterv2 command.
-func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetCFilterV2(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetCFilterV2Cmd)
 	hash, err := chainhash.NewHashFromStr(c.BlockHash)
 	if err != nil {
@@ -2516,7 +2516,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 
 // handleGetInfo implements the getinfo command. We only return the fields
 // that are not related to wallet functionality.
-func handleGetInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetInfo(_ context.Context, s *Server, _ any) (any, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	ret := &types.InfoChainResult{
 		Version: int32(1000000*version.Major + 10000*version.Minor +
@@ -2536,7 +2536,7 @@ func handleGetInfo(_ context.Context, s *Server, _ interface{}) (interface{}, er
 }
 
 // handleGetMempoolInfo implements the getmempoolinfo command.
-func handleGetMempoolInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetMempoolInfo(_ context.Context, s *Server, _ any) (any, error) {
 	mempoolTxns := s.cfg.TxMempooler.TxDescs()
 
 	var numBytes int64
@@ -2554,7 +2554,7 @@ func handleGetMempoolInfo(_ context.Context, s *Server, _ interface{}) (interfac
 
 // handleGetMiningInfo implements the getmininginfo command. We only return the
 // fields that are not related to wallet functionality.
-func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetMiningInfo(ctx context.Context, s *Server, _ any) (any, error) {
 	// Create a default getnetworkhashps command to use defaults and make
 	// use of the existing getnetworkhashps handler.
 	gnhpsCmd := types.NewGetNetworkHashPSCmd(nil, nil)
@@ -2589,7 +2589,7 @@ func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interfa
 // handleGetMixMessage implements the getmixmessage command, returning a
 // serialized message and its wire command type if it is found in the
 // mixpool.
-func handleGetMixMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetMixMessage(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetMixMessageCmd)
 
 	msgHash, err := chainhash.NewHashFromStr(c.Hash)
@@ -2618,7 +2618,7 @@ func handleGetMixMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 
 // handleGetMixPairRequests implements the getmixpairrequests command,
 // returning all current mixing pair requests messages from mixpool.
-func handleGetMixPairRequests(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetMixPairRequests(_ context.Context, s *Server, _ any) (any, error) {
 	mp := s.cfg.MixPooler
 
 	prs := mp.MixPRs()
@@ -2640,7 +2640,7 @@ func handleGetMixPairRequests(_ context.Context, s *Server, _ interface{}) (inte
 }
 
 // handleGetNetTotals implements the getnettotals command.
-func handleGetNetTotals(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetNetTotals(_ context.Context, s *Server, _ any) (any, error) {
 	totalBytesRecv, totalBytesSent := s.cfg.ConnMgr.NetTotals()
 	reply := &types.GetNetTotalsResult{
 		TotalBytesRecv: totalBytesRecv,
@@ -2651,7 +2651,7 @@ func handleGetNetTotals(_ context.Context, s *Server, _ interface{}) (interface{
 }
 
 // handleGetNetworkHashPS implements the getnetworkhashps command.
-func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetNetworkHashPS(_ context.Context, s *Server, cmd any) (any, error) {
 	// Note: All valid error return paths should return an int64.  Literal
 	// zeros are inferred as int, and won't coerce to int64 because the
 	// return value is an interface{}.
@@ -2734,7 +2734,7 @@ func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetNetworkInfo implements the getnetworkinfo command.
-func handleGetNetworkInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetNetworkInfo(_ context.Context, s *Server, _ any) (any, error) {
 	lAddrs := s.cfg.AddrManager.LocalAddresses()
 	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
 	for idx, entry := range lAddrs {
@@ -2762,7 +2762,7 @@ func handleGetNetworkInfo(_ context.Context, s *Server, _ interface{}) (interfac
 }
 
 // handleGetPeerInfo implements the getpeerinfo command.
-func handleGetPeerInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetPeerInfo(_ context.Context, s *Server, _ any) (any, error) {
 	peers := s.cfg.ConnMgr.ConnectedPeers()
 	syncPeerID := s.cfg.SyncMgr.SyncPeerID()
 	infos := make([]*types.GetPeerInfoResult, 0, len(peers))
@@ -2807,7 +2807,7 @@ func handleGetPeerInfo(_ context.Context, s *Server, _ interface{}) (interface{}
 }
 
 // handleGetRawMempool implements the getrawmempool command.
-func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetRawMempool(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetRawMempoolCmd)
 
 	// Choose the type to filter the results by based on the provided param.
@@ -2888,7 +2888,7 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleGetRawTransaction implements the getrawtransaction command.
-func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetRawTransaction(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetRawTransactionCmd)
 
 	// Convert the provided transaction hash hex to a Hash.
@@ -3050,7 +3050,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleGetStakeDifficulty implements the getstakedifficulty command.
-func handleGetStakeDifficulty(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetStakeDifficulty(_ context.Context, s *Server, _ any) (any, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	blockHeader, err := chain.HeaderByHeight(best.Height)
@@ -3087,7 +3087,7 @@ func convertVersionMap(m map[int]int) []types.VersionCount {
 }
 
 // handleGetStakeVersionInfo implements the getstakeversioninfo command.
-func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetStakeVersionInfoCmd)
 
 	chain := s.cfg.Chain
@@ -3166,7 +3166,7 @@ func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd interface{}) (i
 }
 
 // handleGetStakeVersions implements the getstakeversions command.
-func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetStakeVersions(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetStakeVersionsCmd)
 
 	hash, err := chainhash.NewHashFromStr(c.Hash)
@@ -3207,7 +3207,7 @@ func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleGetTicketPoolValue implements the getticketpoolvalue command.
-func handleGetTicketPoolValue(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetTicketPoolValue(_ context.Context, s *Server, _ any) (any, error) {
 	amt, err := s.cfg.Chain.TicketPoolValue()
 	if err != nil {
 		return nil, rpcInternalErr(err, "Could not obtain ticket pool value")
@@ -3217,7 +3217,7 @@ func handleGetTicketPoolValue(_ context.Context, s *Server, _ interface{}) (inte
 }
 
 // handleGetTreasuryBalance implements the gettreasurybalance command.
-func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetTreasuryBalance(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetTreasuryBalanceCmd)
 
 	// Either parse the provided hash or use the current best tip hash when none
@@ -3264,7 +3264,7 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 }
 
 // handleGetTreasurySpendVotes implements the gettreasuryspendvotes command.
-func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetTreasurySpendVotesCmd)
 
 	// Shorter version of relevant parameters.
@@ -3483,7 +3483,7 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 }
 
 // handleGetVoteInfo implements the getvoteinfo command.
-func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetVoteInfo(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetVoteInfoCmd)
 
 	// Shorter versions of some parameters for convenience.
@@ -3605,7 +3605,7 @@ func bigToLEUint256(n *big.Int) [uint256Size]byte {
 }
 
 // handleGetTxOut handles gettxout commands.
-func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetTxOut(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.GetTxOutCmd)
 
 	// Convert the provided transaction hash hex to a Hash.
@@ -3737,7 +3737,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 }
 
 // handleGetTxOutSetInfo returns statistics on the current unspent transaction output set.
-func handleGetTxOutSetInfo(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleGetTxOutSetInfo(_ context.Context, s *Server, _ any) (any, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	stats, err := s.cfg.Chain.FetchUtxoStats()
 	if err != nil {
@@ -3824,7 +3824,7 @@ func serializeGetWorkData(header *wire.BlockHeader, isBlake3PowActive bool) ([]b
 
 // handleGetWorkRequest is a helper for handleGetWork which deals with
 // generating and returning work to the caller.
-func handleGetWorkRequest(ctx context.Context, s *Server) (interface{}, error) {
+func handleGetWorkRequest(ctx context.Context, s *Server) (any, error) {
 	// Return an error immediately in the case of a failed background template.
 	//
 	// The only time this is expected is due to imposition of certain additional
@@ -3971,7 +3971,7 @@ func maxInt(a, b int) int {
 
 // handleGetWorkSubmission is a helper for handleGetWork which deals with
 // the calling submitting work to be verified and processed.
-func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (interface{}, error) {
+func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (any, error) {
 	// Ensure the provided data is sane.
 	minDataLen := minInt(getworkDataLenBlake256, getworkDataLenBlake3)
 	maxDataLen := maxInt(getworkDataLenBlake256, getworkDataLenBlake3)
@@ -4093,7 +4093,7 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 }
 
 // handleGetWork implements the getwork command.
-func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetWork(ctx context.Context, s *Server, cmd any) (any, error) {
 	if s.cfg.CPUMiner.IsMining() {
 		return nil, rpcMiscError("getwork polling is disallowed " +
 			"while CPU mining is enabled. Please disable CPU " +
@@ -4154,7 +4154,7 @@ func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}
 }
 
 // handleHelp implements the help command.
-func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleHelp(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.HelpCmd)
 
 	// Provide a usage overview of all commands when no specific command
@@ -4188,7 +4188,7 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 }
 
 // handleInvalidateBlock implements the invalidateblock command.
-func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleInvalidateBlock(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.InvalidateBlockCmd)
 	hash, err := chainhash.NewHashFromStr(c.BlockHash)
 	if err != nil {
@@ -4217,7 +4217,7 @@ func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleLiveTickets implements the livetickets command.
-func handleLiveTickets(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleLiveTickets(_ context.Context, s *Server, _ any) (any, error) {
 	lt, err := s.cfg.Chain.LiveTickets()
 	if err != nil {
 		return nil, rpcInternalErr(err, "Could not get live tickets")
@@ -4232,7 +4232,7 @@ func handleLiveTickets(_ context.Context, s *Server, _ interface{}) (interface{}
 }
 
 // handlePing implements the ping command.
-func handlePing(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handlePing(_ context.Context, s *Server, _ any) (any, error) {
 	// Ask server to ping \o_
 	nonce := rand.Uint64()
 	s.cfg.ConnMgr.BroadcastMessage(wire.NewMsgPing(nonce))
@@ -4241,7 +4241,7 @@ func handlePing(_ context.Context, s *Server, _ interface{}) (interface{}, error
 }
 
 // handleReconsiderBlock implements the reconsiderblock command.
-func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleReconsiderBlock(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.ReconsiderBlockCmd)
 	hash, err := chainhash.NewHashFromStr(c.BlockHash)
 	if err != nil {
@@ -4293,7 +4293,7 @@ func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleRegenTemplate implements the regentemplate command.
-func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleRegenTemplate(_ context.Context, s *Server, _ any) (any, error) {
 	bt := s.cfg.BlockTemplater
 	if bt == nil {
 		err := errors.New("node is not configured for mining")
@@ -4304,7 +4304,7 @@ func handleRegenTemplate(_ context.Context, s *Server, _ interface{}) (interface
 }
 
 // handleSendRawMixMessage implements the sendrawmixmessage command.
-func handleSendRawMixMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleSendRawMixMessage(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.SendRawMixMessageCmd)
 
 	// Allocate a message of the appropriate type based on the wire
@@ -4364,7 +4364,7 @@ func handleSendRawMixMessage(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleSendRawTransaction implements the sendrawtransaction command.
-func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleSendRawTransaction(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.SendRawTransactionCmd)
 	// Deserialize and send off to tx relay
 
@@ -4447,7 +4447,7 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 }
 
 // handleSetGenerate implements the setgenerate command.
-func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleSetGenerate(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.SetGenerateCmd)
 
 	// Disable generation regardless of the provided generate flag if the
@@ -4479,7 +4479,7 @@ func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface
 }
 
 // handleStartProfiler implements the startprofiler command.
-func handleStartProfiler(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleStartProfiler(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.StartProfilerCmd)
 
 	if listeners := s.cfg.ProfilerMgr.Listeners(); len(listeners) > 0 {
@@ -4512,7 +4512,7 @@ func handleStartProfiler(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleStop implements the stop command.
-func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleStop(_ context.Context, s *Server, _ any) (any, error) {
 	select {
 	case s.requestProcessShutdown <- struct{}{}:
 	default:
@@ -4521,7 +4521,7 @@ func handleStop(_ context.Context, s *Server, _ interface{}) (interface{}, error
 }
 
 // handleStopProfiler implements the stopprofiler command.
-func handleStopProfiler(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
+func handleStopProfiler(_ context.Context, s *Server, _ any) (any, error) {
 	if listeners := s.cfg.ProfilerMgr.Listeners(); len(listeners) == 0 {
 		const str = "profile server is not started"
 		return nil, dcrjson.NewRPCError(dcrjson.ErrRPCProfilerState, str)
@@ -4536,7 +4536,7 @@ func handleStopProfiler(_ context.Context, s *Server, _ interface{}) (interface{
 }
 
 // handleSubmitBlock implements the submitblock command.
-func handleSubmitBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleSubmitBlock(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.SubmitBlockCmd)
 
 	// Deserialize the submitted block.
@@ -4782,7 +4782,7 @@ func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxTyp
 }
 
 // handleTicketFeeInfo implements the ticketfeeinfo command.
-func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleTicketFeeInfo(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.TicketFeeInfoCmd)
 
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
@@ -4862,7 +4862,7 @@ func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleTicketsForAddress implements the ticketsforaddress command.
-func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleTicketsForAddress(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.TicketsForAddressCmd)
 
 	// Decode the provided address.  This also ensures the network encoded
@@ -4898,7 +4898,7 @@ func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleTicketVWAP implements the ticketvwap command.
-func handleTicketVWAP(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleTicketVWAP(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.TicketVWAPCmd)
 
 	// The default VWAP is for the past WorkDiffWindows * WorkDiffWindowSize
@@ -4955,7 +4955,7 @@ func handleTicketVWAP(_ context.Context, s *Server, cmd interface{}) (interface{
 }
 
 // handleTxFeeInfo implements the txfeeinfo command.
-func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleTxFeeInfo(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.TxFeeInfoCmd)
 
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
@@ -5039,7 +5039,7 @@ func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}
 }
 
 // handleValidateAddress implements the validateaddress command.
-func handleValidateAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleValidateAddress(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.ValidateAddressCmd)
 	result := types.ValidateAddressChainResult{}
 	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
@@ -5088,7 +5088,7 @@ func verifyChain(_ context.Context, s *Server, level, depth int64) error {
 }
 
 // handleVerifyChain implements the verifychain command.
-func handleVerifyChain(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleVerifyChain(ctx context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.VerifyChainCmd)
 
 	var checkLevel, checkDepth int64
@@ -5104,7 +5104,7 @@ func handleVerifyChain(ctx context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleVerifyMessage implements the verifymessage command.
-func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleVerifyMessage(_ context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.VerifyMessageCmd)
 
 	// Decode the provided address.  This also ensures the network encoded with
@@ -5163,7 +5163,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleVersion implements the version command.
-func handleVersion(_ context.Context, _ *Server, _ interface{}) (interface{}, error) {
+func handleVersion(_ context.Context, _ *Server, _ any) (any, error) {
 	runtimeVer := strings.ReplaceAll(runtime.Version(), ".", "-")
 	buildMeta := version.NormalizeString(runtimeVer)
 	build := version.NormalizeString(version.BuildMetadata)
@@ -5514,9 +5514,9 @@ func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
 // parsing it.
 type parsedRPCCmd struct {
 	jsonrpc string
-	id      interface{}
+	id      any
 	method  types.Method
-	params  interface{}
+	params  any
 	err     *dcrjson.RPCError
 }
 
@@ -5524,7 +5524,7 @@ type parsedRPCCmd struct {
 // and runs the appropriate handler to reply to the command.  Any commands which
 // are not recognized or not implemented will return an error suitable for use
 // in replies.
-func (s *Server) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (interface{}, error) {
+func (s *Server) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (any, error) {
 	handler, ok := rpcHandlers[cmd.method]
 	if !ok {
 		return nil, dcrjson.ErrRPCMethodNotFound
@@ -5574,7 +5574,7 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 // createMarshalledReply returns a new marshalled JSON-RPC response given the
 // passed parameters.  It will automatically convert errors that are not of the
 // type *dcrjson.RPCError to the appropriate type as needed.
-func createMarshalledReply(rpcVersion string, id interface{}, result interface{}, replyErr error) ([]byte, error) {
+func createMarshalledReply(rpcVersion string, id any, result any, replyErr error) ([]byte, error) {
 	var jsonErr *dcrjson.RPCError
 	if replyErr != nil && !errors.As(replyErr, &jsonErr) {
 		jsonErr = rpcInternalErr(replyErr, "")
@@ -5586,7 +5586,7 @@ func createMarshalledReply(rpcVersion string, id interface{}, result interface{}
 // processRequest determines the incoming request type (single or batched),
 // parses it and returns a marshalled response.
 func (s *Server) processRequest(ctx context.Context, request *dcrjson.Request, isAdmin bool) []byte {
-	var result interface{}
+	var result any
 	var jsonErr error
 
 	if !isAdmin {

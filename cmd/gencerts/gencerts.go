@@ -27,7 +27,7 @@ import (
 	"golang.org/x/net/idna"
 )
 
-func fatalf(format string, args ...interface{}) {
+func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format, args...)
 	os.Exit(1)
 }
@@ -74,7 +74,7 @@ func main() {
 	}
 	certname, keyname := args[0], args[1]
 
-	var keygen func() (pub, priv interface{})
+	var keygen func() (pub, priv any)
 	switch cfg.Algo {
 	case "P-256":
 		keygen = ecKeyGen(elliptic.P256())
@@ -136,7 +136,7 @@ func main() {
 		}
 	} else {
 		var ca *x509.Certificate
-		var caPriv interface{}
+		var caPriv any
 		tlsCert, err := tls.LoadX509KeyPair(cfg.CA, cfg.CAKey)
 		if err != nil {
 			fatalf("open CA keypair: %s\n", err)
@@ -177,15 +177,15 @@ func fileExists(name string) bool {
 	return true
 }
 
-func ed25519KeyGen() (pub, priv interface{}) {
+func ed25519KeyGen() (pub, priv any) {
 	seed := make([]byte, ed25519.SeedSize)
 	rand.Read(seed)
 	key := ed25519.NewKeyFromSeed(seed)
 	return key.Public(), key
 }
 
-func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
-	return func() (pub, priv interface{}) {
+func ecKeyGen(curve elliptic.Curve) func() (pub, priv any) {
+	return func() (pub, priv any) {
 		var key *ecdsa.PrivateKey
 		key, err := ecdsa.GenerateKey(curve, rand.Reader())
 		if err != nil {
@@ -195,8 +195,8 @@ func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
 	}
 }
 
-func rsaKeyGen(bits int) func() (pub, priv interface{}) {
-	return func() (pub, priv interface{}) {
+func rsaKeyGen(bits int) func() (pub, priv any) {
+	return func() (pub, priv any) {
 		var key *rsa.PrivateKey
 		key, err := rsa.GenerateKey(rand.Reader(), bits)
 		if err != nil {
@@ -282,7 +282,7 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	return template, nil
 }
 
-func generateAuthority(pub, priv interface{}, hosts []string, org string,
+func generateAuthority(pub, priv any, hosts []string, org string,
 	years int, keyUsage x509.KeyUsage) (*certWithPEM, error) {
 
 	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
@@ -317,7 +317,7 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string,
 	return ca, nil
 }
 
-func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
+func createIssuedCert(pub, caPriv any, ca *x509.Certificate,
 	hosts []string, org string, years int, keyUsage x509.KeyUsage) (*certWithPEM, error) {
 
 	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
@@ -357,7 +357,7 @@ func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
 	return issuedCert, nil
 }
 
-func marshalPrivateKey(key interface{}) ([]byte, error) {
+func marshalPrivateKey(key any) ([]byte, error) {
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal private key: %w", err)
