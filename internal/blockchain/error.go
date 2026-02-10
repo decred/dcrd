@@ -825,7 +825,7 @@ func (e MultiError) Is(target error) bool {
 //
 // This means it keeps all of the same semantics typically provided by As in
 // terms of unwrapping error chains and setting the target to the matched error.
-func (e MultiError) As(target interface{}) bool {
+func (e MultiError) As(target any) bool {
 	for _, err := range e {
 		if errors.As(err, target) {
 			return true

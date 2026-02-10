@@ -224,7 +224,7 @@ type broadcastPruneInventory struct{}
 // that information.
 type relayMsg struct {
 	invVect     *wire.InvVect
-	data        interface{}
+	data        any
 	immediate   bool
 	reqServices wire.ServiceFlag
 }
@@ -584,7 +584,7 @@ type server struct {
 	cpuMiner             *cpuminer.CPUMiner
 	mixMsgPool           *mixpool.Pool
 	mixObserver          *mixpool.Observer
-	modifyRebroadcastInv chan interface{}
+	modifyRebroadcastInv chan any
 	peerState            peerState
 	relayInv             chan relayMsg
 	broadcast            chan broadcastMsg
@@ -2165,7 +2165,7 @@ func (s *server) attemptDcrdDial(ctx context.Context, network, addr string) (net
 
 // AddRebroadcastInventory adds 'iv' to the list of inventories to be
 // rebroadcasted at random intervals until they show up in a block.
-func (s *server) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
+func (s *server) AddRebroadcastInventory(iv *wire.InvVect, data any) {
 	select {
 	case <-s.quit:
 	case s.modifyRebroadcastInv <- broadcastInventoryAdd{invVect: iv, data: data}:
@@ -2862,7 +2862,7 @@ func (s *server) BanPeer(sp *serverPeer, reason string) {
 
 // RelayInventory relays the passed inventory vector to all connected peers
 // that are not already known to have it.
-func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool) {
+func (s *server) RelayInventory(invVect *wire.InvVect, data any, immediate bool) {
 	select {
 	case <-s.quit:
 	case s.relayInv <- relayMsg{invVect: invVect, data: data, immediate: immediate}:
@@ -3373,7 +3373,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 func (s *server) rebroadcastHandler(ctx context.Context) {
 	// Wait 5 min before first tx rebroadcast.
 	timer := time.NewTimer(5 * time.Minute)
-	pendingInvs := make(map[wire.InvVect]interface{})
+	pendingInvs := make(map[wire.InvVect]any)
 
 	for {
 		select {
@@ -4093,7 +4093,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 		peerState:            makePeerState(),
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
 		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
-		modifyRebroadcastInv: make(chan interface{}),
+		modifyRebroadcastInv: make(chan any),
 		nat:                  nat,
 		db:                   db,
 		timeSource:           blockchain.NewMedianTime(),

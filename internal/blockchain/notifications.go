@@ -174,13 +174,13 @@ type TicketNotificationsData struct {
 //   - NTNewTickets:            *TicketNotificationsData
 type Notification struct {
 	Type NotificationType
-	Data interface{}
+	Data any
 }
 
 // sendNotification sends a notification with the passed type and data if the
 // caller requested notifications by providing a callback function in the call
 // to New.
-func (b *BlockChain) sendNotification(typ NotificationType, data interface{}) {
+func (b *BlockChain) sendNotification(typ NotificationType, data any) {
 	// Ignore it if the caller didn't request notifications.
 	if b.notifications == nil {
 		return

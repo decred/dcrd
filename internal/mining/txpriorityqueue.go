@@ -55,13 +55,13 @@ func (pq *txPriorityQueue) Swap(i, j int) {
 
 // Push pushes the passed item onto the priority queue.  It is part of the
 // heap.Interface implementation.
-func (pq *txPriorityQueue) Push(x interface{}) {
+func (pq *txPriorityQueue) Push(x any) {
 	pq.items = append(pq.items, x.(*txPrioItem))
 }
 
 // Pop removes the highest priority item (according to Less) from the priority
 // queue and returns it.  It is part of the heap.Interface implementation.
-func (pq *txPriorityQueue) Pop() interface{} {
+func (pq *txPriorityQueue) Pop() any {
 	n := len(pq.items)
 	item := pq.items[n-1]
 	pq.items[n-1] = nil

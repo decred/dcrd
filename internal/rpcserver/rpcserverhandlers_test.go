@@ -912,7 +912,7 @@ func (c *testConnManager) BroadcastMessage(msg wire.Message) {}
 // AddRebroadcastInventory provides a mock implementation for adding the
 // provided inventory to the list of inventories to be rebroadcast at random
 // intervals until they show up in a block.
-func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {}
+func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data any) {}
 
 // RelayTransactions provides a mock implementation for generating and relaying
 // inventory vectors for all of the passed transactions to all connected peers.
@@ -1418,7 +1418,7 @@ func hexFromFile(filename string) string {
 type rpcTest struct {
 	name                  string
 	handler               commandHandler
-	cmd                   interface{}
+	cmd                   any
 	mockChainParams       *chaincfg.Params
 	mockChain             *testRPCChain
 	mockMiningState       *testMiningState
@@ -1441,7 +1441,7 @@ type rpcTest struct {
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
 	mockHelpCacher        *testHelpCacher
-	result                interface{}
+	result                any
 	wantErr               bool
 	errCode               dcrjson.RPCErrorCode
 }

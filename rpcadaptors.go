@@ -357,7 +357,7 @@ func (cm *rpcConnManager) BroadcastMessage(msg wire.Message) {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
-func (cm *rpcConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
+func (cm *rpcConnManager) AddRebroadcastInventory(iv *wire.InvVect, data any) {
 	cm.server.AddRebroadcastInventory(iv, data)
 }
 
