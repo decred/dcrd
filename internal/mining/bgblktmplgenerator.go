@@ -127,7 +127,7 @@ type templateUpdate struct {
 //   - rtTemplateUpdated:   templateUpdate
 type regenEvent struct {
 	reason regenEventType
-	value  interface{}
+	value  any
 }
 
 // waitGroup behaves simlarly to a sync.WaitGroup without the restriction that

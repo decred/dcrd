@@ -72,7 +72,7 @@ var timeZeroVal time.Time
 
 // wsCommandHandler describes a callback function used to handle a specific
 // command.
-type wsCommandHandler func(context.Context, *wsClient, interface{}) (interface{}, error)
+type wsCommandHandler func(context.Context, *wsClient, any) (any, error)
 
 // wsHandlers maps RPC command strings to appropriate websocket handler
 // functions.  This is set by init because help references wsHandlers and thus
@@ -146,12 +146,12 @@ type wsNotificationManager struct {
 	server *Server
 
 	// queueNotification queues a notification for handling.
-	queueNotification chan interface{}
+	queueNotification chan any
 
 	// notificationMsgs feeds notificationHandler with notifications
 	// and client (un)registeration requests from a queue as well as
 	// registeration and unregisteration requests from clients.
-	notificationMsgs chan interface{}
+	notificationMsgs chan any
 
 	// Access channel for current number of connected clients.
 	numClients chan int
@@ -164,10 +164,10 @@ type wsNotificationManager struct {
 // control messages. The handler stops when the input channel is closed or a
 // context cancellation signal is received.
 func (m *wsNotificationManager) queueHandler(ctx context.Context) {
-	var q []interface{}
-	var dequeue chan<- interface{}
+	var q []any
+	var dequeue chan<- any
 	skipQueue := m.notificationMsgs
-	var next interface{}
+	var next any
 
 	for {
 		select {
@@ -1299,8 +1299,8 @@ func (m *wsNotificationManager) Run(ctx context.Context) {
 func newWsNotificationManager(server *Server) *wsNotificationManager {
 	return &wsNotificationManager{
 		server:            server,
-		queueNotification: make(chan interface{}),
-		notificationMsgs:  make(chan interface{}),
+		queueNotification: make(chan any),
+		notificationMsgs:  make(chan any),
 		numClients:        make(chan int),
 		quit:              make(chan struct{}),
 	}
@@ -1740,7 +1740,7 @@ out:
 
 						// Lookup the websocket extension for the command, if it doesn't
 						// exist fallback to handling the command as a standard command.
-						var resp interface{}
+						var resp any
 						wsHandler, ok := wsHandlers[cmd.method]
 						if ok {
 							resp, err = wsHandler(ctx, c, cmd.params)
@@ -1806,7 +1806,7 @@ out:
 // client.
 func (c *wsClient) serviceRequest(ctx context.Context, r *parsedRPCCmd) {
 	var (
-		result interface{}
+		result any
 		err    error
 	)
 
@@ -2052,7 +2052,7 @@ func newWebsocketClient(server *Server, conn *websocket.Conn,
 }
 
 // handleWebsocketHelp implements the help command for websocket connections.
-func handleWebsocketHelp(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleWebsocketHelp(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	cmd, ok := icmd.(*types.HelpCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal
@@ -2096,7 +2096,7 @@ func handleWebsocketHelp(_ context.Context, wsc *wsClient, icmd interface{}) (in
 
 // handleLoadTxFilter implements the loadtxfilter command extension for
 // websocket connections.
-func handleLoadTxFilter(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleLoadTxFilter(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	cmd := icmd.(*types.LoadTxFilterCmd)
 
 	outPoints := make([]*wire.OutPoint, len(cmd.OutPoints))
@@ -2139,13 +2139,13 @@ func handleLoadTxFilter(_ context.Context, wsc *wsClient, icmd interface{}) (int
 
 // handleNotifyBlocks implements the notifyblocks command extension for
 // websocket connections.
-func handleNotifyBlocks(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleNotifyBlocks(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterBlockUpdates(wsc)
 	return nil, nil
 }
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
-func handleRebroadcastWinners(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleRebroadcastWinners(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	cfg := wsc.rpcServer.cfg
 	bestHeight := cfg.Chain.BestSnapshot().Height
 	blocks := cfg.Chain.TipGeneration()
@@ -2173,62 +2173,62 @@ func handleRebroadcastWinners(_ context.Context, wsc *wsClient, _ interface{}) (
 
 // handleNotifyWork implements the notifywork command extension for
 // websocket connections.
-func handleNotifyWork(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleNotifyWork(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterWorkUpdates(wsc)
 	return nil, nil
 }
 
 // handleNotifyTSpend implements the notifytspend command extension for
 // websocket connections.
-func handleNotifyTSpend(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleNotifyTSpend(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterTSpendUpdates(wsc)
 	return nil, nil
 }
 
 // handleSession implements the session command extension for websocket
 // connections.
-func handleSession(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleSession(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	return &types.SessionResult{SessionID: wsc.sessionID}, nil
 }
 
 // handleWinningTickets implements the notifywinningtickets command
 // extension for websocket connections.
-func handleWinningTickets(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleWinningTickets(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterWinningTickets(wsc)
 	return nil, nil
 }
 
 // handleNewTickets implements the notifynewtickets command extension for
 // websocket connections.
-func handleNewTickets(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleNewTickets(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterNewTickets(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyBlocks implements the stopnotifyblocks command extension for
 // websocket connections.
-func handleStopNotifyBlocks(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleStopNotifyBlocks(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterBlockUpdates(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyWork implements the stopnotifywork command extension for
 // websocket connections.
-func handleStopNotifyWork(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleStopNotifyWork(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterWorkUpdates(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyTSpend implements the stopnotifytspend command extension for
 // websocket connections.
-func handleStopNotifyTSpend(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleStopNotifyTSpend(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterTSpendUpdates(wsc)
 	return nil, nil
 }
 
 // handleNotifyNewTransations implements the notifynewtransactions command
 // extension for websocket connections.
-func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	cmd, ok := icmd.(*types.NotifyNewTransactionsCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal
@@ -2241,21 +2241,21 @@ func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd interfac
 
 // handleStopNotifyNewTransations implements the stopnotifynewtransactions
 // command extension for websocket connections.
-func handleStopNotifyNewTransactions(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleStopNotifyNewTransactions(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterNewMempoolTxsUpdates(wsc)
 	return nil, nil
 }
 
 // handleNotifyMixMessages implements the notifymixmessages command extension
 // for websocket connections.
-func handleNotifyMixMessages(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleNotifyMixMessages(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.RegisterMixMessages(wsc)
 	return nil, nil
 }
 
 // handleStopNotifyMixMessages implements the stopnotifymixmessages command
 // extension for websocket connections.
-func handleStopNotifyMixMessages(_ context.Context, wsc *wsClient, _ interface{}) (interface{}, error) {
+func handleStopNotifyMixMessages(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterMixMessages(wsc)
 	return nil, nil
 }
@@ -2344,7 +2344,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 
 // handleRescan implements the rescan command extension for websocket
 // connections.
-func handleRescan(_ context.Context, wsc *wsClient, icmd interface{}) (interface{}, error) {
+func handleRescan(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	cmd, ok := icmd.(*types.RescanCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal

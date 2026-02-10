@@ -75,7 +75,7 @@ var utxoSetDbPrefixSize = len(utxoPrefixUtxoSet)
 // outpointKeyPool defines a concurrent safe free list of byte slices used to
 // provide temporary buffers for outpoint database keys.
 var outpointKeyPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, utxoSetDbPrefixSize+chainhash.HashSize+
 			maxUint8VLQSerializeSize+maxUint32VLQSerializeSize)
 		return &b // Pointer to slice to avoid boxing alloc.
