@@ -506,14 +506,6 @@ func writeElement(w io.Writer, element interface{}) error {
 		}
 		return nil
 
-	// IPv4 address.
-	case *[4]byte:
-		_, err := w.Write(e[:])
-		if err != nil {
-			return err
-		}
-		return nil
-
 	case *int32:
 		err := writeUint32LE(w, uint32(*e))
 		if err != nil {

@@ -7,7 +7,6 @@ package wire
 import (
 	"fmt"
 	"io"
-	"net"
 )
 
 // MaxAddrPerV2Msg is the maximum number of addresses that can be in a single
@@ -109,23 +108,11 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na *NetAddressV2) er
 			msg := fmt.Sprintf("invalid IPv4 address length: %d", addrLen)
 			return messageError(op, ErrInvalidMsg, msg)
 		}
-		var ip [4]byte
-		copy(ip[:], encodedAddr)
-		err = writeElement(w, &ip)
-		if err != nil {
-			return err
-		}
 
 	case IPv6Address:
 		if addrLen != 16 {
 			msg := fmt.Sprintf("invalid IPv6 address length: %d", addrLen)
 			return messageError(op, ErrInvalidMsg, msg)
-		}
-		var ip [16]byte
-		copy(ip[:], net.IP(encodedAddr).To16())
-		err = writeElement(w, &ip)
-		if err != nil {
-			return err
 		}
 
 	case TORv3Address:
@@ -133,17 +120,16 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na *NetAddressV2) er
 			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(encodedAddr))
 			return messageError(op, ErrInvalidMsg, msg)
 		}
-		var addr [32]byte
-		copy(addr[:], encodedAddr)
-		err = writeElement(w, &addr)
-		if err != nil {
-			return err
-		}
 
 	default:
 		msg := fmt.Sprintf("cannot encode unknown network address type %v",
 			na.Type)
 		return messageError(op, ErrUnknownNetAddrType, msg)
+	}
+
+	_, err = w.Write(encodedAddr)
+	if err != nil {
+		return err
 	}
 
 	return writeElement(w, &na.Port)
