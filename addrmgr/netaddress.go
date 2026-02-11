@@ -38,7 +38,7 @@ type NetAddress struct {
 // IsRoutable returns a boolean indicating whether the network address is
 // routable.
 func (netAddr *NetAddress) IsRoutable() bool {
-	if netAddr.Type == TORv3Address {
+	if netAddr.Type == TorV3Address {
 		return true
 	}
 	return IsRoutable(netAddr.IP)
@@ -53,10 +53,10 @@ func (netAddr *NetAddress) ipString() string {
 		return net.IP(netIP).String()
 	case IPv4Address:
 		return net.IP(netIP).String()
-	case TORv3Address:
+	case TorV3Address:
 		var publicKey [32]byte
 		copy(publicKey[:], netIP)
-		checksum := calcTORv3Checksum(publicKey)
+		checksum := calcTorV3Checksum(publicKey)
 		var torAddressBytes [35]byte
 		copy(torAddressBytes[:32], publicKey[:])
 		copy(torAddressBytes[32:34], checksum[:])
@@ -105,8 +105,8 @@ func deriveNetAddressType(claimedType NetAddressType, addrBytes []byte) (NetAddr
 		return IPv4Address, nil
 	case len == 16:
 		return IPv6Address, nil
-	case len == 32 && claimedType == TORv3Address:
-		return TORv3Address, nil
+	case len == 32 && claimedType == TorV3Address:
+		return TorV3Address, nil
 	}
 	str := fmt.Sprintf("unable to determine address type from raw network "+
 		"address bytes: %v", addrBytes)

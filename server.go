@@ -967,8 +967,8 @@ func wireToAddrmgrNetAddressType(addrType wire.NetAddressType) addrmgr.NetAddres
 		return addrmgr.IPv4Address
 	case wire.IPv6Address:
 		return addrmgr.IPv6Address
-	case wire.TORv3Address:
-		return addrmgr.TORv3Address
+	case wire.TorV3Address:
+		return addrmgr.TorV3Address
 	}
 	return addrmgr.UnknownAddressType
 }
@@ -981,8 +981,8 @@ func addrmgrToWireNetAddressType(addrType addrmgr.NetAddressType) wire.NetAddres
 		return wire.IPv4Address
 	case addrmgr.IPv6Address:
 		return wire.IPv6Address
-	case addrmgr.TORv3Address:
-		return wire.TORv3Address
+	case addrmgr.TorV3Address:
+		return wire.TorV3Address
 	}
 	return wire.UnknownAddressType
 }
@@ -1145,7 +1145,7 @@ func isSupportedNetAddrTypeV1(addrType addrmgr.NetAddressType) bool {
 // network address type is supported by the addrv2 wire message.
 func isSupportedNetAddressTypeV2(addrType addrmgr.NetAddressType) bool {
 	switch addrType {
-	case addrmgr.IPv4Address, addrmgr.IPv6Address, addrmgr.TORv3Address:
+	case addrmgr.IPv4Address, addrmgr.IPv6Address, addrmgr.TorV3Address:
 		return true
 	}
 	return false
@@ -4416,7 +4416,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			switch addrType {
 			case addrmgr.IPv4Address, addrmgr.IPv6Address:
 				return true
-			case addrmgr.TORv3Address:
+			case addrmgr.TorV3Address:
 				// Require .onion reachability.
 				return !cfg.NoOnion && (cfg.Proxy != "" || cfg.OnionProxy != "")
 			}
@@ -4676,7 +4676,7 @@ func addrStringToNetAddr(addr string) (net.Addr, error) {
 	// a DNS lookup should not be performed for the address.
 	addrType, _ := addrmgr.EncodeHost(host)
 	switch addrType {
-	case addrmgr.TORv3Address:
+	case addrmgr.TorV3Address:
 		return &simpleAddr{
 			net:  "tcp",
 			addr: addr,

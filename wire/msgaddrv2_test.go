@@ -39,7 +39,7 @@ var (
 
 	ipv4NetAddress  = newNetAddressV2(IPv4Address, ipv4IpBytes, 8333)
 	ipv6NetAddress  = newNetAddressV2(IPv6Address, ipv6IpBytes, 8333)
-	torv3NetAddress = newNetAddressV2(TORv3Address, torV3IpBytes, 8333)
+	torv3NetAddress = newNetAddressV2(TorV3Address, torV3IpBytes, 8333)
 
 	serializedIPv4NetAddressBytes = []byte{
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00, // Timestamp
@@ -63,10 +63,10 @@ var (
 		0x7f, 0x00, 0x00, 0x01, // EncodedAddr
 		0x8d, 0x20, // Port 8333 (little-endian)
 	}
-	serializedTORv3NetAddressBytes = []byte{
+	serializedTorV3NetAddressBytes = []byte{
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00,
 		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x03,                                           // Type (TORv3)
+		0x03,                                           // Type (TorV3)
 		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2, // EncodedAddr
 		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80, // EncodedAddr
 		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce, // EncodedAddr
@@ -157,7 +157,7 @@ func TestAddrV2Wire(t *testing.T) {
 			{0x03},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
-			serializedTORv3NetAddressBytes,
+			serializedTorV3NetAddressBytes,
 		}, nil),
 	}, {
 		name: "latest protocol version with maximum addresses",
@@ -275,7 +275,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 			{0x04},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
-			serializedTORv3NetAddressBytes,
+			serializedTorV3NetAddressBytes,
 			serializedUnknownNetAddressBytes,
 		}, nil),
 		wantAddrs: nil,
@@ -287,7 +287,7 @@ func TestAddrV2BtcDecode(t *testing.T) {
 			{0x03},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
-			serializedTORv3NetAddressBytes,
+			serializedTorV3NetAddressBytes,
 		}, nil),
 		wantAddrs: []NetAddressV2{
 			ipv4NetAddress,
@@ -370,12 +370,12 @@ func TestAddrV2BtcEncode(t *testing.T) {
 		}},
 		wantErr: ErrInvalidMsg,
 	}, {
-		name: "message with wrong size TORv3 address",
+		name: "message with wrong size TorV3 address",
 		pver: pver,
 		addrs: []NetAddressV2{{
 			Timestamp:   time.Unix(0x495fab29, 0),
 			Services:    SFNodeNetwork,
-			Type:        TORv3Address,
+			Type:        TorV3Address,
 			EncodedAddr: make([]byte, 1),
 			Port:        8333,
 		}},

@@ -41,9 +41,9 @@ func natfOnlyIPv6(addrType NetAddressType) bool {
 	return addrType == IPv6Address
 }
 
-// natfOnlyTORv3 defines a filter that will only allow TORv3 netAddrs.
-func natfOnlyTORv3(addrType NetAddressType) bool {
-	return addrType == TORv3Address
+// natfOnlyTorV3 defines a filter that will only allow TorV3 netAddrs.
+func natfOnlyTorV3(addrType NetAddressType) bool {
+	return addrType == TorV3Address
 }
 
 // addAddressByIP is a convenience function that adds an address to the
@@ -708,7 +708,7 @@ func TestAddLocalAddress(t *testing.T) {
 		priority: InterfacePrio,
 		valid:    true,
 	}, {
-		name:     "routable TORv3 address",
+		name:     "routable TorV3 address",
 		host:     torv3Host,
 		priority: ManualPrio,
 		valid:    true,
@@ -787,12 +787,12 @@ func TestGetBestLocalAddress(t *testing.T) {
 		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}
 
-	// TORv3 address.
+	// TorV3 address.
 	torAddrType, torAddrBytes := EncodeHost(torv3Host)
 	torAddr, err := NewNetAddressFromParams(torAddrType, torAddrBytes, 0,
 		time.Unix(time.Now().Unix(), 0), wire.SFNodeNetwork)
 	if err != nil {
-		t.Fatalf("failed to create TORv3 NetAddress: %v", err)
+		t.Fatalf("failed to create TorV3 NetAddress: %v", err)
 	}
 
 	var tests = []struct {
@@ -892,7 +892,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 		}
 	}
 
-	// Test4: Add TORv3 address with ManualPrio
+	// Test4: Add TorV3 address with ManualPrio
 	amgr.AddLocalAddress(torAddr, ManualPrio)
 	for x, test := range tests {
 		remoteAddr := test.remoteAddr
@@ -1120,10 +1120,10 @@ func TestGetAddressWithFilter(t *testing.T) {
 		filter:    natfOnlyIPv6,
 		wantType:  IPv6Address,
 	}, {
-		name:      "returns address matching TORv3 filter",
+		name:      "returns address matching TorV3 filter",
 		addresses: []*NetAddress{ipv4Addr, ipv6Addr, torv3Addr},
-		filter:    natfOnlyTORv3,
-		wantType:  TORv3Address,
+		filter:    natfOnlyTorV3,
+		wantType:  TorV3Address,
 	}, {
 		name:      "returns nil when no matching IPv4 addresses",
 		addresses: []*NetAddress{ipv6Addr},

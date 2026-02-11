@@ -184,7 +184,7 @@ func TestGroupKey(t *testing.T) {
 		{name: "ipv6 hurricane electric", host: "2001:470:1f10:a1::2", expected: "2001:470:1000::"},
 		{name: "ipv6 hurricane electric 2", host: "2001:0470:1f10:a1::2", expected: "2001:470:1000::"},
 
-		// TORv3
+		// TorV3
 		{
 			name:     "torv3",
 			host:     "xa4r2iadxm55fbnqgwwi5mymqdcofiu3w6rpbtqn7b2dyn7mgwj64jyd.onion",

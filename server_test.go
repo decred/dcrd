@@ -32,7 +32,7 @@ func TestHostToNetAddress(t *testing.T) {
 		wantErr    bool
 		want       *addrmgr.NetAddress
 	}{{
-		name:       "valid TORv3 address",
+		name:       "valid TorV3 address",
 		host:       torv3Host,
 		port:       9108,
 		lookupFunc: nil,

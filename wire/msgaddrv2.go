@@ -64,7 +64,7 @@ func readNetAddressV2(op string, r io.Reader, pver uint32, na *NetAddressV2) err
 		}
 		na.EncodedAddr = ip[:]
 
-	case TORv3Address:
+	case TorV3Address:
 		var addr [32]byte
 		err := readElement(r, &addr)
 		if err != nil {
@@ -115,9 +115,9 @@ func writeNetAddressV2(op string, w io.Writer, pver uint32, na *NetAddressV2) er
 			return messageError(op, ErrInvalidMsg, msg)
 		}
 
-	case TORv3Address:
+	case TorV3Address:
 		if len(encodedAddr) != 32 {
-			msg := fmt.Sprintf("invalid TORv3 address length: %d", len(encodedAddr))
+			msg := fmt.Sprintf("invalid TorV3 address length: %d", len(encodedAddr))
 			return messageError(op, ErrInvalidMsg, msg)
 		}
 

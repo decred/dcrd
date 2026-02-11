@@ -112,7 +112,7 @@ const (
 	IPv4Address        NetAddressType = 1
 	IPv6Address        NetAddressType = 2
 	// TorV2Address       NetAddressType = 3  // No longer supported
-	TORv3Address NetAddressType = 4
+	TorV3Address NetAddressType = 4
 )
 
 // NetAddressTypeFilter represents a function that returns whether a particular
@@ -212,9 +212,9 @@ func isRFC6598(netIP net.IP) bool {
 	return rfc6598Net.Contains(netIP)
 }
 
-// calcTORv3Checksum returns the checksum bytes given a 32 byte
-// TORv3 public key.
-func calcTORv3Checksum(publicKey [32]byte) [2]byte {
+// calcTorV3Checksum returns the checksum bytes given a 32-byte TorV3 public
+// key.
+func calcTorV3Checksum(publicKey [32]byte) [2]byte {
 	const (
 		prefix    = ".onion checksum"
 		prefixLen = len(prefix)
@@ -231,10 +231,10 @@ func calcTORv3Checksum(publicKey [32]byte) [2]byte {
 	return result
 }
 
-// isTORv3 returns whether or not the passed address is a valid TORv3 address
+// isTorV3 returns whether or not the passed address is a valid TorV3 address
 // with the checksum and version bytes. If it is valid, it also returns the
 // public key of the tor v3 address.
-func isTORv3(addressBytes []byte) ([32]byte, bool) {
+func isTorV3(addressBytes []byte) ([32]byte, bool) {
 	var publicKey [32]byte
 	if len(addressBytes) != 35 {
 		return publicKey, false
@@ -246,7 +246,7 @@ func isTORv3(addressBytes []byte) ([32]byte, bool) {
 	}
 
 	copy(publicKey[:], addressBytes[:32])
-	computedChecksum := calcTORv3Checksum(publicKey)
+	computedChecksum := calcTorV3Checksum(publicKey)
 
 	var checksum [2]byte
 	copy(checksum[:], addressBytes[32:34])
@@ -284,7 +284,7 @@ func IsRoutable(netIP net.IP) bool {
 // address.
 func (na *NetAddress) GroupKey() string {
 	netIP := net.IP(na.IP)
-	if na.Type == TORv3Address {
+	if na.Type == TorV3Address {
 		// Group is keyed off the first 4 bits of the public key.
 		return fmt.Sprintf("torv3:%d", netIP[0]&0xf)
 	}

@@ -16,7 +16,7 @@ const (
 	UnknownAddressType NetAddressType = 0
 	IPv4Address        NetAddressType = 1
 	IPv6Address        NetAddressType = 2
-	TORv3Address       NetAddressType = 3
+	TorV3Address       NetAddressType = 3
 )
 
 // NetAddressV2 defines information about a peer on the network.

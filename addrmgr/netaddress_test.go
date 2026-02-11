@@ -110,7 +110,7 @@ func TestKey(t *testing.T) {
 		{host: "fee2::3:3", port: 8335, want: "[fee2::3:3]:8335"},
 		{host: "fef3::4:4", port: 8336, want: "[fef3::4:4]:8336"},
 
-		// TORv3
+		// TorV3
 		{host: torAddress, port: 8333, want: torAddress + ":8333"},
 	}
 
@@ -220,14 +220,14 @@ func TestNewNetAddressFromParams(t *testing.T) {
 		},
 		{
 			name:      "32 byte torv3 address stored in 32 bytes",
-			addrType:  TORv3Address,
+			addrType:  TorV3Address,
 			addrBytes: torAddressBytes,
 			want: &NetAddress{
 				IP:        torAddressBytes,
 				Port:      port,
 				Services:  services,
 				Timestamp: timestamp,
-				Type:      TORv3Address,
+				Type:      TorV3Address,
 			},
 			error_expected: false,
 		},
