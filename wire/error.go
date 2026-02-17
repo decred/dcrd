@@ -161,6 +161,10 @@ const (
 	// ErrUnknownNetAddrType is returned when a network address type is not
 	// recognized or supported.
 	ErrUnknownNetAddrType
+
+	// numErrorCodes is the total number of error codes defined above.  This
+	// entry MUST be the last entry in the enum.
+	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.

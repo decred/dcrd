@@ -55,8 +55,16 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrTooManyMixPairReqUTXOs, "ErrTooManyMixPairReqUTXOs"},
 		{ErrTooManyPrevMixMsgs, "ErrTooManyPrevMixMsgs"},
 		{ErrTooManyCFilters, "ErrTooManyCFilters"},
+		{ErrTooFewAddrs, "ErrTooFewAddrs"},
+		{ErrUnknownNetAddrType, "ErrUnknownNetAddrType"},
 
 		{0xffff, "Unknown ErrorCode (65535)"},
+	}
+
+	// Detect additional defines that don't have the stringer added.
+	if len(tests)-1 != int(numErrorCodes) {
+		t.Fatal("It appears an error code was added without adding an " +
+			"associated stringer test")
 	}
 
 	t.Logf("Running %d tests", len(tests))
