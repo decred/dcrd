@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -260,14 +261,14 @@ func TestAddrV2BtcDecode(t *testing.T) {
 		pver: pver,
 		wireBytes: []byte{
 			0x01,                                           // Varint address count
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, // Timestamp (MaxInt64+1)
+			0x00, 0x09, 0x6e, 0x88, 0xf1, 0xff, 0xff, 0x7f, // Timestamp (max+1)
 			0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Services
 			0x01,                   // Type (IPv4)
 			0x7f, 0x00, 0x00, 0x01, // IP
 			0x8d, 0x20, // Port 8333 (little-endian)
 		},
 		wantAddrs: nil,
-		wantErr:   ErrInvalidMsg,
+		wantErr:   ErrInvalidTimestamp,
 	}, {
 		name: "message with valid types and unknown type",
 		pver: pver,
@@ -391,6 +392,17 @@ func TestAddrV2BtcEncode(t *testing.T) {
 			Port:        8333,
 		}},
 		wantErr: ErrUnknownNetAddrType,
+	}, {
+		name: "message with invalid timestamp",
+		pver: pver,
+		addrs: []NetAddressV2{{
+			Timestamp:   time.Unix(math.MaxInt64-unixToInternal+1, 0),
+			Services:    SFNodeNetwork,
+			Type:        IPv4Address,
+			EncodedAddr: []byte{0x7f, 0x00, 0x00, 0x01},
+			Port:        8333,
+		}},
+		wantErr: ErrInvalidTimestamp,
 	}}
 
 	for _, test := range tests {

@@ -32,6 +32,10 @@ const (
 
 	// strictAsciiRangeUpper is the upper limit of the strict ASCII range.
 	strictAsciiRangeUpper = 0x7e
+
+	// unixToInternal is the number of seconds between year 1 of the Go time
+	// value and the unix epoch.
+	unixToInternal = 62135596800
 )
 
 var (
@@ -150,14 +154,17 @@ type uint32Time time.Time
 
 // int64Time represents a unix timestamp encoded with an int64.  It is used as
 // a way to signal the readElement function how to decode a timestamp into a Go
-// time.Time since it is otherwise ambiguous.
+// time.Time since it is otherwise ambiguous.  The value is rejected if it is
+// larger than the maximum usable seconds for a Go time value for worry-free
+// comparisons.
 type int64Time time.Time
 
 // uint64Time represents a unix timestamp encoded with a uint64.  It is used as
 // a way to signal the readElement function how to decode a timestamp into a Go
 // time.Time since it is otherwise ambiguous.  The uint64 value is rejected if
-// it is larger than the maximum int64 value since it would overflow when
-// converted to an int64 for the time.Unix call.
+// it is larger than the maximum usable seconds for a Go time value for
+// worry-free comparisons which also has the side effect of preventing overflow
+// when converting to an int64 for the time.Unix call.
 type uint64Time time.Time
 
 // readElement reads the next sequence of bytes from r using little endian
@@ -241,6 +248,13 @@ func readElement(r io.Reader, element interface{}) error {
 		if err != nil {
 			return err
 		}
+
+		// Reject timestamps that would overflow the maximum usable number of
+		// seconds for worry-free comparisons.
+		if rv > math.MaxInt64-unixToInternal {
+			const str = "timestamp exceeds maximum allowed value"
+			return messageError("readElement", ErrInvalidTimestamp, str)
+		}
 		*e = int64Time(time.Unix(int64(rv), 0))
 		return nil
 
@@ -249,10 +263,12 @@ func readElement(r io.Reader, element interface{}) error {
 		if err != nil {
 			return err
 		}
-		// Reject timestamps that would overflow when converted to int64.
-		if rv > math.MaxInt64 {
-			return messageError("readElement", ErrInvalidMsg,
-				"timestamp exceeds maximum allowed value")
+
+		// Reject timestamps that would overflow the maximum usable number of
+		// seconds for worry-free comparisons.
+		if rv > math.MaxInt64-unixToInternal {
+			const str = "timestamp exceeds maximum allowed value"
+			return messageError("readElement", ErrInvalidTimestamp, str)
 		}
 		*e = uint64Time(time.Unix(int64(rv), 0))
 		return nil
@@ -534,8 +550,29 @@ func writeElement(w io.Writer, element interface{}) error {
 		}
 		return nil
 
+	case *int64Time:
+		// Reject timestamps that would overflow the maximum usable number of
+		// seconds for worry-free comparisons.
+		secs := uint64(time.Time(*e).Unix())
+		if secs > math.MaxInt64-unixToInternal {
+			const str = "timestamp exceeds maximum allowed value"
+			return messageError("writeElement", ErrInvalidTimestamp, str)
+		}
+		err := writeUint64LE(w, secs)
+		if err != nil {
+			return err
+		}
+		return nil
+
 	case *uint64Time:
-		err := writeUint64LE(w, uint64(time.Time(*e).Unix()))
+		// Reject timestamps that would overflow the maximum usable number of
+		// seconds for worry-free comparisons.
+		secs := uint64(time.Time(*e).Unix())
+		if secs > math.MaxInt64-unixToInternal {
+			const str = "timestamp exceeds maximum allowed value"
+			return messageError("writeElement", ErrInvalidTimestamp, str)
+		}
+		err := writeUint64LE(w, secs)
 		if err != nil {
 			return err
 		}

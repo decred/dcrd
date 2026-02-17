@@ -162,6 +162,10 @@ const (
 	// recognized or supported.
 	ErrUnknownNetAddrType
 
+	// ErrInvalidTimestamp is returned when a message that involves a timestamp
+	// is not in the allowable range.
+	ErrInvalidTimestamp
+
 	// numErrorCodes is the total number of error codes defined above.  This
 	// entry MUST be the last entry in the enum.
 	numErrorCodes
@@ -207,6 +211,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTooManyCFilters:               "ErrTooManyCFilters",
 	ErrTooFewAddrs:                   "ErrTooFewAddrs",
 	ErrUnknownNetAddrType:            "ErrUnknownNetAddrType",
+	ErrInvalidTimestamp:              "ErrInvalidTimestamp",
 }
 
 // String returns the ErrorCode as a human-readable name.
