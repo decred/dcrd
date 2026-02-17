@@ -16,7 +16,7 @@ jobs:
         id: resolve_module_dirs
         run: |
           echo "Resolving modules in $(pwd)" && \
-          MODPATHS=$(find . -type f -name go.mod -printf '"%h",') && \
+          MODPATHS=$(find . \( -path ./*/internal/_asm -prune \) -o -type f -name go.mod -printf '"%h",') && \
           echo "module_dirs=[${MODPATHS%,}]" >> $GITHUB_OUTPUT
   build:
     name: Go CI
@@ -57,5 +57,5 @@ jobs:
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           install-mode: "goinstall"
-          version: e3b3bac5dd24906c205db9224fde52efd4d238cf # v2.6.1
+          version: 72798d34b1eb36745915b0d4eea5c2b3b31bdfe3 # v2.9.0
           working-directory: ${{ matrix.module_dirs }}
