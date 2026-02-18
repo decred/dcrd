@@ -13,6 +13,9 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,9 +37,18 @@ var params = chaincfg.SimNetParams()
 
 var seed [32]byte
 
+var prngNonce atomic.Uint32
+
 func testPRNG(t *testing.T) *chacha20prng.Reader {
-	t.Logf("PRNG seed: %x\n", seed)
-	return chacha20prng.New(seed[:], 0)
+	t.Helper()
+	n := prngNonce.Add(1) - 1
+	t.Cleanup(func() {
+		t.Helper()
+		if t.Failed() {
+			t.Logf("Reproduce with -seed=%x/%d", seed[:], n)
+		}
+	})
+	return chacha20prng.New(seed[:], n)
 }
 
 var utxoStore struct {
@@ -48,16 +60,23 @@ func TestMain(m *testing.M) {
 	seedFlag := flag.String("seed", "", "use deterministic PRNG seed (32 bytes, hex)")
 	flag.Parse()
 	if *seedFlag != "" {
-		b, err := hex.DecodeString(*seedFlag)
+		slash := strings.IndexByte(*seedFlag, '/')
+		if slash != 64 {
+			fmt.Fprintln(os.Stderr, "invalid -seed: must be in form <32 byte hex seed>/iteration")
+			os.Exit(1)
+		}
+		b, err := hex.DecodeString((*seedFlag)[:slash])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "invalid -seed:", err)
 			os.Exit(1)
 		}
-		if len(b) != 32 {
-			fmt.Fprintln(os.Stderr, "invalid -seed: must be 32 bytes")
+		copy(seed[:], b)
+		nonce, err := strconv.ParseUint((*seedFlag)[slash+1:], 10, 32)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "invalid -seed nonce:", err)
 			os.Exit(1)
 		}
-		copy(seed[:], b)
+		prngNonce.Store(uint32(nonce))
 	} else {
 		cryptorand.Read(seed[:])
 	}
