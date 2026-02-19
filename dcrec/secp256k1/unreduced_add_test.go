@@ -112,54 +112,47 @@ func TestAddUnreducedCoordinates(t *testing.T) {
 	}
 }
 
-// TestAddNonConstUnreducedFieldVals tests the internal AddNonConst function
-// directly with unreduced FieldVal representations.
-func TestAddNonConstUnreducedFieldVals(t *testing.T) {
+// TestBigAffineToJacobianNormalization verifies that bigAffineToJacobian
+// normalizes the field values, ensuring that unreduced big.Int coordinates
+// are properly reduced mod p before being stored.
+func TestBigAffineToJacobianNormalization(t *testing.T) {
 	ptX, ptY := findSmallXPoint(t)
 	p := curveParams.P
 	xUnreduced := new(big.Int).Add(ptX, p)
 
-	// Create point with normal coordinates.
-	var p1 JacobianPoint
-	p1.X.SetByteSlice(ptX.Bytes())
-	p1.Y.SetByteSlice(ptY.Bytes())
-	p1.Z.SetInt(1)
+	// Convert both the reduced and unreduced x values through
+	// bigAffineToJacobian.
+	var p1, p2 JacobianPoint
+	bigAffineToJacobian(ptX, ptY, &p1)
+	bigAffineToJacobian(xUnreduced, ptY, &p2)
 
-	// Create point with unreduced x coordinate.
-	var p2 JacobianPoint
-	p2.X.SetByteSlice(xUnreduced.Bytes())
-	p2.Y.SetByteSlice(ptY.Bytes())
-	p2.Z.SetInt(1)
-
-	// Verify the FieldVals represent the same value mod p but differ in raw
-	// representation.
-	p1xNorm := new(FieldVal).Set(&p1.X).Normalize()
-	p2xNorm := new(FieldVal).Set(&p2.X).Normalize()
-	if !p1xNorm.Equals(p2xNorm) {
-		t.Fatal("normalized x values should be equal")
+	// After the fix, both points should have identical normalized FieldVal
+	// representations because bigAffineToJacobian normalizes.
+	if !p1.X.Equals(&p2.X) {
+		t.Errorf("bigAffineToJacobian did not normalize x coordinate\n"+
+			"  from x:   %x\n"+
+			"  from x+p: %x",
+			p1.X.Bytes(), p2.X.Bytes())
 	}
-	if p1.X.Equals(&p2.X) {
-		t.Fatal("raw x values should differ for this test to be meaningful")
+	if !p1.Y.Equals(&p2.Y) {
+		t.Errorf("bigAffineToJacobian did not normalize y coordinate")
 	}
 
-	// AddNonConst should produce 2P.
+	// Since the FieldVals are now identical, AddNonConst should correctly
+	// dispatch to doubling.
 	var result JacobianPoint
 	AddNonConst(&p1, &p2, &result)
 
-	// DoubleNonConst for comparison.
 	var expected JacobianPoint
 	DoubleNonConst(&p1, &expected)
 
-	// Convert both to affine for comparison.
 	result.ToAffine()
 	expected.ToAffine()
 
 	if !result.X.Equals(&expected.X) || !result.Y.Equals(&expected.Y) {
-		t.Errorf("AddNonConst(P, P_unreduced) != DoubleNonConst(P)\n"+
+		t.Errorf("AddNonConst(P, P_from_unreduced) != DoubleNonConst(P)\n"+
 			"  Expected X: %x\n"+
-			"  Got X:      %x\n"+
-			"  Result is infinity: %v",
-			expected.X.Bytes(), result.X.Bytes(),
-			result.X.IsZero() && result.Y.IsZero())
+			"  Got X:      %x",
+			expected.X.Bytes(), result.X.Bytes())
 	}
 }

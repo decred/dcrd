@@ -64,7 +64,9 @@ type KoblitzCurve struct {
 // it to Jacobian point with Z=1.
 func bigAffineToJacobian(x, y *big.Int, result *JacobianPoint) {
 	result.X.SetByteSlice(x.Bytes())
+	result.X.Normalize()
 	result.Y.SetByteSlice(y.Bytes())
+	result.Y.Normalize()
 	result.Z.SetInt(1)
 }
 
