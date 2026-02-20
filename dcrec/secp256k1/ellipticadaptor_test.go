@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -24,12 +24,59 @@ func randBytes(t *testing.T, rng *rand.Rand, numBytes uint8) []byte {
 	return buf
 }
 
-// TestIsOnCurveAdaptor ensures the IsOnCurve method used to satisfy the
-// elliptic.Curve interface works as intended.
+// TestIsOnCurveAdaptor ensures the [KoblitzCurve.IsOnCurve] method used to
+// satisfy the [crypto/elliptic.Curve] interface works as intended.
 func TestIsOnCurveAdaptor(t *testing.T) {
+	tests := []struct {
+		name string // test description
+		x, y string // hex encoded coordinates of point to test
+		want bool   // expected result
+	}{{
+		name: "curve generator",
+		x:    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		y:    "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		want: true,
+	}, {
+		// Note that the [crypto/elliptic.Curve.IsOnCurve] interface explicitly
+		// states "Note that the conventional point at infinity (0, 0) is not
+		// considered on the curve" even though it really should be because it
+		// is a valid curve point.  Make sure the interface is satisfied.
+		name: "point at infinity",
+		x:    "0",
+		y:    "0",
+		want: false,
+	}, {
+		name: "valid with even y",
+		x:    "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y:    "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+		want: true,
+	}, {
+		name: "valid with odd y",
+		x:    "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y:    "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		want: true,
+	}, {
+		name: "invalid due to x coord",
+		x:    "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y:    "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		want: false,
+	}, {
+		name: "invalid due to y coord",
+		x:    "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y:    "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
+		want: false,
+	}}
+
 	s256 := S256()
-	if !s256.IsOnCurve(s256.Params().Gx, s256.Params().Gy) {
-		t.Fatal("generator point does not claim to be on the curve")
+	for _, test := range tests {
+		// Parse the test data.
+		x := fromHex(test.x)
+		y := fromHex(test.y)
+		result := s256.IsOnCurve(x, y)
+		if result != test.want {
+			t.Errorf("%s: mismatched is on curve result -- got %v, want %v",
+				test.name, result, test.want)
+		}
 	}
 }
 
