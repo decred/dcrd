@@ -46,6 +46,12 @@ func TestIsOnCurveAdaptor(t *testing.T) {
 		y:    "0",
 		want: false,
 	}, {
+		// See previous explanation about for why it's expecting false.
+		name: "unreduced point at infinity",
+		x:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		y:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		want: false,
+	}, {
 		name: "valid with even y",
 		x:    "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
 		y:    "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
@@ -65,6 +71,21 @@ func TestIsOnCurveAdaptor(t *testing.T) {
 		x:    "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
 		y:    "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
 		want: false,
+	}, {
+		name: "unreduced x coord",
+		x:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y:    "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		want: true,
+	}, {
+		name: "unreduced y coord",
+		x:    "1",
+		y:    "014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d577e76a41d",
+		want: true,
+	}, {
+		name: "unreduced x and y coord",
+		x:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y:    "014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d577e76a41d",
+		want: true,
 	}}
 
 	s256 := S256()
@@ -143,6 +164,38 @@ func TestAddAffineAdaptor(t *testing.T) {
 		y2:   "0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
 		x3:   "59477d88ae64a104dbb8d31ec4ce2d91b2fe50fa628fb6a064e22582196b365b",
 		y3:   "938dc8c0f13d1e75c987cb1a220501bd614b0d3dd9eb5c639847e1240216e3b6",
+	}, {
+		// Addition with same point where the x coordinate in the first point is
+		// an unreduced value larger than the field prime.
+		name: "P(x, y) + P(x+p, y) = 2P",
+		x1:   "1",
+		y1:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x2:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x3:   "c7ffffffffffffffffffffffffffffffffffffffffffffffffffffff37fffd03",
+		y3:   "4298c557a7ddcc570e8bf054c4cad9e99f396b3ce19d50f1b91c9df4bb00d333",
+	}, {
+		// Symmetric variant of the previous.
+		//
+		// Addition with same point where the x coordinate in the second point
+		// is an unreduced value larger than the field prime.
+		name: "P(x+p, y) + P(x, y) = 2P",
+		x1:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y1:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x2:   "1",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x3:   "c7ffffffffffffffffffffffffffffffffffffffffffffffffffffff37fffd03",
+		y3:   "4298c557a7ddcc570e8bf054c4cad9e99f396b3ce19d50f1b91c9df4bb00d333",
+	}, {
+		// Addition with same point where the x coordinate of both points is an
+		// unreduced value larger than the field prime.
+		name: "P(x+p, y) + P(x+p, y) = 2P",
+		x1:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y1:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x2:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x3:   "c7ffffffffffffffffffffffffffffffffffffffffffffffffffffff37fffd03",
+		y3:   "4298c557a7ddcc570e8bf054c4cad9e99f396b3ce19d50f1b91c9df4bb00d333",
 	}}
 
 	curve := S256()
