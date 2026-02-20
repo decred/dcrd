@@ -24,6 +24,57 @@ func randBytes(t *testing.T, rng *rand.Rand, numBytes uint8) []byte {
 	return buf
 }
 
+// TestBigAffineToJacobian ensures [bigAffineToJacobian] reduces an affine point
+// with coordinates that are larger than the field prime to a jacobian point
+// with the fields reduced modulo the field prime.
+func TestBigAffineToJacobian(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		x1, y1 string // hex encoded coordinates of point to test
+		x2, y2 string // hex encoded coordinates of expected point
+	}{{
+		name: "normal reduced point",
+		x1:   "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y1:   "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+		x2:   "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		y2:   "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+	}, {
+		name: "unreduced x coord",
+		x1:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y1:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+		x2:   "1",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+	}, {
+		name: "unreduced y coord",
+		x1:   "1",
+		y1:   "014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d577e76a41d",
+		x2:   "1",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+	}, {
+		name: "unreduced x and y coord",
+		x1:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		y1:   "014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d577e76a41d",
+		x2:   "1",
+		y2:   "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+	}}
+
+	for _, test := range tests {
+		// Parse the test data.
+		x := fromHex(test.x1)
+		y := fromHex(test.y1)
+		want := jacobianPointFromHex(test.x2, test.y2, "1")
+
+		// Convert to the point to Jacobian and ensure the resulting point is
+		// reduced as expected.
+		var r JacobianPoint
+		bigAffineToJacobian(x, y, &r)
+		if !r.IsStrictlyEqual(&want) {
+			t.Errorf("%s: wrong result\ngot: (%v, %v, %v)\nwant: (%v, %v, %v)",
+				test.name, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
+		}
+	}
+}
+
 // TestIsOnCurveAdaptor ensures the [KoblitzCurve.IsOnCurve] method used to
 // satisfy the [crypto/elliptic.Curve] interface works as intended.
 func TestIsOnCurveAdaptor(t *testing.T) {

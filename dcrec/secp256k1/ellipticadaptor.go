@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Decred developers
+// Copyright 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -63,8 +63,8 @@ type KoblitzCurve struct {
 // bigAffineToJacobian takes an affine point (x, y) as big integers and converts
 // it to Jacobian point with Z=1.
 func bigAffineToJacobian(x, y *big.Int, result *JacobianPoint) {
-	result.X.SetByteSlice(x.Bytes())
-	result.Y.SetByteSlice(y.Bytes())
+	result.X.SetByteSlice(new(big.Int).Mod(x, curveParams.P).Bytes())
+	result.Y.SetByteSlice(new(big.Int).Mod(y, curveParams.P).Bytes())
 	result.Z.SetInt(1)
 }
 
