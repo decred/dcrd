@@ -104,11 +104,11 @@ type Message interface {
 
 // makeEmptyMessage creates a message of the appropriate concrete type based
 // on the command.
-func makeEmptyMessage(command string) (Message, error) {
+func makeEmptyMessage(command []byte) (Message, error) {
 	const op = "makeEmptyMessage"
 
 	var msg Message
-	switch command {
+	switch string(command) {
 	case CmdVersion:
 		msg = &MsgVersion{}
 
@@ -230,42 +230,10 @@ func makeEmptyMessage(command string) (Message, error) {
 		msg = &MsgCFiltersV2{}
 
 	default:
-		str := fmt.Sprintf("unhandled command [%s]", command)
+		str := fmt.Sprintf("unhandled command [%s]", string(command))
 		return nil, messageError(op, ErrUnknownCmd, str)
 	}
 	return msg, nil
-}
-
-// messageHeader defines the header structure for all Decred protocol messages.
-type messageHeader struct {
-	magic    CurrencyNet // 4 bytes
-	command  string      // 12 bytes
-	length   uint32      // 4 bytes
-	checksum [4]byte     // 4 bytes
-}
-
-// readMessageHeader reads a Decred message header from r.
-func readMessageHeader(r io.Reader) (int, *messageHeader, error) {
-	// Since readElements doesn't return the amount of bytes read, attempt
-	// to read the entire header into a buffer first in case there is a
-	// short read so the proper amount of read bytes are known.  This works
-	// since the header is a fixed size.
-	var headerBytes [MessageHeaderSize]byte
-	n, err := io.ReadFull(r, headerBytes[:])
-	if err != nil {
-		return n, nil, err
-	}
-	hr := bytes.NewReader(headerBytes[:])
-
-	// Create and populate a messageHeader struct from the raw header bytes.
-	hdr := messageHeader{}
-	var command [CommandSize]byte
-	readElements(hr, &hdr.magic, &command, &hdr.length, &hdr.checksum)
-
-	// Strip trailing zeros from command string.
-	hdr.command = string(bytes.TrimRight(command[:], string(rune(0))))
-
-	return n, &hdr, nil
 }
 
 // WriteMessageN writes a Decred Message to w including the necessary header
@@ -362,6 +330,36 @@ func WriteMessage(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) err
 	return err
 }
 
+// wireBuffer is a bytes.Buffer uniquely used by ReadMessageN.  The distinct
+// type is used to optimize reads of transaction scripts by avoiding the
+// scriptPool freelist when the buffer is known to not be clobbered by the
+// caller.
+type wireBuffer bytes.Buffer
+
+func (b *wireBuffer) Bytes() []byte {
+	return (*bytes.Buffer)(b).Bytes()
+}
+
+func (b *wireBuffer) Grow(n int) {
+	(*bytes.Buffer)(b).Grow(n)
+}
+
+func (b *wireBuffer) Len() int {
+	return (*bytes.Buffer)(b).Len()
+}
+
+func (b *wireBuffer) Next(n int) []byte {
+	return (*bytes.Buffer)(b).Next(n)
+}
+
+func (b *wireBuffer) Read(p []byte) (int, error) {
+	return (*bytes.Buffer)(b).Read(p)
+}
+
+func (b *wireBuffer) ReadFrom(r io.Reader) (int64, error) {
+	return (*bytes.Buffer)(b).ReadFrom(r)
+}
+
 // ReadMessageN reads, validates, and parses the next Decred Message from r for
 // the provided protocol version and Decred network.  It returns the number of
 // bytes read in addition to the parsed Message and raw bytes which comprise the
@@ -370,35 +368,74 @@ func WriteMessage(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) err
 func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, []byte, error) {
 	const op = "ReadMessage"
 	totalBytes := 0
-	n, hdr, err := readMessageHeader(r)
-	totalBytes += n
+
+	lr := &io.LimitedReader{R: r}
+
+	// Read the bytes of the message header to the unread portion of a
+	// buffer (with some additional extra capacity to read short payloads
+	// without a realloc).
+	buf := (*wireBuffer)(bytes.NewBuffer(make([]byte, 0, bytes.MinRead*2)))
+	lr.N = MessageHeaderSize
+	read, err := buf.ReadFrom(lr)
+	totalBytes += int(read)
+	if lr.N > 0 {
+		err = io.EOF
+	}
 	if err != nil {
 		return totalBytes, nil, nil, err
 	}
 
+	// Read the message header from the buffer.
+	// This should consume all of the current buffer's length.
+	var (
+		magic      CurrencyNet
+		command    [CommandSize]byte
+		payloadLen uint32
+		checksum   [4]byte
+	)
+	readUint32LE(buf, (*uint32)(&magic))
+	buf.Read(command[:])
+	readUint32LE(buf, &payloadLen)
+	// Only check the final header field read for error.
+	_, err = buf.Read(checksum[:])
+	// The correct header length has already been read from the input
+	// reader to the buffer.  This length is a constant and would not
+	// change based on the message or inputs.  Any read errors or
+	// remaining unread bytes in the buffer would be discovered by tests.
+	if err != nil {
+		str := fmt.Sprintf("unexpected read error deserializing message "+
+			"header: %v", err)
+		panic(str)
+	}
+	if buf.Len() != 0 {
+		str := fmt.Sprintf("read unexpected message header length - "+
+			"%d unread message header bytes remaining", buf.Len())
+		panic(str)
+	}
+
 	// Enforce maximum message payload.
-	if hdr.length > MaxMessagePayload {
+	if payloadLen > MaxMessagePayload {
 		msg := fmt.Sprintf("message payload is too large - header "+
 			"indicates %d bytes, but max message payload is %d bytes.",
-			hdr.length, MaxMessagePayload)
+			payloadLen, MaxMessagePayload)
 		return totalBytes, nil, nil, messageError(op, ErrPayloadTooLarge, msg)
 	}
 
 	// Check for messages from the wrong Decred network.
-	if hdr.magic != dcrnet {
-		msg := fmt.Sprintf("message from other network [%v]", hdr.magic)
+	if magic != dcrnet {
+		msg := fmt.Sprintf("message from other network [%v]", magic)
 		return totalBytes, nil, nil, messageError(op, ErrWrongNetwork, msg)
 	}
 
 	// Check for malformed commands.
-	command := hdr.command
-	if !isStrictAscii(command) {
-		msg := fmt.Sprintf("invalid command %v", []byte(command))
+	trimmedCommand := bytes.TrimRight(command[:], string(rune(0)))
+	if !isStrictAscii(string(trimmedCommand)) {
+		msg := fmt.Sprintf("invalid command %q", string(trimmedCommand))
 		return totalBytes, nil, nil, messageError(op, ErrMalformedCmd, msg)
 	}
 
 	// Create struct of appropriate message type based on the command.
-	msg, err := makeEmptyMessage(command)
+	msg, err := makeEmptyMessage(trimmedCommand)
 	if err != nil {
 		return totalBytes, nil, nil, err
 	}
@@ -407,33 +444,48 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	// could otherwise create a well-formed header and set the length to max
 	// numbers in order to exhaust the machine's memory.
 	mpl := msg.MaxPayloadLength(pver)
-	if hdr.length > mpl {
+	if payloadLen > mpl {
 		msg := fmt.Sprintf("payload exceeds max length - header "+
 			"indicates %v bytes, but max payload size for messages of "+
-			"type [%v] is %v.", hdr.length, command, mpl)
+			"type [%v] is %v.", payloadLen, msg.Command(), mpl)
 		return totalBytes, nil, nil, messageError(op, ErrPayloadTooLarge, msg)
 	}
 
-	// Read payload.
-	payload := make([]byte, hdr.length)
-	n, err = io.ReadFull(r, payload)
-	totalBytes += n
+	// Read payload into unread portion of the buffer.
+	grow := int(payloadLen)
+	if grow < bytes.MinRead {
+		grow = bytes.MinRead
+	}
+	buf.Grow(grow)
+	lr.N = int64(payloadLen)
+	read, err = buf.ReadFrom(lr)
+	totalBytes += int(read)
+	if lr.N > 0 {
+		err = io.EOF
+	}
 	if err != nil {
 		return totalBytes, nil, nil, err
 	}
+	// The Buffer.Bytes documentation states that this slice is not valid
+	// after the next read, however, the buffer is only invalid to access
+	// after the next write, reset, or truncate.  See
+	// https://github.com/golang/go/commit/5270b57e51b71f2b3410b601a9ba9f0a7a3d8441.
+	payload := buf.Bytes()
 
 	// Test checksum.
-	checksum := chainhash.HashB(payload)[0:4]
-	if !bytes.Equal(checksum, hdr.checksum[:]) {
-		msg := fmt.Sprintf("payload checksum failed - header indicates %v, "+
-			"but actual checksum is %v.", hdr.checksum, checksum)
+	payloadHash := chainhash.HashH(payload)
+	if !bytes.Equal(payloadHash[:4], checksum[:]) {
+		// Create heap copies to avoid leaking the originals in the
+		// fmt.Sprintf varargs.
+		payloadHash := payloadHash
+		checksum := checksum
+		msg := fmt.Sprintf("payload checksum failed - header indicates %x, "+
+			"but actual checksum is %x.", checksum[:], payloadHash[:4])
 		return totalBytes, nil, nil, messageError(op, ErrPayloadChecksum, msg)
 	}
 
-	// Unmarshal message.  NOTE: This must be a *bytes.Buffer since the
-	// MsgVersion BtcDecode function requires it.
-	pr := bytes.NewBuffer(payload)
-	err = msg.BtcDecode(pr, pver)
+	// Unmarshal message using the unread payload in the buffer.
+	err = msg.BtcDecode(buf, pver)
 	if err != nil {
 		return totalBytes, nil, nil, err
 	}
