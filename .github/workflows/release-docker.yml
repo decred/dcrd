@@ -1,0 +1,41 @@
+name: Build and Push Docker Image
+
+on:
+  release:
+    types: [created]
+
+env:
+  DOCKER_CLI_EXPERIMENTAL: enabled
+  IMAGE_NAME: decred/dcrd
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Checkout project
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c #v3.3.0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 #v2.1.0
+
+      - name: Setup Docker buildx action
+        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 #v2.4.1
+
+      - name: Set Docker image tag
+        run: echo "IMAGE_TAG=$(sed 's/release-//' <<< ${{ github.ref_name }})" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        run: |
+          docker buildx build  \
+            -f contrib/docker/Dockerfile \
+            --tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            --build-arg DCRD_BUILD_TAG=${{ github.ref_name }} \
+            --platform linux/arm64,linux/amd64 \
+            --output "type=registry" .
