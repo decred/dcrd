@@ -239,13 +239,33 @@ func readScript(r io.Reader, pver uint32, maxAllowed uint32, fieldName string) (
 		return nil, messageError(op, ErrVarBytesTooLong, msg)
 	}
 
-	b := scriptPool.Borrow(count)
-	_, err = io.ReadFull(r, b)
-	if err != nil {
-		scriptPool.Return(b)
-		return nil, err
+	switch r := r.(type) {
+	// Read the script bytes from the underlying buffer when called by
+	// ReadMessageN.  This requires that the buffer will not be reset or
+	// truncated in the future (which is not a guarantee that can be made
+	// for any bytes.Buffer passed to BtcDecode).
+	case *wireBuffer:
+		b := r.Next(int(count))
+		if count != 0 && len(b) == 0 {
+			return nil, io.EOF
+		}
+		if len(b) < int(count) {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return b, nil
+
+	// In all other cases, borrow a temporary buffer from the scriptPool
+	// freelist (before copying all scripts to a single contiguous
+	// allocation and returning buffers back to the pool).
+	default:
+		b := scriptPool.Borrow(count)
+		_, err = io.ReadFull(r, b)
+		if err != nil {
+			scriptPool.Return(b)
+			return nil, err
+		}
+		return b, nil
 	}
-	return b, nil
 }
 
 // OutPoint defines a Decred data type that is used to track previous
@@ -669,12 +689,12 @@ func (msg *MsgTx) decodePrefix(r io.Reader, pver uint32) (uint64, error) {
 	}
 
 	// Locktime and expiry.
-	msg.LockTime, err = binarySerializer.Uint32(r, littleEndian)
+	err = readUint32LE(r, &msg.LockTime)
 	if err != nil {
 		return 0, err
 	}
 
-	msg.Expiry, err = binarySerializer.Uint32(r, littleEndian)
+	err = readUint32LE(r, &msg.Expiry)
 	if err != nil {
 		return 0, err
 	}
@@ -775,12 +795,21 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 	// The serialized encoding of the version includes the real transaction
 	// version in the lower 16 bits and the transaction serialization type
 	// in the upper 16 bits.
-	version, err := binarySerializer.Uint32(r, littleEndian)
+	var version uint32
+	err := readUint32LE(r, &version)
 	if err != nil {
 		return err
 	}
 	msg.Version = uint16(version & 0xffff)
 	msg.SerType = TxSerializeType(version >> 16)
+
+	var copyScripts bool
+	switch r.(type) {
+	case *wireBuffer:
+		copyScripts = false
+	default:
+		copyScripts = true
+	}
 
 	// returnScriptBuffers is a closure that returns any script buffers that
 	// were borrowed from the pool when there are any deserialization
@@ -788,6 +817,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 	// replaces the scripts with the location in a contiguous buffer and
 	// returns them.
 	returnScriptBuffers := func() {
+		if !copyScripts {
+			return
+		}
 		for _, txIn := range msg.TxIn {
 			if txIn == nil || txIn.SignatureScript == nil {
 				continue
@@ -815,7 +847,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 			returnScriptBuffers()
 			return err
 		}
-		writeTxScriptsToMsgTx(msg, totalScriptSize, txSerType)
+		if copyScripts {
+			writeTxScriptsToMsgTx(msg, totalScriptSize, txSerType)
+		}
 
 	case TxSerializeOnlyWitness:
 		totalScriptSize, err := msg.decodeWitness(r, pver, false)
@@ -823,7 +857,9 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 			returnScriptBuffers()
 			return err
 		}
-		writeTxScriptsToMsgTx(msg, totalScriptSize, txSerType)
+		if copyScripts {
+			writeTxScriptsToMsgTx(msg, totalScriptSize, txSerType)
+		}
 
 	case TxSerializeFull:
 		totalScriptSizeIns, err := msg.decodePrefix(r, pver)
@@ -836,8 +872,10 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 			returnScriptBuffers()
 			return err
 		}
-		writeTxScriptsToMsgTx(msg, totalScriptSizeIns+
-			totalScriptSizeOuts, txSerType)
+		if copyScripts {
+			writeTxScriptsToMsgTx(msg, totalScriptSizeIns+
+				totalScriptSizeOuts, txSerType)
+		}
 
 	default:
 		return messageError(op, ErrUnknownTxType, "unsupported transaction type")
@@ -1134,12 +1172,13 @@ func ReadOutPoint(r io.Reader, pver uint32, version uint16, op *OutPoint) error 
 		return err
 	}
 
-	op.Index, err = binarySerializer.Uint32(r, littleEndian)
+	err = readUint32LE(r, &op.Index)
 	if err != nil {
 		return err
 	}
 
-	tree, err := binarySerializer.Uint8(r)
+	var tree uint8
+	err = readUint8(r, &tree)
 	if err != nil {
 		return err
 	}
@@ -1179,28 +1218,28 @@ func readTxInPrefix(r io.Reader, pver uint32, serType TxSerializeType, version u
 	}
 
 	// Sequence.
-	ti.Sequence, err = binarySerializer.Uint32(r, littleEndian)
-	return err
+	return readUint32LE(r, &ti.Sequence)
 }
 
 // readTxInWitness reads the next sequence of bytes from r as a transaction input
 // (TxIn) in the transaction witness.
 func readTxInWitness(r io.Reader, pver uint32, version uint16, ti *TxIn) error {
 	// ValueIn.
-	valueIn, err := binarySerializer.Uint64(r, littleEndian)
+	var valueIn uint64
+	err := readUint64LE(r, &valueIn)
 	if err != nil {
 		return err
 	}
 	ti.ValueIn = int64(valueIn)
 
 	// BlockHeight.
-	ti.BlockHeight, err = binarySerializer.Uint32(r, littleEndian)
+	err = readUint32LE(r, &ti.BlockHeight)
 	if err != nil {
 		return err
 	}
 
 	// BlockIndex.
-	ti.BlockIndex, err = binarySerializer.Uint32(r, littleEndian)
+	err = readUint32LE(r, &ti.BlockIndex)
 	if err != nil {
 		return err
 	}
@@ -1250,13 +1289,14 @@ func writeTxInWitness(w io.Writer, pver uint32, version uint16, ti *TxIn) error 
 // readTxOut reads the next sequence of bytes from r as a transaction output
 // (TxOut).
 func readTxOut(r io.Reader, pver uint32, version uint16, to *TxOut) error {
-	value, err := binarySerializer.Uint64(r, littleEndian)
+	var value uint64
+	err := readUint64LE(r, &value)
 	if err != nil {
 		return err
 	}
 	to.Value = int64(value)
 
-	to.Version, err = binarySerializer.Uint16(r, littleEndian)
+	err = readUint16LE(r, &to.Version)
 	if err != nil {
 		return err
 	}
