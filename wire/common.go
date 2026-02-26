@@ -118,8 +118,8 @@ type uint64Time time.Time
 // The callback is called with a short buffer of 8 bytes in length, and only
 // size bytes should be read from this array.
 //
-// For longer reads and reads of byte arrays, dynamic dispatch to r.Read
-// should be used instead.
+// For longer reads and reads of byte arrays, io.ReadFull should be used
+// instead.
 //
 // This function will panic if called with a size greater than 8.
 func shortRead(r io.Reader, size int, cb func(p [8]byte)) error {
@@ -163,18 +163,9 @@ func shortRead(r io.Reader, size int, cb func(p [8]byte)) error {
 
 	default:
 		p := binarySerializer.Borrow()
-		n, err := r.Read(p[:size])
-		if err == io.EOF && n > 0 {
-			return io.ErrUnexpectedEOF
-		}
+		_, err := io.ReadFull(r, p[:size])
 		if err != nil {
 			return err
-		}
-		if n == 0 {
-			return io.EOF
-		}
-		if n != size {
-			return io.ErrUnexpectedEOF
 		}
 		cb(*(*[8]byte)(p))
 		binarySerializer.Return(p)
