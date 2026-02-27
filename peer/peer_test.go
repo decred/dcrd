@@ -596,10 +596,29 @@ func TestPeerListeners(t *testing.T) {
 	}}
 
 	t.Logf("Running %d tests", len(tests))
+	prevPver := inPeer.ProtocolVersion()
+	changeProtocolVer := func(pver uint32) {
+		inPeer.flagsMtx.Lock()
+		inPeer.protocolVersion = pver
+		inPeer.flagsMtx.Unlock()
+		outPeer.flagsMtx.Lock()
+		outPeer.protocolVersion = pver
+		outPeer.flagsMtx.Unlock()
+		// The async read might already be blocking with the previous protocol
+		// version.  Send an extra message to guarantee the subsequent reads use
+		// the updated one.
+		outPeer.QueueMessage(wire.NewMsgPing(0), nil)
+		select {
+		case <-ok:
+		case <-time.After(time.Second * 1):
+			t.Fatal("TestPeerListeners: pver change timeout")
+		}
+	}
 	for _, test := range tests {
-		testPver := test.pver
-		inPeer.protocolVersion = testPver
-		outPeer.protocolVersion = testPver
+		if prevPver != test.pver {
+			changeProtocolVer(test.pver)
+			prevPver = test.pver
+		}
 		// Queue the test message
 		outPeer.QueueMessage(test.msg, nil)
 		select {
