@@ -483,7 +483,7 @@ type Peer struct {
 	na                   *wire.NetAddressV2
 	id                   int32
 	userAgent            string
-	services             wire.ServiceFlag
+	remoteServices       wire.ServiceFlag
 	versionKnown         bool
 	handshakeDone        bool
 	advertisedProtoVer   uint32 // protocol version advertised by remote
@@ -570,7 +570,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 	id := p.id
 	addr := p.addr
 	userAgent := p.userAgent
-	services := p.services
+	services := p.remoteServices
 	protocolVersion := p.advertisedProtoVer
 	p.flagsMtx.Unlock()
 
@@ -646,7 +646,7 @@ func (p *Peer) Inbound() bool {
 // This function is safe for concurrent access.
 func (p *Peer) Services() wire.ServiceFlag {
 	p.flagsMtx.Lock()
-	services := p.services
+	services := p.remoteServices
 	p.flagsMtx.Unlock()
 
 	return services
@@ -2017,7 +2017,7 @@ func (p *Peer) readRemoteVersionMsg() error {
 	p.advertisedProtoVer = uint32(msg.ProtocolVersion)
 	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
 	p.versionKnown = true
-	p.services = msg.Services
+	p.remoteServices = msg.Services
 	p.na.Services = msg.Services
 	p.flagsMtx.Unlock()
 	log.Debugf("Negotiated protocol version %d for peer %s",
@@ -2234,8 +2234,9 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 
 		// Set up a NetAddress for the peer to be used with AddrManager.  We
 		// only do this inbound because outbound set this up at connection time
-		// and no point recomputing.
-		na, err := newNetAddress(p.conn.RemoteAddr(), p.services)
+		// and no point recomputing.  The supported remote services are still
+		// unknown.
+		na, err := newNetAddress(p.conn.RemoteAddr(), 0)
 		if err != nil {
 			log.Errorf("Cannot create remote net address: %v", err)
 			p.Disconnect()
@@ -2302,7 +2303,6 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 		outQuit:         make(chan struct{}),
 		quit:            make(chan struct{}),
 		cfg:             cfg,
-		services:        cfg.Services,
 		protocolVersion: protocolVersion,
 	}
 	return &p
