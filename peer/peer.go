@@ -327,7 +327,7 @@ func minUint32(a, b uint32) uint32 {
 }
 
 // newNetAddress attempts to extract the IP address and port from the passed
-// net.Addr interface and create a NetAddress structure using that information.
+// net.Addr interface and create a NetAddressV2 structure using that information.
 func newNetAddress(addr net.Addr, services wire.ServiceFlag) (*wire.NetAddressV2, error) {
 	// addr will be a net.TCPAddr when not using a proxy.
 	if tcpAddr, ok := addr.(*net.TCPAddr); ok {
@@ -480,7 +480,6 @@ type Peer struct {
 	inbound    bool
 
 	flagsMtx             sync.Mutex // protects the peer flags below
-	na                   *wire.NetAddressV2
 	id                   int32
 	userAgent            string
 	remoteServices       wire.ServiceFlag
@@ -608,21 +607,6 @@ func (p *Peer) ID() int32 {
 	p.flagsMtx.Unlock()
 
 	return id
-}
-
-// NA returns the peer network address.
-//
-// This function is safe for concurrent access.
-func (p *Peer) NA() *wire.NetAddressV2 {
-	p.flagsMtx.Lock()
-	if p.na == nil {
-		p.flagsMtx.Unlock()
-		return nil
-	}
-	na := *p.na
-	p.flagsMtx.Unlock()
-
-	return &na
 }
 
 // Addr returns the remote peer address.
@@ -2019,7 +2003,6 @@ func (p *Peer) readRemoteVersionMsg() error {
 	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
 	p.versionKnown = true
 	p.remoteServices = msg.Services
-	p.na.Services = msg.Services
 	p.flagsMtx.Unlock()
 	log.Debugf("Negotiated protocol version %d for peer %s",
 		p.protocolVersion, p)
@@ -2066,23 +2049,48 @@ func (p *Peer) localVersionMsg() (*wire.MsgVersion, error) {
 		}
 	}
 
-	peerNA := p.NA()
+	// Create a [wire.NetAddress] for the remote peer using whatever services
+	// are currently known for it.  For inbound peers, the remote peer will have
+	// already reported its services and so it will be set to that value.  For
+	// outbound peers, it will be zero since their reported services are still
+	// unknown until they send their version message.
+	var theirNAv2 *wire.NetAddressV2
+	if p.Inbound() || p.cfg.HostToNetAddress == nil {
+		na, err := newNetAddress(p.remoteAddr, p.remoteServices)
+		if err != nil {
+			return nil, err
+		}
+		theirNAv2 = na
+	} else {
+		host, portStr, err := net.SplitHostPort(p.remoteAddr.String())
+		if err != nil {
+			return nil, err
+		}
+
+		port, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return nil, err
+		}
+
+		na, err := p.cfg.HostToNetAddress(host, uint16(port), 0)
+		if err != nil {
+			return nil, err
+		}
+		theirNAv2 = na
+	}
+	theirNA := wire.NewNetAddressIPPort(net.IP(theirNAv2.EncodedAddr),
+		theirNAv2.Port, theirNAv2.Services)
 
 	// If we are behind a proxy and the connection comes from the proxy then
 	// we return an unroutable address as their address. This is to prevent
 	// leaking the tor proxy address.
-	var theirNA *wire.NetAddress
 	if p.cfg.Proxy != "" {
 		proxyaddress, _, err := net.SplitHostPort(p.cfg.Proxy)
 		// invalid proxy means poorly configured, be on the safe side.
-		if err != nil || net.IP(p.na.EncodedAddr).String() == proxyaddress {
-			theirNA = wire.NewNetAddressIPPort(net.IP([]byte{0, 0, 0, 0}), 0,
-				peerNA.Services)
+		if err != nil || theirNA.IP.String() == proxyaddress {
+			theirNA.IP = net.IP([]byte{0, 0, 0, 0})
+			theirNA.Port = 0
 		}
-	}
-	if theirNA == nil {
-		theirNA = wire.NewNetAddressTimestamp(peerNA.Timestamp, peerNA.Services,
-			peerNA.EncodedAddr, peerNA.Port)
 	}
 
 	// Create a wire.NetAddress with only the services set to use as the
@@ -2232,20 +2240,6 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 
 	if p.inbound {
 		p.remoteAddr = p.conn.RemoteAddr()
-
-		// Set up a NetAddress for the peer to be used with AddrManager.  We
-		// only do this inbound because outbound set this up at connection time
-		// and no point recomputing.  The supported remote services are still
-		// unknown.
-		na, err := newNetAddress(p.conn.RemoteAddr(), 0)
-		if err != nil {
-			log.Errorf("Cannot create remote net address: %v", err)
-			p.Disconnect()
-			return
-		}
-		p.flagsMtx.Lock()
-		p.na = na
-		p.flagsMtx.Unlock()
 	}
 
 	go func(peer *Peer) {
@@ -2319,27 +2313,5 @@ func NewInboundPeer(cfg *Config) *Peer {
 func NewOutboundPeer(cfg *Config, addr net.Addr) (*Peer, error) {
 	p := newPeerBase(cfg, false)
 	p.remoteAddr = addr
-
-	host, portStr, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, err
-	}
-
-	port, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.HostToNetAddress != nil {
-		na, err := cfg.HostToNetAddress(host, uint16(port), 0)
-		if err != nil {
-			return nil, err
-		}
-		p.na = na
-	} else {
-		na := wire.NewNetAddressV2IPPort(net.ParseIP(host), uint16(port), 0)
-		p.na = &na
-	}
-
 	return p, nil
 }
