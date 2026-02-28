@@ -475,9 +475,9 @@ type Peer struct {
 
 	// These fields are set at creation time and never modified, so they are
 	// safe to read from concurrently without a mutex.
-	addr    string
-	cfg     Config
-	inbound bool
+	remoteAddr string
+	cfg        Config
+	inbound    bool
 
 	flagsMtx             sync.Mutex // protects the peer flags below
 	na                   *wire.NetAddressV2
@@ -526,7 +526,7 @@ type Peer struct {
 //
 // This function is safe for concurrent access.
 func (p *Peer) String() string {
-	return fmt.Sprintf("%s (%s)", p.addr, directionString(p.inbound))
+	return fmt.Sprintf("%s (%s)", p.remoteAddr, directionString(p.inbound))
 }
 
 // UpdateLastBlockHeight updates the last known block for the peer.
@@ -539,7 +539,7 @@ func (p *Peer) UpdateLastBlockHeight(newHeight int64) {
 		return
 	}
 	log.Tracef("Updating last block height of peer %v from %v to %v",
-		p.addr, p.lastBlock, newHeight)
+		p.remoteAddr, p.lastBlock, newHeight)
 	p.lastBlock = newHeight
 	p.statsMtx.Unlock()
 }
@@ -568,7 +568,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 
 	p.flagsMtx.Lock()
 	id := p.id
-	addr := p.addr
+	remoteAddr := p.remoteAddr
 	userAgent := p.userAgent
 	services := p.remoteServices
 	protocolVersion := p.advertisedProtoVer
@@ -577,7 +577,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 	// Get a copy of all relevant flags and stats.
 	statsSnap := &StatsSnap{
 		ID:             id,
-		Addr:           addr,
+		Addr:           remoteAddr,
 		UserAgent:      userAgent,
 		Services:       services,
 		LastSend:       p.LastSend(),
@@ -625,13 +625,13 @@ func (p *Peer) NA() *wire.NetAddressV2 {
 	return &na
 }
 
-// Addr returns the peer address.
+// Addr returns the remote peer address.
 //
 // This function is safe for concurrent access.
 func (p *Peer) Addr() string {
 	// The address doesn't change after initialization, therefore it is not
 	// protected by a mutex.
-	return p.addr
+	return p.remoteAddr
 }
 
 // Inbound returns whether the peer is inbound.
@@ -1188,7 +1188,8 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 	}
 
 	if addedDeadline {
-		log.Debugf("Adding deadline for command %s for peer %s", msgCmd, p.addr)
+		log.Debugf("Adding deadline for command %s for peer %s", msgCmd,
+			p.remoteAddr)
 	}
 }
 
@@ -2230,7 +2231,7 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 	p.statsMtx.Unlock()
 
 	if p.inbound {
-		p.addr = p.conn.RemoteAddr().String()
+		p.remoteAddr = p.conn.RemoteAddr().String()
 
 		// Set up a NetAddress for the peer to be used with AddrManager.  We
 		// only do this inbound because outbound set this up at connection time
@@ -2317,7 +2318,7 @@ func NewInboundPeer(cfg *Config) *Peer {
 // NewOutboundPeer returns a new outbound Decred peer.
 func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
 	p := newPeerBase(cfg, false)
-	p.addr = addr
+	p.remoteAddr = addr
 
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
