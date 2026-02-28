@@ -260,7 +260,7 @@ func TestPeerConnection(t *testing.T) {
 			inPeer := NewInboundPeer(peerCfg)
 			inPeer.AssociateConnection(inConn)
 
-			outPeer, err := NewOutboundPeer(peerCfg, outConn.raddr)
+			outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -285,7 +285,7 @@ func TestPeerConnection(t *testing.T) {
 			inPeer := NewInboundPeer(peerCfg)
 			inPeer.AssociateConnection(inConn)
 
-			outPeer, err := NewOutboundPeer(peerCfg, outConn.raddr)
+			outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -435,7 +435,7 @@ func TestPeerListeners(t *testing.T) {
 			verack <- struct{}{}
 		},
 	}
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.raddr)
+	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err %v\n", err)
 		return
@@ -639,7 +639,7 @@ func TestOldProtocolVersion(t *testing.T) {
 	defer inPeer.Disconnect()
 
 	peerCfg.Listeners = MessageListeners{}
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.raddr)
+	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err %v", err)
 		return
@@ -686,7 +686,7 @@ func TestOutboundPeer(t *testing.T) {
 	r, w := io.Pipe()
 	c := &conn{raddr: "10.0.0.1:8333", WriteCloser: w, ReadCloser: r}
 
-	p, err := NewOutboundPeer(peerCfg, c.raddr)
+	p, err := NewOutboundPeer(peerCfg, c.RemoteAddr())
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -742,7 +742,7 @@ func TestOutboundPeer(t *testing.T) {
 	peerCfg.NewestBlock = newestBlock
 	r1, w1 := io.Pipe()
 	c1 := &conn{raddr: "10.0.0.1:8333", WriteCloser: w1, ReadCloser: r1}
-	p1, err := NewOutboundPeer(peerCfg, c1.raddr)
+	p1, err := NewOutboundPeer(peerCfg, c1.RemoteAddr())
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -758,7 +758,7 @@ func TestOutboundPeer(t *testing.T) {
 	peerCfg.Services = wire.SFNodeBloom
 	r2, w2 := io.Pipe()
 	c2 := &conn{raddr: "10.0.0.1:8333", WriteCloser: w2, ReadCloser: r2}
-	p2, err := NewOutboundPeer(peerCfg, c2.raddr)
+	p2, err := NewOutboundPeer(peerCfg, c2.RemoteAddr())
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -816,7 +816,7 @@ func TestDuplicateVersionMsg(t *testing.T) {
 		&conn{laddr: "10.0.0.1:9108", raddr: "10.0.0.2:9108"},
 		&conn{laddr: "10.0.0.2:9108", raddr: "10.0.0.1:9108"},
 	)
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.raddr)
+	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Fatalf("NewOutboundPeer: unexpected err: %v\n", err)
 	}
@@ -910,7 +910,7 @@ func TestUpdateLastBlockHeight(t *testing.T) {
 		&conn{laddr: "10.0.0.1:9108", raddr: "10.0.0.2:9108"},
 		&conn{laddr: "10.0.0.2:9108", raddr: "10.0.0.1:9108"},
 	)
-	localPeer, err := NewOutboundPeer(&peerCfg, outConn.raddr)
+	localPeer, err := NewOutboundPeer(&peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Fatalf("NewOutboundPeer: unexpected err: %v\n", err)
 	}
@@ -1001,7 +1001,7 @@ func TestPushAddrV2Msg(t *testing.T) {
 
 	// Create a peer with the connection.
 	cfg := &Config{}
-	peer, err := NewOutboundPeer(cfg, outConn.raddr)
+	peer, err := NewOutboundPeer(cfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Fatalf("NewOutboundPeer: unexpected err: %v", err)
 	}

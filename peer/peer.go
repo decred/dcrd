@@ -475,7 +475,7 @@ type Peer struct {
 
 	// These fields are set at creation time and never modified, so they are
 	// safe to read from concurrently without a mutex.
-	remoteAddr string
+	remoteAddr net.Addr
 	cfg        Config
 	inbound    bool
 
@@ -577,7 +577,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 	// Get a copy of all relevant flags and stats.
 	statsSnap := &StatsSnap{
 		ID:             id,
-		Addr:           remoteAddr,
+		Addr:           remoteAddr.String(),
 		UserAgent:      userAgent,
 		Services:       services,
 		LastSend:       p.LastSend(),
@@ -631,7 +631,7 @@ func (p *Peer) NA() *wire.NetAddressV2 {
 func (p *Peer) Addr() string {
 	// The address doesn't change after initialization, therefore it is not
 	// protected by a mutex.
-	return p.remoteAddr
+	return p.remoteAddr.String()
 }
 
 // Inbound returns whether the peer is inbound.
@@ -2231,7 +2231,7 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 	p.statsMtx.Unlock()
 
 	if p.inbound {
-		p.remoteAddr = p.conn.RemoteAddr().String()
+		p.remoteAddr = p.conn.RemoteAddr()
 
 		// Set up a NetAddress for the peer to be used with AddrManager.  We
 		// only do this inbound because outbound set this up at connection time
@@ -2316,11 +2316,11 @@ func NewInboundPeer(cfg *Config) *Peer {
 }
 
 // NewOutboundPeer returns a new outbound Decred peer.
-func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
+func NewOutboundPeer(cfg *Config, addr net.Addr) (*Peer, error) {
 	p := newPeerBase(cfg, false)
 	p.remoteAddr = addr
 
-	host, portStr, err := net.SplitHostPort(addr)
+	host, portStr, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return nil, err
 	}
