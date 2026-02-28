@@ -17,7 +17,7 @@ import (
 // mockRemotePeer creates a basic inbound peer listening on the simnet port for
 // use with Example_peerConnection.  It does not return until the listener is
 // active.
-func mockRemotePeer() error {
+func mockRemotePeer(listenAddr string) (net.Listener, error) {
 	// Configure peer to act as a simnet node that offers no services.
 	peerCfg := &peer.Config{
 		UserAgentName:    "peer",  // User agent name to advertise.
@@ -27,9 +27,9 @@ func mockRemotePeer() error {
 	}
 
 	// Accept connections on the simnet port.
-	listener, err := net.Listen("tcp", "127.0.0.1:18555")
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	go func() {
 		conn, err := listener.Accept()
@@ -43,7 +43,7 @@ func mockRemotePeer() error {
 		p.AssociateConnection(conn)
 	}()
 
-	return nil
+	return listener, nil
 }
 
 // This example demonstrates the basic process for initializing and creating an
@@ -55,10 +55,12 @@ func Example_newOutboundPeer() {
 	// connecting to a remote peer, however, since this example is executed
 	// and tested, a mock remote peer is needed to listen for the outbound
 	// peer.
-	if err := mockRemotePeer(); err != nil {
+	listener, err := mockRemotePeer("127.0.0.1:18555")
+	if err != nil {
 		fmt.Printf("mockRemotePeer: unexpected error %v\n", err)
 		return
 	}
+	defer listener.Close()
 
 	// Create an outbound peer that is configured to act as a simnet node
 	// that offers no services and has listeners for the version and verack
@@ -80,7 +82,7 @@ func Example_newOutboundPeer() {
 		},
 		IdleTimeout: time.Second * 120,
 	}
-	p, err := peer.NewOutboundPeer(peerCfg, "127.0.0.1:18555")
+	p, err := peer.NewOutboundPeer(peerCfg, listener.Addr())
 	if err != nil {
 		fmt.Printf("NewOutboundPeer: error %v\n", err)
 		return
