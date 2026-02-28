@@ -657,7 +657,13 @@ type serverPeer struct {
 
 	// These fields are set at creation time and never modified afterwards, so
 	// they do not need to be protected for concurrent access.
+	//
+	// Note that remoteAddr will NOT have the services flags set.  This is
+	// intentional since they are not known until the remote peer reports them.
+	// The service flags are updated in the address manager directly once the
+	// peer reports them.  The service flags on this instance are never used.
 	server        *server
+	remoteAddr    *addrmgr.NetAddress
 	persistent    bool
 	isWhitelisted bool
 	quit          chan struct{}
@@ -711,9 +717,10 @@ type serverPeer struct {
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
 // the caller.
-func newServerPeer(s *server, isPersistent bool) *serverPeer {
+func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool) *serverPeer {
 	return &serverPeer{
 		server:         s,
+		remoteAddr:     remoteAddr,
 		persistent:     isPersistent,
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
@@ -1161,28 +1168,6 @@ func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 	return isSupportedNetAddressTypeV2
 }
 
-// NA returns the address manager network address for the peer.
-//
-// This method shadows the embedded peer.Peer.NA() method to provide the
-// address manager representation directly, eliminating the need for explicit
-// conversion at call sites.
-//
-// This function is safe for concurrent access.
-func (sp *serverPeer) NA() *addrmgr.NetAddress {
-	wireNA := sp.Peer.NA()
-	if wireNA == nil {
-		return nil
-	}
-
-	return &addrmgr.NetAddress{
-		Type:      wireToAddrmgrNetAddressType(wireNA.Type),
-		IP:        wireNA.EncodedAddr,
-		Port:      wireNA.Port,
-		Timestamp: wireNA.Timestamp,
-		Services:  wireNA.Services,
-	}
-}
-
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
@@ -1198,10 +1183,9 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// it is updated regardless in the case a new minimum protocol version is
 	// enforced and the remote node has not upgraded yet.
 	isInbound := sp.Inbound()
-	remoteAddr := sp.NA()
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
-		err := addrManager.SetServices(remoteAddr, msg.Services)
+		err := addrManager.SetServices(sp.remoteAddr, msg.Services)
 		if err != nil {
 			srvrLog.Errorf("Setting services for address failed: %v", err)
 		}
@@ -1271,7 +1255,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 			// Get address that best matches.
 			pver := uint32(msg.ProtocolVersion)
 			addrTypeFilter := natfSupported(pver)
-			lna := addrManager.GetBestLocalAddress(remoteAddr, addrTypeFilter)
+			lna := addrManager.GetBestLocalAddress(sp.remoteAddr, addrTypeFilter)
 			if lna.IsRoutable() {
 				addresses := []*addrmgr.NetAddress{lna}
 				sp.pushAddrMsg(pver, addresses)
@@ -1288,7 +1272,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		}
 
 		// Mark the address as a known good address.
-		err := addrManager.Good(remoteAddr)
+		err := addrManager.Good(sp.remoteAddr)
 		if err != nil {
 			srvrLog.Errorf("Marking address as good failed: %v", err)
 		}
@@ -1914,8 +1898,7 @@ func (sp *serverPeer) OnAddr(_ *peer.Peer, msg *wire.MsgAddr) {
 	// Add addresses to server address manager.  The address manager handles
 	// the details of things such as preventing duplicate addresses, max
 	// addresses, and last seen updates.
-	remoteAddr := sp.NA()
-	sp.server.addrManager.AddAddresses(addrList, remoteAddr)
+	sp.server.addrManager.AddAddresses(addrList, sp.remoteAddr)
 }
 
 // OnAddrV2 is invoked when a peer receives an addrv2 wire message and is used
@@ -1969,8 +1952,7 @@ func (sp *serverPeer) OnAddrV2(_ *peer.Peer, msg *wire.MsgAddrV2) {
 	// Add addresses to server address manager.  The address manager handles
 	// the details of things such as preventing duplicate addresses, max
 	// addresses, and last seen updates.
-	remoteAddr := sp.NA()
-	sp.server.addrManager.AddAddresses(addrList, remoteAddr)
+	sp.server.addrManager.AddAddresses(addrList, sp.remoteAddr)
 }
 
 // onMixMessage is the generic handler for all mix messages handler callbacks.
@@ -2423,6 +2405,33 @@ func disconnectPeer(peerList map[int32]*serverPeer, compareFunc func(*serverPeer
 	return false
 }
 
+// connToNetAddr parses and returns an address manager network address from the
+// remote address associated with the given connection.
+//
+// This function is safe for concurrent access.
+func connToNetAddr(conn net.Conn) (*addrmgr.NetAddress, error) {
+	addrStr := conn.RemoteAddr().String()
+	host, portStr, err := net.SplitHostPort(addrStr)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	addrType, addrBytes := addrmgr.EncodeHost(host)
+	if addrType == addrmgr.UnknownAddressType {
+		return nil, fmt.Errorf("unable to determin address type: %v", addrStr)
+	}
+
+	// Since the host type has been successfully recognized and encoded,
+	// there is no need to perform a DNS lookup.
+	now := time.Unix(time.Now().Unix(), 0)
+	return addrmgr.NewNetAddressFromParams(addrType, addrBytes, uint16(port),
+		now, 0)
+}
+
 // handleBannedConn closes the provided connection if the remote address
 // associated with it is banned or the address can't be properly parsed.  It
 // returns true when the connection is closed.
@@ -2525,12 +2534,20 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // instance, associates it with the connection, and starts all additional server
 // peer processing goroutines.
 func (s *server) inboundPeerConnected(conn net.Conn) {
+	remoteNetAddr, err := connToNetAddr(conn)
+	if err != nil {
+		srvrLog.Debugf("Unable to create inbound peer for address %s: %v",
+			conn.RemoteAddr(), err)
+		conn.Close()
+		return
+	}
+
 	// Disconnect banned connections.
 	if disconnected := s.handleBannedConn(conn); disconnected {
 		return
 	}
 
-	sp := newServerPeer(s, false)
+	sp := newServerPeer(s, remoteNetAddr, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
@@ -2544,6 +2561,13 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 // request instance and the connection itself, and start all additional server
 // peer processing goroutines.
 func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
+	remoteNetAddr, err := connToNetAddr(conn)
+	if err != nil {
+		srvrLog.Debugf("Unable to create outbound peer for address %s: %v",
+			conn.RemoteAddr(), err)
+		conn.Close()
+	}
+
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
@@ -2551,7 +2575,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		return
 	}
 
-	sp := newServerPeer(s, c.Permanent)
+	sp := newServerPeer(s, remoteNetAddr, c.Permanent)
 	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr.String())
 	if err != nil {
 		srvrLog.Debugf("Cannot create outbound peer %s: %v", c.Addr, err)
@@ -2613,7 +2637,7 @@ out:
 func (ps *peerState) connectionsWithIP(ip net.IP) int {
 	var total int
 	ps.forAllPeers(func(sp *serverPeer) {
-		if ip.Equal(sp.NA().IP) {
+		if ip.Equal(sp.remoteAddr.IP) {
 			total++
 		}
 
@@ -2643,7 +2667,7 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	// Limit max number of connections from a single IP.  However, allow
 	// whitelisted inbound peers and localhost connections regardless.
 	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := net.IP(sp.NA().IP)
+	peerIP := net.IP(sp.remoteAddr.IP)
 	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
 		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
 
@@ -2688,8 +2712,7 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	}
 
 	// The peer is an outbound peer at this point.
-	remoteAddr := sp.NA()
-	state.outboundGroups[remoteAddr.GroupKey()]++
+	state.outboundGroups[sp.remoteAddr.GroupKey()]++
 	if sp.persistent {
 		state.persistentPeers[sp.ID()] = sp
 	} else {
@@ -2726,7 +2749,7 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 
 		localAddr := wireToAddrmgrNetAddress(na)
 		good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
-			remoteAddr)
+			sp.remoteAddr)
 		if !good {
 			return true
 		}
@@ -2795,8 +2818,7 @@ func (s *server) DonePeer(sp *serverPeer) {
 	}
 	if _, ok := list[sp.ID()]; ok {
 		if !sp.Inbound() && sp.VersionKnown() {
-			remoteAddr := sp.NA()
-			state.outboundGroups[remoteAddr.GroupKey()]--
+			state.outboundGroups[sp.remoteAddr.GroupKey()]--
 		}
 		if !sp.Inbound() {
 			connReq := sp.connReq.Load()
@@ -2819,11 +2841,8 @@ func (s *server) DonePeer(sp *serverPeer) {
 	// skipped when running on the simulation and regression test networks since
 	// they are only intended to connect to specified peers and actively avoid
 	// advertising and connecting to discovered peers.
-	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() &&
-		sp.NA() != nil {
-
-		remoteAddr := sp.NA()
-		err := s.addrManager.Connected(remoteAddr)
+	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() {
+		err := s.addrManager.Connected(sp.remoteAddr)
 		if err != nil {
 			srvrLog.Errorf("Marking address as connected failed: %v", err)
 		}
