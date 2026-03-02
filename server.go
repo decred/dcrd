@@ -668,6 +668,9 @@ type serverPeer struct {
 	isWhitelisted bool
 	quit          chan struct{}
 
+	handshakeDone          chan struct{}
+	closeHandshakeDoneOnce sync.Once
+
 	// syncMgrPeer houses the network sync manager peer instance that wraps the
 	// underlying peer similar to the way this server peer itself wraps it.
 	syncMgrPeer *netsync.Peer
@@ -724,6 +727,7 @@ func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool)
 		persistent:     isPersistent,
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
+		handshakeDone:  make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
@@ -917,6 +921,9 @@ func (sp *serverPeer) Run() {
 		sp.serveGetData()
 		wg.Done()
 	}()
+
+	// Add valid peer to the server.
+	sp.server.AddPeer(sp)
 
 	// Wait for the peer to disconnect and notify the net sync manager and
 	// server accordingly.
@@ -1286,15 +1293,13 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
 	sp.server.timeSource.AddTimeSample(sp.Addr(), msg.Timestamp)
-
-	// Add valid peer to the server.
-	sp.server.AddPeer(sp)
 }
 
 // OnVerAck is invoked when a peer receives a verack wire message.  It creates
 // and sends a sendheaders message to request all block annoucements are made
 // via full headers instead of the inv message.
 func (sp *serverPeer) OnVerAck(_ *peer.Peer, msg *wire.MsgVerAck) {
+	sp.closeHandshakeDoneOnce.Do(func() { close(sp.handshakeDone) })
 	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
 }
 
@@ -2550,8 +2555,14 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 	sp := newServerPeer(s, remoteNetAddr, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
-	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.AssociateConnection(conn)
+	select {
+	case <-sp.handshakeDone:
+	case <-time.After(30 * time.Second):
+		srvrLog.Debugf("Handshake timeout for inbound peer %s", conn.RemoteAddr())
+		return
+	}
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	go sp.Run()
 }
 
@@ -2583,10 +2594,17 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		return
 	}
 	sp.Peer = p
-	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.connReq.Store(c)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
+	select {
+	case <-sp.handshakeDone:
+	case <-time.After(30 * time.Second):
+		srvrLog.Debugf("Handshake timeout from outbound peer %s", c.Addr)
+		s.connManager.Disconnect(c.ID())
+		return
+	}
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	go sp.Run()
 }
 
