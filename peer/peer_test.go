@@ -108,9 +108,6 @@ type peerStats struct {
 	wantServices        wire.ServiceFlag
 	wantProtocolVersion uint32
 	wantConnected       bool
-	wantVersionKnown    bool
-	wantVerAckReceived  bool
-	wantHandshakeDone   bool
 	wantLastBlock       int64
 	wantStartingHeight  int64
 	wantLastPingTime    time.Time
@@ -196,19 +193,6 @@ func testPeerState(t *testing.T, p *Peer, s peerStats) {
 		t.Fatalf("wrong LastPingMicros - got %v, want %v", got, s.wantLastPingMicros)
 	}
 
-	if got := p.VerAckReceived(); got != s.wantVerAckReceived {
-		t.Fatalf("wrong VerAckReceived - got %v, want %v", got, s.wantVerAckReceived)
-	}
-
-	if got := p.VersionKnown(); got != s.wantVersionKnown {
-		t.Fatalf("wrong VersionKnown - got %v, want %v", got, s.wantVersionKnown)
-	}
-
-	if got := p.HandshakeDone(); got != s.wantHandshakeDone {
-		t.Fatalf("wrong HandshakeDone - got %v, want %v", got, s.wantHandshakeDone)
-		return
-	}
-
 	if got := p.ProtocolVersion(); got != s.wantProtocolVersion {
 		t.Fatalf("wrong ProtocolVersion - got %v, want %v", got, s.wantProtocolVersion)
 	}
@@ -268,9 +252,6 @@ func TestPeerHandshake(t *testing.T) {
 		wantServices:        0,
 		wantProtocolVersion: MaxProtocolVersion,
 		wantConnected:       true,
-		wantVersionKnown:    true,
-		wantVerAckReceived:  true,
-		wantHandshakeDone:   true,
 		wantLastPingTime:    time.Time{},
 		wantLastPingNonce:   uint64(0),
 		wantLastPingMicros:  int64(0),
