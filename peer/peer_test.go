@@ -652,27 +652,28 @@ func TestOldProtocolVersion(t *testing.T) {
 	}
 }
 
-// TestOutboundPeer tests that the outbound peer works as expected.
-func TestOutboundPeer(t *testing.T) {
+// TestNoNewestBlock ensures peers are disconnected due to an error returned by
+// the caller-provided newest block callback.
+func TestNoNewestBlock(t *testing.T) {
+	// Create a pair of peers that connects to each other using a fake conn
+	// such that the inbound peer has a newest block callback that errors.
 	peerCfg := mockPeerConfig()
-	peerCfg.NewestBlock = func() (*chainhash.Hash, int64, error) {
-		return nil, 0, errors.New("newest block not found")
-	}
-	r, w := io.Pipe()
-	c := &conn{raddr: "10.0.0.1:9108", WriteCloser: w, ReadCloser: r}
-
-	p, err := NewOutboundPeer(peerCfg, c.RemoteAddr())
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.1:9108")
+	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
+	outPeer.AssociateConnection(outConn)
+	peerCfg.NewestBlock = func() (*chainhash.Hash, int64, error) {
+		return nil, 0, errors.New("newest block not found")
+	}
+	inPeer := NewInboundPeer(peerCfg)
+	inPeer.AssociateConnection(inConn)
 
-	// Test trying to connect twice.
-	p.AssociateConnection(c)
-	p.AssociateConnection(c)
-
+	// Ensure the inbound peer disconnects due to the error.
 	disconnected := make(chan struct{})
 	go func() {
-		p.WaitForDisconnect()
+		inPeer.WaitForDisconnect()
 		disconnected <- struct{}{}
 	}()
 
@@ -680,88 +681,55 @@ func TestOutboundPeer(t *testing.T) {
 	case <-disconnected:
 		close(disconnected)
 	case <-time.After(time.Second):
-		t.Fatal("Peer did not automatically disconnect.")
+		t.Fatal("peer did not automatically disconnect")
 	}
 
-	if p.Connected() {
-		t.Fatal("Should not be connected as NewestBlock produces error")
+	if inPeer.Connected() {
+		t.Fatal("inbound peer should not be connected")
 	}
 
-	// Test Queue Inv
-	fakeBlockHash := &chainhash.Hash{0: 0x00, 1: 0x01}
-	fakeInv := wire.NewInvVect(wire.InvTypeBlock, fakeBlockHash)
-
-	// Should be noops as the peer could not connect.
-	p.QueueInventory(fakeInv)
-	p.AddKnownInventory(fakeInv)
-	p.QueueInventory(fakeInv)
-
-	fakeMsg := wire.NewMsgVerAck()
-	p.QueueMessage(fakeMsg, nil)
-	done := make(chan struct{})
-	p.QueueMessage(fakeMsg, done)
-	<-done
-	p.Disconnect()
-
-	// Test NewestBlock
-	newestBlock := func() (*chainhash.Hash, int64, error) {
-		hashStr := "14a0810ac680a3eb3f82edc878cea25ec41d6b790744e5daeef"
-		hash, err := chainhash.NewHashFromStr(hashStr)
-		if err != nil {
-			return nil, 0, err
-		}
-		return hash, 234439, nil
+	// The outbound peer should still be waiting for a response.  Both sides
+	// would be disconnected in a real setup, but fake connections are used, so
+	// this provides a convenient way to test it didn't error.
+	if !outPeer.Connected() {
+		t.Fatal("outbound peer should be connected")
 	}
 
-	peerCfg.NewestBlock = newestBlock
-	r1, w1 := io.Pipe()
-	c1 := &conn{raddr: "10.0.0.1:9108", WriteCloser: w1, ReadCloser: r1}
-	p1, err := NewOutboundPeer(peerCfg, c1.RemoteAddr())
+	// Repeat, but in the other direction so the outbound peer has the error.
+	inConn, outConn = pipe("10.0.0.1:9108", "10.0.0.1:9108")
+	outPeer, err = NewOutboundPeer(peerCfg, outConn.RemoteAddr())
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	p1.AssociateConnection(c1)
+	outPeer.AssociateConnection(outConn)
+	peerCfg.NewestBlock = nil
+	inPeer = NewInboundPeer(peerCfg)
+	inPeer.AssociateConnection(inConn)
 
-	// Test Queue Inv after connection
-	p1.QueueInventory(fakeInv)
-	p1.Disconnect()
+	// Ensure the outbound peer disconnects due to the error.
+	disconnected = make(chan struct{})
+	go func() {
+		outPeer.WaitForDisconnect()
+		disconnected <- struct{}{}
+	}()
 
-	// Test testnet
-	peerCfg.Net = wire.TestNet3
-	peerCfg.Services = wire.SFNodeBloom
-	r2, w2 := io.Pipe()
-	c2 := &conn{raddr: "10.0.0.1:9108", WriteCloser: w2, ReadCloser: r2}
-	p2, err := NewOutboundPeer(peerCfg, c2.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	p2.AssociateConnection(c2)
-
-	// Test PushXXX
-	var addrs []*wire.NetAddress
-	for i := 0; i < 5; i++ {
-		na := wire.NetAddress{}
-		addrs = append(addrs, &na)
-	}
-	if _, err := p2.PushAddrMsg(addrs); err != nil {
-		t.Fatalf("unexpected err %v", err)
-	}
-	if err := p2.PushGetBlocksMsg(nil, &chainhash.Hash{}); err != nil {
-		t.Fatalf("unexpected err %v", err)
-	}
-	if err := p2.PushGetHeadersMsg(nil, &chainhash.Hash{}); err != nil {
-		t.Fatalf("unexpected err %v", err)
+	select {
+	case <-disconnected:
+		close(disconnected)
+	case <-time.After(time.Second):
+		t.Fatal("peer did not automatically disconnect")
 	}
 
-	// Test Queue Messages
-	p2.QueueMessage(wire.NewMsgGetAddr(), nil)
-	p2.QueueMessage(wire.NewMsgPing(1), nil)
-	p2.QueueMessage(wire.NewMsgMemPool(), nil)
-	p2.QueueMessage(wire.NewMsgGetData(), nil)
-	p2.QueueMessage(wire.NewMsgGetHeaders(), nil)
-	p2.QueueMessage(wire.NewMsgFeeFilter(20000), nil)
+	if outPeer.Connected() {
+		t.Fatal("outbound peer should not be connected")
+	}
 
-	p2.Disconnect()
+	// The inbound peer should still be waiting for a response.  Both sides
+	// would be disconnected in a real setup, but fake connections are used, so
+	// this provides a convenient way to test it didn't error.
+	if !inPeer.Connected() {
+		t.Fatal("inbound peer should be connected")
+	}
 }
 
 // TestDuplicateVersionMsg ensures that receiving a version message after one
