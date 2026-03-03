@@ -2174,8 +2174,9 @@ func (p *Peer) negotiateOutboundProtocol() error {
 	return nil
 }
 
-// start begins processing input and output messages.
-func (p *Peer) start() error {
+// Start performs the initial handshake and begins processing input and output
+// messages.
+func (p *Peer) Start() error {
 	log.Tracef("Starting peer %s", p)
 
 	negotiateErr := make(chan error, 1)
@@ -2212,37 +2213,6 @@ func (p *Peer) start() error {
 	return nil
 }
 
-// AssociateConnection associates the given conn to the peer.
-// Calling this function when the peer is already connected will
-// have no effect.
-func (p *Peer) AssociateConnection(conn net.Conn) {
-	p.connMtx.Lock()
-
-	// Already connected?
-	if p.conn != nil {
-		p.connMtx.Unlock()
-		return
-	}
-
-	p.conn = conn
-	p.connMtx.Unlock()
-
-	p.statsMtx.Lock()
-	p.timeConnected = time.Now()
-	p.statsMtx.Unlock()
-
-	if p.inbound {
-		p.remoteAddr = p.conn.RemoteAddr()
-	}
-
-	go func(peer *Peer) {
-		if err := peer.start(); err != nil {
-			log.Debugf("Cannot start peer %v: %v", peer, err)
-			peer.Disconnect()
-		}
-	}(p)
-}
-
 // WaitForDisconnect waits until the peer has completely disconnected and all
 // resources are cleaned up.  This will happen if either the local or remote
 // side has been disconnected or the peer is forcibly disconnected via
@@ -2252,9 +2222,9 @@ func (p *Peer) WaitForDisconnect() {
 }
 
 // newPeerBase returns a new base Decred peer based on the inbound flag.  This
-// is used by the NewInboundPeer and NewOutboundPeer functions to perform base
-// setup needed by both types of peers.
-func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
+// is used by the [NewInboundPeer] and [NewOutboundPeer] functions to perform
+// base setup needed by both types of peers.
+func newPeerBase(cfgOrig *Config, conn net.Conn, inbound bool) *Peer {
 	// Copy to avoid mutating the caller and so the caller can't mutate.
 	cfg := *cfgOrig
 
@@ -2278,9 +2248,11 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 
 	p := Peer{
 		blake256Hasher: blake256.New(),
+		conn:           conn,
 		inbound:        inbound,
 		knownInventory: lru.NewSetWithDefaultTTL[wire.InvVect](
 			maxKnownInventory, maxKnownInventoryTTL),
+		timeConnected:   time.Now(),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
 		outputQueue:     make(chan outMsg, outputBufferSize),
 		sendQueue:       make(chan outMsg, 1),   // nonblocking sync
@@ -2296,15 +2268,20 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	return &p
 }
 
-// NewInboundPeer returns a new inbound Decred peer. Use Start to begin
-// processing incoming and outgoing messages.
-func NewInboundPeer(cfg *Config) *Peer {
-	return newPeerBase(cfg, true)
+// NewInboundPeer returns a new inbound Decred peer.  Use [Peer.Start] to
+// perform the initial version negotiation and begin processing incoming and
+// outgoing messages.
+func NewInboundPeer(cfg *Config, conn net.Conn) *Peer {
+	p := newPeerBase(cfg, conn, true)
+	p.remoteAddr = p.conn.RemoteAddr()
+	return p
 }
 
-// NewOutboundPeer returns a new outbound Decred peer.
-func NewOutboundPeer(cfg *Config, addr net.Addr) (*Peer, error) {
-	p := newPeerBase(cfg, false)
+// NewOutboundPeer returns a new outbound Decred peer.  Use [Peer.Start] to
+// perform the initial version negotiation and begin processing incoming and
+// outgoing messages.
+func NewOutboundPeer(cfg *Config, addr net.Addr, conn net.Conn) *Peer {
+	p := newPeerBase(cfg, conn, false)
 	p.remoteAddr = addr
-	return p, nil
+	return p
 }

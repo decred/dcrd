@@ -668,9 +668,6 @@ type serverPeer struct {
 	isWhitelisted bool
 	quit          chan struct{}
 
-	handshakeDone          chan struct{}
-	closeHandshakeDoneOnce sync.Once
-
 	// syncMgrPeer houses the network sync manager peer instance that wraps the
 	// underlying peer similar to the way this server peer itself wraps it.
 	syncMgrPeer *netsync.Peer
@@ -727,7 +724,6 @@ func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool)
 		persistent:     isPersistent,
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
-		handshakeDone:  make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
@@ -1299,7 +1295,6 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 // and sends a sendheaders message to request all block annoucements are made
 // via full headers instead of the inv message.
 func (sp *serverPeer) OnVerAck(_ *peer.Peer, msg *wire.MsgVerAck) {
-	sp.closeHandshakeDoneOnce.Do(func() { close(sp.handshakeDone) })
 	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
 }
 
@@ -2554,12 +2549,11 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 
 	sp := newServerPeer(s, remoteNetAddr, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout for inbound peer %s", conn.RemoteAddr())
+	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
+	if err := sp.Start(); err != nil {
+		srvrLog.Debugf("Unable to start inbound peer for address %s: %v",
+			conn.RemoteAddr(), err)
+		conn.Close()
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
@@ -2577,30 +2571,24 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		srvrLog.Debugf("Unable to create outbound peer for address %s: %v",
 			conn.RemoteAddr(), err)
 		conn.Close()
+		s.connManager.Disconnect(c.ID())
 	}
 
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
 	if disconnected := s.handleBannedConn(conn); disconnected {
+		s.connManager.Disconnect(c.ID())
 		return
 	}
 
 	sp := newServerPeer(s, remoteNetAddr, c.Permanent)
-	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr)
-	if err != nil {
-		srvrLog.Debugf("Cannot create outbound peer %s: %v", c.Addr, err)
-		s.connManager.Disconnect(c.ID())
-		return
-	}
+	p := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr, conn)
 	sp.Peer = p
 	sp.connReq.Store(c)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout from outbound peer %s", c.Addr)
+	if err := sp.Start(); err != nil {
+		srvrLog.Debugf("Cannot start outbound peer %s: %v", c.Addr, err)
 		s.connManager.Disconnect(c.ID())
 		return
 	}
