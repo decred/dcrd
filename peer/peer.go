@@ -478,12 +478,9 @@ type Peer struct {
 	id                   int32
 	userAgent            string
 	remoteServices       wire.ServiceFlag
-	versionKnown         bool
-	handshakeDone        bool
 	advertisedProtoVer   uint32 // protocol version advertised by remote
 	protocolVersion      uint32 // negotiated protocol version
 	sendHeadersPreferred bool   // peer sent a sendheaders message
-	verAckReceived       bool
 
 	// These fields are used to delay messages that arrive during the handshake
 	// on older protocol versions.  The associated logic can eventually be
@@ -680,42 +677,6 @@ func (p *Peer) LastPingMicros() int64 {
 	p.statsMtx.RUnlock()
 
 	return lastPingMicros
-}
-
-// VersionKnown returns the whether or not the version of a peer is known
-// locally.
-//
-// This function is safe for concurrent access.
-func (p *Peer) VersionKnown() bool {
-	p.flagsMtx.Lock()
-	versionKnown := p.versionKnown
-	p.flagsMtx.Unlock()
-
-	return versionKnown
-}
-
-// HandshakeDone returns whether initial version messages were sent and
-// received.
-//
-// This function is safe for concurrent access.
-func (p *Peer) HandshakeDone() bool {
-	p.flagsMtx.Lock()
-	handshakeDone := p.handshakeDone
-	p.flagsMtx.Unlock()
-
-	return handshakeDone
-}
-
-// VerAckReceived returns whether or not a verack message was received by the
-// peer.
-//
-// This function is safe for concurrent access.
-func (p *Peer) VerAckReceived() bool {
-	p.flagsMtx.Lock()
-	verAckReceived := p.verAckReceived
-	p.flagsMtx.Unlock()
-
-	return verAckReceived
 }
 
 // ProtocolVersion returns the negotiated peer protocol version.
@@ -1702,10 +1663,7 @@ out:
 			p.sendQueue <- next
 
 		case iv := <-p.outputInvChan:
-			// No handshake?  They'll find out soon enough.
-			if p.HandshakeDone() {
-				invSendQueue = append(invSendQueue, iv)
-			}
+			invSendQueue = append(invSendQueue, iv)
 
 		case <-trickleTimer.C:
 			// Don't send anything if we're disconnecting or there
@@ -2025,7 +1983,6 @@ func (p *Peer) readRemoteVersionMsg(onVersion OnVersionCallback) error {
 	p.flagsMtx.Lock()
 	p.advertisedProtoVer = uint32(msg.ProtocolVersion)
 	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
-	p.versionKnown = true
 	p.remoteServices = msg.Services
 	p.flagsMtx.Unlock()
 	log.Debugf("Negotiated protocol version %d for peer %s", p.protocolVersion,
@@ -2095,9 +2052,6 @@ func (p *Peer) readRemoteVerAckMsgLegacy() error {
 			"message within %d messages", maxNonVerAcks)
 		return makeError(ErrNotVerAckMessage, str)
 	}
-	p.flagsMtx.Lock()
-	p.verAckReceived = true
-	p.flagsMtx.Unlock()
 
 	return nil
 }
@@ -2118,9 +2072,6 @@ func (p *Peer) readRemoteVerAckMsg() error {
 			"and precede all others"
 		return makeError(ErrNotVerAckMessage, str)
 	}
-	p.flagsMtx.Lock()
-	p.verAckReceived = true
-	p.flagsMtx.Unlock()
 
 	return nil
 }
@@ -2261,10 +2212,6 @@ func (p *Peer) inboundHandshake(onVersion OnVersionCallback) error {
 		return err
 	}
 
-	p.flagsMtx.Lock()
-	p.handshakeDone = true
-	p.flagsMtx.Unlock()
-
 	return nil
 }
 
@@ -2297,10 +2244,6 @@ func (p *Peer) outboundHandshake(onVersion OnVersionCallback) error {
 	if err := p.writeMessage(wire.NewMsgVerAck()); err != nil {
 		return err
 	}
-
-	p.flagsMtx.Lock()
-	p.handshakeDone = true
-	p.flagsMtx.Unlock()
 
 	return nil
 }
