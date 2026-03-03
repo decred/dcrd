@@ -6,6 +6,7 @@
 package peer
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -115,6 +116,31 @@ type peerStats struct {
 	wantTimeOffset      int64
 	wantBytesSent       uint64
 	wantBytesReceived   uint64
+}
+
+// runPeersAsync invokes the [Peer.Start] method on the passed peers in separate
+// goroutines and returns a cancelable context and wait group the caller can use
+// to shutdown the peers and wait for clean shutdown.
+func runPeersAsync(t *testing.T, peers ...*Peer) (context.CancelFunc, *sync.WaitGroup) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(len(peers))
+	for _, peer := range peers {
+		go func(peer *Peer) {
+			if err := peer.Start(); err != nil {
+				if !errors.Is(err, io.EOF) {
+					t.Logf("failed to start peer %s: %v", peer.remoteAddr, err)
+				}
+			}
+			select {
+			case <-ctx.Done():
+				peer.Disconnect()
+			case <-peer.quit:
+			}
+			wg.Done()
+		}(peer)
+	}
+	return cancel, &wg
 }
 
 // testPeerState ensures the flags and state of the provided peer match the
@@ -236,56 +262,48 @@ func TestPeerConnection(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		setup func() (*Peer, *Peer, error)
+		setup func() (*Peer, *Peer, context.CancelFunc, *sync.WaitGroup, error)
 	}{{
 		"basic handshake",
-		func() (*Peer, *Peer, error) {
+		func() (*Peer, *Peer, context.CancelFunc, *sync.WaitGroup, error) {
 			inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
-			inPeer := NewInboundPeer(peerCfg)
-			inPeer.AssociateConnection(inConn)
-
-			outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-			if err != nil {
-				return nil, nil, err
-			}
-			outPeer.AssociateConnection(outConn)
+			inPeer := NewInboundPeer(peerCfg, inConn)
+			outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+			cancel, wg := runPeersAsync(t, inPeer, outPeer)
 
 			for i := 0; i < 4; i++ {
 				select {
 				case <-verack:
 				case <-time.After(time.Second):
-					return nil, nil, errors.New("verack timeout")
+					cancel()
+					return nil, nil, nil, nil, errors.New("verack timeout")
 				}
 			}
-			return inPeer, outPeer, nil
+			return inPeer, outPeer, cancel, wg, nil
 		},
 	}, {
 		"socks proxy",
-		func() (*Peer, *Peer, error) {
+		func() (*Peer, *Peer, context.CancelFunc, *sync.WaitGroup, error) {
 			inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
 			inConn.proxy = true
-			inPeer := NewInboundPeer(peerCfg)
-			inPeer.AssociateConnection(inConn)
-
-			outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-			if err != nil {
-				return nil, nil, err
-			}
-			outPeer.AssociateConnection(outConn)
+			inPeer := NewInboundPeer(peerCfg, inConn)
+			outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+			cancel, wg := runPeersAsync(t, inPeer, outPeer)
 
 			for i := 0; i < 4; i++ {
 				select {
 				case <-verack:
 				case <-time.After(time.Second):
-					return nil, nil, errors.New("verack timeout")
+					cancel()
+					return nil, nil, nil, nil, errors.New("verack timeout")
 				}
 			}
-			return inPeer, outPeer, nil
+			return inPeer, outPeer, cancel, wg, nil
 		},
 	}}
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		inPeer, outPeer, err := test.setup()
+		inPeer, outPeer, cancel, wg, err := test.setup()
 		if err != nil {
 			t.Fatalf("setup #%d: unexpected err: %v", i, err)
 		}
@@ -295,10 +313,8 @@ func TestPeerConnection(t *testing.T) {
 		testPeerState(t, outPeer, wantStats)
 		pause.Unlock()
 
-		inPeer.Disconnect()
-		outPeer.Disconnect()
-		inPeer.WaitForDisconnect()
-		outPeer.WaitForDisconnect()
+		cancel()
+		wg.Wait()
 	}
 }
 
@@ -400,34 +416,29 @@ func TestPeerListeners(t *testing.T) {
 		},
 	}
 	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
-	inPeer := NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
-
+	inPeer := NewInboundPeer(peerCfg, inConn)
 	peerCfg.Listeners = MessageListeners{
 		OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 			verack <- struct{}{}
 		},
 	}
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	outPeer.AssociateConnection(outConn)
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+	cancel, wg := runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	for i := 0; i < 2; i++ {
 		select {
 		case <-verack:
 		case <-time.After(time.Second * 1):
-			t.Error("TestPeerListeners: verack timeout\n")
-			return
+			t.Fatal("TestPeerListeners: verack timeout")
 		}
 	}
 
 	select {
 	case <-ok:
 	case <-time.After(time.Second * 1):
-		t.Error("TestPeerListeners: version timeout")
-		return
+		t.Fatal("TestPeerListeners: version timeout")
 	}
 
 	const pver = wire.ProtocolVersion
@@ -596,17 +607,16 @@ func TestPeerListeners(t *testing.T) {
 			t.Fatalf("%s timeout", test.listener)
 		}
 	}
-	inPeer.Disconnect()
-	outPeer.Disconnect()
 }
 
 // TestOldProtocolVersion ensures that peers with protocol versions older than
 // the minimum required version are disconnected.
 func TestOldProtocolVersion(t *testing.T) {
+	const minVer = wire.RemoveRejectVersion
 	version := make(chan wire.Message, 1)
 	verack := make(chan struct{}, 1)
 	peerCfg := mockPeerConfig()
-	peerCfg.ProtocolVersion = wire.RemoveRejectVersion - 1
+	peerCfg.ProtocolVersion = minVer - 1
 	peerCfg.Listeners = MessageListeners{
 		OnVersion: func(p *Peer, msg *wire.MsgVersion) {
 			version <- msg
@@ -616,17 +626,12 @@ func TestOldProtocolVersion(t *testing.T) {
 		},
 	}
 	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
-	inPeer := NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
-	defer inPeer.Disconnect()
-
+	inPeer := NewInboundPeer(peerCfg, inConn)
 	peerCfg.Listeners = MessageListeners{}
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	outPeer.AssociateConnection(outConn)
-	defer outPeer.Disconnect()
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+	cancel, wg := runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	select {
 	case <-version:
@@ -659,16 +664,14 @@ func TestNoNewestBlock(t *testing.T) {
 	// that the inbound peer has a newest block callback that errors.
 	peerCfg := mockPeerConfig()
 	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.1:9108")
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	outPeer.AssociateConnection(outConn)
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
 	peerCfg.NewestBlock = func() (*chainhash.Hash, int64, error) {
 		return nil, 0, errors.New("newest block not found")
 	}
-	inPeer := NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
+	inPeer := NewInboundPeer(peerCfg, inConn)
+	cancel, wg := runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	// Ensure the inbound peer disconnects due to the error.
 	disconnected := make(chan struct{})
@@ -679,7 +682,6 @@ func TestNoNewestBlock(t *testing.T) {
 
 	select {
 	case <-disconnected:
-		close(disconnected)
 	case <-time.After(time.Second):
 		t.Fatal("peer did not automatically disconnect")
 	}
@@ -688,23 +690,14 @@ func TestNoNewestBlock(t *testing.T) {
 		t.Fatal("inbound peer should not be connected")
 	}
 
-	// The outbound peer should still be waiting for a response.  Both sides
-	// would be disconnected in a real setup, but fake connections are used, so
-	// this provides a convenient way to test it didn't error.
-	if !outPeer.Connected() {
-		t.Fatal("outbound peer should be connected")
-	}
-
 	// Repeat, but in the other direction so the outbound peer has the error.
 	inConn, outConn = pipe("10.0.0.1:9108", "10.0.0.1:9108")
-	outPeer, err = NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	outPeer.AssociateConnection(outConn)
+	outPeer = NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
 	peerCfg.NewestBlock = nil
-	inPeer = NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
+	inPeer = NewInboundPeer(peerCfg, inConn)
+	cancel, wg = runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	// Ensure the outbound peer disconnects due to the error.
 	disconnected = make(chan struct{})
@@ -723,13 +716,6 @@ func TestNoNewestBlock(t *testing.T) {
 	if outPeer.Connected() {
 		t.Fatal("outbound peer should not be connected")
 	}
-
-	// The inbound peer should still be waiting for a response.  Both sides
-	// would be disconnected in a real setup, but fake connections are used, so
-	// this provides a convenient way to test it didn't error.
-	if !inPeer.Connected() {
-		t.Fatal("inbound peer should be connected")
-	}
 }
 
 // TestDuplicateVersionMsg ensures that receiving a version message after one
@@ -743,13 +729,11 @@ func TestDuplicateVersionMsg(t *testing.T) {
 		verack <- struct{}{}
 	}
 	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.1:9108")
-	outPeer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	outPeer.AssociateConnection(outConn)
-	inPeer := NewInboundPeer(peerCfg)
-	inPeer.AssociateConnection(inConn)
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+	inPeer := NewInboundPeer(peerCfg, inConn)
+	cancel, wg := runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	// Wait for the veracks from the initial protocol version negotiation.
 	for i := 0; i < 2; i++ {
@@ -775,7 +759,7 @@ func TestDuplicateVersionMsg(t *testing.T) {
 	disconnected := make(chan struct{}, 1)
 	go func() {
 		inPeer.WaitForDisconnect()
-		disconnected <- struct{}{}
+		close(disconnected)
 	}()
 	select {
 	case <-disconnected:
@@ -795,16 +779,19 @@ func TestNetFallback(t *testing.T) {
 		UserAgentVersion: "1.0",
 		Services:         0,
 	}
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	defer inConn.Close()
+	defer outConn.Close()
 
 	// Ensure testnet is used when the network is not specified.
-	p := NewInboundPeer(&cfg)
+	p := NewInboundPeer(&cfg, inConn)
 	if p.cfg.Net != wire.TestNet3 {
 		t.Fatalf("default network is %v instead of testnet3", p.cfg.Net)
 	}
 
 	// Ensure network is set to the explicitly specified value.
 	cfg.Net = wire.SimNet
-	p = NewInboundPeer(&cfg)
+	p = NewInboundPeer(&cfg, inConn)
 	if p.cfg.Net != wire.SimNet {
 		t.Fatalf("explicit network is %v instead of %v", p.cfg.Net, wire.SimNet)
 	}
@@ -834,13 +821,11 @@ func TestUpdateLastBlockHeight(t *testing.T) {
 		return &chainhash.Hash{}, remotePeerHeight, nil
 	}
 	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
-	localPeer, err := NewOutboundPeer(&peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	localPeer.AssociateConnection(outConn)
-	inPeer := NewInboundPeer(&remotePeerCfg)
-	inPeer.AssociateConnection(inConn)
+	localPeer := NewOutboundPeer(&peerCfg, outConn.RemoteAddr(), outConn)
+	inPeer := NewInboundPeer(&remotePeerCfg, inConn)
+	cancel, wg := runPeersAsync(t, localPeer, inPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	// Wait for the veracks from the initial protocol version negotiation.
 	for i := 0; i < 2; i++ {
@@ -918,19 +903,19 @@ func TestPushAddrV2Msg(t *testing.T) {
 	}}
 
 	// Create a mock connection.
-	_, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
 
 	// Create a peer with the connection.
 	peerCfg := mockPeerConfig()
-	peer, err := NewOutboundPeer(peerCfg, outConn.RemoteAddr())
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	peer.AssociateConnection(outConn)
+	inPeer := NewInboundPeer(peerCfg, inConn)
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+	cancel, wg := runPeersAsync(t, inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
 
 	for _, test := range tests {
 		// Test the PushAddrV2Msg function.
-		sent := peer.PushAddrV2Msg(test.addrs)
+		sent := outPeer.PushAddrV2Msg(test.addrs)
 
 		// Check the number of addresses sent.
 		if got := len(sent); got != test.wantSentLen {
@@ -938,9 +923,6 @@ func TestPushAddrV2Msg(t *testing.T) {
 				test.wantSentLen, got)
 		}
 	}
-
-	peer.Disconnect()
-	peer.WaitForDisconnect()
 }
 
 func init() {
