@@ -6,10 +6,12 @@
 package peer_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
 
+	"github.com/decred/dcrd/crypto/rand"
 	"github.com/decred/dcrd/peer/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -41,10 +43,11 @@ func mockRemotePeer(listenAddr string) (net.Listener, error) {
 		// Create and start the inbound peer.
 		go func() {
 			p := peer.NewInboundPeer(peerCfg, conn)
-			if err := p.Start(); err != nil {
-				fmt.Printf("Start: error %v\n", err)
+			if err := p.Handshake(context.Background(), nil); err != nil {
+				fmt.Printf("inbound handshake error: %v\n", err)
 				return
 			}
+			p.Start()
 		}()
 	}()
 
@@ -75,36 +78,47 @@ func Example_newOutboundPeer() {
 	}
 
 	// Create an outbound peer that is configured to act as a simnet node
-	// that offers no services and has listeners for the version and verack
-	// messages.  The verack listener is used here to signal the code below
-	// when the handshake has been finished by signalling a channel.
-	verack := make(chan struct{})
+	// that offers no services and has a listener for the pong message.
+	//
+	// Then perform the initial handshake and start the async I/O handling.
+	//
+	// The pong listener is used here to signal the code below when it arrives
+	// in response to an example ping.
+	pong := make(chan struct{})
 	peerCfg := &peer.Config{
 		UserAgentName:    "peer",  // User agent name to advertise.
 		UserAgentVersion: "1.0.0", // User agent version to advertise.
 		Net:              wire.SimNet,
 		Services:         0,
 		Listeners: peer.MessageListeners{
-			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) {
-				fmt.Println("outbound: received version")
-			},
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
-				verack <- struct{}{}
+			// This uses a simple channel for the purposes of the example, but
+			// callers will typically find it much more ergonomic to create a
+			// type that houses additional state and exposes methods for the
+			// desired listeners.  Then the listeners may be set to a concrete
+			// instance of that type so that they close over the additional
+			// state.
+			OnPong: func(p *peer.Peer, msg *wire.MsgPong) {
+				pong <- struct{}{}
 			},
 		},
 		IdleTimeout: time.Second * 120,
 	}
 	p := peer.NewOutboundPeer(peerCfg, conn.RemoteAddr(), conn)
-	if err := p.Start(); err != nil {
-		fmt.Printf("NewOutboundPeer: error %v\n", err)
+	if err := p.Handshake(context.Background(), nil); err != nil {
+		fmt.Printf("outbound peer handshake error: %v\n", err)
 		return
 	}
+	p.Start()
 
-	// Wait for the verack message or timeout in case of failure.
+	// Ping the remote peer aysnchronously.
+	p.QueueMessage(wire.NewMsgPing(rand.Uint64()), nil)
+
+	// Wait for the pong message or timeout in case of failure.
 	select {
-	case <-verack:
+	case <-pong:
+		fmt.Println("outbound: received pong")
 	case <-time.After(time.Second * 1):
-		fmt.Printf("Example_peerConnection: verack timeout")
+		fmt.Printf("Example_newOutboundPeer: pong timeout")
 	}
 
 	// Disconnect the peer.
@@ -112,5 +126,5 @@ func Example_newOutboundPeer() {
 	p.WaitForDisconnect()
 
 	// Output:
-	// outbound: received version
+	// outbound: received pong
 }

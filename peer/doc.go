@@ -61,12 +61,16 @@ This provides high flexibility for things such as connecting via proxies, acting
 as a proxy, creating bridge peers, choosing whether to listen for inbound peers,
 etc.
 
-[NewOutboundPeer] and [NewInboundPeer] must be followed by calling [Peer.Start]
-on the returned instance.  This will start all async I/O goroutines and initiate
-the protocol negotiation process.  Once finished with the peer call Disconnect
-to disconnect from the peer and clean up all resources.
+[NewOutboundPeer] and [NewInboundPeer] must be followed by calling
+[Peer.Handshake] on the returned instance to perform the initial protocol
+negotiation handshake process and finally [Peer.Start] to start all async I/O
+goroutines.
+
 [Peer.WaitForDisconnect] can be used to block until peer disconnection and
 resource cleanup has completed.
+
+When finished with the peer call [Peer.Disconnect] to close the connection and
+clean up all resources.
 
 # Callbacks
 
