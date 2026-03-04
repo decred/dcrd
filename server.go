@@ -3501,8 +3501,8 @@ func (s *server) querySeeders(ctx context.Context) {
 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 
-		addrs, err := connmgr.SeedAddrs(ctx, seeder, dcrdDial,
-			connmgr.SeedFilterServices(defaultRequiredServices))
+		addrs, err := addrmgr.SeedAddrs(ctx, seeder, dcrdDial,
+			addrmgr.SeedFilterServices(defaultRequiredServices))
 		if err != nil {
 			srvrLog.Infof("seeder '%s' error: %v", seeder, err)
 			errs <- err
