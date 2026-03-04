@@ -2434,13 +2434,8 @@ func connToNetAddr(conn net.Conn) (*addrmgr.NetAddress, error) {
 // established prior to any further peer setup.
 //
 // This function is safe for concurrent access.
-func (s *server) handleBannedConn(conn net.Conn) bool {
-	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		srvrLog.Debugf("can't split hostport %v", err)
-		conn.Close()
-		return true
-	}
+func (s *server) handleBannedConn(remoteAddr *addrmgr.NetAddress, conn net.Conn) bool {
+	host := net.IP(remoteAddr.IP).String()
 
 	s.peerState.Lock()
 	defer s.peerState.Unlock()
@@ -2536,12 +2531,12 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
 	}
 
 	// Disconnect banned connections.
-	if disconnected := s.handleBannedConn(conn); disconnected {
+	if disconnected := s.handleBannedConn(remoteNetAddr, conn); disconnected {
 		return
 	}
 
 	sp := newServerPeer(s, remoteNetAddr, false)
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
+	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
@@ -2570,7 +2565,7 @@ func (s *server) outboundPeerConnected(ctx context.Context, c *connmgr.ConnReq, 
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
-	if disconnected := s.handleBannedConn(conn); disconnected {
+	if disconnected := s.handleBannedConn(remoteNetAddr, conn); disconnected {
 		s.connManager.Disconnect(c.ID())
 		return
 	}
@@ -2579,7 +2574,7 @@ func (s *server) outboundPeerConnected(ctx context.Context, c *connmgr.ConnReq, 
 	p := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr, conn)
 	sp.Peer = p
 	sp.connReq.Store(c)
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
+	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for outbound peer %s: %v", c.Addr, err)
 		s.connManager.Disconnect(c.ID())
@@ -4694,22 +4689,12 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 
 // isWhitelisted returns whether the IP address is included in the whitelisted
 // networks and IPs.
-func isWhitelisted(addr net.Addr) bool {
+func isWhitelisted(addr *addrmgr.NetAddress) bool {
 	if len(cfg.whitelists) == 0 {
 		return false
 	}
 
-	host, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		srvrLog.Warnf("Unable to SplitHostPort on '%s': %v", addr, err)
-		return false
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		srvrLog.Warnf("Unable to parse IP '%s'", addr)
-		return false
-	}
-
+	ip := net.IP(addr.IP)
 	for _, ipnet := range cfg.whitelists {
 		if ipnet.Contains(ip) {
 			return true
