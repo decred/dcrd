@@ -1,3 +1,4 @@
+// Deprecated: Use github.com/decred/dcrd/addrmgr/vX instead.
 module github.com/decred/dcrd/connmgr/v3
 
 go 1.18

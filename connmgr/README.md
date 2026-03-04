@@ -7,6 +7,12 @@ connmgr
 
 Package connmgr implements a generic Decred network connection manager.
 
+## Deprecated
+
+This module is deprecated and is no longer maintained.  Callers are encouraged
+to use `github.com/decred/dcrd/addrmgr/vX` for methods that were moved to it
+instead.
+
 ## Overview
 
 This package handles all the general connection concerns such as maintaining a
