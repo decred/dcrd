@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/connmgr/v3"
+	"github.com/decred/dcrd/addrmgr/v4"
 	"github.com/decred/dcrd/database/v3"
 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -1272,7 +1272,7 @@ func loadConfig(appName string) (*config, []string, error) {
 		cfg.dial = proxy.DialContext
 		if !cfg.NoOnion {
 			cfg.lookup = func(host string) ([]net.IP, error) {
-				return connmgr.TorLookupIP(context.Background(), host, cfg.Proxy)
+				return addrmgr.TorLookupIP(context.Background(), host, cfg.Proxy)
 			}
 		}
 	}
@@ -1312,7 +1312,7 @@ func loadConfig(appName string) (*config, []string, error) {
 			return proxy.DialContext(ctx, a, b)
 		}
 		cfg.onionlookup = func(host string) ([]net.IP, error) {
-			return connmgr.TorLookupIP(context.Background(), host, cfg.OnionProxy)
+			return addrmgr.TorLookupIP(context.Background(), host, cfg.OnionProxy)
 		}
 	} else {
 		cfg.oniondial = cfg.dial
