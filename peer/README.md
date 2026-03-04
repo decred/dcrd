@@ -48,7 +48,7 @@ A quick overview of the major features peer provides are as follows:
    - These could all be sent manually via the standard message output function,
      but the helpers provide additional nice functionality such as duplicate
      filtering and address randomization
- - Ability to wait for shutdown/disconnect
+ - Context-aware Run method for all asynchronous I/O processing that blocks until disconnect
  - Comprehensive test coverage
 
 ## Installation and Updating

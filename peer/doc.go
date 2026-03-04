@@ -63,14 +63,12 @@ etc.
 
 [NewOutboundPeer] and [NewInboundPeer] must be followed by calling
 [Peer.Handshake] on the returned instance to perform the initial protocol
-negotiation handshake process and finally [Peer.Start] to start all async I/O
-goroutines.
+negotiation handshake process and finally [Peer.Run] to start all async I/O
+goroutines and block until peer disconnection and resource cleanup has
+completed.
 
-[Peer.WaitForDisconnect] can be used to block until peer disconnection and
-resource cleanup has completed.
-
-When finished with the peer call [Peer.Disconnect] to close the connection and
-clean up all resources.
+When finished with the peer, call [Peer.Disconnect] or cancel the context
+provided to [Peer.Run] to close the connection and clean up all resources.
 
 # Callbacks
 
