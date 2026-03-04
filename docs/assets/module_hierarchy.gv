@@ -27,7 +27,6 @@ digraph {
 	peer [label="peer/v3" fillcolor=khaki]
 	rpcclient [label="rpcclient/v8" fillcolor=mediumseagreen]
 	addrmgr [label="addrmgr/v3" fillcolor=lightsalmon]
-	connmgr [label="connmgr/v3" fillcolor=mistyrose]
 	blockchain [label="blockchain/v5" fillcolor=orchid]
 	apbf [label="container/apbf" fillcolor=goldenrod]
 	uint256  [label="math/uint256" fillcolor=lightgreen]
@@ -36,7 +35,7 @@ digraph {
 	{rank=same blake256 chainhash}
 	{rank=same dcrec secp256k1}
 	{rank=same certgen bech32 apbf uint256 mixing}
-	{rank=same addrmgr connmgr hdkeychain peer blockchain standalone rpcclient}
+	{rank=same addrmgr hdkeychain peer blockchain standalone rpcclient}
 
 	certgen
 	bech32
@@ -47,7 +46,6 @@ digraph {
 	chainhash -> wire [dir=back color=aquamarine]
 	wire -> addrmgr [dir=back color=coral]
 	wire -> chaincfg [dir=back color=coral]
-	wire -> connmgr [dir=back color=coral]
 	wire -> standalone [dir=back color=coral]
 	ripemd160 -> txscript [dir=back color=darkturquoise]
 	dcrec -> txscript [dir=back color=mediumpurple]
@@ -75,7 +73,6 @@ digraph {
 	bech32 -> dcrd [dir=back color=antiquewhite3]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
 	hdkeychain -> dcrd [dir=back color=deepskyblue]
-	connmgr -> dcrd [dir=back color=mistyrose]
 	rpcclient -> dcrd [dir=back color=mediumseagreen]
 	peer -> dcrd [dir=back color=khaki]
 	apbf -> dcrd [dir=back color=goldenrod]
