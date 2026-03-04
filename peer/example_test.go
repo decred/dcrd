@@ -47,7 +47,7 @@ func mockRemotePeer(listenAddr string) (net.Listener, error) {
 				fmt.Printf("inbound handshake error: %v\n", err)
 				return
 			}
-			p.Start()
+			p.Run(context.Background())
 		}()
 	}()
 
@@ -104,11 +104,13 @@ func Example_newOutboundPeer() {
 		IdleTimeout: time.Second * 120,
 	}
 	p := peer.NewOutboundPeer(peerCfg, conn.RemoteAddr(), conn)
-	if err := p.Handshake(context.Background(), nil); err != nil {
+	ctx := context.Background()
+	if err := p.Handshake(ctx, nil); err != nil {
 		fmt.Printf("outbound peer handshake error: %v\n", err)
 		return
 	}
-	p.Start()
+	go p.Run(ctx)
+	defer p.Disconnect()
 
 	// Ping the remote peer aysnchronously.
 	p.QueueMessage(wire.NewMsgPing(rand.Uint64()), nil)
@@ -120,10 +122,6 @@ func Example_newOutboundPeer() {
 	case <-time.After(time.Second * 1):
 		fmt.Printf("Example_newOutboundPeer: pong timeout")
 	}
-
-	// Disconnect the peer.
-	p.Disconnect()
-	p.WaitForDisconnect()
 
 	// Output:
 	// outbound: received pong

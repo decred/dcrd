@@ -911,15 +911,19 @@ func (sp *serverPeer) serveGetData() {
 // evicting any remaining orphans sent by the peer and shutting down all
 // goroutines.
 func (sp *serverPeer) Run(ctx context.Context) {
+	// Start processing async I/O.
+	disconnected := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		sp.serveGetData()
 		wg.Done()
 	}()
-
-	// Start processing async I/O.
-	sp.Start()
+	go func() {
+		sp.Peer.Run(ctx)
+		close(disconnected)
+		wg.Done()
+	}()
 
 	// Request all block annoucements via full headers instead of the inv
 	// message.
@@ -930,7 +934,7 @@ func (sp *serverPeer) Run(ctx context.Context) {
 
 	// Wait for the peer to disconnect and notify the net sync manager and
 	// server accordingly.
-	sp.WaitForDisconnect()
+	<-disconnected
 	srvr := sp.server
 	srvr.DonePeer(sp)
 	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
