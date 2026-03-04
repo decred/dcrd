@@ -3,15 +3,9 @@ connmgr
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/connmgr/v3)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/connmgr)
 
 Package connmgr implements a generic Decred network connection manager.
-
-## Deprecated
-
-This module is deprecated and is no longer maintained.  Callers are encouraged
-to use `github.com/decred/dcrd/addrmgr/vX` for methods that were moved to it
-instead.
 
 ## Overview
 
@@ -31,11 +25,6 @@ In addition the connection manager provides the following utilities:
 - Connect only to specified addresses
 - Permanent connections with increasing backoff retry timers
 - Disconnect or Remove an established connection
-
-## Installation and Updating
-
-This package is part of the `github.com/decred/dcrd/connmgr/v3` module.  Use the
-standard go tooling for working with modules to incorporate it.
 
 ## License
 

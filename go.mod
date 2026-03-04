@@ -13,7 +13,6 @@ require (
 	github.com/decred/dcrd/certgen v1.2.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.5
 	github.com/decred/dcrd/chaincfg/v3 v3.3.0
-	github.com/decred/dcrd/connmgr/v3 v3.1.3
 	github.com/decred/dcrd/container/apbf v1.0.1
 	github.com/decred/dcrd/container/lru v1.0.0
 	github.com/decred/dcrd/crypto/blake256 v1.1.0
@@ -69,7 +68,6 @@ replace (
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v3 => ./chaincfg
-	github.com/decred/dcrd/connmgr/v3 => ./connmgr
 	github.com/decred/dcrd/container/apbf => ./container/apbf
 	github.com/decred/dcrd/container/lru => ./container/lru
 	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
