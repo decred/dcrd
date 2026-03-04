@@ -22,6 +22,42 @@ const (
 	// ErrMismatchedAddressType indicates that a network address was expected to
 	// be a certain type, but the derived type does not match.
 	ErrMismatchedAddressType = ErrorKind("ErrMismatchedAddressType")
+
+	// ErrTorInvalidAddressResponse indicates an invalid address was
+	// returned by the Tor DNS resolver.
+	ErrTorInvalidAddressResponse = ErrorKind("ErrTorInvalidAddressResponse")
+
+	// ErrTorInvalidProxyResponse indicates the Tor proxy returned a
+	// response in an unexpected format.
+	ErrTorInvalidProxyResponse = ErrorKind("ErrTorInvalidProxyResponse")
+
+	// ErrTorUnrecognizedAuthMethod indicates the authentication method
+	// provided is not recognized.
+	ErrTorUnrecognizedAuthMethod = ErrorKind("ErrTorUnrecognizedAuthMethod")
+
+	// ErrTorGeneralError indicates a general tor error.
+	ErrTorGeneralError = ErrorKind("ErrTorGeneralError")
+
+	// ErrTorNotAllowed indicates tor connections are not allowed.
+	ErrTorNotAllowed = ErrorKind("ErrTorNotAllowed")
+
+	// ErrTorNetUnreachable indicates the tor network is unreachable.
+	ErrTorNetUnreachable = ErrorKind("ErrTorNetUnreachable")
+
+	// ErrTorHostUnreachable indicates the tor host is unreachable.
+	ErrTorHostUnreachable = ErrorKind("ErrTorHostUnreachable")
+
+	// ErrTorConnectionRefused indicates the tor connection was refused.
+	ErrTorConnectionRefused = ErrorKind("ErrTorConnectionRefused")
+
+	// ErrTorTTLExpired indicates the tor request Time-To-Live (TTL) expired.
+	ErrTorTTLExpired = ErrorKind("ErrTorTTLExpired")
+
+	// ErrTorCmdNotSupported indicates the tor command is not supported.
+	ErrTorCmdNotSupported = ErrorKind("ErrTorCmdNotSupported")
+
+	// ErrTorAddrNotSupported indicates the tor address type is not supported.
+	ErrTorAddrNotSupported = ErrorKind("ErrTorAddrNotSupported")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
