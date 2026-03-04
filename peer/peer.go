@@ -2208,7 +2208,7 @@ var errHandshakeTimeout = makeError(ErrHandshakeTimeout,
 //
 // This should only be called once when the peer is first connected.
 //
-// The caller MUST only start the async I/O processing with [Peer.Start] after
+// The caller MUST only start the async I/O processing with [Peer.Run] after
 // this function returns without error.
 func (p *Peer) Handshake(ctx context.Context, onVersion OnVersionCallback) error {
 	handshakeErr := make(chan error, 1)
@@ -2238,17 +2238,45 @@ func (p *Peer) Handshake(ctx context.Context, onVersion OnVersionCallback) error
 	return nil
 }
 
-// Start begins processing input and output messages.  Callers MUST only call
-// this after [Peer.Handshake] completes without error.
-func (p *Peer) Start() {
-	log.Tracef("Starting peer %s", p)
+// Run begins processing input and output messages.  Callers MUST only call this
+// after [Peer.Handshake] completes without error.
+func (p *Peer) Run(ctx context.Context) {
+	log.Tracef("Running peer %s", p)
 
 	// The protocol has been negotiated successfully so start processing input
 	// and output messages.
-	go p.stallHandler()
-	go p.inHandler()
-	go p.queueHandler()
-	go p.outHandler()
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		p.stallHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.inHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.queueHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.outHandler()
+		wg.Done()
+	}()
+
+	// Forcibly disconnect the peer when the context is cancelled which also
+	// closes the quit channel and thus ensures all of the above goroutines are
+	// shutdown.
+	//
+	// Select across the quit channel as well since the context is not cancelled
+	// when the connection is closed.
+	select {
+	case <-ctx.Done():
+		p.Disconnect()
+	case <-p.quit:
+	}
+
+	wg.Wait()
 }
 
 // WaitForDisconnect waits until the peer has completely disconnected and all
@@ -2307,7 +2335,7 @@ func newPeerBase(cfgOrig *Config, conn net.Conn, inbound bool) *Peer {
 }
 
 // NewInboundPeer returns a new inbound Decred peer.  Use [Peer.Handshake] to
-// perform the initial version negotiation and then [Peer.Start] to begin
+// perform the initial version negotiation and then [Peer.Run] to begin
 // processing incoming and outgoing messages when the handshake is successful.
 func NewInboundPeer(cfg *Config, conn net.Conn) *Peer {
 	p := newPeerBase(cfg, conn, true)
@@ -2316,7 +2344,7 @@ func NewInboundPeer(cfg *Config, conn net.Conn) *Peer {
 }
 
 // NewOutboundPeer returns a new outbound Decred peer.  Use [Peer.Handshake] to
-// perform the initial version negotiation and then [Peer.Start] to begin
+// perform the initial version negotiation and then [Peer.Run] to begin
 // processing incoming and outgoing messages when the handshake is successful.
 func NewOutboundPeer(cfg *Config, addr net.Addr, conn net.Conn) *Peer {
 	p := newPeerBase(cfg, conn, false)

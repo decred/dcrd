@@ -118,7 +118,7 @@ type peerStats struct {
 	wantBytesReceived   uint64
 }
 
-// runPeersAsync invokes the [Peer.Start] method on the passed peers in separate
+// runPeersAsync invokes the [Peer.Run] method on the passed peers in separate
 // goroutines and returns a cancelable context and wait group the caller can use
 // to shutdown the peers and wait for clean shutdown.
 func runPeersAsync(peers ...*Peer) (context.CancelFunc, *sync.WaitGroup) {
@@ -127,12 +127,7 @@ func runPeersAsync(peers ...*Peer) (context.CancelFunc, *sync.WaitGroup) {
 	wg.Add(len(peers))
 	for _, peer := range peers {
 		go func(peer *Peer) {
-			peer.Start()
-			select {
-			case <-ctx.Done():
-				peer.Disconnect()
-			case <-peer.quit:
-			}
+			peer.Run(ctx)
 			wg.Done()
 		}(peer)
 	}
