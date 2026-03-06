@@ -53,12 +53,12 @@ A quick overview of the major features peer provides are as follows:
 
 ## Installation and Updating
 
-This package is part of the `github.com/decred/dcrd/peer/v2` module.  Use the
+This package is part of the `github.com/decred/dcrd/peer/v3` module.  Use the
 standard go tooling for working with modules to incorporate it.
 
 ## Examples
 
-* [New Outbound Peer Example](https://pkg.go.dev/github.com/decred/dcrd/peer/v2#example-package-NewOutboundPeer)
+* [New Outbound Peer Example](https://pkg.go.dev/github.com/decred/dcrd/peer/v3#example-package-NewOutboundPeer)
   Demonstrates the basic process for initializing and creating an outbound peer.
   Peers negotiate by exchanging version and verack messages.  For demonstration,
   a simple handler for the version message is attached to the peer.
