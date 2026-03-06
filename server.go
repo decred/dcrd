@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -93,9 +92,9 @@ const (
 	maxKnownAddrsPerPeer = 10000
 	knownAddrsFPRate     = 0.001
 
-	// maxCachedNaSubmissions is the maximum number of network address
-	// submissions cached.
-	maxCachedNaSubmissions = 20
+	// maxExternalAddrCandidates specifies the maximum number of candidates used
+	// for automatic discovery of external addresses to allow.
+	maxExternalAddrCandidates = 20
 
 	// These constants control the maximum number of simultaneous pending
 	// getdata messages and the individual data item requests they make without
@@ -229,119 +228,6 @@ type relayMsg struct {
 	reqServices wire.ServiceFlag
 }
 
-// naSubmission represents a network address submission from an outbound peer.
-type naSubmission struct {
-	na           *wire.NetAddress
-	netType      addrmgr.NetAddressType
-	reach        addrmgr.NetAddressReach
-	score        uint32
-	lastAccessed int64
-}
-
-// naSubmissionCache represents a bounded map for network address submisions.
-type naSubmissionCache struct {
-	cache map[string]*naSubmission
-	limit int
-	mtx   sync.Mutex
-}
-
-// add caches the provided address submission.
-func (sc *naSubmissionCache) add(sub *naSubmission) error {
-	if sub == nil {
-		return fmt.Errorf("submission cannot be nil")
-	}
-
-	key := sub.na.IP.String()
-	if key == "" {
-		return fmt.Errorf("submission key cannot be an empty string")
-	}
-
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	// Remove the oldest submission if cache limit has been reached.
-	if len(sc.cache) == sc.limit {
-		var oldestSub *naSubmission
-		for _, sub := range sc.cache {
-			if oldestSub == nil {
-				oldestSub = sub
-				continue
-			}
-
-			if sub.lastAccessed < oldestSub.lastAccessed {
-				oldestSub = sub
-			}
-		}
-
-		if oldestSub != nil {
-			delete(sc.cache, oldestSub.na.IP.String())
-		}
-	}
-
-	sub.score = 1
-	sub.lastAccessed = time.Now().Unix()
-	sc.cache[key] = sub
-	return nil
-}
-
-// exists returns true if the provided key exist in the submissions cache.
-func (sc *naSubmissionCache) exists(key string) bool {
-	if key == "" {
-		return false
-	}
-
-	sc.mtx.Lock()
-	_, ok := sc.cache[key]
-	sc.mtx.Unlock()
-	return ok
-}
-
-// incrementScore increases the score of address submission referenced by
-// the provided key by one.
-func (sc *naSubmissionCache) incrementScore(key string) error {
-	if key == "" {
-		return fmt.Errorf("submission key cannot be an empty string")
-	}
-
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sub, ok := sc.cache[key]
-	if !ok {
-		return fmt.Errorf("submission key not found: %s", key)
-	}
-
-	sub.score++
-	sub.lastAccessed = time.Now().Unix()
-	sc.cache[key] = sub
-	return nil
-}
-
-// bestSubmission fetches the best scoring submission of the provided
-// network interface.
-func (sc *naSubmissionCache) bestSubmission(net addrmgr.NetAddressType) *naSubmission {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	var best *naSubmission
-	for _, sub := range sc.cache {
-		if sub.netType != net {
-			continue
-		}
-
-		if best == nil {
-			best = sub
-			continue
-		}
-
-		if sub.score > best.score {
-			best = sub
-		}
-	}
-
-	return best
-}
-
 // peerState houses state of inbound, persistent, and outbound peers as well
 // as banned peers and outbound groups.
 type peerState struct {
@@ -353,10 +239,6 @@ type peerState struct {
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
 	outboundGroups  map[string]int
-
-	// subCache houses the network address submission cache and is protected
-	// by its own mutex.
-	subCache *naSubmissionCache
 }
 
 // makePeerState returns a peer state instance that is used to maintain the
@@ -369,10 +251,6 @@ func makePeerState() peerState {
 		outboundPeers:   make(map[int32]*serverPeer),
 		banned:          make(map[string]time.Time),
 		outboundGroups:  make(map[string]int),
-		subCache: &naSubmissionCache{
-			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
-			limit: maxCachedNaSubmissions,
-		},
 	}
 }
 
@@ -445,110 +323,6 @@ func hostToNetAddress(host string, port uint16, services wire.ServiceFlag, resol
 	}
 	na := addrmgr.NewNetAddressFromIPPort(ips[0], port, services)
 	return na, nil
-}
-
-// ResolveLocalAddress picks the best suggested network address from available
-// options, per the network interface key provided. The best suggestion, if
-// found, is added as a local address.
-//
-// This function is safe for concurrent access.
-func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag) {
-	best := ps.subCache.bestSubmission(netType)
-	if best == nil {
-		return
-	}
-
-	targetOutbound := defaultTargetOutbound
-	if cfg.MaxPeers < targetOutbound {
-		targetOutbound = cfg.MaxPeers
-	}
-
-	// A valid best address suggestion must have a majority
-	// (60 percent majority) of outbound peers concluding on
-	// the same result.
-	if best.score < uint32(math.Ceil(float64(targetOutbound)*0.6)) {
-		return
-	}
-
-	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
-		na, err := hostToNetAddress(bestSuggestion, port, services, dcrdLookup)
-		if err != nil {
-			amgrLog.Errorf("unable to generate network address using host %v: "+
-				"%v", bestSuggestion, err)
-			return
-		}
-
-		if !addrMgr.HasLocalAddress(na) {
-			err := addrMgr.AddLocalAddress(na, addrmgr.ManualPrio)
-			if err != nil {
-				amgrLog.Errorf("unable to add local address: %v", err)
-				return
-			}
-		}
-	}
-
-	stripIPv6Zone := func(ip string) string {
-		// Strip IPv6 zone id if present.
-		zoneIndex := strings.LastIndex(ip, "%")
-		if zoneIndex > 0 {
-			return ip[:zoneIndex]
-		}
-
-		return ip
-	}
-
-	for _, listener := range cfg.Listeners {
-		host, portStr, err := net.SplitHostPort(listener)
-		if err != nil {
-			amgrLog.Errorf("unable to split network address: %v", err)
-			return
-		}
-
-		port, err := strconv.ParseUint(portStr, 10, 16)
-		if err != nil {
-			amgrLog.Errorf("unable to parse port: %v", err)
-			return
-		}
-
-		host = stripIPv6Zone(host)
-
-		// Add a local address if the best suggestion is referenced by a
-		// listener.
-		if best.na.IP.String() == host {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-
-		// Add a local address if the listener is generic (applies
-		// for both IPv4 and IPv6).
-		if host == "" || (host == "*" && runtime.GOOS == "plan9") {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-
-		listenerIP := net.ParseIP(host)
-		if listenerIP == nil {
-			amgrLog.Errorf("unable to parse listener: %v", host)
-			return
-		}
-
-		// Add a local address if the network address is a probable external
-		// endpoint of the listener.
-		lNet := addrmgr.IPv4Address
-		if listenerIP.To4() == nil {
-			lNet = addrmgr.IPv6Address
-		}
-
-		validExternal := (lNet == addrmgr.IPv4Address &&
-			best.reach == addrmgr.Ipv4) || lNet == addrmgr.IPv6Address &&
-			(best.reach == addrmgr.Ipv6Weak || best.reach == addrmgr.Ipv6Strong ||
-				best.reach == addrmgr.Teredo)
-
-		if validExternal {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-	}
 }
 
 // server provides a Decred server for handling communications to and from
@@ -649,6 +423,11 @@ type server struct {
 	// reported.
 	totalAdvertisedTxnsEvicted      uint64
 	lastAdvertisedTxnsEvictedLogged time.Time
+
+	// externalAddrCandidates houses addresses that remote peers have reported
+	// seeing as the external address for the local server.  It is primarily
+	// used to allow automatic discovery of external addresses.
+	externalAddrCandidates externalAddrCandidateCache
 }
 
 // serverPeer extends the peer to maintain state shared by the server.
@@ -693,8 +472,10 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// peerNa is network address of the peer connected to.
-	peerNa atomic.Pointer[wire.NetAddress]
+	// reportedLocalAddr is network address the remote peer reported for the
+	// connection.  In other words, what it believes to be the external address
+	// of the server.
+	reportedLocalAddr atomic.Pointer[wire.NetAddress]
 
 	// announcedBlock tracks the most recent block announced to this peer and is
 	// used to filter duplicates.
@@ -1283,7 +1064,7 @@ func (sp *serverPeer) OnVersion(msg *wire.MsgVersion) error {
 		}
 	}
 
-	sp.peerNa.Store(&msg.AddrYou)
+	sp.reportedLocalAddr.Store(&msg.AddrYou)
 
 	// Choose whether or not to relay transactions.
 	sp.disableRelayTx.Store(msg.DisableRelayTx)
@@ -2626,6 +2407,248 @@ out:
 	srvrLog.Tracef("Peer handler done")
 }
 
+// externalAddrCandidate represents an external address candidate.
+type externalAddrCandidate struct {
+	addr    *wire.NetAddress
+	netType addrmgr.NetAddressType
+	reach   addrmgr.NetAddressReach
+	score   uint32
+}
+
+// externalAddrCandidateCache houses candidates for potentially reachable
+// external addresses (aka local addresses) of the server.
+//
+// The overall goal is to automatically discover external addresses for the
+// server that are then advertised to the network.  A variety of heuristics are
+// used including a scoring system that tracks how many times remote peers
+// report a given address as what they see for connections with the local
+// server.  That is, a local address from the perspective of the server.
+//
+// Several measures are taken to help prevent malicious behavior.  For example,
+// unroutable addresses are ignored and inbound peers can only corroborate
+// addresses that have otherwise already been discovered.
+type externalAddrCandidateCache struct {
+	sync.Mutex
+	entries *lru.Map[string, *externalAddrCandidate]
+}
+
+// makeExternalAddrCandidateCache returns a new external address candidate cache
+// that is ready to use.  It makes use of a size-limited LRU to protect against
+// malicious behavior.
+func makeExternalAddrCandidateCache() externalAddrCandidateCache {
+	const limit = maxExternalAddrCandidates
+	return externalAddrCandidateCache{
+		entries: lru.NewMap[string, *externalAddrCandidate](limit),
+	}
+}
+
+// bestCandidate attempts to find and return the candidate for the given network
+// type with the best score.  Returns nil if no suitable candidate exists.
+//
+// This function MUST be called with the embedded mutex locked (reads).
+func (c *externalAddrCandidateCache) bestCandidate(net addrmgr.NetAddressType) *externalAddrCandidate {
+	var best *externalAddrCandidate
+	candidates := c.entries.Values()
+	for _, candidate := range candidates {
+		if candidate.netType != net {
+			continue
+		}
+
+		if best == nil || candidate.score > best.score {
+			best = candidate
+		}
+	}
+
+	return best
+}
+
+// resolveExternalAddress potenentially adds the provided external address
+// candidate as a known external (aka local) address for the server.
+//
+// The address must either match one of the configured listeners or at least
+// possibly be reachable via one of the.
+//
+// This function MUST be called with the embedded mutex locked (reads).
+func (s *server) resolveExternalAddress(candidate *externalAddrCandidate) {
+	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
+		na, err := hostToNetAddress(bestSuggestion, port, services, dcrdLookup)
+		if err != nil {
+			amgrLog.Errorf("unable to generate network address using host %v: "+
+				"%v", bestSuggestion, err)
+			return
+		}
+
+		if !s.addrManager.HasLocalAddress(na) {
+			err := s.addrManager.AddLocalAddress(na, addrmgr.ManualPrio)
+			if err != nil {
+				amgrLog.Errorf("unable to add local address: %v", err)
+				return
+			}
+		}
+	}
+
+	for _, listener := range cfg.Listeners {
+		host, portStr, err := net.SplitHostPort(listener)
+		if err != nil {
+			amgrLog.Errorf("unable to split network address: %v", err)
+			return
+		}
+
+		port64, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			amgrLog.Errorf("unable to parse port: %v", err)
+			return
+		}
+		port := uint16(port64)
+
+		// Strip IPv6 zone id if present.
+		zoneIndex := strings.LastIndex(host, "%")
+		if zoneIndex > 0 {
+			host = host[:zoneIndex]
+		}
+
+		// Add a local address if the candidate is matches a listener.
+		if candidate.addr.IP.String() == host {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+
+		// Add a local address if the listener is generic (applies for both IPv4
+		// and IPv6).
+		if host == "" || (host == "*" && runtime.GOOS == "plan9") {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+
+		listenerIP := net.ParseIP(host)
+		if listenerIP == nil {
+			amgrLog.Errorf("unable to parse listener: %v", host)
+			return
+		}
+
+		// Add a local address if the network address is a probable external
+		// endpoint of the listener.
+		lNet := addrmgr.IPv4Address
+		if listenerIP.To4() == nil {
+			lNet = addrmgr.IPv6Address
+		}
+
+		validExternal := (lNet == addrmgr.IPv4Address &&
+			candidate.reach == addrmgr.Ipv4) || lNet == addrmgr.IPv6Address &&
+			(candidate.reach == addrmgr.Ipv6Weak ||
+				candidate.reach == addrmgr.Ipv6Strong ||
+				candidate.reach == addrmgr.Teredo)
+		if validExternal {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+	}
+}
+
+// considerReportedAddrOutbound considers the provided address, as reported by
+// an outbound peer, as a potential external address candidate for the server.
+//
+// The address is expected to already have passed all checks in
+// [server.considerReportedAddr].
+//
+// This function is safe for concurrent access.
+func (s *server) considerReportedAddrOutbound(from *serverPeer, addr *wire.NetAddress) {
+	// Only consider the suggested public IP from the outbound peer if there are
+	// no prevailing conditions to disable automatic network address discovery.
+	//
+	// The conditions to disable automatic network address discovery are:
+	//  - There is a proxy set (--proxy, --onion)
+	//  - Automatic network address discovery is explicitly disabled
+	//    (--nodiscoverip)
+	//  - There is an external IP explicitly set (--externalip)
+	//  - Listening has been disabled (--nolisten, listen disabled because of
+	//    --connect, etc)
+	//  - Universal Plug and Play is enabled (--upnp)
+	//  - The active network is simnet or regnet
+	if (cfg.Proxy != "" || cfg.OnionProxy != "") || cfg.NoDiscoverIP ||
+		len(cfg.ExternalIPs) > 0 ||
+		(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
+		s.chainParams.Name == simNetParams.Name ||
+		s.chainParams.Name == regNetParams.Name {
+
+		return
+	}
+
+	// Determine if the reported address is a candidate for an external address
+	// of the server.
+	localAddr := wireToAddrmgrNetAddress(addr)
+	good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
+		from.remoteAddr)
+	if !good {
+		return
+	}
+
+	s.externalAddrCandidates.Lock()
+	defer s.externalAddrCandidates.Unlock()
+
+	net := addrmgr.IPv4Address
+	if addr.IP.To4() == nil {
+		net = addrmgr.IPv6Address
+	}
+
+	// Increase score for addresses that have already been seen and create a new
+	// entry for ones that haven't.
+	candidateKey := addr.IP.String()
+	candidate, ok := s.externalAddrCandidates.entries.Get(candidateKey)
+	if !ok {
+		candidate = &externalAddrCandidate{
+			addr:    addr,
+			netType: net,
+			reach:   reach,
+			score:   0,
+		}
+		s.externalAddrCandidates.entries.Put(candidateKey, candidate)
+	}
+	candidate.score++
+
+	// Attempt to find the best candidate for the given network type as
+	// determined by the one with the best score.
+	bestCandidate := s.externalAddrCandidates.bestCandidate(net)
+	if bestCandidate == nil {
+		return
+	}
+
+	// The best candidate must have been reported by at least a 60% majority of
+	// the target number of outbound peers to be considered valid.
+	if bestCandidate.score < ((s.targetOutbound*60)+99)/100 {
+		return
+	}
+
+	// Potenentially add the best candidate as a known external (aka local)
+	// address for the server.
+	s.resolveExternalAddress(bestCandidate)
+}
+
+// considerReportedAddr considers the provided address as a potential external
+// address candidate for the server.
+//
+// This function is safe for concurrent access.
+func (s *server) considerReportedAddr(from *serverPeer, addr *wire.NetAddress) {
+	if addr == nil || !addrmgr.IsRoutable(addr.IP) {
+		return
+	}
+
+	// Inbound peers can only corroborate existing external address candidates.
+	if from.Inbound() {
+		portStr := strconv.Itoa(int(addr.Port))
+		candidateKey := net.JoinHostPort(addr.IP.String(), portStr)
+		s.externalAddrCandidates.Lock()
+		candidate, ok := s.externalAddrCandidates.entries.Get(candidateKey)
+		if ok {
+			candidate.score++
+		}
+		s.externalAddrCandidates.Unlock()
+		return
+	}
+
+	s.considerReportedAddrOutbound(from, addr)
+}
+
 // connectionsWithIP returns the number of connections with the given IP.
 //
 // This function MUST be called with the embedded mutex locked (for reads).
@@ -2655,6 +2678,10 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		return false
 	}
 
+	// Consider the address the remote peer reported for the local connection as
+	// a potential external address candidate for the server.
+	s.considerReportedAddr(sp, sp.reportedLocalAddr.Load())
+
 	state := &s.peerState
 	defer state.Unlock()
 	state.Lock()
@@ -2683,25 +2710,9 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		return false
 	}
 
-	na := sp.peerNa.Load()
-
 	// Add the new peer.
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
-
-		if na != nil {
-			id := na.IP.String()
-
-			// Inbound peers can only corroborate existing address submissions.
-			if state.subCache.exists(id) {
-				err := state.subCache.incrementScore(id)
-				if err != nil {
-					srvrLog.Errorf("unable to increment submission score: %v", err)
-					return true
-				}
-			}
-		}
-
 		return true
 	}
 
@@ -2712,70 +2723,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	} else {
 		state.outboundPeers[sp.ID()] = sp
 	}
-
-	// Fetch the suggested public IP from the outbound peer if there are no
-	// prevailing conditions to disable automatic network address discovery.
-	//
-	// The conditions to disable automatic network address discovery are:
-	//  - There is a proxy set (--proxy, --onion)
-	//  - Automatic network address discovery is explicitly disabled
-	//    (--nodiscoverip)
-	//  - There is an external IP explicitly set (--externalip)
-	//  - Listening has been disabled (--nolisten, listen disabled because of
-	//    --connect, etc)
-	//  - Universal Plug and Play is enabled (--upnp)
-	//  - The active network is simnet or regnet
-	if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
-		cfg.NoDiscoverIP ||
-		len(cfg.ExternalIPs) > 0 ||
-		(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
-		s.chainParams.Name == simNetParams.Name ||
-		s.chainParams.Name == regNetParams.Name {
-
-		return true
-	}
-
-	if na != nil {
-		net := addrmgr.IPv4Address
-		if na.IP.To4() == nil {
-			net = addrmgr.IPv6Address
-		}
-
-		localAddr := wireToAddrmgrNetAddress(na)
-		good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
-			sp.remoteAddr)
-		if !good {
-			return true
-		}
-
-		id := na.IP.String()
-		if state.subCache.exists(id) {
-			// Increment the submission score if it already exists.
-			err := state.subCache.incrementScore(id)
-			if err != nil {
-				srvrLog.Errorf("unable to increment submission score: %v", err)
-				return true
-			}
-		} else {
-			// Create a cache entry for a new submission.
-			sub := &naSubmission{
-				na:      na,
-				netType: net,
-				reach:   reach,
-			}
-
-			err := state.subCache.add(sub)
-			if err != nil {
-				srvrLog.Errorf("unable to add submission: %v", err)
-				return true
-			}
-		}
-
-		// Pick the local address for the provided network based on
-		// submission scores.
-		state.ResolveLocalAddress(net, s.addrManager, s.services)
-	}
-
 	return true
 }
 
@@ -4120,6 +4067,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 		recentlyAdvertisedTxns: lru.NewMapWithDefaultTTL[chainhash.Hash,
 			*dcrutil.Tx](maxRecentlyAdvertisedTxns, recentlyAdvertisedTxnsTTL),
 		lastAdvertisedTxnsEvictedLogged: time.Now(),
+		externalAddrCandidates:          makeExternalAddrCandidateCache(),
 	}
 
 	// Convert the minimum known work to a uint256 when it exists.  Ideally, the
