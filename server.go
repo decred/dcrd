@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -93,9 +92,9 @@ const (
 	maxKnownAddrsPerPeer = 10000
 	knownAddrsFPRate     = 0.001
 
-	// maxCachedNaSubmissions is the maximum number of network address
-	// submissions cached.
-	maxCachedNaSubmissions = 20
+	// maxExternalAddrCandidates specifies the maximum number of candidates used
+	// for automatic discovery of external addresses to allow.
+	maxExternalAddrCandidates = 20
 
 	// These constants control the maximum number of simultaneous pending
 	// getdata messages and the individual data item requests they make without
@@ -229,119 +228,6 @@ type relayMsg struct {
 	reqServices wire.ServiceFlag
 }
 
-// naSubmission represents a network address submission from an outbound peer.
-type naSubmission struct {
-	na           *wire.NetAddress
-	netType      addrmgr.NetAddressType
-	reach        addrmgr.NetAddressReach
-	score        uint32
-	lastAccessed int64
-}
-
-// naSubmissionCache represents a bounded map for network address submisions.
-type naSubmissionCache struct {
-	cache map[string]*naSubmission
-	limit int
-	mtx   sync.Mutex
-}
-
-// add caches the provided address submission.
-func (sc *naSubmissionCache) add(sub *naSubmission) error {
-	if sub == nil {
-		return fmt.Errorf("submission cannot be nil")
-	}
-
-	key := sub.na.IP.String()
-	if key == "" {
-		return fmt.Errorf("submission key cannot be an empty string")
-	}
-
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	// Remove the oldest submission if cache limit has been reached.
-	if len(sc.cache) == sc.limit {
-		var oldestSub *naSubmission
-		for _, sub := range sc.cache {
-			if oldestSub == nil {
-				oldestSub = sub
-				continue
-			}
-
-			if sub.lastAccessed < oldestSub.lastAccessed {
-				oldestSub = sub
-			}
-		}
-
-		if oldestSub != nil {
-			delete(sc.cache, oldestSub.na.IP.String())
-		}
-	}
-
-	sub.score = 1
-	sub.lastAccessed = time.Now().Unix()
-	sc.cache[key] = sub
-	return nil
-}
-
-// exists returns true if the provided key exist in the submissions cache.
-func (sc *naSubmissionCache) exists(key string) bool {
-	if key == "" {
-		return false
-	}
-
-	sc.mtx.Lock()
-	_, ok := sc.cache[key]
-	sc.mtx.Unlock()
-	return ok
-}
-
-// incrementScore increases the score of address submission referenced by
-// the provided key by one.
-func (sc *naSubmissionCache) incrementScore(key string) error {
-	if key == "" {
-		return fmt.Errorf("submission key cannot be an empty string")
-	}
-
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sub, ok := sc.cache[key]
-	if !ok {
-		return fmt.Errorf("submission key not found: %s", key)
-	}
-
-	sub.score++
-	sub.lastAccessed = time.Now().Unix()
-	sc.cache[key] = sub
-	return nil
-}
-
-// bestSubmission fetches the best scoring submission of the provided
-// network interface.
-func (sc *naSubmissionCache) bestSubmission(net addrmgr.NetAddressType) *naSubmission {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	var best *naSubmission
-	for _, sub := range sc.cache {
-		if sub.netType != net {
-			continue
-		}
-
-		if best == nil {
-			best = sub
-			continue
-		}
-
-		if sub.score > best.score {
-			best = sub
-		}
-	}
-
-	return best
-}
-
 // peerState houses state of inbound, persistent, and outbound peers as well
 // as banned peers and outbound groups.
 type peerState struct {
@@ -353,10 +239,6 @@ type peerState struct {
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
 	outboundGroups  map[string]int
-
-	// subCache houses the network address submission cache and is protected
-	// by its own mutex.
-	subCache *naSubmissionCache
 }
 
 // makePeerState returns a peer state instance that is used to maintain the
@@ -369,10 +251,6 @@ func makePeerState() peerState {
 		outboundPeers:   make(map[int32]*serverPeer),
 		banned:          make(map[string]time.Time),
 		outboundGroups:  make(map[string]int),
-		subCache: &naSubmissionCache{
-			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
-			limit: maxCachedNaSubmissions,
-		},
 	}
 }
 
@@ -445,110 +323,6 @@ func hostToNetAddress(host string, port uint16, services wire.ServiceFlag, resol
 	}
 	na := addrmgr.NewNetAddressFromIPPort(ips[0], port, services)
 	return na, nil
-}
-
-// ResolveLocalAddress picks the best suggested network address from available
-// options, per the network interface key provided. The best suggestion, if
-// found, is added as a local address.
-//
-// This function is safe for concurrent access.
-func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag) {
-	best := ps.subCache.bestSubmission(netType)
-	if best == nil {
-		return
-	}
-
-	targetOutbound := defaultTargetOutbound
-	if cfg.MaxPeers < targetOutbound {
-		targetOutbound = cfg.MaxPeers
-	}
-
-	// A valid best address suggestion must have a majority
-	// (60 percent majority) of outbound peers concluding on
-	// the same result.
-	if best.score < uint32(math.Ceil(float64(targetOutbound)*0.6)) {
-		return
-	}
-
-	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
-		na, err := hostToNetAddress(bestSuggestion, port, services, dcrdLookup)
-		if err != nil {
-			amgrLog.Errorf("unable to generate network address using host %v: "+
-				"%v", bestSuggestion, err)
-			return
-		}
-
-		if !addrMgr.HasLocalAddress(na) {
-			err := addrMgr.AddLocalAddress(na, addrmgr.ManualPrio)
-			if err != nil {
-				amgrLog.Errorf("unable to add local address: %v", err)
-				return
-			}
-		}
-	}
-
-	stripIPv6Zone := func(ip string) string {
-		// Strip IPv6 zone id if present.
-		zoneIndex := strings.LastIndex(ip, "%")
-		if zoneIndex > 0 {
-			return ip[:zoneIndex]
-		}
-
-		return ip
-	}
-
-	for _, listener := range cfg.Listeners {
-		host, portStr, err := net.SplitHostPort(listener)
-		if err != nil {
-			amgrLog.Errorf("unable to split network address: %v", err)
-			return
-		}
-
-		port, err := strconv.ParseUint(portStr, 10, 16)
-		if err != nil {
-			amgrLog.Errorf("unable to parse port: %v", err)
-			return
-		}
-
-		host = stripIPv6Zone(host)
-
-		// Add a local address if the best suggestion is referenced by a
-		// listener.
-		if best.na.IP.String() == host {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-
-		// Add a local address if the listener is generic (applies
-		// for both IPv4 and IPv6).
-		if host == "" || (host == "*" && runtime.GOOS == "plan9") {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-
-		listenerIP := net.ParseIP(host)
-		if listenerIP == nil {
-			amgrLog.Errorf("unable to parse listener: %v", host)
-			return
-		}
-
-		// Add a local address if the network address is a probable external
-		// endpoint of the listener.
-		lNet := addrmgr.IPv4Address
-		if listenerIP.To4() == nil {
-			lNet = addrmgr.IPv6Address
-		}
-
-		validExternal := (lNet == addrmgr.IPv4Address &&
-			best.reach == addrmgr.Ipv4) || lNet == addrmgr.IPv6Address &&
-			(best.reach == addrmgr.Ipv6Weak || best.reach == addrmgr.Ipv6Strong ||
-				best.reach == addrmgr.Teredo)
-
-		if validExternal {
-			addLocalAddress(best.na.IP.String(), uint16(port), services)
-			continue
-		}
-	}
 }
 
 // server provides a Decred server for handling communications to and from
@@ -649,6 +423,11 @@ type server struct {
 	// reported.
 	totalAdvertisedTxnsEvicted      uint64
 	lastAdvertisedTxnsEvictedLogged time.Time
+
+	// externalAddrCandidates houses addresses that remote peers have reported
+	// seeing as the external address for the local server.  It is primarily
+	// used to allow automatic discovery of external addresses.
+	externalAddrCandidates externalAddrCandidateCache
 }
 
 // serverPeer extends the peer to maintain state shared by the server.
@@ -667,9 +446,6 @@ type serverPeer struct {
 	persistent    bool
 	isWhitelisted bool
 	quit          chan struct{}
-
-	handshakeDone          chan struct{}
-	closeHandshakeDoneOnce sync.Once
 
 	// syncMgrPeer houses the network sync manager peer instance that wraps the
 	// underlying peer similar to the way this server peer itself wraps it.
@@ -696,8 +472,10 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// peerNa is network address of the peer connected to.
-	peerNa atomic.Pointer[wire.NetAddress]
+	// reportedLocalAddr is network address the remote peer reported for the
+	// connection.  In other words, what it believes to be the external address
+	// of the server.
+	reportedLocalAddr atomic.Pointer[wire.NetAddress]
 
 	// announcedBlock tracks the most recent block announced to this peer and is
 	// used to filter duplicates.
@@ -727,7 +505,6 @@ func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool)
 		persistent:     isPersistent,
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
-		handshakeDone:  make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
@@ -914,32 +691,40 @@ func (sp *serverPeer) serveGetData() {
 // the peer has disconnected and performs other associated cleanup such as
 // evicting any remaining orphans sent by the peer and shutting down all
 // goroutines.
-func (sp *serverPeer) Run() {
+func (sp *serverPeer) Run(ctx context.Context) {
+	// Start processing async I/O.
+	disconnected := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		sp.serveGetData()
 		wg.Done()
 	}()
+	go func() {
+		sp.Peer.Run(ctx)
+		close(disconnected)
+		wg.Done()
+	}()
+
+	// Request all block annoucements via full headers instead of the inv
+	// message.
+	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
 
 	// Wait for the peer to disconnect and notify the net sync manager and
 	// server accordingly.
-	sp.WaitForDisconnect()
+	<-disconnected
 	srvr := sp.server
 	srvr.DonePeer(sp)
 	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
 
-	if sp.VersionKnown() {
-		// Evict any remaining mempool orphans that were sent by the peer.
-		numEvicted := srvr.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
-		if numEvicted > 0 {
-			srvrLog.Debugf("Evicted %d mempool %s from peer %v (id %d)",
-				numEvicted, pickNoun(numEvicted, "orphan", "orphans"), sp,
-				sp.ID())
-		}
+	// Evict any remaining mempool orphans that were sent by the peer.
+	numEvicted := srvr.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+	if numEvicted > 0 {
+		srvrLog.Debugf("Evicted %d mempool %s from peer %v (id %d)", numEvicted,
+			pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
 	}
 
 	// Shutdown remaining peer goroutines.
@@ -1178,7 +963,7 @@ func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
-func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
+func (sp *serverPeer) OnVersion(msg *wire.MsgVersion) error {
 	// Update the address manager with the advertised services for outbound
 	// connections in case they have changed.  This is not done for inbound
 	// connections to help prevent malicious behavior and is skipped when
@@ -1201,11 +986,8 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Reject peers that have a protocol version that is too old.
 	const reqProtocolVersion = int32(wire.RemoveRejectVersion)
 	if msg.ProtocolVersion < reqProtocolVersion {
-		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
-			"the required version %d", sp, msg.ProtocolVersion,
-			reqProtocolVersion)
-		sp.Disconnect()
-		return
+		return fmt.Errorf("rejecting protocol version %d prior to the required "+
+			"version %d", msg.ProtocolVersion, reqProtocolVersion)
 	}
 
 	// Maintain a minimum desired number of outbound peers capable of supporting
@@ -1231,11 +1013,10 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		needsMoreMixCapable := !hasMinMixCapableOuts &&
 			numOutbound+wantMixCapableOutbound >= sp.server.targetOutbound
 		if needsMoreMixCapable {
-			srvrLog.Debugf("Rejecting outbound peer %s with protocol version "+
+			return fmt.Errorf("rejecting outbound peer with protocol version "+
 				"%d in favor of a peer with minimum version %d (have: %d, "+
-				"target: %d)", sp, msg.ProtocolVersion, wire.MixVersion,
+				"target: %d)", msg.ProtocolVersion, wire.MixVersion,
 				numMixCapableOutbound, wantMixCapableOutbound)
-			sp.Disconnect()
 		}
 	}
 
@@ -1243,10 +1024,8 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	wantServices := wire.SFNodeNetwork
 	if !isInbound && !hasServices(msg.Services, wantServices) {
 		missingServices := wantServices & ^msg.Services
-		srvrLog.Debugf("Rejecting peer %s with services %v due to not "+
-			"providing desired services %v", sp, msg.Services, missingServices)
-		sp.Disconnect()
-		return
+		return fmt.Errorf("rejecting peer with services %v due to not "+
+			"providing desired services %v", msg.Services, missingServices)
 	}
 
 	// Update the address manager and request known addresses from the
@@ -1285,7 +1064,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		}
 	}
 
-	sp.peerNa.Store(&msg.AddrYou)
+	sp.reportedLocalAddr.Store(&msg.AddrYou)
 
 	// Choose whether or not to relay transactions.
 	sp.disableRelayTx.Store(msg.DisableRelayTx)
@@ -1293,14 +1072,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
 	sp.server.timeSource.AddTimeSample(sp.Addr(), msg.Timestamp)
-}
-
-// OnVerAck is invoked when a peer receives a verack wire message.  It creates
-// and sends a sendheaders message to request all block annoucements are made
-// via full headers instead of the inv message.
-func (sp *serverPeer) OnVerAck(_ *peer.Peer, msg *wire.MsgVerAck) {
-	sp.closeHandshakeDoneOnce.Do(func() { close(sp.handshakeDone) })
-	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
+	return nil
 }
 
 // OnMemPool is invoked when a peer receives a mempool wire message.  It creates
@@ -2445,13 +2217,8 @@ func connToNetAddr(conn net.Conn) (*addrmgr.NetAddress, error) {
 // established prior to any further peer setup.
 //
 // This function is safe for concurrent access.
-func (s *server) handleBannedConn(conn net.Conn) bool {
-	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		srvrLog.Debugf("can't split hostport %v", err)
-		conn.Close()
-		return true
-	}
+func (s *server) handleBannedConn(remoteAddr *addrmgr.NetAddress, conn net.Conn) bool {
+	host := net.IP(remoteAddr.IP).String()
 
 	s.peerState.Lock()
 	defer s.peerState.Unlock()
@@ -2479,8 +2246,6 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 
 	return &peer.Config{
 		Listeners: peer.MessageListeners{
-			OnVersion:         sp.OnVersion,
-			OnVerAck:          sp.OnVerAck,
 			OnMemPool:         sp.OnMemPool,
 			OnGetMiningState:  sp.OnGetMiningState,
 			OnMiningState:     sp.OnMiningState,
@@ -2538,7 +2303,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // connection is established.  It initializes a new inbound server peer
 // instance, associates it with the connection, and starts all additional server
 // peer processing goroutines.
-func (s *server) inboundPeerConnected(conn net.Conn) {
+func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
 	remoteNetAddr, err := connToNetAddr(conn)
 	if err != nil {
 		srvrLog.Debugf("Unable to create inbound peer for address %s: %v",
@@ -2548,22 +2313,21 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 	}
 
 	// Disconnect banned connections.
-	if disconnected := s.handleBannedConn(conn); disconnected {
+	if disconnected := s.handleBannedConn(remoteNetAddr, conn); disconnected {
 		return
 	}
 
 	sp := newServerPeer(s, remoteNetAddr, false)
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout for inbound peer %s", conn.RemoteAddr())
+	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
+	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
+	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
+		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
+			remoteNetAddr, err)
+		conn.Close()
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
-	go sp.Run()
+	sp.Run(ctx)
 }
 
 // outboundPeerConnected is invoked by the connection manager when a new
@@ -2571,41 +2335,35 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 // peer instance, associates it with the relevant state such as the connection
 // request instance and the connection itself, and start all additional server
 // peer processing goroutines.
-func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
+func (s *server) outboundPeerConnected(ctx context.Context, c *connmgr.ConnReq, conn net.Conn) {
 	remoteNetAddr, err := connToNetAddr(conn)
 	if err != nil {
 		srvrLog.Debugf("Unable to create outbound peer for address %s: %v",
 			conn.RemoteAddr(), err)
 		conn.Close()
+		s.connManager.Disconnect(c.ID())
 	}
 
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
-	if disconnected := s.handleBannedConn(conn); disconnected {
+	if disconnected := s.handleBannedConn(remoteNetAddr, conn); disconnected {
+		s.connManager.Disconnect(c.ID())
 		return
 	}
 
 	sp := newServerPeer(s, remoteNetAddr, c.Permanent)
-	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr)
-	if err != nil {
-		srvrLog.Debugf("Cannot create outbound peer %s: %v", c.Addr, err)
-		s.connManager.Disconnect(c.ID())
-		return
-	}
+	p := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr, conn)
 	sp.Peer = p
 	sp.connReq.Store(c)
-	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout from outbound peer %s", c.Addr)
+	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
+	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
+		srvrLog.Debugf("Failed handshake for outbound peer %s: %v", c.Addr, err)
 		s.connManager.Disconnect(c.ID())
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
-	go sp.Run()
+	sp.Run(ctx)
 }
 
 // peerHandler is used to handle peer operations such as inventory relay and
@@ -2649,6 +2407,248 @@ out:
 	srvrLog.Tracef("Peer handler done")
 }
 
+// externalAddrCandidate represents an external address candidate.
+type externalAddrCandidate struct {
+	addr    *wire.NetAddress
+	netType addrmgr.NetAddressType
+	reach   addrmgr.NetAddressReach
+	score   uint32
+}
+
+// externalAddrCandidateCache houses candidates for potentially reachable
+// external addresses (aka local addresses) of the server.
+//
+// The overall goal is to automatically discover external addresses for the
+// server that are then advertised to the network.  A variety of heuristics are
+// used including a scoring system that tracks how many times remote peers
+// report a given address as what they see for connections with the local
+// server.  That is, a local address from the perspective of the server.
+//
+// Several measures are taken to help prevent malicious behavior.  For example,
+// unroutable addresses are ignored and inbound peers can only corroborate
+// addresses that have otherwise already been discovered.
+type externalAddrCandidateCache struct {
+	sync.Mutex
+	entries *lru.Map[string, *externalAddrCandidate]
+}
+
+// makeExternalAddrCandidateCache returns a new external address candidate cache
+// that is ready to use.  It makes use of a size-limited LRU to protect against
+// malicious behavior.
+func makeExternalAddrCandidateCache() externalAddrCandidateCache {
+	const limit = maxExternalAddrCandidates
+	return externalAddrCandidateCache{
+		entries: lru.NewMap[string, *externalAddrCandidate](limit),
+	}
+}
+
+// bestCandidate attempts to find and return the candidate for the given network
+// type with the best score.  Returns nil if no suitable candidate exists.
+//
+// This function MUST be called with the embedded mutex locked (reads).
+func (c *externalAddrCandidateCache) bestCandidate(net addrmgr.NetAddressType) *externalAddrCandidate {
+	var best *externalAddrCandidate
+	candidates := c.entries.Values()
+	for _, candidate := range candidates {
+		if candidate.netType != net {
+			continue
+		}
+
+		if best == nil || candidate.score > best.score {
+			best = candidate
+		}
+	}
+
+	return best
+}
+
+// resolveExternalAddress potenentially adds the provided external address
+// candidate as a known external (aka local) address for the server.
+//
+// The address must either match one of the configured listeners or at least
+// possibly be reachable via one of the.
+//
+// This function MUST be called with the embedded mutex locked (reads).
+func (s *server) resolveExternalAddress(candidate *externalAddrCandidate) {
+	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
+		na, err := hostToNetAddress(bestSuggestion, port, services, dcrdLookup)
+		if err != nil {
+			amgrLog.Errorf("unable to generate network address using host %v: "+
+				"%v", bestSuggestion, err)
+			return
+		}
+
+		if !s.addrManager.HasLocalAddress(na) {
+			err := s.addrManager.AddLocalAddress(na, addrmgr.ManualPrio)
+			if err != nil {
+				amgrLog.Errorf("unable to add local address: %v", err)
+				return
+			}
+		}
+	}
+
+	for _, listener := range cfg.Listeners {
+		host, portStr, err := net.SplitHostPort(listener)
+		if err != nil {
+			amgrLog.Errorf("unable to split network address: %v", err)
+			return
+		}
+
+		port64, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			amgrLog.Errorf("unable to parse port: %v", err)
+			return
+		}
+		port := uint16(port64)
+
+		// Strip IPv6 zone id if present.
+		zoneIndex := strings.LastIndex(host, "%")
+		if zoneIndex > 0 {
+			host = host[:zoneIndex]
+		}
+
+		// Add a local address if the candidate is matches a listener.
+		if candidate.addr.IP.String() == host {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+
+		// Add a local address if the listener is generic (applies for both IPv4
+		// and IPv6).
+		if host == "" || (host == "*" && runtime.GOOS == "plan9") {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+
+		listenerIP := net.ParseIP(host)
+		if listenerIP == nil {
+			amgrLog.Errorf("unable to parse listener: %v", host)
+			return
+		}
+
+		// Add a local address if the network address is a probable external
+		// endpoint of the listener.
+		lNet := addrmgr.IPv4Address
+		if listenerIP.To4() == nil {
+			lNet = addrmgr.IPv6Address
+		}
+
+		validExternal := (lNet == addrmgr.IPv4Address &&
+			candidate.reach == addrmgr.Ipv4) || lNet == addrmgr.IPv6Address &&
+			(candidate.reach == addrmgr.Ipv6Weak ||
+				candidate.reach == addrmgr.Ipv6Strong ||
+				candidate.reach == addrmgr.Teredo)
+		if validExternal {
+			addLocalAddress(candidate.addr.IP.String(), port, s.services)
+			continue
+		}
+	}
+}
+
+// considerReportedAddrOutbound considers the provided address, as reported by
+// an outbound peer, as a potential external address candidate for the server.
+//
+// The address is expected to already have passed all checks in
+// [server.considerReportedAddr].
+//
+// This function is safe for concurrent access.
+func (s *server) considerReportedAddrOutbound(from *serverPeer, addr *wire.NetAddress) {
+	// Only consider the suggested public IP from the outbound peer if there are
+	// no prevailing conditions to disable automatic network address discovery.
+	//
+	// The conditions to disable automatic network address discovery are:
+	//  - There is a proxy set (--proxy, --onion)
+	//  - Automatic network address discovery is explicitly disabled
+	//    (--nodiscoverip)
+	//  - There is an external IP explicitly set (--externalip)
+	//  - Listening has been disabled (--nolisten, listen disabled because of
+	//    --connect, etc)
+	//  - Universal Plug and Play is enabled (--upnp)
+	//  - The active network is simnet or regnet
+	if (cfg.Proxy != "" || cfg.OnionProxy != "") || cfg.NoDiscoverIP ||
+		len(cfg.ExternalIPs) > 0 ||
+		(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
+		s.chainParams.Name == simNetParams.Name ||
+		s.chainParams.Name == regNetParams.Name {
+
+		return
+	}
+
+	// Determine if the reported address is a candidate for an external address
+	// of the server.
+	localAddr := wireToAddrmgrNetAddress(addr)
+	good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
+		from.remoteAddr)
+	if !good {
+		return
+	}
+
+	s.externalAddrCandidates.Lock()
+	defer s.externalAddrCandidates.Unlock()
+
+	net := addrmgr.IPv4Address
+	if addr.IP.To4() == nil {
+		net = addrmgr.IPv6Address
+	}
+
+	// Increase score for addresses that have already been seen and create a new
+	// entry for ones that haven't.
+	candidateKey := addr.IP.String()
+	candidate, ok := s.externalAddrCandidates.entries.Get(candidateKey)
+	if !ok {
+		candidate = &externalAddrCandidate{
+			addr:    addr,
+			netType: net,
+			reach:   reach,
+			score:   0,
+		}
+		s.externalAddrCandidates.entries.Put(candidateKey, candidate)
+	}
+	candidate.score++
+
+	// Attempt to find the best candidate for the given network type as
+	// determined by the one with the best score.
+	bestCandidate := s.externalAddrCandidates.bestCandidate(net)
+	if bestCandidate == nil {
+		return
+	}
+
+	// The best candidate must have been reported by at least a 60% majority of
+	// the target number of outbound peers to be considered valid.
+	if bestCandidate.score < ((s.targetOutbound*60)+99)/100 {
+		return
+	}
+
+	// Potenentially add the best candidate as a known external (aka local)
+	// address for the server.
+	s.resolveExternalAddress(bestCandidate)
+}
+
+// considerReportedAddr considers the provided address as a potential external
+// address candidate for the server.
+//
+// This function is safe for concurrent access.
+func (s *server) considerReportedAddr(from *serverPeer, addr *wire.NetAddress) {
+	if addr == nil || !addrmgr.IsRoutable(addr.IP) {
+		return
+	}
+
+	// Inbound peers can only corroborate existing external address candidates.
+	if from.Inbound() {
+		portStr := strconv.Itoa(int(addr.Port))
+		candidateKey := net.JoinHostPort(addr.IP.String(), portStr)
+		s.externalAddrCandidates.Lock()
+		candidate, ok := s.externalAddrCandidates.entries.Get(candidateKey)
+		if ok {
+			candidate.score++
+		}
+		s.externalAddrCandidates.Unlock()
+		return
+	}
+
+	s.considerReportedAddrOutbound(from, addr)
+}
+
 // connectionsWithIP returns the number of connections with the given IP.
 //
 // This function MUST be called with the embedded mutex locked (for reads).
@@ -2678,6 +2678,10 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		return false
 	}
 
+	// Consider the address the remote peer reported for the local connection as
+	// a potential external address candidate for the server.
+	s.considerReportedAddr(sp, sp.reportedLocalAddr.Load())
+
 	state := &s.peerState
 	defer state.Unlock()
 	state.Lock()
@@ -2706,26 +2710,9 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		return false
 	}
 
-	na := sp.peerNa.Load()
-
 	// Add the new peer.
-	srvrLog.Debugf("New peer %s", sp)
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
-
-		if na != nil {
-			id := na.IP.String()
-
-			// Inbound peers can only corroborate existing address submissions.
-			if state.subCache.exists(id) {
-				err := state.subCache.incrementScore(id)
-				if err != nil {
-					srvrLog.Errorf("unable to increment submission score: %v", err)
-					return true
-				}
-			}
-		}
-
 		return true
 	}
 
@@ -2736,70 +2723,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	} else {
 		state.outboundPeers[sp.ID()] = sp
 	}
-
-	// Fetch the suggested public IP from the outbound peer if there are no
-	// prevailing conditions to disable automatic network address discovery.
-	//
-	// The conditions to disable automatic network address discovery are:
-	//  - There is a proxy set (--proxy, --onion)
-	//  - Automatic network address discovery is explicitly disabled
-	//    (--nodiscoverip)
-	//  - There is an external IP explicitly set (--externalip)
-	//  - Listening has been disabled (--nolisten, listen disabled because of
-	//    --connect, etc)
-	//  - Universal Plug and Play is enabled (--upnp)
-	//  - The active network is simnet or regnet
-	if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
-		cfg.NoDiscoverIP ||
-		len(cfg.ExternalIPs) > 0 ||
-		(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
-		s.chainParams.Name == simNetParams.Name ||
-		s.chainParams.Name == regNetParams.Name {
-
-		return true
-	}
-
-	if na != nil {
-		net := addrmgr.IPv4Address
-		if na.IP.To4() == nil {
-			net = addrmgr.IPv6Address
-		}
-
-		localAddr := wireToAddrmgrNetAddress(na)
-		good, reach := s.addrManager.IsExternalAddrCandidate(localAddr,
-			sp.remoteAddr)
-		if !good {
-			return true
-		}
-
-		id := na.IP.String()
-		if state.subCache.exists(id) {
-			// Increment the submission score if it already exists.
-			err := state.subCache.incrementScore(id)
-			if err != nil {
-				srvrLog.Errorf("unable to increment submission score: %v", err)
-				return true
-			}
-		} else {
-			// Create a cache entry for a new submission.
-			sub := &naSubmission{
-				na:      na,
-				netType: net,
-				reach:   reach,
-			}
-
-			err := state.subCache.add(sub)
-			if err != nil {
-				srvrLog.Errorf("unable to add submission: %v", err)
-				return true
-			}
-		}
-
-		// Pick the local address for the provided network based on
-		// submission scores.
-		state.ResolveLocalAddress(net, s.addrManager, s.services)
-	}
-
 	return true
 }
 
@@ -2835,7 +2758,7 @@ func (s *server) DonePeer(sp *serverPeer) {
 		list = state.outboundPeers
 	}
 	if _, ok := list[sp.ID()]; ok {
-		if !sp.Inbound() && sp.VersionKnown() {
+		if !sp.Inbound() {
 			state.outboundGroups[sp.remoteAddr.GroupKey()]--
 		}
 		if !sp.Inbound() {
@@ -2854,12 +2777,11 @@ func (s *server) DonePeer(sp *serverPeer) {
 		s.connManager.Disconnect(connReq.ID())
 	}
 
-	// Update the address manager with the last seen time when the peer has
-	// acknowledged our version and has sent us its version as well.  This is
-	// skipped when running on the simulation and regression test networks since
-	// they are only intended to connect to specified peers and actively avoid
+	// Update the address manager with the last seen time.  This is skipped when
+	// running on the simulation and regression test networks since they are
+	// only intended to connect to specified peers and actively avoid
 	// advertising and connecting to discovered peers.
-	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() {
+	if !cfg.SimNet && !cfg.RegNet {
 		err := s.addrManager.Connected(sp.remoteAddr)
 		if err != nil {
 			srvrLog.Errorf("Marking address as connected failed: %v", err)
@@ -4145,6 +4067,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 		recentlyAdvertisedTxns: lru.NewMapWithDefaultTTL[chainhash.Hash,
 			*dcrutil.Tx](maxRecentlyAdvertisedTxns, recentlyAdvertisedTxnsTTL),
 		lastAdvertisedTxnsEvictedLogged: time.Now(),
+		externalAddrCandidates:          makeExternalAddrCandidateCache(),
 	}
 
 	// Convert the minimum known work to a uint256 when it exists.  Ideally, the
@@ -4505,14 +4428,18 @@ func newServer(ctx context.Context, profiler *profileServer,
 		s.targetOutbound = uint32(cfg.MaxPeers)
 	}
 	cmgr, err := connmgr.New(&connmgr.Config{
-		Listeners:      listeners,
-		OnAccept:       s.inboundPeerConnected,
+		Listeners: listeners,
+		OnAccept: func(conn net.Conn) {
+			s.inboundPeerConnected(ctx, conn)
+		},
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
 		Timeout:        cfg.DialTimeout,
-		OnConnection:   s.outboundPeerConnected,
-		GetNewAddress:  newAddressFunc,
+		OnConnection: func(c *connmgr.ConnReq, conn net.Conn) {
+			s.outboundPeerConnected(ctx, c, conn)
+		},
+		GetNewAddress: newAddressFunc,
 	})
 	if err != nil {
 		return nil, err
@@ -4792,22 +4719,12 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 
 // isWhitelisted returns whether the IP address is included in the whitelisted
 // networks and IPs.
-func isWhitelisted(addr net.Addr) bool {
+func isWhitelisted(addr *addrmgr.NetAddress) bool {
 	if len(cfg.whitelists) == 0 {
 		return false
 	}
 
-	host, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		srvrLog.Warnf("Unable to SplitHostPort on '%s': %v", addr, err)
-		return false
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		srvrLog.Warnf("Unable to parse IP '%s'", addr)
-		return false
-	}
-
+	ip := net.IP(addr.IP)
 	for _, ipnet := range cfg.whitelists {
 		if ipnet.Contains(ip) {
 			return true
