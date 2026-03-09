@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/database/v3
 
-go 1.18
+go 1.19
 
 require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.5

@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2163,17 +2163,17 @@ func testConcurrentClose(tc *testContext) bool {
 	// Start up a few readers and wait for them to acquire views.  Each
 	// reader waits for a signal to complete to ensure the transactions stay
 	// open until they are explicitly signalled to be closed.
-	var activeReaders int32
+	var activeReaders atomic.Int32
 	numReaders := 3
 	started := make(chan struct{})
 	finishReaders := make(chan struct{})
 	resultChan := make(chan bool, numReaders+1)
 	reader := func() {
 		err := tc.db.View(func(tx database.Tx) error {
-			atomic.AddInt32(&activeReaders, 1)
+			activeReaders.Add(1)
 			started <- struct{}{}
 			<-finishReaders
-			atomic.AddInt32(&activeReaders, -1)
+			activeReaders.Add(-1)
 			return nil
 		})
 		if err != nil {
@@ -2212,7 +2212,7 @@ func testConcurrentClose(tc *testContext) bool {
 	// active readers open.
 	time.AfterFunc(time.Millisecond*250, func() { close(finishReaders) })
 	<-dbClosed
-	if nr := atomic.LoadInt32(&activeReaders); nr != 0 {
+	if nr := activeReaders.Load(); nr != 0 {
 		tc.t.Errorf("Close did not appear to block with active "+
 			"readers: %d active", nr)
 		return false
