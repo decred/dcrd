@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2022 The Decred developers
+// Copyright (c) 2017-2026 The Decred developers
 
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -13,7 +13,9 @@ import (
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 )
 
-func TestCheckAuthUserPass(t *testing.T) {
+// TestAuth_UserPass_AdminAndLimited validates the user/pass authentication when
+// both admin and limited credentials are configured.
+func TestAuth_UserPass_AdminAndLimited(t *testing.T) {
 	s, err := New(&Config{
 		RPCUser:      "user",
 		RPCPass:      "pass",
@@ -67,74 +69,83 @@ func TestCheckAuthUserPass(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		authed, isAdmin := s.checkAuthUserPass(test.user, test.pass, "addr")
-		if authed != test.wantAuthed {
-			t.Errorf("%q: unexpected authed -- got %v, want %v", test.name, authed,
-				test.wantAuthed)
+		t.Run(test.name, func(t *testing.T) {
+			authed, isAdmin := s.checkAuthUserPass(test.user, test.pass, "addr")
+			if authed != test.wantAuthed {
+				t.Errorf("unexpected authed -- got %v, want %v", authed,
+					test.wantAuthed)
+			}
+			if isAdmin != test.wantAdmin {
+				t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin,
+					test.wantAdmin)
+			}
+		})
+	}
+}
+
+// TestAuth_Header_NoCredentials validates the header authentication when no
+// credentials are configured.
+func TestAuth_Header_NoCredentials(t *testing.T) {
+	s, err := New(&Config{})
+	if err != nil {
+		t.Fatalf("unable to create RPC server: %v", err)
+	}
+	for _, require := range []bool{true, false} {
+		authed, isAdmin, err := s.checkAuth(&http.Request{}, require)
+		if !authed {
+			t.Errorf("unexpected authed -- got %v, want %v", authed, true)
 		}
-		if isAdmin != test.wantAdmin {
-			t.Errorf("%q: unexpected isAdmin -- got %v, want %v", test.name, isAdmin,
-				test.wantAdmin)
+		if !isAdmin {
+			t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, true)
+		}
+		if err != nil {
+			t.Errorf("unexpected err -- got %v, want %v", err, nil)
 		}
 	}
 }
 
-func TestCheckAuth(t *testing.T) {
-	{
-		s, err := New(&Config{})
-		if err != nil {
-			t.Fatalf("unable to create RPC server: %v", err)
+// TestAuth_Header_Require validates that setting the require flag causes an
+// error to be returned if the request does not contain an Authorization header.
+func TestAuth_Header_Require(t *testing.T) {
+	s, err := New(&Config{
+		RPCUser:      "user",
+		RPCPass:      "pass",
+		RPCLimitUser: "limit",
+		RPCLimitPass: "limit",
+	})
+	if err != nil {
+		t.Fatalf("unable to create RPC server: %v", err)
+	}
+
+	// Test without Authorization header.
+	for _, require := range []bool{true, false} {
+		authed, isAdmin, err := s.checkAuth(&http.Request{}, require)
+		if authed {
+			t.Errorf("unexpected authed -- got %v, want %v", authed, false)
 		}
-		for i := 0; i <= 1; i++ {
-			authed, isAdmin, err := s.checkAuth(&http.Request{}, i == 0)
-			if !authed {
-				t.Errorf(" unexpected authed -- got %v, want %v", authed, true)
-			}
-			if !isAdmin {
-				t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, true)
-			}
-			if err != nil {
-				t.Errorf("unexpected err -- got %v, want %v", err, nil)
-			}
+		if isAdmin {
+			t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, false)
+		}
+		if require && err == nil {
+			t.Errorf("unexpected err -- got %v, want auth failure", err)
+		} else if !require && err != nil {
+			t.Errorf("unexpected err -- got %v, want <nil>", err)
 		}
 	}
-	{
-		s, err := New(&Config{
-			RPCUser:      "user",
-			RPCPass:      "pass",
-			RPCLimitUser: "limit",
-			RPCLimitPass: "limit",
-		})
-		if err != nil {
-			t.Fatalf("unable to create RPC server: %v", err)
+
+	// Test with Authorization header.
+	for _, require := range []bool{true, false} {
+		r := &http.Request{Header: make(map[string][]string, 1)}
+		r.Header["Authorization"] = []string{"Basic Nothing"}
+		authed, isAdmin, err := s.checkAuth(r, require)
+		if authed {
+			t.Errorf("unexpected authed -- got %v, want %v", authed, false)
 		}
-		for i := 0; i <= 1; i++ {
-			authed, isAdmin, err := s.checkAuth(&http.Request{}, i == 0)
-			if authed {
-				t.Errorf(" unexpected authed -- got %v, want %v", authed, false)
-			}
-			if isAdmin {
-				t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, false)
-			}
-			if i == 0 && err == nil {
-				t.Errorf("unexpected err -- got %v, want auth failure", err)
-			} else if i != 0 && err != nil {
-				t.Errorf("unexpected err -- got %v, want <nil>", err)
-			}
+		if isAdmin {
+			t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, false)
 		}
-		for i := 0; i <= 1; i++ {
-			r := &http.Request{Header: make(map[string][]string, 1)}
-			r.Header["Authorization"] = []string{"Basic Nothing"}
-			authed, isAdmin, err := s.checkAuth(r, i == 0)
-			if authed {
-				t.Errorf(" unexpected authed -- got %v, want %v", authed, false)
-			}
-			if isAdmin {
-				t.Errorf("unexpected isAdmin -- got %v, want %v", isAdmin, false)
-			}
-			if err == nil {
-				t.Errorf("unexpected err -- got %v, want auth failure", err)
-			}
+		if err == nil {
+			t.Errorf("unexpected err -- got %v, want auth failure", err)
 		}
 	}
 }
