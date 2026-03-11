@@ -7,6 +7,7 @@ package peer
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"hash"
@@ -191,12 +192,6 @@ type MessageListeners struct {
 
 	// OnFeeFilter is invoked when a peer receives a feefilter wire message.
 	OnFeeFilter func(p *Peer, msg *wire.MsgFeeFilter)
-
-	// OnVersion is invoked when a peer receives a version wire message.
-	OnVersion func(p *Peer, msg *wire.MsgVersion)
-
-	// OnVerAck is invoked when a peer receives a verack wire message.
-	OnVerAck func(p *Peer, msg *wire.MsgVerAck)
 
 	// OnSendHeaders is invoked when a peer receives a sendheaders wire
 	// message.
@@ -476,12 +471,9 @@ type Peer struct {
 	id                   int32
 	userAgent            string
 	remoteServices       wire.ServiceFlag
-	versionKnown         bool
-	handshakeDone        bool
 	advertisedProtoVer   uint32 // protocol version advertised by remote
 	protocolVersion      uint32 // negotiated protocol version
 	sendHeadersPreferred bool   // peer sent a sendheaders message
-	verAckReceived       bool
 
 	knownInventory     *lru.Set[wire.InvVect]
 	prevGetBlocksMtx   sync.Mutex
@@ -671,42 +663,6 @@ func (p *Peer) LastPingMicros() int64 {
 	p.statsMtx.RUnlock()
 
 	return lastPingMicros
-}
-
-// VersionKnown returns the whether or not the version of a peer is known
-// locally.
-//
-// This function is safe for concurrent access.
-func (p *Peer) VersionKnown() bool {
-	p.flagsMtx.Lock()
-	versionKnown := p.versionKnown
-	p.flagsMtx.Unlock()
-
-	return versionKnown
-}
-
-// HandshakeDone returns whether initial version messages were sent and
-// received.
-//
-// This function is safe for concurrent access.
-func (p *Peer) HandshakeDone() bool {
-	p.flagsMtx.Lock()
-	handshakeDone := p.handshakeDone
-	p.flagsMtx.Unlock()
-
-	return handshakeDone
-}
-
-// VerAckReceived returns whether or not a verack message was received by the
-// peer.
-//
-// This function is safe for concurrent access.
-func (p *Peer) VerAckReceived() bool {
-	p.flagsMtx.Lock()
-	verAckReceived := p.verAckReceived
-	p.flagsMtx.Unlock()
-
-	return verAckReceived
 }
 
 // ProtocolVersion returns the negotiated peer protocol version.
@@ -1391,19 +1347,10 @@ out:
 			break out
 
 		case *wire.MsgVerAck:
-			// No read lock is necessary because verAckReceived is not written
-			// to in any other goroutine.
-			if p.verAckReceived {
-				log.Infof("Already received 'verack' from peer %s -- "+
-					"disconnecting", p)
-				break out
-			}
-			p.flagsMtx.Lock()
-			p.verAckReceived = true
-			p.flagsMtx.Unlock()
-			if p.cfg.Listeners.OnVerAck != nil {
-				p.cfg.Listeners.OnVerAck(p, msg)
-			}
+			// Limit to one verack message per peer.
+			log.Debugf("Already received 'verack' from peer %s -- disconnecting",
+				p)
+			break out
 
 		case *wire.MsgGetAddr:
 			if p.cfg.Listeners.OnGetAddr != nil {
@@ -1678,10 +1625,7 @@ out:
 			p.sendQueue <- next
 
 		case iv := <-p.outputInvChan:
-			// No handshake?  They'll find out soon enough.
-			if p.HandshakeDone() {
-				invSendQueue = append(invSendQueue, iv)
-			}
+			invSendQueue = append(invSendQueue, iv)
 
 		case <-trickleTimer.C:
 			// Don't send anything if we're disconnecting or there
@@ -1968,25 +1912,32 @@ func (p *Peer) Disconnect() {
 	}
 }
 
+// OnVersionCallback is an optional callback function that a caller may provide
+// to receive the remote version message during the handshake process.  See
+// [Peer.Handshake] for details.
+type OnVersionCallback func(*wire.MsgVersion) error
+
 // readRemoteVersionMsg waits for the next message to arrive from the remote
 // peer.  If the next message is not a version message or the version is not
 // acceptable then return an error.
-func (p *Peer) readRemoteVersionMsg() error {
+func (p *Peer) readRemoteVersionMsg(onVersion OnVersionCallback) error {
 	// Read their version message.
 	remoteMsg, _, err := p.readMessage()
 	if err != nil {
 		return err
 	}
 
-	// Disconnect clients if the first message is not a version message.
+	// Disconnect client if the first message is not a version message.
 	msg, ok := remoteMsg.(*wire.MsgVersion)
 	if !ok {
-		return errors.New("a version message must precede all others")
+		const str = "a version message must precede all others"
+		return makeError(ErrNotVersionMessage, str)
 	}
 
 	// Detect self connections.
 	if !allowSelfConns && sentNonces.Contains(msg.Nonce) {
-		return errors.New("disconnecting peer connected to self")
+		const str = "disconnecting peer connected to self"
+		return makeError(ErrSelfConnection, str)
 	}
 
 	// Negotiate the protocol version and set the services to what the remote
@@ -1994,11 +1945,10 @@ func (p *Peer) readRemoteVersionMsg() error {
 	p.flagsMtx.Lock()
 	p.advertisedProtoVer = uint32(msg.ProtocolVersion)
 	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
-	p.versionKnown = true
 	p.remoteServices = msg.Services
 	p.flagsMtx.Unlock()
-	log.Debugf("Negotiated protocol version %d for peer %s",
-		p.protocolVersion, p)
+	log.Debugf("Negotiated protocol version %d for peer %s", p.protocolVersion,
+		p)
 
 	// Updating a bunch of stats.
 	p.statsMtx.Lock()
@@ -2016,15 +1966,38 @@ func (p *Peer) readRemoteVersionMsg() error {
 	p.flagsMtx.Unlock()
 
 	// Invoke the callback if specified.
-	if p.cfg.Listeners.OnVersion != nil {
-		p.cfg.Listeners.OnVersion(p, msg)
+	if onVersion != nil {
+		if err := onVersion(msg); err != nil {
+			return err
+		}
 	}
 
 	// Disconnect clients that have a protocol version that is too old.
 	const reqProtocolVersion = int32(wire.RemoveRejectVersion)
 	if msg.ProtocolVersion < reqProtocolVersion {
-		return fmt.Errorf("protocol version must be %d or greater",
+		str := fmt.Sprintf("protocol version must be %d or greater",
 			reqProtocolVersion)
+		return makeError(ErrProtocolVerTooOld, str)
+	}
+
+	return nil
+}
+
+// readRemoteVerAckMsg waits for the next message to arrive from the remote
+// peer and errors if it is not a verack message.
+func (p *Peer) readRemoteVerAckMsg() error {
+	// Read their verack message.
+	remoteMsg, _, err := p.readMessage()
+	if err != nil {
+		return err
+	}
+
+	// Disconnect clients if the second message is not a verack message.
+	_, ok := remoteMsg.(*wire.MsgVerAck)
+	if !ok {
+		const str = "the verack message must follow the version message " +
+			"and precede all others"
+		return makeError(ErrNotVerAckMessage, str)
 	}
 
 	return nil
@@ -2136,11 +2109,17 @@ func (p *Peer) writeLocalVersionMsg() error {
 	return nil
 }
 
-// negotiateInboundProtocol waits to receive a version message from the peer
-// then sends our version message. If the events do not occur in that order then
-// it returns an error.
-func (p *Peer) negotiateInboundProtocol() error {
-	if err := p.readRemoteVersionMsg(); err != nil {
+// inboundHandshake waits to receive a version message from the remote peer then
+// sends a local version message followed by a verack message to signal the
+// remote version message was received and acceptable.  Finally, it waits to
+// receive the remote verack.  No verack is sent if the version is deemed
+// unacceptable.
+//
+// An error is returned when the events do not occur in the described order.
+func (p *Peer) inboundHandshake(onVersion OnVersionCallback) error {
+	// Outbound peers are required to send the version message first, so inbound
+	// peers must expect to read it first.
+	if err := p.readRemoteVersionMsg(onVersion); err != nil {
 		return err
 	}
 
@@ -2148,99 +2127,156 @@ func (p *Peer) negotiateInboundProtocol() error {
 		return err
 	}
 
-	p.flagsMtx.Lock()
-	p.handshakeDone = true
-	p.flagsMtx.Unlock()
+	if err := p.writeMessage(wire.NewMsgVerAck()); err != nil {
+		return err
+	}
+
+	if err := p.readRemoteVerAckMsg(); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-// negotiateOutboundProtocol sends our version message then waits to receive a
-// version message from the peer.  If the events do not occur in that order then
-// it returns an error.
-func (p *Peer) negotiateOutboundProtocol() error {
+// outboundHandshake sends a local version message then waits to receive a
+// version message from the remote peer followed by a verack from the remote
+// peer that signals the local version message was received and deemed
+// acceptable.  Finally, it sends a verack message to signal the remote version
+// was received and acceptable.  No verack is sent if the version is deemed
+// unacceptable.
+//
+// An error is returned when the events do not occur in the described order.
+func (p *Peer) outboundHandshake(onVersion OnVersionCallback) error {
+	// Outbound peers are required to send the version message first.
 	if err := p.writeLocalVersionMsg(); err != nil {
 		return err
 	}
 
-	if err := p.readRemoteVersionMsg(); err != nil {
+	if err := p.readRemoteVersionMsg(onVersion); err != nil {
 		return err
 	}
 
-	p.flagsMtx.Lock()
-	p.handshakeDone = true
-	p.flagsMtx.Unlock()
+	if err := p.readRemoteVerAckMsg(); err != nil {
+		return err
+	}
+
+	if err := p.writeMessage(wire.NewMsgVerAck()); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-// start begins processing input and output messages.
-func (p *Peer) start() error {
-	log.Tracef("Starting peer %s", p)
+// errHandshakeTimeout indicates the handshake process timed out.
+var errHandshakeTimeout = makeError(ErrHandshakeTimeout,
+	"protocol handshake timeout")
 
-	negotiateErr := make(chan error, 1)
+// Handshake performs the intitial handshake with a remote peer and returns an
+// error if the handshake does not complete for any reason.  It blocks until the
+// handshake successfully completes or an error occurs.
+//
+// The peer will be disconnected when a non-nil error is returned.
+//
+// The caller may optionally provided a callback that will be invoked with the
+// version message from the remote peer.  Any errors returned from the callback
+// will cause the handshake process to fail and will be returned from this
+// function.  Effectively, it provides the caller with an easy mechanism to
+// reject peers based on whatever additional criteria they deem fit.
+//
+// NOTE: The code in the callback must be careful to avoid using exported
+// methods that reference details that are not yet established.  Generally
+// speaking, anything that is set as a result of the information in the version
+// message, with the exception of the negotiated protocol version, must not be
+// relied on.
+//
+// More specifically, the callback must only rely on the following:
+//   - Anything set in the [NewInboundPeer] or [NewOutboundPeer] constructors
+//     such as [Peer.Addr] and [Peer.Inbound]
+//   - [Peer.ProtocolVersion] is the negotiated protocol version
+//   - [Peer.ID]
+//
+// On the other hand, the callback must NOT rely on any other methods such as:
+//   - [Peer.UserAgent] (part of the version message)
+//   - [Peer.LastBlock] (part of the version message)
+//   - [Peer.Services] (part of the version message)
+//   - [Peer.StartingHeight] (derived from version message)
+//   - [Peer.StatsSnapshot] (contains many of the aforementioned details)
+//
+// No callback for the verack message is provided because a successful handshake
+// guarantees the verack was received.  Thus, anything that would be invoked in
+// response to verack, can be done when this function returns without error.
+//
+// This should only be called once when the peer is first connected.
+//
+// The caller MUST only start the async I/O processing with [Peer.Run] after
+// this function returns without error.
+func (p *Peer) Handshake(ctx context.Context, onVersion OnVersionCallback) error {
+	handshakeErr := make(chan error, 1)
 	go func() {
 		if p.inbound {
-			negotiateErr <- p.negotiateInboundProtocol()
+			handshakeErr <- p.inboundHandshake(onVersion)
 		} else {
-			negotiateErr <- p.negotiateOutboundProtocol()
+			handshakeErr <- p.outboundHandshake(onVersion)
 		}
 	}()
 
 	// Negotiate the protocol within the specified negotiateTimeout.
 	select {
-	case err := <-negotiateErr:
+	case err := <-handshakeErr:
 		if err != nil {
 			p.Disconnect()
 			return err
 		}
 	case <-time.After(negotiateTimeout):
 		p.Disconnect()
-		return errors.New("protocol negotiation timeout")
+		return errHandshakeTimeout
+	case <-ctx.Done():
+		p.Disconnect()
+		return errHandshakeTimeout
 	}
-	log.Debugf("Connected to %s", p.Addr())
 
-	// The protocol has been negotiated successfully so start processing input
-	// and output messages.
-	go p.stallHandler()
-	go p.inHandler()
-	go p.queueHandler()
-	go p.outHandler()
-
-	// Send our verack message now that the IO processing machinery has started.
-	p.QueueMessage(wire.NewMsgVerAck(), nil)
 	return nil
 }
 
-// AssociateConnection associates the given conn to the peer.
-// Calling this function when the peer is already connected will
-// have no effect.
-func (p *Peer) AssociateConnection(conn net.Conn) {
-	p.connMtx.Lock()
+// Run begins processing input and output messages.  Callers MUST only call this
+// after [Peer.Handshake] completes without error.
+func (p *Peer) Run(ctx context.Context) {
+	log.Tracef("Running peer %s", p)
 
-	// Already connected?
-	if p.conn != nil {
-		p.connMtx.Unlock()
-		return
+	// The protocol has been negotiated successfully so start processing input
+	// and output messages.
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		p.stallHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.inHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.queueHandler()
+		wg.Done()
+	}()
+	go func() {
+		p.outHandler()
+		wg.Done()
+	}()
+
+	// Forcibly disconnect the peer when the context is cancelled which also
+	// closes the quit channel and thus ensures all of the above goroutines are
+	// shutdown.
+	//
+	// Select across the quit channel as well since the context is not cancelled
+	// when the connection is closed.
+	select {
+	case <-ctx.Done():
+		p.Disconnect()
+	case <-p.quit:
 	}
 
-	p.conn = conn
-	p.connMtx.Unlock()
-
-	p.statsMtx.Lock()
-	p.timeConnected = time.Now()
-	p.statsMtx.Unlock()
-
-	if p.inbound {
-		p.remoteAddr = p.conn.RemoteAddr()
-	}
-
-	go func(peer *Peer) {
-		if err := peer.start(); err != nil {
-			log.Debugf("Cannot start peer %v: %v", peer, err)
-			peer.Disconnect()
-		}
-	}(p)
+	wg.Wait()
 }
 
 // WaitForDisconnect waits until the peer has completely disconnected and all
@@ -2252,9 +2288,9 @@ func (p *Peer) WaitForDisconnect() {
 }
 
 // newPeerBase returns a new base Decred peer based on the inbound flag.  This
-// is used by the NewInboundPeer and NewOutboundPeer functions to perform base
-// setup needed by both types of peers.
-func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
+// is used by the [NewInboundPeer] and [NewOutboundPeer] functions to perform
+// base setup needed by both types of peers.
+func newPeerBase(cfgOrig *Config, conn net.Conn, inbound bool) *Peer {
 	// Copy to avoid mutating the caller and so the caller can't mutate.
 	cfg := *cfgOrig
 
@@ -2278,9 +2314,11 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 
 	p := Peer{
 		blake256Hasher: blake256.New(),
+		conn:           conn,
 		inbound:        inbound,
 		knownInventory: lru.NewSetWithDefaultTTL[wire.InvVect](
 			maxKnownInventory, maxKnownInventoryTTL),
+		timeConnected:   time.Now(),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
 		outputQueue:     make(chan outMsg, outputBufferSize),
 		sendQueue:       make(chan outMsg, 1),   // nonblocking sync
@@ -2296,15 +2334,20 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	return &p
 }
 
-// NewInboundPeer returns a new inbound Decred peer. Use Start to begin
-// processing incoming and outgoing messages.
-func NewInboundPeer(cfg *Config) *Peer {
-	return newPeerBase(cfg, true)
+// NewInboundPeer returns a new inbound Decred peer.  Use [Peer.Handshake] to
+// perform the initial version negotiation and then [Peer.Run] to begin
+// processing incoming and outgoing messages when the handshake is successful.
+func NewInboundPeer(cfg *Config, conn net.Conn) *Peer {
+	p := newPeerBase(cfg, conn, true)
+	p.remoteAddr = p.conn.RemoteAddr()
+	return p
 }
 
-// NewOutboundPeer returns a new outbound Decred peer.
-func NewOutboundPeer(cfg *Config, addr net.Addr) (*Peer, error) {
-	p := newPeerBase(cfg, false)
+// NewOutboundPeer returns a new outbound Decred peer.  Use [Peer.Handshake] to
+// perform the initial version negotiation and then [Peer.Run] to begin
+// processing incoming and outgoing messages when the handshake is successful.
+func NewOutboundPeer(cfg *Config, addr net.Addr, conn net.Conn) *Peer {
+	p := newPeerBase(cfg, conn, false)
 	p.remoteAddr = addr
-	return p, nil
+	return p
 }
