@@ -28,6 +28,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrMalformedCmd, "ErrMalformedCmd"},
 		{ErrUnknownCmd, "ErrUnknownCmd"},
 		{ErrPayloadChecksum, "ErrPayloadChecksum"},
+		{ErrTrailingBytes, "ErrTrailingBytes"},
 		{ErrTooManyAddrs, "ErrTooManyAddrs"},
 		{ErrTooManyTxs, "ErrTooManyTxs"},
 		{ErrMsgInvalidForPVer, "ErrMsgInvalidForPVer"},
