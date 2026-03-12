@@ -48,6 +48,10 @@ const (
 	// is received.
 	ErrPayloadChecksum
 
+	// ErrTrailingBytes is returned when a message is received that is valid
+	// enough to fully decode, but also contains additional trailing bytes.
+	ErrTrailingBytes
+
 	// ErrTooManyAddrs is returned when an address list exceeds the maximum
 	// allowed.
 	ErrTooManyAddrs
@@ -182,6 +186,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMalformedCmd:                  "ErrMalformedCmd",
 	ErrUnknownCmd:                    "ErrUnknownCmd",
 	ErrPayloadChecksum:               "ErrPayloadChecksum",
+	ErrTrailingBytes:                 "ErrTrailingBytes",
 	ErrTooManyAddrs:                  "ErrTooManyAddrs",
 	ErrTooManyTxs:                    "ErrTooManyTxs",
 	ErrMsgInvalidForPVer:             "ErrMsgInvalidForPVer",
