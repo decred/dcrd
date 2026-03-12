@@ -240,6 +240,14 @@ func TestReadMessageWireErrors(t *testing.T) {
 	badMessageBytes := makeHeader(dcrnet, "addr", 1, 0xab37af49)
 	badMessageBytes = append(badMessageBytes, 0x2)
 
+	// Wire encoded bytes for a message that is valid, but contains additional
+	// trailing bytes and header fields that are forged so the message is
+	// otherwise accurate.
+	payloadSize := uint32(len(testBlockBytes))
+	trailingBytes := makeHeader(dcrnet, "block", payloadSize+1, 0xb5ec24b8)
+	trailingBytes = append(trailingBytes, testBlockBytes...)
+	trailingBytes = append(trailingBytes, 0x01)
+
 	tests := []struct {
 		name   string      // Test description
 		buf    []byte      // Wire encoding
@@ -321,6 +329,14 @@ func TestReadMessageWireErrors(t *testing.T) {
 		max:    len(badMessageBytes),
 		err:    io.EOF,
 		bytes:  len(badMessageBytes),
+	}, {
+		name:   "valid header and message with extra trailing bytes",
+		buf:    trailingBytes,
+		pver:   pver,
+		dcrnet: dcrnet,
+		max:    len(trailingBytes),
+		err:    ErrTrailingBytes,
+		bytes:  len(trailingBytes),
 	}}
 
 	t.Logf("Running %d tests", len(tests))
