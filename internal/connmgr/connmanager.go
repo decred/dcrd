@@ -171,12 +171,6 @@ type handleDisconnected struct {
 	retry bool
 }
 
-// handleFailed is used to remove a pending connection.
-type handleFailed struct {
-	c   *ConnReq
-	err error
-}
-
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
 	// connReqCount is the number of connection requests that have been made and
@@ -219,52 +213,6 @@ type ConnManager struct {
 	connMtx sync.Mutex
 	pending map[uint64]*ConnReq
 	conns   map[uint64]*ConnReq
-}
-
-// handleFailedConn handles a connection failed due to a disconnect or any
-// other failure. If permanent, it retries the connection after the configured
-// retry duration. Otherwise, if required, it makes a new connection request.
-// After maxFailedConnectionAttempts new connections will be retried after the
-// configured retry duration.
-//
-// This function MUST be called with the connection lock held (writes).
-func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
-	// Ignore during shutdown.
-	if ctx.Err() != nil {
-		return
-	}
-
-	if c.Permanent {
-		c.retryCount++
-		d := time.Duration(c.retryCount) * cm.cfg.RetryDuration
-		if d > maxRetryDuration {
-			d = maxRetryDuration
-		}
-		log.Debugf("Retrying connection to %v in %v", c, d)
-		go func() {
-			select {
-			case <-time.After(d):
-				cm.Connect(ctx, c)
-			case <-cm.quit:
-			}
-		}()
-	} else if cm.cfg.GetNewAddress != nil {
-		cm.failedAttempts++
-		if cm.failedAttempts >= maxFailedAttempts {
-			log.Debugf("Max failed connection attempts reached: [%d] "+
-				"-- retrying connection in: %v", maxFailedAttempts,
-				cm.cfg.RetryDuration)
-			go func() {
-				select {
-				case <-time.After(cm.cfg.RetryDuration):
-					cm.newConnReq(ctx)
-				case <-cm.quit:
-				}
-			}()
-		} else {
-			go cm.newConnReq(ctx)
-		}
-	}
 }
 
 // connHandler handles all connection related requests.  It must be run as a
@@ -342,21 +290,6 @@ out:
 					cm.handleFailedConn(ctx, connReq)
 				}
 				cm.connMtx.Unlock()
-
-			case handleFailed:
-				connReq := msg.c
-				cm.connMtx.Lock()
-				if _, ok := cm.pending[connReq.ID()]; !ok {
-					log.Debugf("Ignoring connection for "+
-						"canceled conn req: %v", connReq)
-					continue
-				}
-
-				connReq.updateState(ConnFailed)
-				log.Debugf("Failed to connect to %v: %v",
-					connReq, msg.err)
-				cm.handleFailedConn(ctx, connReq)
-				cm.connMtx.Unlock()
 			}
 
 		case <-ctx.Done():
@@ -376,8 +309,8 @@ func (cm *ConnManager) registerPending(connReq *ConnReq) {
 	cm.pending[connReq.ID()] = connReq
 }
 
-// newConnReq creates a new connection request and connects to the
-// corresponding address.
+// newConnReq creates a new connection request and connects to the corresponding
+// address.
 func (cm *ConnManager) newConnReq(ctx context.Context) {
 	// Ignore during shutdown.
 	if ctx.Err() != nil {
@@ -395,16 +328,96 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 
 	addr, err := cm.cfg.GetNewAddress()
 	if err != nil {
-		select {
-		case cm.requests <- handleFailed{c, err}:
-		case <-cm.quit:
-		}
+		cm.connMtx.Lock()
+		cm.handleFailedPending(ctx, c, err)
+		cm.connMtx.Unlock()
 		return
 	}
 
 	c.Addr = addr
 
 	cm.Connect(ctx, c)
+}
+
+// handleFailedConn handles a connection failed due to a disconnect or any other
+// failure.  Permanent connection requests are retried after the configured
+// retry duration.  A new connection request is created if required.
+//
+// In the event there have been [maxFailedAttempts] failed successive attempts,
+// new connections will be retried after the configured retry duration.
+//
+// This function MUST be called with the connection lock held (writes).
+func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
+	// Ignore during shutdown.
+	select {
+	case <-cm.quit:
+		return
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	// Reconnect to permanent connection requests after a retry timeout with
+	// an increasing backoff up to a max for repeated failed attempts.
+	if c.Permanent {
+		c.retryCount++
+		retryWait := time.Duration(c.retryCount) * cm.cfg.RetryDuration
+		retryWait = min(retryWait, maxRetryDuration)
+		log.Debugf("Retrying connection to %v in %v", c, retryWait)
+		go func() {
+			select {
+			case <-time.After(retryWait):
+				cm.Connect(ctx, c)
+			case <-cm.quit:
+			case <-ctx.Done():
+			}
+		}()
+		return
+	}
+
+	// Nothing more to do when the method to automatically get new addresses
+	// to connect to isn't configured.
+	if cm.cfg.GetNewAddress == nil {
+		return
+	}
+
+	// Wait to attempt new connections when there are too many successive
+	// failures.  This prevents massive connection spam when no connections can
+	// be made, such as a network outtage.
+	cm.failedAttempts++
+	if cm.failedAttempts >= maxFailedAttempts {
+		log.Debugf("Max failed connection attempts reached: [%d] -- retrying "+
+			"connection in: %v", maxFailedAttempts, cm.cfg.RetryDuration)
+		go func() {
+			select {
+			case <-time.After(cm.cfg.RetryDuration):
+				cm.newConnReq(ctx)
+			case <-cm.quit:
+			case <-ctx.Done():
+			}
+		}()
+		return
+	}
+
+	// Otherwise, attempt a new connection with a new address now.
+	go cm.newConnReq(ctx)
+}
+
+// handleFailedPending handles failed pending connection requests.  Connection
+// requests that were canceled are ignored.  Otherwise, their state is updated
+// to mark it failed and it is passed along to [ConnManager.handleFailedConn] to
+// possibly retry or be reused for a new connection depending on settings.
+//
+// This function MUST be called with the connection lock held (writes).
+func (cm *ConnManager) handleFailedPending(ctx context.Context, c *ConnReq, failedErr error) {
+	if _, ok := cm.pending[c.ID()]; !ok {
+		log.Debugf("Ignoring connection for canceled conn req: %v", c)
+		return
+	}
+
+	c.updateState(ConnFailed)
+	log.Debugf("Failed to connect to %v: %v", c, failedErr)
+	cm.handleFailedConn(ctx, c)
 }
 
 // Connect assigns an id and dials a connection to the address of the connection
@@ -477,10 +490,9 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		conn, err = cm.cfg.DialAddr(ctx, c.Addr)
 	}
 	if err != nil {
-		select {
-		case cm.requests <- handleFailed{c, err}:
-		case <-cm.quit:
-		}
+		cm.connMtx.Lock()
+		cm.handleFailedPending(ctx, c, err)
+		cm.connMtx.Unlock()
 		return
 	}
 
