@@ -165,15 +165,6 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// registerPending is used to register a pending connection attempt. By
-// registering pending connection attempts we allow callers to cancel pending
-// connection attempts before they're successful or in the case they're no
-// longer wanted.
-type registerPending struct {
-	c    *ConnReq
-	done chan struct{}
-}
-
 // handleConnected is used to queue a successful connection.
 type handleConnected struct {
 	c    *ConnReq
@@ -307,14 +298,6 @@ out:
 		select {
 		case req := <-cm.requests:
 			switch msg := req.(type) {
-			case registerPending:
-				connReq := msg.c
-				cm.connMtx.Lock()
-				connReq.updateState(ConnPending)
-				cm.pending[msg.c.ID()] = connReq
-				cm.connMtx.Unlock()
-				close(msg.done)
-
 			case handleConnected:
 				connReq := msg.c
 				cm.connMtx.Lock()
@@ -479,6 +462,15 @@ out:
 	log.Trace("Connection handler done")
 }
 
+// registerPending registers the provided connection request as a pending
+// connection attempt.
+//
+// This function MUST be called with the connection mutex lock held (writes).
+func (cm *ConnManager) registerPending(connReq *ConnReq) {
+	connReq.updateState(ConnPending)
+	cm.pending[connReq.ID()] = connReq
+}
+
 // newConnReq creates a new connection request and connects to the
 // corresponding address.
 func (cm *ConnManager) newConnReq(ctx context.Context) {
@@ -490,24 +482,11 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 	c := &ConnReq{}
 	c.id.Store(cm.connReqCount.Add(1))
 
-	// Submit a request of a pending connection attempt to the connection
-	// manager. By registering the id before the connection is even
-	// established, we'll be able to later cancel the connection via the
-	// Remove method.
-	done := make(chan struct{})
-	select {
-	case cm.requests <- registerPending{c, done}:
-	case <-cm.quit:
-		return
-	}
-
-	// Wait for the registration to successfully add the pending conn req to
-	// the conn manager's internal state.
-	select {
-	case <-done:
-	case <-cm.quit:
-		return
-	}
+	// Register the pending connection attempt so it can be canceled via the
+	// [ConnManager.Remove] method.
+	cm.connMtx.Lock()
+	cm.registerPending(c)
+	cm.connMtx.Unlock()
 
 	addr, err := cm.cfg.GetNewAddress()
 	if err != nil {
@@ -552,10 +531,9 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		return
 	}
 
-	// Assign an ID and register a pending connection attempt with the
-	// connection manager when an ID has not already been assigned. By
-	// registering the ID before the connection is established, it can later be
-	// canceled via the Remove method.
+	// Assign an ID and register the pending connection attempt when an ID has
+	// not already been assigned so it can be canceled via the
+	// [ConnManager.Remove] method.
 	//
 	// Note that the assignment of the ID and the overall request count need to
 	// be synchronized.  So long as this is the only place an existing conn
@@ -571,24 +549,9 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 	}
 	cm.assignIDMtx.Unlock()
 	if doRegisterPending {
-		// Submit a request of a pending connection attempt to the
-		// connection manager. By registering the id before the
-		// connection is even established, we'll be able to later
-		// cancel the connection via the Remove method.
-		done := make(chan struct{})
-		select {
-		case cm.requests <- registerPending{c, done}:
-		case <-cm.quit:
-			return
-		}
-
-		// Wait for the registration to successfully add the pending
-		// conn req to the conn manager's internal state.
-		select {
-		case <-done:
-		case <-cm.quit:
-			return
-		}
+		cm.connMtx.Lock()
+		cm.registerPending(c)
+		cm.connMtx.Unlock()
 	}
 
 	log.Debugf("Attempting to connect to %v", c)
