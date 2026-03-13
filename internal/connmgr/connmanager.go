@@ -183,13 +183,6 @@ type handleFailed struct {
 	err error
 }
 
-// handleForEachConnReq is used to iterate all known connection requests to
-// include pending ones.
-type handleForEachConnReq struct {
-	f    func(c *ConnReq) error
-	done chan error
-}
-
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
 	// connReqCount is the number of connection requests that have been made and
@@ -398,30 +391,6 @@ out:
 					connReq, msg.err)
 				cm.handleFailedConn(ctx, connReq)
 				cm.connMtx.Unlock()
-
-			case handleForEachConnReq:
-				var err error
-				cm.connMtx.Lock()
-				for _, connReq := range cm.pending {
-					err = msg.f(connReq)
-					if err != nil {
-						break
-					}
-				}
-				cm.connMtx.Unlock()
-				if err != nil {
-					msg.done <- err
-					continue
-				}
-				cm.connMtx.Lock()
-				for _, connReq := range cm.conns {
-					err = msg.f(connReq)
-					if err != nil {
-						break
-					}
-				}
-				cm.connMtx.Unlock()
-				msg.done <- err
 			}
 
 		case <-ctx.Done():
@@ -623,18 +592,23 @@ func (cm *ConnManager) CancelPending(addr net.Addr) error {
 // NOTE: This must not call any other connection manager methods during
 // iteration or it will result in a deadlock.
 func (cm *ConnManager) ForEachConnReq(f func(c *ConnReq) error) error {
-	done := make(chan error, 1)
-	select {
-	case cm.requests <- handleForEachConnReq{f, done}:
-	case <-cm.quit:
-	}
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
 
-	select {
-	case err := <-done:
-		return err
-	case <-cm.quit:
-		return fmt.Errorf("connection manager stopped")
+	var err error
+	for _, connReq := range cm.pending {
+		err = f(connReq)
+		if err != nil {
+			return err
+		}
 	}
+	for _, connReq := range cm.conns {
+		err = f(connReq)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // listenHandler accepts incoming connections on a given listener.  It must be
