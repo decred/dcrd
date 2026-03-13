@@ -235,6 +235,14 @@ type ConnManager struct {
 	// requests is used internally to interact with the connection handler
 	// goroutine.
 	requests chan interface{}
+
+	// The following fields are used to track the various connections managed
+	// by the connection manager.  They are protected by the associated
+	// connection mutex.
+	//
+	// conns represents the set of all active connections.
+	connMtx sync.Mutex
+	conns   map[uint64]*ConnReq
 }
 
 // handleFailedConn handles a connection failed due to a disconnect or any
@@ -292,9 +300,6 @@ func (cm *ConnManager) connHandler(ctx context.Context) {
 		// pending holds all registered conn requests that have yet to
 		// succeed.
 		pending = make(map[uint64]*ConnReq)
-
-		// conns represents the set of all actively connected peers.
-		conns = make(map[uint64]*ConnReq, cm.cfg.TargetOutbound)
 	)
 
 out:
@@ -320,9 +325,11 @@ out:
 					continue
 				}
 
+				cm.connMtx.Lock()
 				connReq.updateState(ConnEstablished)
 				connReq.conn = msg.conn
-				conns[connReqID] = connReq
+				cm.conns[connReqID] = connReq
+				cm.connMtx.Unlock()
 				log.Debugf("Connected to %v", connReq)
 				connReq.retryCount = 0
 				cm.failedAttempts = 0
@@ -334,7 +341,9 @@ out:
 				}
 
 			case handleDisconnected:
-				connReq, ok := conns[msg.id]
+				cm.connMtx.Lock()
+				connReq, ok := cm.conns[msg.id]
+				cm.connMtx.Unlock()
 				if !ok {
 					connReq, ok = pending[msg.id]
 					if !ok {
@@ -357,7 +366,9 @@ out:
 				// disconnected and execute disconnection
 				// callback.
 				log.Debugf("Disconnected from %v", connReq)
-				delete(conns, msg.id)
+				cm.connMtx.Lock()
+				delete(cm.conns, msg.id)
+				cm.connMtx.Unlock()
 
 				if connReq.conn != nil {
 					connReq.conn.Close()
@@ -378,7 +389,9 @@ out:
 				// Otherwise, attempt a reconnection when there are not already
 				// enough outbound peers to satisfy the target number of
 				// outbound peers or this is a persistent peer.
-				numConns := uint32(len(conns))
+				cm.connMtx.Lock()
+				numConns := uint32(len(cm.conns))
+				cm.connMtx.Unlock()
 				if numConns < cm.cfg.TargetOutbound || connReq.Permanent {
 					// The connection request is reused for persistent peers, so
 					// add it back to the pending map in that case so that
@@ -440,12 +453,14 @@ out:
 					msg.done <- err
 					continue
 				}
-				for _, connReq := range conns {
+				cm.connMtx.Lock()
+				for _, connReq := range cm.conns {
 					err = msg.f(connReq)
 					if err != nil {
 						break
 					}
 				}
+				cm.connMtx.Unlock()
 				msg.done <- err
 			}
 
@@ -757,6 +772,7 @@ func New(cfg *Config) (*ConnManager, error) {
 		cfg:      *cfg, // Copy so caller can't mutate
 		requests: make(chan interface{}),
 		quit:     make(chan struct{}),
+		conns:    make(map[uint64]*ConnReq, cfg.TargetOutbound),
 	}
 	return &cm, nil
 }
