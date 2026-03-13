@@ -18,6 +18,10 @@ const (
 	// cannot both be specified in the configuration.
 	ErrBothDialsFilled = ErrorKind("ErrBothDialsFilled")
 
+	// ErrNotFound indicates a specified connection ID or address is unknown to
+	// the connection manager.
+	ErrNotFound = ErrorKind("ErrNotFound")
+
 	// ErrTorInvalidAddressResponse indicates an invalid address was
 	// returned by the Tor DNS resolver.
 	ErrTorInvalidAddressResponse = ErrorKind("ErrTorInvalidAddressResponse")
