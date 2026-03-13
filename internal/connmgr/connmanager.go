@@ -192,10 +192,6 @@ type ConnManager struct {
 	// outside of it.
 	failedAttempts uint64
 
-	// requests is used internally to interact with the connection handler
-	// goroutine.
-	requests chan interface{}
-
 	// The following fields are used to track the various connections managed
 	// by the connection manager.  They are protected by the associated
 	// connection mutex.
@@ -207,25 +203,6 @@ type ConnManager struct {
 	connMtx sync.Mutex
 	pending map[uint64]*ConnReq
 	conns   map[uint64]*ConnReq
-}
-
-// connHandler handles all connection related requests.  It must be run as a
-// goroutine.
-//
-// The connection handler makes sure that we maintain a pool of active outbound
-// connections so that we remain connected to the network.  Connection requests
-// are processed and mapped by their assigned ids.
-func (cm *ConnManager) connHandler(ctx context.Context) {
-out:
-	for {
-		select {
-		case <-cm.requests:
-		case <-ctx.Done():
-			break out
-		}
-	}
-
-	log.Trace("Connection handler done")
 }
 
 // registerPending registers the provided connection request as a pending
@@ -629,16 +606,9 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 func (cm *ConnManager) Run(ctx context.Context) {
 	log.Trace("Starting connection manager")
 
-	// Start the connection handler goroutine.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		cm.connHandler(ctx)
-		wg.Done()
-	}()
-
 	// Start all the listeners so long as the caller requested them and provided
 	// a callback to be invoked when connections are accepted.
+	var wg sync.WaitGroup
 	var listeners []net.Listener
 	if cm.cfg.OnAccept != nil {
 		listeners = cm.cfg.Listeners
@@ -693,11 +663,10 @@ func New(cfg *Config) (*ConnManager, error) {
 		cfg.TargetOutbound = defaultTargetOutbound
 	}
 	cm := ConnManager{
-		cfg:      *cfg, // Copy so caller can't mutate
-		requests: make(chan interface{}),
-		quit:     make(chan struct{}),
-		pending:  make(map[uint64]*ConnReq),
-		conns:    make(map[uint64]*ConnReq, cfg.TargetOutbound),
+		cfg:     *cfg, // Copy so caller can't mutate
+		quit:    make(chan struct{}),
+		pending: make(map[uint64]*ConnReq),
+		conns:   make(map[uint64]*ConnReq, cfg.TargetOutbound),
 	}
 	return &cm, nil
 }
