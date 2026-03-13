@@ -165,12 +165,6 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// handleDisconnected is used to remove a connection.
-type handleDisconnected struct {
-	id    uint64
-	retry bool
-}
-
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
 	// connReqCount is the number of connection requests that have been made and
@@ -225,73 +219,7 @@ func (cm *ConnManager) connHandler(ctx context.Context) {
 out:
 	for {
 		select {
-		case req := <-cm.requests:
-			switch msg := req.(type) {
-			case handleDisconnected:
-				cm.connMtx.Lock()
-				connReq, ok := cm.conns[msg.id]
-				if !ok {
-					connReq, ok = cm.pending[msg.id]
-					if !ok {
-						log.Errorf("Unknown connid=%d",
-							msg.id)
-						continue
-					}
-
-					// Pending connection was found, remove
-					// it from pending map if we should
-					// ignore a later, successful
-					// connection.
-					connReq.updateState(ConnCanceled)
-					log.Debugf("Canceling: %v", connReq)
-					delete(cm.pending, msg.id)
-					cm.connMtx.Unlock()
-					continue
-				}
-
-				// An existing connection was located, mark as
-				// disconnected and execute disconnection
-				// callback.
-				log.Debugf("Disconnected from %v", connReq)
-				delete(cm.conns, msg.id)
-
-				if connReq.conn != nil {
-					connReq.conn.Close()
-				}
-
-				if cm.cfg.OnDisconnection != nil {
-					go cm.cfg.OnDisconnection(connReq)
-				}
-
-				// All internal state has been cleaned up, if
-				// this connection is being removed, we will
-				// make no further attempts with this request.
-				if !msg.retry {
-					connReq.updateState(ConnDisconnected)
-					cm.connMtx.Unlock()
-					continue
-				}
-
-				// Otherwise, attempt a reconnection when there are not already
-				// enough outbound peers to satisfy the target number of
-				// outbound peers or this is a persistent peer.
-				numConns := uint32(len(cm.conns))
-				if numConns < cm.cfg.TargetOutbound || connReq.Permanent {
-					// The connection request is reused for persistent peers, so
-					// add it back to the pending map in that case so that
-					// subsequent processing of connections and failures do not
-					// ignore the request.
-					if connReq.Permanent {
-						connReq.updateState(ConnPending)
-						log.Debugf("Reconnecting to %v", connReq)
-						cm.pending[msg.id] = connReq
-					}
-
-					cm.handleFailedConn(ctx, connReq)
-				}
-				cm.connMtx.Unlock()
-			}
-
+		case <-cm.requests:
 		case <-ctx.Done():
 			break out
 		}
@@ -518,26 +446,94 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 	}
 }
 
-// Disconnect disconnects the connection corresponding to the given connection
-// id. If permanent, the connection will be retried with an increasing backoff
-// duration.
-func (cm *ConnManager) Disconnect(id uint64) {
-	select {
-	case cm.requests <- handleDisconnected{id, true}:
-	case <-cm.quit:
+// handleDisconnected handles a connection that has been disconnected.
+//
+// This function MUST be called with the connection mutex held (writes).
+func (cm *ConnManager) handleDisconnected(id uint64, retry bool) {
+	// Mark the connection request as canceled and remove it from the pending
+	// connections when it is still pending.  Since the connection attempt is
+	// taking place asynchronously, this ensures any later successful connection
+	// is ignored.
+	connReq, ok := cm.pending[id]
+	if ok {
+		connReq.updateState(ConnCanceled)
+		log.Debugf("Canceling: %v", connReq)
+		delete(cm.pending, id)
 	}
+
+	connReq, ok = cm.conns[id]
+	if !ok {
+		log.Errorf("Unknown connid=%d", id)
+		return
+	}
+
+	// Close the underlying connection and invoke the associated callback (if
+	// assigned).
+	log.Debugf("Disconnected from %v", connReq)
+	delete(cm.conns, id)
+	if connReq.conn != nil {
+		connReq.conn.Close()
+	}
+	if cm.cfg.OnDisconnection != nil {
+		go cm.cfg.OnDisconnection(connReq)
+	}
+
+	// Mark the associated connection request as disconnected and return when no
+	// further attempts will be made now that all internal state has been
+	// cleaned up.
+	if !retry {
+		connReq.updateState(ConnDisconnected)
+		return
+	}
+
+	// Otherwise, attempt a reconnection when the associated connection request
+	// is marked as permanent or there are not already enough outbound peers to
+	// satisfy the target number of outbound peers.
+	numConns := uint32(len(cm.conns))
+	if connReq.Permanent || numConns < cm.cfg.TargetOutbound {
+		// The connection request is reused for permanent ones, so add it back
+		// to the pending map in that case so that subsequent processing of
+		// connections and failures do not ignore the request.
+		if connReq.Permanent {
+			cm.registerPending(connReq)
+			log.Debugf("Reconnecting to %v", connReq)
+		}
+
+		// A background context is the only viable choice here.  It is not
+		// ideal, but it is acceptable, because, ultimately, this context is
+		// really only used for persistent peers when they retry and persistent
+		// peers are not tied to a specific context anyway.  They are instead
+		// removed by other means.  Due to that, there also is no machinery to
+		// cancel a given persistent peer from a given context anyway.
+		//
+		// Future work ideally should refactor the persistent peer handling to
+		// have proper full context support.
+		cm.handleFailedConn(context.Background(), connReq)
+	}
+}
+
+// Disconnect disconnects the connection corresponding to the given connection
+// id.  Permanent connections will be retried with an increasing backoff
+// duration.
+//
+// This function is safe for concurrent access.
+func (cm *ConnManager) Disconnect(id uint64) {
+	cm.connMtx.Lock()
+	cm.handleDisconnected(id, true)
+	cm.connMtx.Unlock()
 }
 
 // Remove removes the connection corresponding to the given connection id from
 // known connections.
 //
-// NOTE: This method can also be used to cancel a lingering connection attempt
+// NOTE: This method can also be used to cancel a pending connection attempt
 // that hasn't yet succeeded.
+//
+// This function is safe for concurrent access.
 func (cm *ConnManager) Remove(id uint64) {
-	select {
-	case cm.requests <- handleDisconnected{id, false}:
-	case <-cm.quit:
-	}
+	cm.connMtx.Lock()
+	cm.handleDisconnected(id, false)
+	cm.connMtx.Unlock()
 }
 
 // findPendingByAddr attempts to find and return the pending connection request
