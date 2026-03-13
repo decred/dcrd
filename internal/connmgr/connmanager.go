@@ -62,8 +62,8 @@ type ConnReq struct {
 	// state is the current connection state for this connection request.
 	state atomic.Uint32
 
-	// The following fields are owned by the connection handler and must not
-	// be accessed outside of it.
+	// The following fields are owned by the connection manager and must not
+	// be accessed without its connection mutex held.
 	//
 	// retryCount is the number of times a permanent connection request that
 	// fails to connect has been retried since the last successful connection.
@@ -240,8 +240,12 @@ type ConnManager struct {
 	// by the connection manager.  They are protected by the associated
 	// connection mutex.
 	//
+	// pending holds all registered connection requests that have yet to
+	// succeed.
+	//
 	// conns represents the set of all active connections.
 	connMtx sync.Mutex
+	pending map[uint64]*ConnReq
 	conns   map[uint64]*ConnReq
 }
 
@@ -250,6 +254,8 @@ type ConnManager struct {
 // retry duration. Otherwise, if required, it makes a new connection request.
 // After maxFailedConnectionAttempts new connections will be retried after the
 // configured retry duration.
+//
+// This function MUST be called with the connection lock held (writes).
 func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
 	// Ignore during shutdown.
 	if ctx.Err() != nil {
@@ -296,12 +302,6 @@ func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
 // connections so that we remain connected to the network.  Connection requests
 // are processed and mapped by their assigned ids.
 func (cm *ConnManager) connHandler(ctx context.Context) {
-	var (
-		// pending holds all registered conn requests that have yet to
-		// succeed.
-		pending = make(map[uint64]*ConnReq)
-	)
-
 out:
 	for {
 		select {
@@ -309,32 +309,35 @@ out:
 			switch msg := req.(type) {
 			case registerPending:
 				connReq := msg.c
+				cm.connMtx.Lock()
 				connReq.updateState(ConnPending)
-				pending[msg.c.ID()] = connReq
+				cm.pending[msg.c.ID()] = connReq
+				cm.connMtx.Unlock()
 				close(msg.done)
 
 			case handleConnected:
 				connReq := msg.c
+				cm.connMtx.Lock()
 				connReqID := connReq.ID()
-				if _, ok := pending[connReqID]; !ok {
+				if _, ok := cm.pending[connReqID]; !ok {
 					if msg.conn != nil {
 						msg.conn.Close()
 					}
+					cm.connMtx.Unlock()
 					log.Debugf("Ignoring connection for "+
 						"canceled connreq=%v", connReq)
 					continue
 				}
 
-				cm.connMtx.Lock()
 				connReq.updateState(ConnEstablished)
 				connReq.conn = msg.conn
 				cm.conns[connReqID] = connReq
-				cm.connMtx.Unlock()
 				log.Debugf("Connected to %v", connReq)
 				connReq.retryCount = 0
 				cm.failedAttempts = 0
 
-				delete(pending, connReqID)
+				delete(cm.pending, connReqID)
+				cm.connMtx.Unlock()
 
 				if cm.cfg.OnConnection != nil {
 					go cm.cfg.OnConnection(connReq, msg.conn)
@@ -343,9 +346,8 @@ out:
 			case handleDisconnected:
 				cm.connMtx.Lock()
 				connReq, ok := cm.conns[msg.id]
-				cm.connMtx.Unlock()
 				if !ok {
-					connReq, ok = pending[msg.id]
+					connReq, ok = cm.pending[msg.id]
 					if !ok {
 						log.Errorf("Unknown connid=%d",
 							msg.id)
@@ -358,7 +360,8 @@ out:
 					// connection.
 					connReq.updateState(ConnCanceled)
 					log.Debugf("Canceling: %v", connReq)
-					delete(pending, msg.id)
+					delete(cm.pending, msg.id)
+					cm.connMtx.Unlock()
 					continue
 				}
 
@@ -366,9 +369,7 @@ out:
 				// disconnected and execute disconnection
 				// callback.
 				log.Debugf("Disconnected from %v", connReq)
-				cm.connMtx.Lock()
 				delete(cm.conns, msg.id)
-				cm.connMtx.Unlock()
 
 				if connReq.conn != nil {
 					connReq.conn.Close()
@@ -383,15 +384,14 @@ out:
 				// make no further attempts with this request.
 				if !msg.retry {
 					connReq.updateState(ConnDisconnected)
+					cm.connMtx.Unlock()
 					continue
 				}
 
 				// Otherwise, attempt a reconnection when there are not already
 				// enough outbound peers to satisfy the target number of
 				// outbound peers or this is a persistent peer.
-				cm.connMtx.Lock()
 				numConns := uint32(len(cm.conns))
-				cm.connMtx.Unlock()
 				if numConns < cm.cfg.TargetOutbound || connReq.Permanent {
 					// The connection request is reused for persistent peers, so
 					// add it back to the pending map in that case so that
@@ -400,15 +400,17 @@ out:
 					if connReq.Permanent {
 						connReq.updateState(ConnPending)
 						log.Debugf("Reconnecting to %v", connReq)
-						pending[msg.id] = connReq
+						cm.pending[msg.id] = connReq
 					}
 
 					cm.handleFailedConn(ctx, connReq)
 				}
+				cm.connMtx.Unlock()
 
 			case handleFailed:
 				connReq := msg.c
-				if _, ok := pending[connReq.ID()]; !ok {
+				cm.connMtx.Lock()
+				if _, ok := cm.pending[connReq.ID()]; !ok {
 					log.Debugf("Ignoring connection for "+
 						"canceled conn req: %v", connReq)
 					continue
@@ -418,12 +420,14 @@ out:
 				log.Debugf("Failed to connect to %v: %v",
 					connReq, msg.err)
 				cm.handleFailedConn(ctx, connReq)
+				cm.connMtx.Unlock()
 
 			case handleCancelPending:
 				pendingAddr := msg.addr.String()
 				var idToRemove uint64
 				var connReq *ConnReq
-				for id, req := range pending {
+				cm.connMtx.Lock()
+				for id, req := range cm.pending {
 					if req == nil || req.Addr == nil {
 						continue
 					}
@@ -433,22 +437,25 @@ out:
 					}
 				}
 				if connReq != nil {
-					delete(pending, idToRemove)
+					delete(cm.pending, idToRemove)
 					connReq.updateState(ConnCanceled)
 					log.Debugf("Canceled pending connection to %v", msg.addr)
 					msg.done <- nil
 				} else {
 					msg.done <- fmt.Errorf("no pending connection to %v", msg.addr)
 				}
+				cm.connMtx.Unlock()
 
 			case handleForEachConnReq:
 				var err error
-				for _, connReq := range pending {
+				cm.connMtx.Lock()
+				for _, connReq := range cm.pending {
 					err = msg.f(connReq)
 					if err != nil {
 						break
 					}
 				}
+				cm.connMtx.Unlock()
 				if err != nil {
 					msg.done <- err
 					continue
@@ -772,6 +779,7 @@ func New(cfg *Config) (*ConnManager, error) {
 		cfg:      *cfg, // Copy so caller can't mutate
 		requests: make(chan interface{}),
 		quit:     make(chan struct{}),
+		pending:  make(map[uint64]*ConnReq),
 		conns:    make(map[uint64]*ConnReq, cfg.TargetOutbound),
 	}
 	return &cm, nil
