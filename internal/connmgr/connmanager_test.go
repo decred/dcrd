@@ -199,8 +199,10 @@ func TestConnectMode(t *testing.T) {
 // configuration option by waiting until all connections are established and
 // ensuring they are the only connections made.
 func TestTargetOutbound(t *testing.T) {
-	targetOutbound := uint32(10)
-	connected := make(chan *ConnReq)
+	const targetOutbound = 10
+	var numConnections atomic.Uint32
+	hitTargetConns := make(chan struct{})
+	extraConns := make(chan *ConnReq)
 	cmgr, err := New(&Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
@@ -211,7 +213,13 @@ func TestTargetOutbound(t *testing.T) {
 			}, nil
 		},
 		OnConnection: func(c *ConnReq, conn net.Conn) {
-			connected <- c
+			totalConnections := numConnections.Add(1)
+			if totalConnections == targetOutbound {
+				close(hitTargetConns)
+			}
+			if totalConnections > targetOutbound {
+				extraConns <- c
+			}
 		},
 	})
 	if err != nil {
@@ -220,13 +228,15 @@ func TestTargetOutbound(t *testing.T) {
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Wait for the expected number of target outbound conns to be established.
-	for i := uint32(0); i < targetOutbound; i++ {
-		<-connected
+	select {
+	case <-hitTargetConns:
+	case <-time.After(20 * time.Millisecond):
+		t.Fatal("did not reach target number of conns before timeout")
 	}
 
 	// Ensure no additional connections are made.
 	select {
-	case c := <-connected:
+	case c := <-extraConns:
 		t.Fatalf("target outbound: got unexpected connection - %v", c.Addr)
 	case <-time.After(time.Millisecond * 5):
 		break
