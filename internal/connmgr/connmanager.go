@@ -165,12 +165,6 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// handleConnected is used to queue a successful connection.
-type handleConnected struct {
-	c    *ConnReq
-	conn net.Conn
-}
-
 // handleDisconnected is used to remove a connection.
 type handleDisconnected struct {
 	id    uint64
@@ -285,34 +279,6 @@ out:
 		select {
 		case req := <-cm.requests:
 			switch msg := req.(type) {
-			case handleConnected:
-				connReq := msg.c
-				cm.connMtx.Lock()
-				connReqID := connReq.ID()
-				if _, ok := cm.pending[connReqID]; !ok {
-					if msg.conn != nil {
-						msg.conn.Close()
-					}
-					cm.connMtx.Unlock()
-					log.Debugf("Ignoring connection for "+
-						"canceled connreq=%v", connReq)
-					continue
-				}
-
-				connReq.updateState(ConnEstablished)
-				connReq.conn = msg.conn
-				cm.conns[connReqID] = connReq
-				log.Debugf("Connected to %v", connReq)
-				connReq.retryCount = 0
-				cm.failedAttempts = 0
-
-				delete(cm.pending, connReqID)
-				cm.connMtx.Unlock()
-
-				if cm.cfg.OnConnection != nil {
-					go cm.cfg.OnConnection(connReq, msg.conn)
-				}
-
 			case handleDisconnected:
 				cm.connMtx.Lock()
 				connReq, ok := cm.conns[msg.id]
@@ -486,6 +452,7 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		c.id.Store(cm.connReqCount.Add(1))
 		doRegisterPending = true
 	}
+	connReqID := c.ID()
 	cm.assignIDMtx.Unlock()
 	if doRegisterPending {
 		cm.connMtx.Lock()
@@ -495,6 +462,8 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 
 	log.Debugf("Attempting to connect to %v", c)
 
+	// Attempt to establish the connection to the address associated with the
+	// connection request.  Apply a timeout if requested.
 	if cm.cfg.Timeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, cm.cfg.Timeout)
@@ -515,9 +484,25 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		return
 	}
 
-	select {
-	case cm.requests <- handleConnected{c, conn}:
-	case <-cm.quit:
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
+
+	if _, ok := cm.pending[connReqID]; !ok {
+		conn.Close()
+		log.Debugf("Ignoring connection for canceled connreq=%v", c)
+		return
+	}
+
+	c.updateState(ConnEstablished)
+	c.conn = conn
+	cm.conns[connReqID] = c
+	log.Debugf("Connected to %v", c)
+	c.retryCount = 0
+	cm.failedAttempts = 0
+	delete(cm.pending, connReqID)
+
+	if cm.cfg.OnConnection != nil {
+		go cm.cfg.OnConnection(c, conn)
 	}
 }
 
