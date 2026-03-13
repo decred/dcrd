@@ -183,12 +183,6 @@ type handleFailed struct {
 	err error
 }
 
-// handleCancelPending is used to remove failing connections from retries.
-type handleCancelPending struct {
-	addr net.Addr
-	done chan error
-}
-
 // handleForEachConnReq is used to iterate all known connection requests to
 // include pending ones.
 type handleForEachConnReq struct {
@@ -405,30 +399,6 @@ out:
 				cm.handleFailedConn(ctx, connReq)
 				cm.connMtx.Unlock()
 
-			case handleCancelPending:
-				pendingAddr := msg.addr.String()
-				var idToRemove uint64
-				var connReq *ConnReq
-				cm.connMtx.Lock()
-				for id, req := range cm.pending {
-					if req == nil || req.Addr == nil {
-						continue
-					}
-					if pendingAddr == req.Addr.String() {
-						idToRemove, connReq = id, req
-						break
-					}
-				}
-				if connReq != nil {
-					delete(cm.pending, idToRemove)
-					connReq.updateState(ConnCanceled)
-					log.Debugf("Canceled pending connection to %v", msg.addr)
-					msg.done <- nil
-				} else {
-					msg.done <- fmt.Errorf("no pending connection to %v", msg.addr)
-				}
-				cm.connMtx.Unlock()
-
 			case handleForEachConnReq:
 				var err error
 				cm.connMtx.Lock()
@@ -604,26 +574,43 @@ func (cm *ConnManager) Remove(id uint64) {
 	}
 }
 
+// findPendingByAddr attempts to find and return the pending connection request
+// associated with the provided address.  It returns nil if no matching request
+// is found.
+//
+// This function MUST be called with the connection mutex held (writes).
+func (cm *ConnManager) findPendingByAddr(addr net.Addr) *ConnReq {
+	pendingAddr := addr.String()
+	for _, req := range cm.pending {
+		if req == nil || req.Addr == nil {
+			continue
+		}
+		if pendingAddr == req.Addr.String() {
+			return req
+		}
+	}
+	return nil
+}
+
 // CancelPending removes the connection corresponding to the given address
 // from the list of pending failed connections.
 //
 // Returns an error if the connection manager is stopped or there is no pending
 // connection for the given address.
 func (cm *ConnManager) CancelPending(addr net.Addr) error {
-	done := make(chan error, 1)
-	select {
-	case cm.requests <- handleCancelPending{addr, done}:
-	case <-cm.quit:
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
+
+	connReq := cm.findPendingByAddr(addr)
+	if connReq == nil {
+		str := fmt.Sprintf("no pending connection to %v", addr)
+		return MakeError(ErrNotFound, str)
 	}
 
-	// Wait for the connection to be removed from the conn manager's
-	// internal state.
-	select {
-	case err := <-done:
-		return err
-	case <-cm.quit:
-		return fmt.Errorf("connection manager stopped")
-	}
+	delete(cm.pending, connReq.ID())
+	connReq.updateState(ConnCanceled)
+	log.Debugf("Canceled pending connection to %v", addr)
+	return nil
 }
 
 // ForEachConnReq calls the provided function with each connection request known

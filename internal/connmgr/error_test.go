@@ -18,6 +18,7 @@ func TestErrorKindStringer(t *testing.T) {
 	}{
 		{ErrDialNil, "ErrDialNil"},
 		{ErrBothDialsFilled, "ErrBothDialsFilled"},
+		{ErrNotFound, "ErrNotFound"},
 		{ErrTorInvalidAddressResponse, "ErrTorInvalidAddressResponse"},
 		{ErrTorInvalidProxyResponse, "ErrTorInvalidProxyResponse"},
 		{ErrTorUnrecognizedAuthMethod, "ErrTorUnrecognizedAuthMethod"},
