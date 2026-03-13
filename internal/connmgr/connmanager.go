@@ -62,8 +62,8 @@ type ConnReq struct {
 	// state is the current connection state for this connection request.
 	state atomic.Uint32
 
-	// The following fields are owned by the connection handler and must not
-	// be accessed outside of it.
+	// The following fields are owned by the connection manager and must not
+	// be accessed without its connection mutex held.
 	//
 	// retryCount is the number of times a permanent connection request that
 	// fails to connect has been retried since the last successful connection.
@@ -165,46 +165,6 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// registerPending is used to register a pending connection attempt. By
-// registering pending connection attempts we allow callers to cancel pending
-// connection attempts before they're successful or in the case they're no
-// longer wanted.
-type registerPending struct {
-	c    *ConnReq
-	done chan struct{}
-}
-
-// handleConnected is used to queue a successful connection.
-type handleConnected struct {
-	c    *ConnReq
-	conn net.Conn
-}
-
-// handleDisconnected is used to remove a connection.
-type handleDisconnected struct {
-	id    uint64
-	retry bool
-}
-
-// handleFailed is used to remove a pending connection.
-type handleFailed struct {
-	c   *ConnReq
-	err error
-}
-
-// handleCancelPending is used to remove failing connections from retries.
-type handleCancelPending struct {
-	addr net.Addr
-	done chan error
-}
-
-// handleForEachConnReq is used to iterate all known connection requests to
-// include pending ones.
-type handleForEachConnReq struct {
-	f    func(c *ConnReq) error
-	done chan error
-}
-
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
 	// connReqCount is the number of connection requests that have been made and
@@ -232,233 +192,30 @@ type ConnManager struct {
 	// outside of it.
 	failedAttempts uint64
 
-	// requests is used internally to interact with the connection handler
-	// goroutine.
-	requests chan interface{}
+	// The following fields are used to track the various connections managed
+	// by the connection manager.  They are protected by the associated
+	// connection mutex.
+	//
+	// pending holds all registered connection requests that have yet to
+	// succeed.
+	//
+	// conns represents the set of all active connections.
+	connMtx sync.RWMutex
+	pending map[uint64]*ConnReq
+	conns   map[uint64]*ConnReq
 }
 
-// handleFailedConn handles a connection failed due to a disconnect or any
-// other failure. If permanent, it retries the connection after the configured
-// retry duration. Otherwise, if required, it makes a new connection request.
-// After maxFailedConnectionAttempts new connections will be retried after the
-// configured retry duration.
-func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
-	// Ignore during shutdown.
-	if ctx.Err() != nil {
-		return
-	}
-
-	if c.Permanent {
-		c.retryCount++
-		d := time.Duration(c.retryCount) * cm.cfg.RetryDuration
-		if d > maxRetryDuration {
-			d = maxRetryDuration
-		}
-		log.Debugf("Retrying connection to %v in %v", c, d)
-		go func() {
-			select {
-			case <-time.After(d):
-				cm.Connect(ctx, c)
-			case <-cm.quit:
-			}
-		}()
-	} else if cm.cfg.GetNewAddress != nil {
-		cm.failedAttempts++
-		if cm.failedAttempts >= maxFailedAttempts {
-			log.Debugf("Max failed connection attempts reached: [%d] "+
-				"-- retrying connection in: %v", maxFailedAttempts,
-				cm.cfg.RetryDuration)
-			go func() {
-				select {
-				case <-time.After(cm.cfg.RetryDuration):
-					cm.newConnReq(ctx)
-				case <-cm.quit:
-				}
-			}()
-		} else {
-			go cm.newConnReq(ctx)
-		}
-	}
-}
-
-// connHandler handles all connection related requests.  It must be run as a
-// goroutine.
+// registerPending registers the provided connection request as a pending
+// connection attempt.
 //
-// The connection handler makes sure that we maintain a pool of active outbound
-// connections so that we remain connected to the network.  Connection requests
-// are processed and mapped by their assigned ids.
-func (cm *ConnManager) connHandler(ctx context.Context) {
-	var (
-		// pending holds all registered conn requests that have yet to
-		// succeed.
-		pending = make(map[uint64]*ConnReq)
-
-		// conns represents the set of all actively connected peers.
-		conns = make(map[uint64]*ConnReq, cm.cfg.TargetOutbound)
-	)
-
-out:
-	for {
-		select {
-		case req := <-cm.requests:
-			switch msg := req.(type) {
-			case registerPending:
-				connReq := msg.c
-				connReq.updateState(ConnPending)
-				pending[msg.c.ID()] = connReq
-				close(msg.done)
-
-			case handleConnected:
-				connReq := msg.c
-				connReqID := connReq.ID()
-				if _, ok := pending[connReqID]; !ok {
-					if msg.conn != nil {
-						msg.conn.Close()
-					}
-					log.Debugf("Ignoring connection for "+
-						"canceled connreq=%v", connReq)
-					continue
-				}
-
-				connReq.updateState(ConnEstablished)
-				connReq.conn = msg.conn
-				conns[connReqID] = connReq
-				log.Debugf("Connected to %v", connReq)
-				connReq.retryCount = 0
-				cm.failedAttempts = 0
-
-				delete(pending, connReqID)
-
-				if cm.cfg.OnConnection != nil {
-					go cm.cfg.OnConnection(connReq, msg.conn)
-				}
-
-			case handleDisconnected:
-				connReq, ok := conns[msg.id]
-				if !ok {
-					connReq, ok = pending[msg.id]
-					if !ok {
-						log.Errorf("Unknown connid=%d",
-							msg.id)
-						continue
-					}
-
-					// Pending connection was found, remove
-					// it from pending map if we should
-					// ignore a later, successful
-					// connection.
-					connReq.updateState(ConnCanceled)
-					log.Debugf("Canceling: %v", connReq)
-					delete(pending, msg.id)
-					continue
-				}
-
-				// An existing connection was located, mark as
-				// disconnected and execute disconnection
-				// callback.
-				log.Debugf("Disconnected from %v", connReq)
-				delete(conns, msg.id)
-
-				if connReq.conn != nil {
-					connReq.conn.Close()
-				}
-
-				if cm.cfg.OnDisconnection != nil {
-					go cm.cfg.OnDisconnection(connReq)
-				}
-
-				// All internal state has been cleaned up, if
-				// this connection is being removed, we will
-				// make no further attempts with this request.
-				if !msg.retry {
-					connReq.updateState(ConnDisconnected)
-					continue
-				}
-
-				// Otherwise, attempt a reconnection when there are not already
-				// enough outbound peers to satisfy the target number of
-				// outbound peers or this is a persistent peer.
-				numConns := uint32(len(conns))
-				if numConns < cm.cfg.TargetOutbound || connReq.Permanent {
-					// The connection request is reused for persistent peers, so
-					// add it back to the pending map in that case so that
-					// subsequent processing of connections and failures do not
-					// ignore the request.
-					if connReq.Permanent {
-						connReq.updateState(ConnPending)
-						log.Debugf("Reconnecting to %v", connReq)
-						pending[msg.id] = connReq
-					}
-
-					cm.handleFailedConn(ctx, connReq)
-				}
-
-			case handleFailed:
-				connReq := msg.c
-				if _, ok := pending[connReq.ID()]; !ok {
-					log.Debugf("Ignoring connection for "+
-						"canceled conn req: %v", connReq)
-					continue
-				}
-
-				connReq.updateState(ConnFailed)
-				log.Debugf("Failed to connect to %v: %v",
-					connReq, msg.err)
-				cm.handleFailedConn(ctx, connReq)
-
-			case handleCancelPending:
-				pendingAddr := msg.addr.String()
-				var idToRemove uint64
-				var connReq *ConnReq
-				for id, req := range pending {
-					if req == nil || req.Addr == nil {
-						continue
-					}
-					if pendingAddr == req.Addr.String() {
-						idToRemove, connReq = id, req
-						break
-					}
-				}
-				if connReq != nil {
-					delete(pending, idToRemove)
-					connReq.updateState(ConnCanceled)
-					log.Debugf("Canceled pending connection to %v", msg.addr)
-					msg.done <- nil
-				} else {
-					msg.done <- fmt.Errorf("no pending connection to %v", msg.addr)
-				}
-
-			case handleForEachConnReq:
-				var err error
-				for _, connReq := range pending {
-					err = msg.f(connReq)
-					if err != nil {
-						break
-					}
-				}
-				if err != nil {
-					msg.done <- err
-					continue
-				}
-				for _, connReq := range conns {
-					err = msg.f(connReq)
-					if err != nil {
-						break
-					}
-				}
-				msg.done <- err
-			}
-
-		case <-ctx.Done():
-			break out
-		}
-	}
-
-	log.Trace("Connection handler done")
+// This function MUST be called with the connection mutex lock held (writes).
+func (cm *ConnManager) registerPending(connReq *ConnReq) {
+	connReq.updateState(ConnPending)
+	cm.pending[connReq.ID()] = connReq
 }
 
-// newConnReq creates a new connection request and connects to the
-// corresponding address.
+// newConnReq creates a new connection request and connects to the corresponding
+// address.
 func (cm *ConnManager) newConnReq(ctx context.Context) {
 	// Ignore during shutdown.
 	if ctx.Err() != nil {
@@ -468,37 +225,104 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 	c := &ConnReq{}
 	c.id.Store(cm.connReqCount.Add(1))
 
-	// Submit a request of a pending connection attempt to the connection
-	// manager. By registering the id before the connection is even
-	// established, we'll be able to later cancel the connection via the
-	// Remove method.
-	done := make(chan struct{})
-	select {
-	case cm.requests <- registerPending{c, done}:
-	case <-cm.quit:
-		return
-	}
-
-	// Wait for the registration to successfully add the pending conn req to
-	// the conn manager's internal state.
-	select {
-	case <-done:
-	case <-cm.quit:
-		return
-	}
+	// Register the pending connection attempt so it can be canceled via the
+	// [ConnManager.Remove] method.
+	cm.connMtx.Lock()
+	cm.registerPending(c)
+	cm.connMtx.Unlock()
 
 	addr, err := cm.cfg.GetNewAddress()
 	if err != nil {
-		select {
-		case cm.requests <- handleFailed{c, err}:
-		case <-cm.quit:
-		}
+		cm.connMtx.Lock()
+		cm.handleFailedPending(ctx, c, err)
+		cm.connMtx.Unlock()
 		return
 	}
 
 	c.Addr = addr
 
 	cm.Connect(ctx, c)
+}
+
+// handleFailedConn handles a connection failed due to a disconnect or any other
+// failure.  Permanent connection requests are retried after the configured
+// retry duration.  A new connection request is created if required.
+//
+// In the event there have been [maxFailedAttempts] failed successive attempts,
+// new connections will be retried after the configured retry duration.
+//
+// This function MUST be called with the connection lock held (writes).
+func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
+	// Ignore during shutdown.
+	select {
+	case <-cm.quit:
+		return
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	// Reconnect to permanent connection requests after a retry timeout with
+	// an increasing backoff up to a max for repeated failed attempts.
+	if c.Permanent {
+		c.retryCount++
+		retryWait := time.Duration(c.retryCount) * cm.cfg.RetryDuration
+		retryWait = min(retryWait, maxRetryDuration)
+		log.Debugf("Retrying connection to %v in %v", c, retryWait)
+		go func() {
+			select {
+			case <-time.After(retryWait):
+				cm.Connect(ctx, c)
+			case <-cm.quit:
+			case <-ctx.Done():
+			}
+		}()
+		return
+	}
+
+	// Nothing more to do when the method to automatically get new addresses
+	// to connect to isn't configured.
+	if cm.cfg.GetNewAddress == nil {
+		return
+	}
+
+	// Wait to attempt new connections when there are too many successive
+	// failures.  This prevents massive connection spam when no connections can
+	// be made, such as a network outtage.
+	cm.failedAttempts++
+	if cm.failedAttempts >= maxFailedAttempts {
+		log.Debugf("Max failed connection attempts reached: [%d] -- retrying "+
+			"connection in: %v", maxFailedAttempts, cm.cfg.RetryDuration)
+		go func() {
+			select {
+			case <-time.After(cm.cfg.RetryDuration):
+				cm.newConnReq(ctx)
+			case <-cm.quit:
+			case <-ctx.Done():
+			}
+		}()
+		return
+	}
+
+	// Otherwise, attempt a new connection with a new address now.
+	go cm.newConnReq(ctx)
+}
+
+// handleFailedPending handles failed pending connection requests.  Connection
+// requests that were canceled are ignored.  Otherwise, their state is updated
+// to mark it failed and it passed along to [ConnManager.handlFailedConn] to
+// possibly retry or be reused for a new connection depending on settings.
+//
+// This function MUST be called with the connection lock held (writes).
+func (cm *ConnManager) handleFailedPending(ctx context.Context, c *ConnReq, failedErr error) {
+	if _, ok := cm.pending[c.ID()]; !ok {
+		log.Debugf("Ignoring connection for canceled conn req: %v", c)
+		return
+	}
+
+	c.updateState(ConnFailed)
+	log.Debugf("Failed to connect to %v: %v", c, failedErr)
+	cm.handleFailedConn(ctx, c)
 }
 
 // Connect assigns an id and dials a connection to the address of the connection
@@ -530,10 +354,9 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		return
 	}
 
-	// Assign an ID and register a pending connection attempt with the
-	// connection manager when an ID has not already been assigned. By
-	// registering the ID before the connection is established, it can later be
-	// canceled via the Remove method.
+	// Assign an ID and register the pending connection attempt when an ID has
+	// not already been assigned so it can be canceled via the
+	// [ConnManager.Remove] method.
 	//
 	// Note that the assignment of the ID and the overall request count need to
 	// be synchronized.  So long as this is the only place an existing conn
@@ -547,30 +370,18 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		c.id.Store(cm.connReqCount.Add(1))
 		doRegisterPending = true
 	}
+	connReqID := c.ID()
 	cm.assignIDMtx.Unlock()
 	if doRegisterPending {
-		// Submit a request of a pending connection attempt to the
-		// connection manager. By registering the id before the
-		// connection is even established, we'll be able to later
-		// cancel the connection via the Remove method.
-		done := make(chan struct{})
-		select {
-		case cm.requests <- registerPending{c, done}:
-		case <-cm.quit:
-			return
-		}
-
-		// Wait for the registration to successfully add the pending
-		// conn req to the conn manager's internal state.
-		select {
-		case <-done:
-		case <-cm.quit:
-			return
-		}
+		cm.connMtx.Lock()
+		cm.registerPending(c)
+		cm.connMtx.Unlock()
 	}
 
 	log.Debugf("Attempting to connect to %v", c)
 
+	// Attempt to establish the connection to the address associated with the
+	// connection request.  Apply a timeout if requested.
 	if cm.cfg.Timeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, cm.cfg.Timeout)
@@ -584,39 +395,140 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		conn, err = cm.cfg.DialAddr(ctx, c.Addr)
 	}
 	if err != nil {
-		select {
-		case cm.requests <- handleFailed{c, err}:
-		case <-cm.quit:
-		}
+		cm.connMtx.Lock()
+		cm.handleFailedPending(ctx, c, err)
+		cm.connMtx.Unlock()
 		return
 	}
 
-	select {
-	case cm.requests <- handleConnected{c, conn}:
-	case <-cm.quit:
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
+
+	if _, ok := cm.pending[connReqID]; !ok {
+		conn.Close()
+		log.Debugf("Ignoring connection for canceled connreq=%v", c)
+		return
+	}
+
+	c.updateState(ConnEstablished)
+	c.conn = conn
+	cm.conns[connReqID] = c
+	log.Debugf("Connected to %v", c)
+	c.retryCount = 0
+	cm.failedAttempts = 0
+	delete(cm.pending, connReqID)
+
+	if cm.cfg.OnConnection != nil {
+		go cm.cfg.OnConnection(c, conn)
+	}
+}
+
+// handleDisconnected handles a connection that has been disconnected.
+//
+// This function MUST be called with the connection mutex held (writes).
+func (cm *ConnManager) handleDisconnected(id uint64, retry bool) {
+	// Mark the connection request as canceled and remove it from the pending
+	// connections when it is still pending.  Since the connection attempt is
+	// taking place asynchronously, this ensures any later successful connection
+	// is ignored.
+	connReq, ok := cm.pending[id]
+	if ok {
+		connReq.updateState(ConnCanceled)
+		log.Debugf("Canceling: %v", connReq)
+		delete(cm.pending, id)
+	}
+
+	connReq, ok = cm.conns[id]
+	if !ok {
+		log.Errorf("Unknown connid=%d", id)
+		return
+	}
+
+	// Close the underlying connection and invoke the associated callback (if
+	// assigned).
+	log.Debugf("Disconnected from %v", connReq)
+	delete(cm.conns, id)
+	if connReq.conn != nil {
+		connReq.conn.Close()
+	}
+	if cm.cfg.OnDisconnection != nil {
+		go cm.cfg.OnDisconnection(connReq)
+	}
+
+	// Mark the associated connection request as disconnected and return when no
+	// further attempts will be made now that all internal state has been
+	// cleaned up.
+	if !retry {
+		connReq.updateState(ConnDisconnected)
+		return
+	}
+
+	// Otherwise, attempt a reconnection when the associated connection request
+	// is marked as permanent or there are not already enough outbound peers to
+	// satisfy the target number of outbound peers.
+	numConns := uint32(len(cm.conns))
+	if connReq.Permanent || numConns < cm.cfg.TargetOutbound {
+		// The connection request is reused for permanent ones, so add it back
+		// to the pending map in that case so that subsequent processing of
+		// connections and failures do not ignore the request.
+		if connReq.Permanent {
+			cm.registerPending(connReq)
+			log.Debugf("Reconnecting to %v", connReq)
+		}
+
+		// A background context is the only viable choice here.  It is not
+		// ideal, but it is acceptable, because, ultimately, this context is
+		// really only used for persistent peers when they retry and persistent
+		// peers are not tied to a specific context anyway.  They are instead
+		// removed by other means.  Due to that, there also is no machinery to
+		// cancel a given persistent peer from a given context anyway.
+		//
+		// Future work ideally should refactor the persistent peer handling to
+		// have proper full context support.
+		cm.handleFailedConn(context.Background(), connReq)
 	}
 }
 
 // Disconnect disconnects the connection corresponding to the given connection
-// id. If permanent, the connection will be retried with an increasing backoff
+// id.  Permanent connections will be retried with an increasing backoff
 // duration.
+//
+// This function is safe for concurrent access.
 func (cm *ConnManager) Disconnect(id uint64) {
-	select {
-	case cm.requests <- handleDisconnected{id, true}:
-	case <-cm.quit:
-	}
+	cm.connMtx.Lock()
+	cm.handleDisconnected(id, true)
+	cm.connMtx.Unlock()
 }
 
 // Remove removes the connection corresponding to the given connection id from
 // known connections.
 //
-// NOTE: This method can also be used to cancel a lingering connection attempt
+// NOTE: This method can also be used to cancel a pending connection attempt
 // that hasn't yet succeeded.
+//
+// This function is safe for concurrent access.
 func (cm *ConnManager) Remove(id uint64) {
-	select {
-	case cm.requests <- handleDisconnected{id, false}:
-	case <-cm.quit:
+	cm.connMtx.Lock()
+	cm.handleDisconnected(id, false)
+	cm.connMtx.Unlock()
+}
+
+// findPendingByAddr attempts to find and return the pending connection request
+// associated with the provided address.  It returns nil if no matching request
+// is found.
+//
+// This function MUST be called with the connection mutex held (writes).
+func (cm *ConnManager) findPendingByAddr(addr net.Addr) *ConnReq {
+	pendingAddr := addr.String()
+	for _, req := range cm.pending {
+		if req == nil || req.Addr == nil {
+			continue
+		}
+		if pendingAddr == req.Addr.String() {
+			return req
+		}
 	}
+	return nil
 }
 
 // CancelPending removes the connection corresponding to the given address
@@ -625,20 +537,19 @@ func (cm *ConnManager) Remove(id uint64) {
 // Returns an error if the connection manager is stopped or there is no pending
 // connection for the given address.
 func (cm *ConnManager) CancelPending(addr net.Addr) error {
-	done := make(chan error, 1)
-	select {
-	case cm.requests <- handleCancelPending{addr, done}:
-	case <-cm.quit:
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
+
+	connReq := cm.findPendingByAddr(addr)
+	if connReq == nil {
+		str := fmt.Sprintf("no pending connection to %v", addr)
+		return MakeError(ErrNotFound, str)
 	}
 
-	// Wait for the connection to be removed from the conn manager's
-	// internal state.
-	select {
-	case err := <-done:
-		return err
-	case <-cm.quit:
-		return fmt.Errorf("connection manager stopped")
-	}
+	delete(cm.pending, connReq.ID())
+	connReq.updateState(ConnCanceled)
+	log.Debugf("Canceled pending connection to %v", addr)
+	return nil
 }
 
 // ForEachConnReq calls the provided function with each connection request known
@@ -651,18 +562,23 @@ func (cm *ConnManager) CancelPending(addr net.Addr) error {
 // NOTE: This must not call any other connection manager methods during
 // iteration or it will result in a deadlock.
 func (cm *ConnManager) ForEachConnReq(f func(c *ConnReq) error) error {
-	done := make(chan error, 1)
-	select {
-	case cm.requests <- handleForEachConnReq{f, done}:
-	case <-cm.quit:
-	}
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
 
-	select {
-	case err := <-done:
-		return err
-	case <-cm.quit:
-		return fmt.Errorf("connection manager stopped")
+	var err error
+	for _, connReq := range cm.pending {
+		err = f(connReq)
+		if err != nil {
+			return err
+		}
 	}
+	for _, connReq := range cm.conns {
+		err = f(connReq)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // listenHandler accepts incoming connections on a given listener.  It must be
@@ -690,16 +606,9 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 func (cm *ConnManager) Run(ctx context.Context) {
 	log.Trace("Starting connection manager")
 
-	// Start the connection handler goroutine.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		cm.connHandler(ctx)
-		wg.Done()
-	}()
-
 	// Start all the listeners so long as the caller requested them and provided
 	// a callback to be invoked when connections are accepted.
+	var wg sync.WaitGroup
 	var listeners []net.Listener
 	if cm.cfg.OnAccept != nil {
 		listeners = cm.cfg.Listeners
@@ -754,9 +663,10 @@ func New(cfg *Config) (*ConnManager, error) {
 		cfg.TargetOutbound = defaultTargetOutbound
 	}
 	cm := ConnManager{
-		cfg:      *cfg, // Copy so caller can't mutate
-		requests: make(chan interface{}),
-		quit:     make(chan struct{}),
+		cfg:     *cfg, // Copy so caller can't mutate
+		quit:    make(chan struct{}),
+		pending: make(map[uint64]*ConnReq),
+		conns:   make(map[uint64]*ConnReq, cfg.TargetOutbound),
 	}
 	return &cm, nil
 }
