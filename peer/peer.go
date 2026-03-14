@@ -1346,6 +1346,236 @@ cleanup:
 	log.Tracef("Peer stall handler done for %s", p)
 }
 
+// processInboundMessage processes an inbound message and associated buffer.  It
+// returns true if the peer should be disconnected.
+//
+// In addition to checking requirements and updating peer state, it invokes any
+// configured message handlers.
+func (p *Peer) processInboundMessage(rmsg wire.Message, buf []byte) bool {
+	switch msg := rmsg.(type) {
+	case *wire.MsgVersion:
+		// Limit to one version message per peer.
+		log.Debugf("Already received 'version' from peer %s -- disconnecting", p)
+		return true
+
+	case *wire.MsgVerAck:
+		// No read lock is necessary because verAckReceived is not written
+		// to in any other goroutine.
+		if p.verAckReceived {
+			log.Infof("Already received 'verack' from peer %s -- disconnecting",
+				p)
+			return true
+		}
+		p.flagsMtx.Lock()
+		p.verAckReceived = true
+		p.flagsMtx.Unlock()
+		if p.cfg.Listeners.OnVerAck != nil {
+			p.cfg.Listeners.OnVerAck(p, msg)
+		}
+
+	case *wire.MsgGetAddr:
+		if p.cfg.Listeners.OnGetAddr != nil {
+			p.cfg.Listeners.OnGetAddr(p, msg)
+		}
+
+	case *wire.MsgAddr:
+		if p.cfg.Listeners.OnAddr != nil {
+			p.cfg.Listeners.OnAddr(p, msg)
+		}
+
+	case *wire.MsgAddrV2:
+		if p.cfg.Listeners.OnAddrV2 != nil {
+			p.cfg.Listeners.OnAddrV2(p, msg)
+		}
+
+	case *wire.MsgPing:
+		p.handlePingMsg(msg)
+		if p.cfg.Listeners.OnPing != nil {
+			p.cfg.Listeners.OnPing(p, msg)
+		}
+
+	case *wire.MsgPong:
+		p.handlePongMsg(msg)
+		if p.cfg.Listeners.OnPong != nil {
+			p.cfg.Listeners.OnPong(p, msg)
+		}
+
+	case *wire.MsgMemPool:
+		if p.cfg.Listeners.OnMemPool != nil {
+			p.cfg.Listeners.OnMemPool(p, msg)
+		}
+
+	case *wire.MsgGetMiningState:
+		if p.cfg.Listeners.OnGetMiningState != nil {
+			p.cfg.Listeners.OnGetMiningState(p, msg)
+		}
+
+	case *wire.MsgMiningState:
+		if p.cfg.Listeners.OnMiningState != nil {
+			p.cfg.Listeners.OnMiningState(p, msg)
+		}
+
+	case *wire.MsgTx:
+		if p.cfg.Listeners.OnTx != nil {
+			p.cfg.Listeners.OnTx(p, msg)
+		}
+
+	case *wire.MsgBlock:
+		if p.cfg.Listeners.OnBlock != nil {
+			p.cfg.Listeners.OnBlock(p, msg, buf)
+		}
+
+	case *wire.MsgInv:
+		if p.cfg.Listeners.OnInv != nil {
+			p.cfg.Listeners.OnInv(p, msg)
+		}
+
+	case *wire.MsgHeaders:
+		if p.cfg.Listeners.OnHeaders != nil {
+			p.cfg.Listeners.OnHeaders(p, msg)
+		}
+
+	case *wire.MsgNotFound:
+		if p.cfg.Listeners.OnNotFound != nil {
+			p.cfg.Listeners.OnNotFound(p, msg)
+		}
+
+	case *wire.MsgGetData:
+		if p.cfg.Listeners.OnGetData != nil {
+			p.cfg.Listeners.OnGetData(p, msg)
+		}
+
+	case *wire.MsgGetBlocks:
+		if p.cfg.Listeners.OnGetBlocks != nil {
+			p.cfg.Listeners.OnGetBlocks(p, msg)
+		}
+
+	case *wire.MsgGetHeaders:
+		if p.cfg.Listeners.OnGetHeaders != nil {
+			p.cfg.Listeners.OnGetHeaders(p, msg)
+		}
+
+	case *wire.MsgGetCFilter:
+		if p.cfg.Listeners.OnGetCFilter != nil {
+			p.cfg.Listeners.OnGetCFilter(p, msg)
+		}
+
+	case *wire.MsgGetCFHeaders:
+		if p.cfg.Listeners.OnGetCFHeaders != nil {
+			p.cfg.Listeners.OnGetCFHeaders(p, msg)
+		}
+
+	case *wire.MsgGetCFTypes:
+		if p.cfg.Listeners.OnGetCFTypes != nil {
+			p.cfg.Listeners.OnGetCFTypes(p, msg)
+		}
+
+	case *wire.MsgCFilter:
+		if p.cfg.Listeners.OnCFilter != nil {
+			p.cfg.Listeners.OnCFilter(p, msg)
+		}
+
+	case *wire.MsgCFHeaders:
+		if p.cfg.Listeners.OnCFHeaders != nil {
+			p.cfg.Listeners.OnCFHeaders(p, msg)
+		}
+
+	case *wire.MsgCFTypes:
+		if p.cfg.Listeners.OnCFTypes != nil {
+			p.cfg.Listeners.OnCFTypes(p, msg)
+		}
+
+	case *wire.MsgFeeFilter:
+		if p.cfg.Listeners.OnFeeFilter != nil {
+			p.cfg.Listeners.OnFeeFilter(p, msg)
+		}
+
+	case *wire.MsgSendHeaders:
+		p.flagsMtx.Lock()
+		p.sendHeadersPreferred = true
+		p.flagsMtx.Unlock()
+
+		if p.cfg.Listeners.OnSendHeaders != nil {
+			p.cfg.Listeners.OnSendHeaders(p, msg)
+		}
+
+	case *wire.MsgGetCFilterV2:
+		if p.cfg.Listeners.OnGetCFilterV2 != nil {
+			p.cfg.Listeners.OnGetCFilterV2(p, msg)
+		}
+
+	case *wire.MsgCFilterV2:
+		if p.cfg.Listeners.OnCFilterV2 != nil {
+			p.cfg.Listeners.OnCFilterV2(p, msg)
+		}
+
+	case *wire.MsgGetCFsV2:
+		if p.cfg.Listeners.OnGetCFiltersV2 != nil {
+			p.cfg.Listeners.OnGetCFiltersV2(p, msg)
+		}
+
+	case *wire.MsgCFiltersV2:
+		if p.cfg.Listeners.OnCFiltersV2 != nil {
+			p.cfg.Listeners.OnCFiltersV2(p, msg)
+		}
+
+	case *wire.MsgGetInitState:
+		if p.cfg.Listeners.OnGetInitState != nil {
+			p.cfg.Listeners.OnGetInitState(p, msg)
+		}
+
+	case *wire.MsgInitState:
+		if p.cfg.Listeners.OnInitState != nil {
+			p.cfg.Listeners.OnInitState(p, msg)
+		}
+
+	case *wire.MsgMixPairReq:
+		if p.cfg.Listeners.OnMixPairReq != nil {
+			p.cfg.Listeners.OnMixPairReq(p, msg)
+		}
+
+	case *wire.MsgMixKeyExchange:
+		if p.cfg.Listeners.OnMixKeyExchange != nil {
+			p.cfg.Listeners.OnMixKeyExchange(p, msg)
+		}
+
+	case *wire.MsgMixCiphertexts:
+		if p.cfg.Listeners.OnMixCiphertexts != nil {
+			p.cfg.Listeners.OnMixCiphertexts(p, msg)
+		}
+
+	case *wire.MsgMixSlotReserve:
+		if p.cfg.Listeners.OnMixSlotReserve != nil {
+			p.cfg.Listeners.OnMixSlotReserve(p, msg)
+		}
+
+	case *wire.MsgMixDCNet:
+		if p.cfg.Listeners.OnMixDCNet != nil {
+			p.cfg.Listeners.OnMixDCNet(p, msg)
+		}
+
+	case *wire.MsgMixConfirm:
+		if p.cfg.Listeners.OnMixConfirm != nil {
+			p.cfg.Listeners.OnMixConfirm(p, msg)
+		}
+
+	case *wire.MsgMixFactoredPoly:
+		if p.cfg.Listeners.OnMixFactoredPoly != nil {
+			p.cfg.Listeners.OnMixFactoredPoly(p, msg)
+		}
+
+	case *wire.MsgMixSecrets:
+		if p.cfg.Listeners.OnMixSecrets != nil {
+			p.cfg.Listeners.OnMixSecrets(p, msg)
+		}
+
+	default:
+		log.Debugf("Received unhandled message of type %v "+
+			"from %v", rmsg.Command(), p)
+	}
+	return false
+}
+
 // inHandler handles all incoming messages for the peer.  It must be run as a
 // goroutine.
 func (p *Peer) inHandler() {
@@ -1376,235 +1606,16 @@ out:
 		case <-p.quit:
 			break out
 		}
-
 		// Handle each supported message type.
+		if disconnect := p.processInboundMessage(rmsg, buf); disconnect {
+			break out
+		}
 		select {
 		case p.stallControl <- stallControlMsg{sccHandlerStart, rmsg}:
 		case <-p.quit:
 			break out
 		}
-		switch msg := rmsg.(type) {
-		case *wire.MsgVersion:
-			// Limit to one version message per peer.
-			log.Debugf("Already received 'version' from peer %s -- "+
-				"disconnecting", p)
-			break out
 
-		case *wire.MsgVerAck:
-			// No read lock is necessary because verAckReceived is not written
-			// to in any other goroutine.
-			if p.verAckReceived {
-				log.Infof("Already received 'verack' from peer %s -- "+
-					"disconnecting", p)
-				break out
-			}
-			p.flagsMtx.Lock()
-			p.verAckReceived = true
-			p.flagsMtx.Unlock()
-			if p.cfg.Listeners.OnVerAck != nil {
-				p.cfg.Listeners.OnVerAck(p, msg)
-			}
-
-		case *wire.MsgGetAddr:
-			if p.cfg.Listeners.OnGetAddr != nil {
-				p.cfg.Listeners.OnGetAddr(p, msg)
-			}
-
-		case *wire.MsgAddr:
-			if p.cfg.Listeners.OnAddr != nil {
-				p.cfg.Listeners.OnAddr(p, msg)
-			}
-
-		case *wire.MsgAddrV2:
-			if p.cfg.Listeners.OnAddrV2 != nil {
-				p.cfg.Listeners.OnAddrV2(p, msg)
-			}
-
-		case *wire.MsgPing:
-			p.handlePingMsg(msg)
-			if p.cfg.Listeners.OnPing != nil {
-				p.cfg.Listeners.OnPing(p, msg)
-			}
-
-		case *wire.MsgPong:
-			p.handlePongMsg(msg)
-			if p.cfg.Listeners.OnPong != nil {
-				p.cfg.Listeners.OnPong(p, msg)
-			}
-
-		case *wire.MsgMemPool:
-			if p.cfg.Listeners.OnMemPool != nil {
-				p.cfg.Listeners.OnMemPool(p, msg)
-			}
-
-		case *wire.MsgGetMiningState:
-			if p.cfg.Listeners.OnGetMiningState != nil {
-				p.cfg.Listeners.OnGetMiningState(p, msg)
-			}
-
-		case *wire.MsgMiningState:
-			if p.cfg.Listeners.OnMiningState != nil {
-				p.cfg.Listeners.OnMiningState(p, msg)
-			}
-
-		case *wire.MsgTx:
-			if p.cfg.Listeners.OnTx != nil {
-				p.cfg.Listeners.OnTx(p, msg)
-			}
-
-		case *wire.MsgBlock:
-			if p.cfg.Listeners.OnBlock != nil {
-				p.cfg.Listeners.OnBlock(p, msg, buf)
-			}
-
-		case *wire.MsgInv:
-			if p.cfg.Listeners.OnInv != nil {
-				p.cfg.Listeners.OnInv(p, msg)
-			}
-
-		case *wire.MsgHeaders:
-			if p.cfg.Listeners.OnHeaders != nil {
-				p.cfg.Listeners.OnHeaders(p, msg)
-			}
-
-		case *wire.MsgNotFound:
-			if p.cfg.Listeners.OnNotFound != nil {
-				p.cfg.Listeners.OnNotFound(p, msg)
-			}
-
-		case *wire.MsgGetData:
-			if p.cfg.Listeners.OnGetData != nil {
-				p.cfg.Listeners.OnGetData(p, msg)
-			}
-
-		case *wire.MsgGetBlocks:
-			if p.cfg.Listeners.OnGetBlocks != nil {
-				p.cfg.Listeners.OnGetBlocks(p, msg)
-			}
-
-		case *wire.MsgGetHeaders:
-			if p.cfg.Listeners.OnGetHeaders != nil {
-				p.cfg.Listeners.OnGetHeaders(p, msg)
-			}
-
-		case *wire.MsgGetCFilter:
-			if p.cfg.Listeners.OnGetCFilter != nil {
-				p.cfg.Listeners.OnGetCFilter(p, msg)
-			}
-
-		case *wire.MsgGetCFHeaders:
-			if p.cfg.Listeners.OnGetCFHeaders != nil {
-				p.cfg.Listeners.OnGetCFHeaders(p, msg)
-			}
-
-		case *wire.MsgGetCFTypes:
-			if p.cfg.Listeners.OnGetCFTypes != nil {
-				p.cfg.Listeners.OnGetCFTypes(p, msg)
-			}
-
-		case *wire.MsgCFilter:
-			if p.cfg.Listeners.OnCFilter != nil {
-				p.cfg.Listeners.OnCFilter(p, msg)
-			}
-
-		case *wire.MsgCFHeaders:
-			if p.cfg.Listeners.OnCFHeaders != nil {
-				p.cfg.Listeners.OnCFHeaders(p, msg)
-			}
-
-		case *wire.MsgCFTypes:
-			if p.cfg.Listeners.OnCFTypes != nil {
-				p.cfg.Listeners.OnCFTypes(p, msg)
-			}
-
-		case *wire.MsgFeeFilter:
-			if p.cfg.Listeners.OnFeeFilter != nil {
-				p.cfg.Listeners.OnFeeFilter(p, msg)
-			}
-
-		case *wire.MsgSendHeaders:
-			p.flagsMtx.Lock()
-			p.sendHeadersPreferred = true
-			p.flagsMtx.Unlock()
-
-			if p.cfg.Listeners.OnSendHeaders != nil {
-				p.cfg.Listeners.OnSendHeaders(p, msg)
-			}
-
-		case *wire.MsgGetCFilterV2:
-			if p.cfg.Listeners.OnGetCFilterV2 != nil {
-				p.cfg.Listeners.OnGetCFilterV2(p, msg)
-			}
-
-		case *wire.MsgCFilterV2:
-			if p.cfg.Listeners.OnCFilterV2 != nil {
-				p.cfg.Listeners.OnCFilterV2(p, msg)
-			}
-
-		case *wire.MsgGetCFsV2:
-			if p.cfg.Listeners.OnGetCFiltersV2 != nil {
-				p.cfg.Listeners.OnGetCFiltersV2(p, msg)
-			}
-
-		case *wire.MsgCFiltersV2:
-			if p.cfg.Listeners.OnCFiltersV2 != nil {
-				p.cfg.Listeners.OnCFiltersV2(p, msg)
-			}
-
-		case *wire.MsgGetInitState:
-			if p.cfg.Listeners.OnGetInitState != nil {
-				p.cfg.Listeners.OnGetInitState(p, msg)
-			}
-
-		case *wire.MsgInitState:
-			if p.cfg.Listeners.OnInitState != nil {
-				p.cfg.Listeners.OnInitState(p, msg)
-			}
-
-		case *wire.MsgMixPairReq:
-			if p.cfg.Listeners.OnMixPairReq != nil {
-				p.cfg.Listeners.OnMixPairReq(p, msg)
-			}
-
-		case *wire.MsgMixKeyExchange:
-			if p.cfg.Listeners.OnMixKeyExchange != nil {
-				p.cfg.Listeners.OnMixKeyExchange(p, msg)
-			}
-
-		case *wire.MsgMixCiphertexts:
-			if p.cfg.Listeners.OnMixCiphertexts != nil {
-				p.cfg.Listeners.OnMixCiphertexts(p, msg)
-			}
-
-		case *wire.MsgMixSlotReserve:
-			if p.cfg.Listeners.OnMixSlotReserve != nil {
-				p.cfg.Listeners.OnMixSlotReserve(p, msg)
-			}
-
-		case *wire.MsgMixDCNet:
-			if p.cfg.Listeners.OnMixDCNet != nil {
-				p.cfg.Listeners.OnMixDCNet(p, msg)
-			}
-
-		case *wire.MsgMixConfirm:
-			if p.cfg.Listeners.OnMixConfirm != nil {
-				p.cfg.Listeners.OnMixConfirm(p, msg)
-			}
-
-		case *wire.MsgMixFactoredPoly:
-			if p.cfg.Listeners.OnMixFactoredPoly != nil {
-				p.cfg.Listeners.OnMixFactoredPoly(p, msg)
-			}
-
-		case *wire.MsgMixSecrets:
-			if p.cfg.Listeners.OnMixSecrets != nil {
-				p.cfg.Listeners.OnMixSecrets(p, msg)
-			}
-
-		default:
-			log.Debugf("Received unhandled message of type %v "+
-				"from %v", rmsg.Command(), p)
-		}
 		select {
 		case p.stallControl <- stallControlMsg{sccHandlerDone, rmsg}:
 		case <-p.quit:
