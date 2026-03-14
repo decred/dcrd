@@ -668,9 +668,6 @@ type serverPeer struct {
 	isWhitelisted bool
 	quit          chan struct{}
 
-	handshakeDone          chan struct{}
-	closeHandshakeDoneOnce sync.Once
-
 	// syncMgrPeer houses the network sync manager peer instance that wraps the
 	// underlying peer similar to the way this server peer itself wraps it.
 	syncMgrPeer *netsync.Peer
@@ -727,7 +724,6 @@ func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool)
 		persistent:     isPersistent,
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
-		handshakeDone:  make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
 	}
 }
@@ -914,32 +910,40 @@ func (sp *serverPeer) serveGetData() {
 // the peer has disconnected and performs other associated cleanup such as
 // evicting any remaining orphans sent by the peer and shutting down all
 // goroutines.
-func (sp *serverPeer) Run() {
+func (sp *serverPeer) Run(ctx context.Context) {
+	// Start processing async I/O.
+	disconnected := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		sp.serveGetData()
 		wg.Done()
 	}()
+	go func() {
+		sp.Peer.Run(ctx)
+		close(disconnected)
+		wg.Done()
+	}()
+
+	// Request all block annoucements via full headers instead of the inv
+	// message.
+	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
 
 	// Wait for the peer to disconnect and notify the net sync manager and
 	// server accordingly.
-	sp.WaitForDisconnect()
+	<-disconnected
 	srvr := sp.server
 	srvr.DonePeer(sp)
 	srvr.syncManager.OnPeerDisconnected(sp.syncMgrPeer)
 
-	if sp.VersionKnown() {
-		// Evict any remaining mempool orphans that were sent by the peer.
-		numEvicted := srvr.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
-		if numEvicted > 0 {
-			srvrLog.Debugf("Evicted %d mempool %s from peer %v (id %d)",
-				numEvicted, pickNoun(numEvicted, "orphan", "orphans"), sp,
-				sp.ID())
-		}
+	// Evict any remaining mempool orphans that were sent by the peer.
+	numEvicted := srvr.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+	if numEvicted > 0 {
+		srvrLog.Debugf("Evicted %d mempool %s from peer %v (id %d)", numEvicted,
+			pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
 	}
 
 	// Shutdown remaining peer goroutines.
@@ -1178,7 +1182,7 @@ func natfSupported(pver uint32) addrmgr.NetAddressTypeFilter {
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
-func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
+func (sp *serverPeer) OnVersion(msg *wire.MsgVersion) error {
 	// Update the address manager with the advertised services for outbound
 	// connections in case they have changed.  This is not done for inbound
 	// connections to help prevent malicious behavior and is skipped when
@@ -1201,11 +1205,8 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Reject peers that have a protocol version that is too old.
 	const reqProtocolVersion = int32(wire.RemoveRejectVersion)
 	if msg.ProtocolVersion < reqProtocolVersion {
-		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
-			"the required version %d", sp, msg.ProtocolVersion,
-			reqProtocolVersion)
-		sp.Disconnect()
-		return
+		return fmt.Errorf("rejecting protocol version %d prior to the required "+
+			"version %d", msg.ProtocolVersion, reqProtocolVersion)
 	}
 
 	// Maintain a minimum desired number of outbound peers capable of supporting
@@ -1231,11 +1232,10 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		needsMoreMixCapable := !hasMinMixCapableOuts &&
 			numOutbound+wantMixCapableOutbound >= sp.server.targetOutbound
 		if needsMoreMixCapable {
-			srvrLog.Debugf("Rejecting outbound peer %s with protocol version "+
+			return fmt.Errorf("rejecting outbound peer with protocol version "+
 				"%d in favor of a peer with minimum version %d (have: %d, "+
-				"target: %d)", sp, msg.ProtocolVersion, wire.MixVersion,
+				"target: %d)", msg.ProtocolVersion, wire.MixVersion,
 				numMixCapableOutbound, wantMixCapableOutbound)
-			sp.Disconnect()
 		}
 	}
 
@@ -1243,10 +1243,8 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	wantServices := wire.SFNodeNetwork
 	if !isInbound && !hasServices(msg.Services, wantServices) {
 		missingServices := wantServices & ^msg.Services
-		srvrLog.Debugf("Rejecting peer %s with services %v due to not "+
-			"providing desired services %v", sp, msg.Services, missingServices)
-		sp.Disconnect()
-		return
+		return fmt.Errorf("rejecting peer with services %v due to not "+
+			"providing desired services %v", msg.Services, missingServices)
 	}
 
 	// Update the address manager and request known addresses from the
@@ -1293,14 +1291,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
 	sp.server.timeSource.AddTimeSample(sp.Addr(), msg.Timestamp)
-}
-
-// OnVerAck is invoked when a peer receives a verack wire message.  It creates
-// and sends a sendheaders message to request all block annoucements are made
-// via full headers instead of the inv message.
-func (sp *serverPeer) OnVerAck(_ *peer.Peer, msg *wire.MsgVerAck) {
-	sp.closeHandshakeDoneOnce.Do(func() { close(sp.handshakeDone) })
-	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
+	return nil
 }
 
 // OnMemPool is invoked when a peer receives a mempool wire message.  It creates
@@ -2479,8 +2470,6 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 
 	return &peer.Config{
 		Listeners: peer.MessageListeners{
-			OnVersion:         sp.OnVersion,
-			OnVerAck:          sp.OnVerAck,
 			OnMemPool:         sp.OnMemPool,
 			OnGetMiningState:  sp.OnGetMiningState,
 			OnMiningState:     sp.OnMiningState,
@@ -2538,7 +2527,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // connection is established.  It initializes a new inbound server peer
 // instance, associates it with the connection, and starts all additional server
 // peer processing goroutines.
-func (s *server) inboundPeerConnected(conn net.Conn) {
+func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
 	remoteNetAddr, err := connToNetAddr(conn)
 	if err != nil {
 		srvrLog.Debugf("Unable to create inbound peer for address %s: %v",
@@ -2554,16 +2543,15 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 
 	sp := newServerPeer(s, remoteNetAddr, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout for inbound peer %s", conn.RemoteAddr())
+	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
+	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
+		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
+			remoteNetAddr, err)
+		conn.Close()
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
-	go sp.Run()
+	sp.Run(ctx)
 }
 
 // outboundPeerConnected is invoked by the connection manager when a new
@@ -2571,41 +2559,35 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 // peer instance, associates it with the relevant state such as the connection
 // request instance and the connection itself, and start all additional server
 // peer processing goroutines.
-func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
+func (s *server) outboundPeerConnected(ctx context.Context, c *connmgr.ConnReq, conn net.Conn) {
 	remoteNetAddr, err := connToNetAddr(conn)
 	if err != nil {
 		srvrLog.Debugf("Unable to create outbound peer for address %s: %v",
 			conn.RemoteAddr(), err)
 		conn.Close()
+		s.connManager.Disconnect(c.ID())
 	}
 
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
 	if disconnected := s.handleBannedConn(conn); disconnected {
+		s.connManager.Disconnect(c.ID())
 		return
 	}
 
 	sp := newServerPeer(s, remoteNetAddr, c.Permanent)
-	p, err := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr)
-	if err != nil {
-		srvrLog.Debugf("Cannot create outbound peer %s: %v", c.Addr, err)
-		s.connManager.Disconnect(c.ID())
-		return
-	}
+	p := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr, conn)
 	sp.Peer = p
 	sp.connReq.Store(c)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
-	sp.AssociateConnection(conn)
-	select {
-	case <-sp.handshakeDone:
-	case <-time.After(30 * time.Second):
-		srvrLog.Debugf("Handshake timeout from outbound peer %s", c.Addr)
+	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
+		srvrLog.Debugf("Failed handshake for outbound peer %s: %v", c.Addr, err)
 		s.connManager.Disconnect(c.ID())
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
-	go sp.Run()
+	sp.Run(ctx)
 }
 
 // peerHandler is used to handle peer operations such as inventory relay and
@@ -2709,7 +2691,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	na := sp.peerNa.Load()
 
 	// Add the new peer.
-	srvrLog.Debugf("New peer %s", sp)
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
 
@@ -2835,10 +2816,8 @@ func (s *server) DonePeer(sp *serverPeer) {
 		list = state.outboundPeers
 	}
 	if _, ok := list[sp.ID()]; ok {
-		if !sp.Inbound() && sp.VersionKnown() {
-			state.outboundGroups[sp.remoteAddr.GroupKey()]--
-		}
 		if !sp.Inbound() {
+			state.outboundGroups[sp.remoteAddr.GroupKey()]--
 			connReq := sp.connReq.Load()
 			if connReq != nil {
 				s.connManager.Disconnect(connReq.ID())
@@ -2854,12 +2833,11 @@ func (s *server) DonePeer(sp *serverPeer) {
 		s.connManager.Disconnect(connReq.ID())
 	}
 
-	// Update the address manager with the last seen time when the peer has
-	// acknowledged our version and has sent us its version as well.  This is
-	// skipped when running on the simulation and regression test networks since
-	// they are only intended to connect to specified peers and actively avoid
+	// Update the address manager with the last seen time.  This is skipped when
+	// running on the simulation and regression test networks since they are
+	// only intended to connect to specified peers and actively avoid
 	// advertising and connecting to discovered peers.
-	if !cfg.SimNet && !cfg.RegNet && sp.VerAckReceived() && sp.VersionKnown() {
+	if !cfg.SimNet && !cfg.RegNet {
 		err := s.addrManager.Connected(sp.remoteAddr)
 		if err != nil {
 			srvrLog.Errorf("Marking address as connected failed: %v", err)
@@ -4506,14 +4484,18 @@ func newServer(ctx context.Context, profiler *profileServer,
 		s.targetOutbound = uint32(cfg.MaxPeers)
 	}
 	cmgr, err := connmgr.New(&connmgr.Config{
-		Listeners:      listeners,
-		OnAccept:       s.inboundPeerConnected,
+		Listeners: listeners,
+		OnAccept: func(conn net.Conn) {
+			s.inboundPeerConnected(ctx, conn)
+		},
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
 		Timeout:        cfg.DialTimeout,
-		OnConnection:   s.outboundPeerConnected,
-		GetNewAddress:  newAddressFunc,
+		OnConnection: func(c *connmgr.ConnReq, conn net.Conn) {
+			s.outboundPeerConnected(ctx, c, conn)
+		},
+		GetNewAddress: newAddressFunc,
 	})
 	if err != nil {
 		return nil, err
