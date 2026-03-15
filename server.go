@@ -4694,9 +4694,9 @@ func isWhitelisted(addr *addrmgr.NetAddress) bool {
 		return false
 	}
 
-	ip := net.IP(addr.IP)
-	for _, ipnet := range cfg.whitelists {
-		if ipnet.Contains(ip) {
+	ip, _ := netip.AddrFromSlice(addr.IP)
+	for _, prefix := range cfg.whitelists {
+		if prefix.Contains(ip) {
 			return true
 		}
 	}
