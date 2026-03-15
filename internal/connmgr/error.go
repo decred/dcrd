@@ -14,10 +14,6 @@ const (
 	// the configuration.
 	ErrDialNil = ErrorKind("ErrDialNil")
 
-	// ErrBothDialsFilled is used to indicate that Dial and DialAddr
-	// cannot both be specified in the configuration.
-	ErrBothDialsFilled = ErrorKind("ErrBothDialsFilled")
-
 	// ErrNotFound indicates a specified connection ID or address is unknown to
 	// the connection manager.
 	ErrNotFound = ErrorKind("ErrNotFound")
