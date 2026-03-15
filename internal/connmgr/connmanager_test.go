@@ -86,16 +86,6 @@ func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 	return c, ctx.Err()
 }
 
-// mockDialer mocks the net.Dial interface by returning a mock connection to
-// the given address.
-func mockDialerAddr(ctx context.Context, addr net.Addr) (net.Conn, error) {
-	r, w := io.Pipe()
-	c := &mockConn{rAddr: addr}
-	c.Reader = r
-	c.Writer = w
-	return c, nil
-}
-
 // TestNewConfig tests that new ConnManager config is validated as expected.
 func TestNewConfig(t *testing.T) {
 	_, err := New(&Config{})
@@ -104,21 +94,6 @@ func TestNewConfig(t *testing.T) {
 	}
 	_, err = New(&Config{
 		Dial: mockDialer,
-	})
-	if err != nil {
-		t.Fatalf("New unexpected error: %v", err)
-	}
-
-	_, err = New(&Config{
-		Dial:     mockDialer,
-		DialAddr: mockDialerAddr,
-	})
-	if err == nil {
-		t.Fatal("New expected error: 'Dial and DialAddr can't be both nil', got nil")
-	}
-
-	_, err = New(&Config{
-		DialAddr: mockDialerAddr,
 	})
 	if err != nil {
 		t.Fatalf("New unexpected error: %v", err)
@@ -241,54 +216,6 @@ func TestTargetOutbound(t *testing.T) {
 		t.Fatalf("target outbound: got unexpected connection - %v", c.Addr)
 	case <-time.After(time.Millisecond * 5):
 		break
-	}
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-}
-
-// TestPassAddrAlongDialAddr tests if when using the DialAddr config option,
-// any address object returned by GetNewAddress will be correctly passed along
-// to DialAddr to be used for connecting to a host.
-func TestPassAddrAlongDialAddr(t *testing.T) {
-	dailedAddr := make(chan net.Addr)
-	detectDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
-		dailedAddr <- addr
-		return nil, errors.New("error")
-	}
-
-	// targetAddr will be the specific address we'll use to connect. It _could_
-	// be carrying more info than a standard (tcp/udp) network address, so it
-	// needs to be relayed to dialAddr.
-	targetAddr := mockAddr{
-		net:     "invalid",
-		address: "unreachable",
-	}
-
-	cmgr, err := New(&Config{
-		TargetOutbound: 1,
-		DialAddr:       detectDialer,
-		GetNewAddress: func() (net.Addr, error) {
-			return targetAddr, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
-
-	select {
-	case addr := <-dailedAddr:
-		receivedMock, isMockAddr := addr.(mockAddr)
-		if !isMockAddr {
-			t.Fatal("connected to an address that was not a mockAddr")
-		}
-		if receivedMock != targetAddr {
-			t.Fatal("connected to an address different than the expected target")
-		}
-	case <-time.After(time.Millisecond * 20):
-		t.Fatal("did not get connection to target address before timeout")
 	}
 
 	// Ensure clean shutdown of connection manager.
@@ -589,13 +516,13 @@ func TestRemovePendingConnection(t *testing.T) {
 	// succeed.
 	dialed := make(chan struct{})
 	wait := make(chan struct{})
-	indefiniteDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
+	indefiniteDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		close(dialed)
 		<-wait
 		return nil, errors.New("error")
 	}
 	cmgr, err := New(&Config{
-		DialAddr: indefiniteDialer,
+		Dial: indefiniteDialer,
 	})
 	if err != nil {
 		t.Fatalf("New error: %v", err)
@@ -647,10 +574,10 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	// connect chan is signaled. The dial attempt immediately after that
 	// will succeed in returning a connection.
 	connect := make(chan struct{})
-	failingDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
+	failingDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		select {
 		case <-connect:
-			return mockDialerAddr(ctx, addr)
+			return mockDialer(ctx, network, addr)
 		default:
 		}
 
@@ -659,7 +586,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 
 	connected := make(chan *ConnReq)
 	cmgr, err := New(&Config{
-		DialAddr:      failingDialer,
+		Dial:          failingDialer,
 		RetryDuration: retryTimeout,
 		OnConnection: func(c *ConnReq, conn net.Conn) {
 			connected <- c
@@ -823,17 +750,17 @@ func TestForEachConnReq(t *testing.T) {
 	targetOutbound := uint32(5)
 	connected := make(chan *ConnReq)
 	pending := make(chan struct{})
-	delayDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
-		if addr.String() == "127.0.0.1:18557" {
+	delayDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if addr == "127.0.0.1:18557" {
 			close(pending)
 			time.Sleep(time.Second)
 			return nil, errors.New("error")
 		}
-		return mockDialerAddr(ctx, addr)
+		return mockDialer(ctx, network, addr)
 	}
 	cmgr, err := New(&Config{
 		TargetOutbound: targetOutbound,
-		DialAddr:       delayDialer,
+		Dial:           delayDialer,
 		GetNewAddress: func() (net.Addr, error) {
 			return &net.TCPAddr{
 				IP:   net.ParseIP("127.0.0.1"),

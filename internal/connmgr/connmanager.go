@@ -151,14 +151,8 @@ type Config struct {
 	// to.  If nil, no new connections will be made automatically.
 	GetNewAddress func() (net.Addr, error)
 
-	// Dial connects to the address on the named network. Either Dial or
-	// DialAddr need to be specified (but not both).
+	// Dial connects to the address on the named network.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
-
-	// DialAddr is an alternative to Dial which receives a full net.Addr instead
-	// of just the protocol family and address. Either DialAddr or Dial need
-	// to be specified (but not both).
-	DialAddr func(context.Context, net.Addr) (net.Conn, error)
 
 	// Timeout specifies the amount of time to wait for a connection
 	// to complete before giving up.
@@ -388,12 +382,7 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 		defer cancel()
 	}
 	var conn net.Conn
-	var err error
-	if cm.cfg.Dial != nil {
-		conn, err = cm.cfg.Dial(ctx, c.Addr.Network(), c.Addr.String())
-	} else {
-		conn, err = cm.cfg.DialAddr(ctx, c.Addr)
-	}
+	conn, err := cm.cfg.Dial(ctx, c.Addr.Network(), c.Addr.String())
 	if err != nil {
 		cm.connMtx.Lock()
 		cm.handleFailedPending(ctx, c, err)
@@ -648,12 +637,8 @@ func (cm *ConnManager) Run(ctx context.Context) {
 //
 // Use Run to start listening and/or connecting to the network.
 func New(cfg *Config) (*ConnManager, error) {
-	if cfg.Dial == nil && cfg.DialAddr == nil {
+	if cfg.Dial == nil {
 		return nil, MakeError(ErrDialNil, "dial cannot be nil")
-	}
-	if cfg.Dial != nil && cfg.DialAddr != nil {
-		return nil, MakeError(ErrBothDialsFilled,
-			"cannot specify both Dial and DialAddr")
 	}
 	// Default to sane values
 	if cfg.RetryDuration <= 0 {
