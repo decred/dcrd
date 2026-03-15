@@ -160,9 +160,9 @@ type Config struct {
 	// to be specified (but not both).
 	DialAddr func(context.Context, net.Addr) (net.Conn, error)
 
-	// Timeout specifies the amount of time to wait for a connection
-	// to complete before giving up.
-	Timeout time.Duration
+	// DialTimeout specifies the amount of time to wait for a connection to
+	// complete before giving up.
+	DialTimeout time.Duration
 }
 
 // ConnManager provides a manager to handle network connections.
@@ -382,9 +382,9 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 
 	// Attempt to establish the connection to the address associated with the
 	// connection request.  Apply a timeout if requested.
-	if cm.cfg.Timeout != 0 {
+	if cm.cfg.DialTimeout != 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, cm.cfg.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, cm.cfg.DialTimeout)
 		defer cancel()
 	}
 	var conn net.Conn
