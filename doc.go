@@ -119,7 +119,6 @@ Application Options:
 	                             peers
 	    --nodiscoverip           Disable automatic network address discovery of
 	                             local external IPs
-	    --upnp                   Use UPnP to map our listening port outside of NAT
 	    --nobanning              Disable banning of misbehaving peers
 	    --banduration=           How long to ban misbehaving peers.  Valid time
 	                             units are {s, m, h}.  Minimum 1 second (default:

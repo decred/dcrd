@@ -71,6 +71,12 @@ func dcrdMain() error {
 		dcrdLog.Info("File logging disabled")
 	}
 
+	if cfg.Upnp {
+		dcrdLog.Warnf("The --upnp option is no longer supported.  Make sure " +
+			"to manually map the listening port on your router if you are " +
+			"behind NAT and wish to receive inbound connections")
+	}
+
 	// Block and transaction processing can cause bursty allocations.  This
 	// limits the garbage collector from excessively overallocating during
 	// bursts.  It does this by tweaking the soft memory limit.
