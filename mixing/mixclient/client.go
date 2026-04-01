@@ -394,8 +394,9 @@ type Client struct {
 
 	logger slog.Logger
 
-	testTickC chan struct{}
-	testHooks map[hook]hookFunc
+	testWaiting chan struct{}
+	testTickC   chan time.Time
+	testHooks   map[hook]hookFunc
 }
 
 // NewClient creates a wallet's mixing client manager.
@@ -668,26 +669,28 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 	now := time.Now().UTC()
 	epoch := now.Truncate(c.epoch).Add(c.epoch)
 	duration := epoch.Sub(now)
-	timer := time.NewTimer(duration)
-	select {
-	case <-ctx.Done():
-		if !timer.Stop() {
-			<-timer.C
+
+	testWaiting := c.testWaiting
+	var timerC, testTickC <-chan time.Time
+	if testWaiting == nil {
+		timerC = time.After(duration)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return epoch, ctx.Err()
+		case <-c.stopping:
+			c.runWG.Wait()
+			return epoch, ErrStopping
+		case <-timerC:
+			return epoch, nil
+		case testWaiting <- struct{}{}:
+			testWaiting = nil
+			testTickC = c.testTickC
+		case testEpoch := <-testTickC:
+			return testEpoch, nil
 		}
-		return epoch, ctx.Err()
-	case <-c.stopping:
-		if !timer.Stop() {
-			<-timer.C
-		}
-		c.runWG.Wait()
-		return epoch, ErrStopping
-	case <-c.testTickC:
-		if !timer.Stop() {
-			<-timer.C
-		}
-		return time.Now(), nil
-	case <-timer.C:
-		return epoch, nil
 	}
 }
 
@@ -700,6 +703,11 @@ func (p *peer) msgJitter() time.Duration {
 // small amount of jitter is added to help avoid timing deanonymization
 // attacks.
 func (c *Client) prDelay(ctx context.Context, p *peer) error {
+	// No delay in tests.
+	if c.testTickC != nil {
+		return nil
+	}
+
 	now := time.Now().UTC()
 	epoch := now.Truncate(c.epoch).Add(c.epoch)
 	sendBefore := epoch.Add(-timeoutDuration - maxJitter)
@@ -717,18 +725,13 @@ func (c *Client) prDelay(ctx context.Context, p *peer) error {
 			<-timer.C
 		}
 		return ctx.Err()
-	case <-c.testTickC:
-		if !timer.Stop() {
-			<-timer.C
-		}
-		return nil
 	case <-timer.C:
 		return nil
 	}
 }
 
-func (c *Client) testTick() {
-	c.testTickC <- struct{}{}
+func (c *Client) testTick(t time.Time) {
+	c.testTickC <- t
 }
 
 func (c *Client) testHook(stage hook, ps *pairedSessions, s *sessionRun, p *peer) {
@@ -858,12 +861,23 @@ func (c *Client) epochTicker(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	timerC := time.After(timeoutDuration + 2*time.Second)
+	testWaiting := c.testWaiting
+	var testTickC <-chan time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return err
 
-	select {
-	case <-time.After(timeoutDuration + 2*time.Second):
-	case <-c.testTickC:
-	case <-ctx.Done():
-		return err
+		case <-timerC:
+
+		case testWaiting <- struct{}{}:
+			testWaiting = nil
+			testTickC = c.testTickC
+			continue
+		case <-testTickC:
+		}
+		break
 	}
 	c.mu.Lock()
 	c.removeUnresponsiveDuringEpoch(prevPRs, uint64(firstEpoch.Unix()))
