@@ -32,6 +32,7 @@ func useTestLogger(t *testing.T) (slog.Logger, func()) {
 	l.SetLevel(slog.LevelTrace)
 	mixpool.UseLogger(l)
 	return l, func() {
+		l.SetLevel(slog.LevelOff)
 		mixpool.UseLogger(slog.Disabled)
 	}
 }
