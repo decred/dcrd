@@ -5963,10 +5963,10 @@ func (s *Server) route(ctx context.Context) *http.Server {
 				// Strip the port from both the origin and request hosts.
 				originHost := originURL.Host
 				requestHost := r.Host
-				if host, _, err := net.SplitHostPort(originHost); err != nil {
+				if host, _, err := net.SplitHostPort(originHost); err == nil {
 					originHost = host
 				}
-				if host, _, err := net.SplitHostPort(requestHost); err != nil {
+				if host, _, err := net.SplitHostPort(requestHost); err == nil {
 					requestHost = host
 				}
 
