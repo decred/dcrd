@@ -57,6 +57,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrTooManyCFilters, "ErrTooManyCFilters"},
 		{ErrTooFewAddrs, "ErrTooFewAddrs"},
 		{ErrUnknownNetAddrType, "ErrUnknownNetAddrType"},
+		{ErrInvalidTimestamp, "ErrInvalidTimestamp"},
 
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}

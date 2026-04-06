@@ -157,13 +157,8 @@ func (msg *MsgVersion) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	var elems struct {
-		ts      int64
-		relayTx bool
-	}
-	elems.ts = msg.Timestamp.Unix()
-
-	err = writeElements(w, &msg.ProtocolVersion, &msg.Services, &elems.ts)
+	err = writeElements(w, &msg.ProtocolVersion, &msg.Services,
+		(*int64Time)(&msg.Timestamp))
 	if err != nil {
 		return err
 	}
@@ -193,8 +188,8 @@ func (msg *MsgVersion) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	elems.relayTx = !msg.DisableRelayTx
-	return writeElement(w, &elems.relayTx)
+	var relayTx = !msg.DisableRelayTx
+	return writeElement(w, &relayTx)
 }
 
 // Command returns the protocol command string for the message.  This is part
