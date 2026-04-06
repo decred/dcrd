@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -109,6 +109,71 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	}
 }
 
+// isTreasuryAddOutput returns true if the output is a treasury add.
+func isTreasuryAddOutput(txType stake.TxType, txOutIdx uint32) bool {
+	return txType == stake.TxTypeTAdd && txOutIdx == 0
+}
+
+// txOutsRange house a range of transaction outputs to potentially add to a
+// view.  The start and end index semantics are identical to slice ranges.
+//
+// In other words, start is inclusive and end is exclusive.
+type txOutsRange struct {
+	start, end uint32
+}
+
+// addTxOutsInternal adds the given range of outputs in the passed transaction
+// which are not provably unspendable to the view.  When the view already has
+// entries for any of the outputs, they are simply marked unspent.  All fields
+// will be updated for existing entries since it's possible it has changed
+// during a reorg.
+//
+// The caller MUST have already ensured the provided range refers to outputs
+// that actually exist.
+//
+// This function implements the common logic for [view.AddTxOut] and
+// [view.AddTxOuts].
+func (view *UtxoViewpoint) addTxOutsInternal(tx *dcrutil.Tx, txOuts txOutsRange,
+	blockHeight int64, blockIndex uint32, isTreasuryEnabled bool) {
+
+	// Set encoded flags for the transaction.
+	msgTx := tx.MsgTx()
+	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
+	txType := stake.DetermineTxType(msgTx)
+	tree := wire.TxTreeRegular
+	if txType != stake.TxTypeRegular {
+		tree = wire.TxTreeStake
+	}
+	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
+
+	// Loop through the specified transaction outputs and add those which are
+	// not provably unspendable.
+	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
+	for txOutIdx := txOuts.start; txOutIdx < txOuts.end; txOutIdx++ {
+		if isTreasuryAddOutput(txType, txOutIdx) {
+			continue
+		}
+
+		// Update existing entries.  All fields are updated because it's
+		// possible (although extremely unlikely) that the existing entry is
+		// being replaced by a different transaction with the same hash.  This
+		// is allowed so long as the previous transaction is fully spent.
+		var ticketMinOuts *ticketMinimalOutputs
+		if isTicketSubmissionOutput(txType, txOutIdx) {
+			ticketMinOuts = &ticketMinimalOutputs{
+				data: make([]byte, serializeSizeForMinimalOutputs(tx)),
+			}
+			putTxToMinimalOutputs(ticketMinOuts.data, tx)
+		}
+
+		txOut := msgTx.TxOut[txOutIdx]
+		outpoint.Index = txOutIdx
+		view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex,
+			ticketMinOuts)
+	}
+}
+
 // AddTxOut adds the specified output of the passed transaction to the view if
 // it exists and is not provably unspendable.  When the view already has an
 // entry for the output, it will be marked unspent.  All fields will be updated
@@ -122,31 +187,9 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 		return
 	}
 
-	// Set encoded flags for the transaction.
-	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	txType := stake.DetermineTxType(msgTx)
-	tree := wire.TxTreeRegular
-	if txType != stake.TxTypeRegular {
-		tree = wire.TxTreeStake
-	}
-	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
-
-	// Update existing entries.  All fields are updated because it's possible
-	// (although extremely unlikely) that the existing entry is being replaced
-	// by a different transaction with the same hash.  This is allowed so long
-	// as the previous transaction is fully spent.
-	outpoint := wire.OutPoint{Hash: *tx.Hash(), Index: txOutIdx, Tree: tree}
-	txOut := msgTx.TxOut[txOutIdx]
-	var ticketMinOuts *ticketMinimalOutputs
-	if isTicketSubmissionOutput(txType, txOutIdx) {
-		ticketMinOuts = &ticketMinimalOutputs{
-			data: make([]byte, serializeSizeForMinimalOutputs(tx)),
-		}
-		putTxToMinimalOutputs(ticketMinOuts.data, tx)
-	}
-	view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex,
-		ticketMinOuts)
+	txOuts := txOutsRange{txOutIdx, txOutIdx + 1}
+	view.addTxOutsInternal(tx, txOuts, blockHeight, blockIndex,
+		isTreasuryEnabled)
 }
 
 // AddTxOuts adds all outputs in the passed transaction which are not provably
@@ -156,36 +199,9 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 	blockIndex uint32, isTreasuryEnabled bool) {
 
-	// Set encoded flags for the transaction.
-	msgTx := tx.MsgTx()
-	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	txType := stake.DetermineTxType(msgTx)
-	tree := wire.TxTreeRegular
-	if txType != stake.TxTypeRegular {
-		tree = wire.TxTreeStake
-	}
-	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
-
-	// Loop through all of the transaction outputs and add those which are not
-	// provably unspendable.
-	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
-	for txOutIdx, txOut := range msgTx.TxOut {
-		// Update existing entries.  All fields are updated because it's
-		// possible (although extremely unlikely) that the existing entry is
-		// being replaced by a different transaction with the same hash.  This
-		// is allowed so long as the previous transaction is fully spent.
-		outpoint.Index = uint32(txOutIdx)
-		var ticketMinOuts *ticketMinimalOutputs
-		if isTicketSubmissionOutput(txType, uint32(txOutIdx)) {
-			ticketMinOuts = &ticketMinimalOutputs{
-				data: make([]byte, serializeSizeForMinimalOutputs(tx)),
-			}
-			putTxToMinimalOutputs(ticketMinOuts.data, tx)
-		}
-		view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex,
-			ticketMinOuts)
-	}
+	txOuts := txOutsRange{0, uint32(len(tx.MsgTx().TxOut))}
+	view.addTxOutsInternal(tx, txOuts, blockHeight, blockIndex,
+		isTreasuryEnabled)
 }
 
 // PrevScript returns the script and script version associated with the provided
