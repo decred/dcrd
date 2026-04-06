@@ -809,6 +809,11 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 		copyScripts = false
 	default:
 		copyScripts = true
+
+		// Prevent caller-provided script slices from being returned to the free
+		// list.
+		msg.TxIn = nil
+		msg.TxOut = nil
 	}
 
 	// returnScriptBuffers is a closure that returns any script buffers that
