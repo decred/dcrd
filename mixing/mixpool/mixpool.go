@@ -1424,12 +1424,67 @@ func (p *Pool) checkAcceptPR(pr *wire.MsgMixPairReq) error {
 		return err
 	}
 
-	// If able, sanity check UTXOs.
-	if p.utxoFetcher != nil {
-		err := p.checkUTXOs(pr, curHeight)
-		if err != nil {
-			return err
+	// Check that UTXOs exist, have confirmations, sum of UTXO values matches the
+	// input value, and proof of ownership is valid.
+	var totalValue int64
+	outpoints := make(map[wire.OutPoint]struct{})
+	for i := range pr.UTXOs {
+		utxo := &pr.UTXOs[i]
+
+		if _, ok := outpoints[utxo.OutPoint]; ok {
+			return ruleError(ErrInvalidUTXOProof)
 		}
+		outpoints[utxo.OutPoint] = struct{}{}
+
+		if utxo.Script != nil {
+			return ruleError(fmt.Errorf("P2SH inputs are unsupported"))
+		}
+
+		if p.utxoFetcher != nil {
+			entry, err := p.utxoFetcher.FetchUtxoEntry(utxo.OutPoint)
+			if err != nil {
+				return err
+			}
+			if entry == nil || entry.IsSpent() {
+				return ruleError(fmt.Errorf("output %v is not unspent",
+					&utxo.OutPoint))
+			}
+			height := entry.BlockHeight()
+			if !confirmed(minconf, height, curHeight) {
+				return ruleError(fmt.Errorf("output %v is unconfirmed",
+					&utxo.OutPoint))
+			}
+			if entry.ScriptVersion() != 0 {
+				return ruleError(fmt.Errorf("output %v does not use script version 0",
+					&utxo.OutPoint))
+			}
+
+			// Check proof of key ownership and ability to sign coinjoin
+			// inputs.
+			var extractPubKeyHash160 func([]byte) []byte
+			switch utxo.Opcode {
+			case 0:
+				extractPubKeyHash160 = stdscript.ExtractPubKeyHashV0
+			case txscript.OP_SSGEN:
+				extractPubKeyHash160 = stdscript.ExtractStakeGenPubKeyHashV0
+			case txscript.OP_SSRTX:
+				extractPubKeyHash160 = stdscript.ExtractStakeRevocationPubKeyHashV0
+			case txscript.OP_TGEN:
+				extractPubKeyHash160 = stdscript.ExtractTreasuryGenPubKeyHashV0
+			default:
+				return ruleError(fmt.Errorf("unsupported output script for UTXO %s", &utxo.OutPoint))
+			}
+			valid := validateOwnerProofP2PKHv0(extractPubKeyHash160,
+				entry.PkScript(), utxo.PubKey, utxo.Signature, pr.Expires())
+			if !valid {
+				return ruleError(ErrInvalidUTXOProof)
+			}
+
+			totalValue += entry.Amount()
+		}
+	}
+	if totalValue != 0 && totalValue != pr.InputValue {
+		return ruleError(ErrInvalidUTXOProof)
 	}
 
 	return nil
@@ -1574,63 +1629,6 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 	}
 
 	return acceptedMessages
-}
-
-// Check that UTXOs exist, have confirmations, sum of UTXO values matches the
-// input value, and proof of ownership is valid.
-func (p *Pool) checkUTXOs(pr *wire.MsgMixPairReq, curHeight int64) error {
-	var totalValue int64
-
-	for i := range pr.UTXOs {
-		utxo := &pr.UTXOs[i]
-		entry, err := p.utxoFetcher.FetchUtxoEntry(utxo.OutPoint)
-		if err != nil {
-			return err
-		}
-		if entry == nil || entry.IsSpent() {
-			return ruleError(fmt.Errorf("output %v is not unspent",
-				&utxo.OutPoint))
-		}
-		height := entry.BlockHeight()
-		if !confirmed(minconf, height, curHeight) {
-			return ruleError(fmt.Errorf("output %v is unconfirmed",
-				&utxo.OutPoint))
-		}
-		if entry.ScriptVersion() != 0 {
-			return ruleError(fmt.Errorf("output %v does not use script version 0",
-				&utxo.OutPoint))
-		}
-
-		// Check proof of key ownership and ability to sign coinjoin
-		// inputs.
-		var extractPubKeyHash160 func([]byte) []byte
-		switch utxo.Opcode {
-		case 0:
-			extractPubKeyHash160 = stdscript.ExtractPubKeyHashV0
-		case txscript.OP_SSGEN:
-			extractPubKeyHash160 = stdscript.ExtractStakeGenPubKeyHashV0
-		case txscript.OP_SSRTX:
-			extractPubKeyHash160 = stdscript.ExtractStakeRevocationPubKeyHashV0
-		case txscript.OP_TGEN:
-			extractPubKeyHash160 = stdscript.ExtractTreasuryGenPubKeyHashV0
-		default:
-			return ruleError(fmt.Errorf("unsupported output script for UTXO %s", &utxo.OutPoint))
-		}
-		valid := validateOwnerProofP2PKHv0(extractPubKeyHash160,
-			entry.PkScript(), utxo.PubKey, utxo.Signature, pr.Expires())
-		if !valid {
-			return ruleError(ErrInvalidUTXOProof)
-		}
-
-		totalValue += entry.Amount()
-	}
-
-	if totalValue != pr.InputValue {
-		return ruleError(fmt.Errorf("input value does not match sum of UTXO " +
-			"values"))
-	}
-
-	return nil
 }
 
 func validateOwnerProofP2PKHv0(extractFunc func([]byte) []byte, pkscript, pubkey, sig []byte, expires uint32) bool {
