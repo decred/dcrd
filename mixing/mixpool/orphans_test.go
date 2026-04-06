@@ -173,3 +173,117 @@ func TestOrphans(t *testing.T) {
 		}
 	}
 }
+
+// TestOrphanEviction ensures that exceeding the maximum number of orphans
+// evicts entries to make room for the new ones.
+func TestOrphanEviction(t *testing.T) {
+	pub, priv, err := generateSecp256k1(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := *(*[33]byte)(pub.SerializeCompressed())
+
+	// createOrphanKEAndCT returns a signed mix key exchange and cyphertexts
+	// message associated with a unique pair request.
+	h := blake256.NewHasher256()
+	var nextPRNum uint32
+	createOrphanKEAndCT := func() (*wire.MsgMixKeyExchange, *wire.MsgMixCiphertexts) {
+		h.Reset()
+		h.WriteUint32LE(nextPRNum)
+		nextPRNum++
+		randPrevOut := wire.OutPoint{Hash: h.Sum256()}
+		randomUTXO := wire.MixPairReqUTXO{OutPoint: randPrevOut}
+		pr := &wire.MsgMixPairReq{
+			Identity:     id,
+			UTXOs:        []wire.MixPairReqUTXO{randomUTXO},
+			MessageCount: 1,
+			Expiry:       testStartingHeight + 10,
+			ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+			InputValue:   1 << 18,
+		}
+		err = mixing.SignMessage(pr, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pr.WriteHash(h)
+
+		prs := []*wire.MsgMixPairReq{pr}
+		epoch := uint64(time.Now().Unix())
+		sid := mixing.SortPRsForSession(prs, epoch)
+		ke := &wire.MsgMixKeyExchange{
+			Identity:  id,
+			SessionID: sid,
+			Epoch:     epoch,
+			Run:       0,
+			SeenPRs: []chainhash.Hash{
+				pr.Hash(),
+			},
+		}
+		err = mixing.SignMessage(ke, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ke.WriteHash(h)
+
+		seenKEs := []chainhash.Hash{ke.Hash()}
+		ct := &wire.MsgMixCiphertexts{
+			Identity:         id,
+			SessionID:        sid,
+			Run:              0,
+			SeenKeyExchanges: seenKEs,
+		}
+		err = mixing.SignMessage(ct, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ct.WriteHash(h)
+
+		return ke, ct
+	}
+
+	// Create enough orphan key exchange and cyphertext messages to be able to
+	// exceed the maximum number of orphans allowed in the pool.
+	orphans := make([]mixing.Message, 0, maxOrphans+2)
+	for range maxOrphans/2 + 1 {
+		ke, ct := createOrphanKEAndCT()
+		orphans = append(orphans, ke, ct)
+	}
+
+	// Fill up the orphan pool to the max allowed with orphan messages while
+	// also pretending as though the orphans came from different sources.
+	p := NewPool(newTestBlockchain())
+	acceptOrphanAndCheck := func(msg mixing.Message, srcID uint64) {
+		accepted, err := p.AcceptMessage(msg, Uint64Source(srcID))
+		if len(accepted) != 0 {
+			t.Fatalf("accepted orphan message %T to main pool", msg)
+		}
+		if _, ok := msg.(*wire.MsgMixKeyExchange); ok {
+			var ownPRErr *MissingOwnPRError
+			if !errors.As(err, &ownPRErr) {
+				t.Fatalf("unexpected error for orphan message: %v", err)
+			}
+		}
+	}
+	const numSources = 5
+	numOrphansPerSource := (maxOrphans + 1 + (numSources - 1)) / numSources
+	for i := range maxOrphans {
+		orphan := orphans[i]
+		srcID := uint64(i/numOrphansPerSource) + 1
+		acceptOrphanAndCheck(orphan, srcID)
+	}
+
+	// Ensure the orphan pool is the max allowed.
+	assertOrphanPoolSize := func(expected int) {
+		if len(p.orphans) != expected {
+			t.Fatalf("unexpected orphan pool size - got %d, want %d",
+				len(p.orphans), expected)
+		}
+	}
+	assertOrphanPoolSize(maxOrphans)
+
+	// Ensure adding another orphan causes evictions of orphans tagged from
+	// the sources that submitted the most until the pool only retains the
+	// target number post eviction plus one for the orphan being added.
+	acceptOrphanAndCheck(orphans[maxOrphans], numSources)
+	assertOrphanPoolSize(maxPostEvictionOrphans + 1)
+}
