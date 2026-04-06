@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -1323,14 +1324,7 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 			if !ok {
 				continue
 			}
-			refsAcceptedPR := false
-			for _, prHash := range orphanKE.SeenPRs {
-				if pr.Hash() == prHash {
-					refsAcceptedPR = true
-					break
-				}
-			}
-			if !refsAcceptedPR {
+			if !slices.Contains(orphanKE.SeenPRs, pr.Hash()) {
 				continue
 			}
 
