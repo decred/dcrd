@@ -264,26 +264,6 @@ func readMessageHeader(r io.Reader) (int, *messageHeader, error) {
 	return n, &hdr, nil
 }
 
-// discardInput reads n bytes from reader r in chunks and discards the read
-// bytes.  This is used to skip payloads when various errors occur and helps
-// prevent rogue nodes from causing massive memory allocation through forging
-// header length.
-func discardInput(r io.Reader, n uint32) {
-	maxSize := uint32(10 * 1024) // 10k at a time
-	numReads := n / maxSize
-	bytesRemaining := n % maxSize
-	if n > 0 {
-		buf := make([]byte, maxSize)
-		for i := uint32(0); i < numReads; i++ {
-			io.ReadFull(r, buf)
-		}
-	}
-	if bytesRemaining > 0 {
-		buf := make([]byte, bytesRemaining)
-		io.ReadFull(r, buf)
-	}
-}
-
 // WriteMessageN writes a Decred Message to w including the necessary header
 // information and returns the number of bytes written.    This function is the
 // same as WriteMessage except it also returns the number of bytes written.
@@ -392,7 +372,6 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 
 	// Check for messages from the wrong Decred network.
 	if hdr.magic != dcrnet {
-		discardInput(r, hdr.length)
 		msg := fmt.Sprintf("message from other network [%v]", hdr.magic)
 		return totalBytes, nil, nil, messageError(op, ErrWrongNetwork, msg)
 	}
@@ -400,7 +379,6 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	// Check for malformed commands.
 	command := hdr.command
 	if !isStrictAscii(command) {
-		discardInput(r, hdr.length)
 		msg := fmt.Sprintf("invalid command %v", []byte(command))
 		return totalBytes, nil, nil, messageError(op, ErrMalformedCmd, msg)
 	}
@@ -408,7 +386,6 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	// Create struct of appropriate message type based on the command.
 	msg, err := makeEmptyMessage(command)
 	if err != nil {
-		discardInput(r, hdr.length)
 		return totalBytes, nil, nil, err
 	}
 
@@ -417,7 +394,6 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	// numbers in order to exhaust the machine's memory.
 	mpl := msg.MaxPayloadLength(pver)
 	if hdr.length > mpl {
-		discardInput(r, hdr.length)
 		msg := fmt.Sprintf("payload exceeds max length - header "+
 			"indicates %v bytes, but max payload size for messages of "+
 			"type [%v] is %v.", hdr.length, command, mpl)
