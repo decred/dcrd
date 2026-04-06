@@ -219,7 +219,7 @@ func TestAccept(t *testing.T) {
 
 	var (
 		expires      uint32 = 1010
-		mixAmount    int64  = 10e8
+		mixAmount    int64  = 20e8 - 3000
 		scriptClass         = mixing.ScriptClassP2PKHv0
 		txVersion    uint16 = wire.TxVersion
 		lockTime     uint32 = 0

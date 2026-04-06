@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -53,10 +53,19 @@ var (
 	// change amount is dust.
 	ErrChangeDust = newBannableError("change output is dust", 0)
 
+	// ErrMixDust is returned by AcceptMessage if a pair request's mix
+	// amount value is dust.
+	ErrMixDust = newBannableError("mix output is dust", 0)
+
 	// ErrLowInput is returned by AcceptMessage when not enough input value
 	// is provided by a pair request to cover the mixed output, any change
 	// output, and the minimum required fee.
 	ErrLowInput = newBannableError("not enough input value, or too low fee", 0)
+
+	// ErrHighFee is returned by AcceptMessage when a pair request
+	// indicates contributing too much fee to the mix transaction in a way
+	// that would be caught by mempool's default high fee policy.
+	ErrHighFee = newBannableError("too high fee", 0)
 
 	// ErrInvalidMessageCount is returned by AcceptMessage if a
 	// pair request contains an invalid message count.
