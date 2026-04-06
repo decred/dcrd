@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -572,7 +572,7 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 type testSyncManager struct {
 	isCurrent             bool
 	submitBlockErr        error
-	submitMixErr          error
+	acceptMixErr          error
 	syncPeerID            int32
 	syncHeight            int64
 	processTransaction    []*dcrutil.Tx
@@ -590,10 +590,6 @@ func (s *testSyncManager) IsCurrent() bool {
 // to the network after processing it locally.
 func (s *testSyncManager) SubmitBlock(block *dcrutil.Block) error {
 	return s.submitBlockErr
-}
-
-func (s *testSyncManager) SubmitMixMessage(msg mixing.Message) error {
-	return s.submitMixErr
 }
 
 // SyncPeer returns a mocked id of the current peer being synced with.
@@ -617,6 +613,12 @@ func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 // transaction has been confirmed by a recent block.
 func (s *testSyncManager) RecentlyConfirmedTxn(hash *chainhash.Hash) bool {
 	return s.recentlyConfirmedTxn
+}
+
+// AcceptMixMessage provides a mock implementation for attempting to accept a
+// mixing message to the local mixing pool.
+func (s *testSyncManager) AcceptMixMessage(msg mixing.Message) error {
+	return s.acceptMixErr
 }
 
 // testExistsAddresser provides a mock exists addresser by implementing the
