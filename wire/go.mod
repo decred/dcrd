@@ -10,3 +10,5 @@ require (
 )
 
 require github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+
+retract v1.7.3 // Short read errors
