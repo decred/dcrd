@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -65,9 +65,6 @@ func TestCFilter(t *testing.T) {
 	// Ensure encoding with max CF data per message returns no error.
 	data = make([]byte, MaxCFilterDataSize)
 	msg = NewMsgCFilter(blockHash, GCSFilterExtended, data)
-	if err != nil {
-		t.Fatalf("NewMsgCFilter: %v", err)
-	}
 	var buf bytes.Buffer
 	err = msg.BtcEncode(&buf, pver)
 	if err != nil {
