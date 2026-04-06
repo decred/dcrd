@@ -5916,7 +5916,8 @@ func (s *Server) route(ctx context.Context) *http.Server {
 		// Keep track of the number of connected clients.
 		s.incrementClients()
 		defer s.decrementClients()
-		_, isAdmin, err := s.checkAuth(r, true)
+		const required = true
+		_, isAdmin, err := s.checkAuth(r, required)
 		if err != nil {
 			jsonAuthFail(w)
 			return
@@ -5928,7 +5929,8 @@ func (s *Server) route(ctx context.Context) *http.Server {
 
 	// Websocket endpoint.
 	rpcServeMux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		authenticated, isAdmin, err := s.checkAuth(r, false)
+		const required = false
+		authenticated, isAdmin, err := s.checkAuth(r, required)
 		if err != nil {
 			jsonAuthFail(w)
 			return
