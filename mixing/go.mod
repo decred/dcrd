@@ -33,3 +33,4 @@ require (
 )
 
 retract v0.7.0 // Build broken for 32-bit targets
+retract v0.7.1 // Incorrect check for P2SH scripts
