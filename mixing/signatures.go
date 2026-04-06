@@ -1,18 +1,17 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package mixing
 
 import (
-	"bytes"
-	"fmt"
+	"encoding/hex"
 	"hash"
+	"strconv"
 
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
-	"github.com/decred/dcrd/wire"
 )
 
 const tag = "decred-mix-signature"
@@ -46,8 +45,6 @@ func VerifySignedMessage(m Signed) bool {
 	m.WriteSignedData(h)
 	sigHash := h.Sum256()
 
-	h.Reset()
-
 	command := m.Command()
 	sid := m.Sid()
 	run := m.GetRun()
@@ -56,6 +53,7 @@ func VerifySignedMessage(m Signed) bool {
 		run = 0
 	}
 
+	h.Reset()
 	return verify(h, m.Pub(), m.Sig(), sigHash[:], command, sid, run)
 }
 
@@ -76,8 +74,6 @@ func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
 	m.WriteSignedData(h)
 	sigHash := h.Sum256()
 
-	h.Reset()
-
 	sid := m.Sid()
 	run := m.GetRun()
 	if len(sid) != 32 {
@@ -85,17 +81,8 @@ func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
 		run = 0
 	}
 
-	buf := new(bytes.Buffer)
-	buf.Grow(len(tag) + wire.CommandSize +
-		64 + // sid
-		4 + // run
-		64 + // sigHash
-		4, // commas
-	)
-	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", m.Command(), sid, run, sigHash[:])
-	h.Write(buf.Bytes())
-
-	hash := h.Sum256()
+	h.Reset()
+	hash := schnorrHash(h, m.Command(), sid, run, sigHash[:])
 	sig, err := schnorr.Sign(priv, hash[:])
 	if err != nil {
 		return nil, err
@@ -116,17 +103,21 @@ func verify(h *blake256.Hasher256, pk []byte, sig []byte, sigHash []byte, comman
 		return false
 	}
 
-	h.Reset()
-
-	buf := new(bytes.Buffer)
-	buf.Grow(len(tag) + wire.CommandSize +
-		64 + // sid
-		4 + // run
-		64 + // sigHash
-		4, // commas
-	)
-	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", command, sid, run, sigHash)
-	h.Write(buf.Bytes())
-	hash := h.Sum256()
+	hash := schnorrHash(h, command, sid, run, sigHash)
 	return sigParsed.Verify(hash[:], pkParsed)
+}
+
+func schnorrHash(h *blake256.Hasher256, command string, sid []byte, run uint32, sigHash []byte) [32]byte {
+	buf := make([]byte, 64)
+
+	h.WriteBytes([]byte(tag))
+	h.WriteByte(',')
+	h.WriteString(command)
+	h.WriteByte(',')
+	h.WriteBytes(hex.AppendEncode(buf[:0], sid))
+	h.WriteByte(',')
+	h.WriteBytes(strconv.AppendUint(buf[:0], uint64(run), 10))
+	h.WriteByte(',')
+	h.WriteBytes(hex.AppendEncode(buf[:0], sigHash))
+	return h.Sum256()
 }
