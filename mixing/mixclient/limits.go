@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package mixclient
 import (
 	"errors"
 
+	"github.com/decred/dcrd/mixing"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -70,8 +71,6 @@ type coinjoinSize struct {
 // total transaction size to be too large, even if they have not acted
 // maliciously in the mixing protocol.
 func (c *coinjoinSize) join(contributedInputs, mcount int, change *wire.TxOut) error {
-	const maxStandardSize = 100000
-
 	totalInputs := c.currentInputs + contributedInputs
 
 	l := len(c.currentOutputScriptSizes)
@@ -85,7 +84,7 @@ func (c *coinjoinSize) join(contributedInputs, mcount int, change *wire.TxOut) e
 	c.currentOutputScriptSizes = c.currentOutputScriptSizes[:l]
 
 	estimated := estimateP2PKHv0SerializeSize(totalInputs, totalOutputScriptSizes)
-	if estimated >= maxStandardSize {
+	if estimated >= mixing.MaxMixTxSerializeSize {
 		return errExceedsStandardSize
 	}
 

@@ -55,9 +55,10 @@ func TestOrphans(t *testing.T) {
 			{},
 		},
 		MessageCount: 1,
+		MixAmount:    1 << 18,
 		Expiry:       testStartingHeight + 10,
 		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
-		InputValue:   1 << 18,
+		InputValue:   1<<18 + 3000,
 	}
 	err = mixing.SignMessage(pr, priv)
 	if err != nil {
