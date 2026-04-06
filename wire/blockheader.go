@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"lukechampine.com/blake3"
 )
 
@@ -88,19 +89,19 @@ type BlockHeader struct {
 // header.
 const blockHeaderLen = 180
 
-// BlockHash computes the block identifier hash for the given block header.
+// BlockHash computes the BLAKE-256 block identifier hash for the given block
+// header.
 func (h *BlockHeader) BlockHash() chainhash.Hash {
 	// Encode the header and hash everything prior to the number of
 	// transactions.  Ignore the error returns since there is no way the encode
 	// could fail except being out of memory which would cause a run-time panic.
-	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, 0, h)
-
-	return chainhash.HashH(buf.Bytes())
+	hasher := blake256.NewHasher256()
+	_ = writeBlockHeader(hasher, 0, h)
+	return hasher.Sum256()
 }
 
-// PowHashV1 calculates and returns the version 1 proof of work hash for the
-// block header.
+// PowHashV1 calculates and returns the version 1 proof of work BLAKE-256 hash
+// for the block header.
 //
 // NOTE: This is the original proof of work hash function used at Decred launch
 // and applies to all blocks prior to the activation of DCP0011.
@@ -108,16 +109,17 @@ func (h *BlockHeader) PowHashV1() chainhash.Hash {
 	return h.BlockHash()
 }
 
-// PowHashV2 calculates and returns the version 2 proof of work hash as defined
-// in DCP0011 for the block header.
+// PowHashV2 calculates and returns the version 2 proof of work BLAKE3 hash as
+// defined in DCP0011 for the block header.
 func (h *BlockHeader) PowHashV2() chainhash.Hash {
 	// Encode the header and hash everything prior to the number of
 	// transactions.  Ignore the error returns since there is no way the encode
 	// could fail except being out of memory which would cause a run-time panic.
-	buf := bytes.NewBuffer(make([]byte, 0, MaxBlockHeaderPayload))
-	_ = writeBlockHeader(buf, 0, h)
-
-	return blake3.Sum256(buf.Bytes())
+	var digest chainhash.Hash
+	hasher := blake3.New(len(digest), nil)
+	_ = writeBlockHeader(hasher, 0, h)
+	hasher.Sum(digest[:0])
+	return digest
 }
 
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.
