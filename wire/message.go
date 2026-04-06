@@ -289,7 +289,6 @@ func discardInput(r io.Reader, n uint32) {
 // same as WriteMessage except it also returns the number of bytes written.
 func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (int, error) {
 	const op = "WriteMessage"
-	totalBytes := 0
 
 	var elems struct {
 		dcrnet   CurrencyNet
@@ -303,24 +302,30 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 	cmd := msg.Command()
 	if len(cmd) > CommandSize {
 		msg := fmt.Sprintf("command [%s] is too long [max %v]", cmd, CommandSize)
-		return totalBytes, messageError(op, ErrCmdTooLong, msg)
+		return 0, messageError(op, ErrCmdTooLong, msg)
 	}
 	copy(elems.command[:], []byte(cmd))
 
+	// Initialize buffer with zeroed bytes for the message header (to be
+	// filled in, with checksum, after appending the payload
+	// serialization).
+	var buf bytes.Buffer
+	buf.Write(make([]byte, MessageHeaderSize))
+
 	// Encode the message payload.
-	var bw bytes.Buffer
-	err := msg.BtcEncode(&bw, pver)
+	err := msg.BtcEncode(&buf, pver)
 	if err != nil {
-		return totalBytes, err
+		return 0, err
 	}
-	payload := bw.Bytes()
+	bufBytes := buf.Bytes()
+	payload := bufBytes[MessageHeaderSize:]
 
 	// Enforce maximum overall message payload.
 	if len(payload) > MaxMessagePayload {
 		msg := fmt.Sprintf("message payload is too large - encoded "+
 			"%d bytes, but maximum message payload is %d bytes",
 			len(payload), MaxMessagePayload)
-		return totalBytes, messageError(op, ErrPayloadTooLarge, msg)
+		return 0, messageError(op, ErrPayloadTooLarge, msg)
 	}
 	elems.lenp = uint32(len(payload))
 
@@ -330,29 +335,27 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 		str := fmt.Sprintf("message payload is too large - encoded "+
 			"%d bytes, but maximum message payload size for "+
 			"messages of type [%s] is %d.", elems.lenp, cmd, mpl)
-		return totalBytes, messageError(op, ErrPayloadTooLarge, str)
+		return 0, messageError(op, ErrPayloadTooLarge, str)
 	}
 
-	// Encode the header for the message.  This is done to a buffer
-	// rather than directly to the writer since writeElements doesn't
-	// return the number of bytes written.
+	// Encode the message header.
 	cksumHash := chainhash.HashH(payload)
 	copy(elems.checksum[:], cksumHash[0:4])
-	var buf [MessageHeaderSize]byte
-	hw := bytes.NewBuffer(buf[:0])
-	writeElements(hw, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
-
-	// Write header.
-	n, err := w.Write(hw.Bytes())
-	totalBytes += n
-	if err != nil {
-		return totalBytes, err
+	buf.Reset()
+	writeElements(&buf, &elems.dcrnet, &elems.command, &elems.lenp, &elems.checksum)
+	if buf.Len() != MessageHeaderSize {
+		// The length of data written for the header is always
+		// constant, is not dependent on the message being serialized,
+		// and any implementation errors that cause an incorrect
+		// length to be written would be discovered by tests.
+		str := fmt.Sprintf("wrote unexpected message header length - "+
+			"encoded %d bytes, but message header size is %d.",
+			buf.Len(), MessageHeaderSize)
+		panic(str)
 	}
 
-	// Write payload.
-	n, err = w.Write(payload)
-	totalBytes += n
-	return totalBytes, err
+	// Write header + payload.
+	return w.Write(bufBytes)
 }
 
 // WriteMessage writes a Decred Message to w including the necessary header

@@ -428,7 +428,7 @@ func TestWriteMessageWireErrors(t *testing.T) {
 		// Force error in header write.
 		{bogusMsg, pver, dcrnet, 0, io.ErrShortWrite, 0},
 		// Force error in payload write.
-		{bogusMsg, pver, dcrnet, 24, io.ErrShortWrite, 24},
+		{bogusMsg, pver, dcrnet, 24, io.ErrShortWrite, 0},
 	}
 
 	t.Logf("Running %d tests", len(tests))
