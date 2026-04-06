@@ -153,6 +153,18 @@ const (
 	// ErrTooManyCFilters is returned when the number of committed filters
 	// exceeds the maximum allowed in a batch.
 	ErrTooManyCFilters
+
+	// ErrTooFewAddrs is returned when an address list contains fewer addresses
+	// than the minimum required.
+	ErrTooFewAddrs
+
+	// ErrUnknownNetAddrType is returned when a network address type is not
+	// recognized or supported.
+	ErrUnknownNetAddrType
+
+	// numErrorCodes is the total number of error codes defined above.  This
+	// entry MUST be the last entry in the enum.
+	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -193,6 +205,8 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTooManyMixPairReqUTXOs:        "ErrTooManyMixPairReqUTXOs",
 	ErrTooManyPrevMixMsgs:            "ErrTooManyPrevMixMsgs",
 	ErrTooManyCFilters:               "ErrTooManyCFilters",
+	ErrTooFewAddrs:                   "ErrTooFewAddrs",
+	ErrUnknownNetAddrType:            "ErrUnknownNetAddrType",
 }
 
 // String returns the ErrorCode as a human-readable name.
