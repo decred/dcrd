@@ -32,8 +32,8 @@ github.com/decred/dcrd/dcrutil/v4 v4.0.3 h1:uUgSBB4ZFHeKQFrdUgKv3PvVJ3YpBpFeXMgX
 github.com/decred/dcrd/dcrutil/v4 v4.0.3/go.mod h1:X59K97qkCrzlp8q6QcLsfxW3mrrDWROQMGM1la46jCY=
 github.com/decred/dcrd/txscript/v4 v4.1.2 h1:1EP7ZmBDl2LBeAMTEygxY8rVNN3+lkGqrsb4u64x+II=
 github.com/decred/dcrd/txscript/v4 v4.1.2/go.mod h1:r5/8qfCnl6TFrE369gggUayVIryM1oC7BLoRfa27Ckw=
-github.com/decred/dcrd/wire v1.7.1 h1:kDuHBiY1Qv9rBxYKgC2RgyPy7IOA2WRf00jqHwpr16I=
-github.com/decred/dcrd/wire v1.7.1/go.mod h1:eP9XRsMloy+phlntkTAaAm611JgLv8NqY1YJoRxkNKU=
+github.com/decred/dcrd/wire v1.7.5 h1:fRaaB5CrwYWGI3YVv50XHm54lsU1TB40WnnIJ4W6aGM=
+github.com/decred/dcrd/wire v1.7.5/go.mod h1:NZK8QD5W2ObX6p+Q0TUzYNpQtk4Ov3pBIvc6ZUK88FU=
 github.com/decred/slog v1.2.0 h1:soHAxV52B54Di3WtKLfPum9OFfWqwtf/ygf9njdfnPM=
 github.com/decred/slog v1.2.0/go.mod h1:kVXlGnt6DHy2fV5OjSeuvCJ0OmlmTF6LFpEPMu/fOY0=
 github.com/klauspost/cpuid/v2 v2.0.9 h1:lgaqFMSdTdQYdZ04uHyN2d/eKdOMyi2YLSvlQIBFYa4=
