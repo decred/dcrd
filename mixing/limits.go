@@ -38,5 +38,5 @@ const (
 	MaxMixTxSerializeSize = 100000
 
 	// MaxMixAmount is the maximum value of a mixed output.
-	MaxMixAmount = 21000000_00000000 / MinPeers
+	MaxMixAmount int64 = 21000000_00000000 / MinPeers
 )
