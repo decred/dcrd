@@ -6,6 +6,7 @@
 package wire
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -131,49 +132,6 @@ func (l binaryFreeList) Uint64(r io.Reader, byteOrder binary.ByteOrder) (uint64,
 	return rv, nil
 }
 
-// PutUint8 copies the provided uint8 into a buffer from the free list and
-// writes the resulting byte to the given writer.
-func (l binaryFreeList) PutUint8(w io.Writer, val uint8) error {
-	buf := l.Borrow()[:1]
-	buf[0] = val
-	_, err := w.Write(buf)
-	l.Return(buf)
-	return err
-}
-
-// PutUint16 serializes the provided uint16 using the given byte order into a
-// buffer from the free list and writes the resulting two bytes to the given
-// writer.
-func (l binaryFreeList) PutUint16(w io.Writer, byteOrder binary.ByteOrder, val uint16) error {
-	buf := l.Borrow()[:2]
-	byteOrder.PutUint16(buf, val)
-	_, err := w.Write(buf)
-	l.Return(buf)
-	return err
-}
-
-// PutUint32 serializes the provided uint32 using the given byte order into a
-// buffer from the free list and writes the resulting four bytes to the given
-// writer.
-func (l binaryFreeList) PutUint32(w io.Writer, byteOrder binary.ByteOrder, val uint32) error {
-	buf := l.Borrow()[:4]
-	byteOrder.PutUint32(buf, val)
-	_, err := w.Write(buf)
-	l.Return(buf)
-	return err
-}
-
-// PutUint64 serializes the provided uint64 using the given byte order into a
-// buffer from the free list and writes the resulting eight bytes to the given
-// writer.
-func (l binaryFreeList) PutUint64(w io.Writer, byteOrder binary.ByteOrder, val uint64) error {
-	buf := l.Borrow()[:8]
-	byteOrder.PutUint64(buf, val)
-	_, err := w.Write(buf)
-	l.Return(buf)
-	return err
-}
-
 // binarySerializer provides a free list of buffers to use for serializing and
 // deserializing primitive integer values to and from io.Readers and io.Writers.
 var binarySerializer binaryFreeList = make(chan []byte, binaryFreeListMaxItems)
@@ -275,14 +233,6 @@ func readElement(r io.Reader, element interface{}) error {
 			return err
 		}
 		*e = int64Time(time.Unix(int64(rv), 0))
-		return nil
-
-	// Message header checksum.
-	case *[4]byte:
-		_, err := io.ReadFull(r, e[:])
-		if err != nil {
-			return err
-		}
 		return nil
 
 	case *[6]byte:
@@ -412,48 +362,116 @@ func readElements(r io.Reader, elements ...interface{}) error {
 	return nil
 }
 
+// shortWrite optimizes short (<= 8 byte) writes to w by special casing
+// buffer allocations for specific writer types.
+//
+// The callback returns a short buffer to 8 bytes in length and a size
+// specifying how much of the buffer to write.
+//
+// For longer writes and writes of byte arrays, dynamic dispatch to w.Write
+// should be used instead.
+func shortWrite(w io.Writer, cb func() (data [8]byte, size int)) error {
+	data, size := cb()
+
+	switch w := w.(type) {
+	// The most common case (called through WriteMessageN) is that the writer is a
+	// *bytes.Buffer.  Optimize for that case by appending binary serializations
+	// to its existing capacity instead of paying the synchronization cost to
+	// serialize to temporary buffers pulled from the binary freelist.
+	case *bytes.Buffer:
+		w.Write(data[:size])
+		return nil
+
+	default:
+		p := binarySerializer.Borrow()[:size]
+		copy(p, data[:size])
+		_, err := w.Write(p)
+		return err
+	}
+}
+
+// writeUint8 writes the byte value to the writer.
+func writeUint8(w io.Writer, value uint8) error {
+	return shortWrite(w, func() (buf [8]byte, size int) {
+		buf[0] = value
+		return buf, 1
+	})
+}
+
+// writeUint16LE writes the little endian encoding of value to the writer.
+func writeUint16LE(w io.Writer, value uint16) error {
+	return shortWrite(w, func() (buf [8]byte, size int) {
+		littleEndian.PutUint16(buf[:], value)
+		return buf, 2
+	})
+}
+
+// writeUint16BE writes the big endian encoding of value to the writer.
+func writeUint16BE(w io.Writer, value uint16) error {
+	return shortWrite(w, func() (buf [8]byte, size int) {
+		bigEndian.PutUint16(buf[:], value)
+		return buf, 2
+	})
+}
+
+// writeUint32LE writes the little endian encoding of value to the writer.
+func writeUint32LE(w io.Writer, value uint32) error {
+	return shortWrite(w, func() (buf [8]byte, size int) {
+		littleEndian.PutUint32(buf[:], value)
+		return buf, 4
+	})
+}
+
+// writeUint64LE writes the little endian encoding of value to the writer.
+func writeUint64LE(w io.Writer, value uint64) error {
+	return shortWrite(w, func() (buf [8]byte, size int) {
+		littleEndian.PutUint64(buf[:], value)
+		return buf, 8
+	})
+}
+
 // writeElement writes the little endian representation of element to w.
 func writeElement(w io.Writer, element interface{}) error {
 	// Attempt to write the element based on the concrete type via fast
 	// type assertions first.
 	switch e := element.(type) {
 	case *uint8:
-		err := binarySerializer.PutUint8(w, *e)
+		err := writeUint8(w, *e)
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *uint16:
-		err := binarySerializer.PutUint16(w, littleEndian, *e)
+		err := writeUint16LE(w, *e)
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *int32:
-		err := binarySerializer.PutUint32(w, littleEndian, uint32(*e))
+		err := writeUint32LE(w, uint32(*e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *uint32:
-		err := binarySerializer.PutUint32(w, littleEndian, *e)
+		err := writeUint32LE(w, *e)
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *int64:
-		err := binarySerializer.PutUint64(w, littleEndian, uint64(*e))
+		err := writeUint64LE(w, uint64(*e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *uint64:
-		err := binarySerializer.PutUint64(w, littleEndian, *e)
+		err := writeUint64LE(w, *e)
 		if err != nil {
 			return err
 		}
@@ -462,9 +480,9 @@ func writeElement(w io.Writer, element interface{}) error {
 	case *bool:
 		var err error
 		if *e {
-			err = binarySerializer.PutUint8(w, 0x01)
+			err = writeUint8(w, 0x01)
 		} else {
-			err = binarySerializer.PutUint8(w, 0x00)
+			err = writeUint8(w, 0x00)
 		}
 		if err != nil {
 			return err
@@ -481,14 +499,6 @@ func writeElement(w io.Writer, element interface{}) error {
 
 	// Block header final state.
 	case *[6]byte:
-		_, err := w.Write(e[:])
-		if err != nil {
-			return err
-		}
-		return nil
-
-	// Message header command.
-	case *[CommandSize]uint8:
 		_, err := w.Write(e[:])
 		if err != nil {
 			return err
@@ -558,28 +568,28 @@ func writeElement(w io.Writer, element interface{}) error {
 		return nil
 
 	case *ServiceFlag:
-		err := binarySerializer.PutUint64(w, littleEndian, uint64(*e))
+		err := writeUint64LE(w, uint64(*e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *InvType:
-		err := binarySerializer.PutUint32(w, littleEndian, uint32(*e))
+		err := writeUint32LE(w, uint32(*e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *CurrencyNet:
-		err := binarySerializer.PutUint32(w, littleEndian, uint32(*e))
+		err := writeUint32LE(w, uint32(*e))
 		if err != nil {
 			return err
 		}
 		return nil
 
 	case *RejectCode:
-		err := binarySerializer.PutUint8(w, uint8(*e))
+		err := writeUint8(w, uint8(*e))
 		if err != nil {
 			return err
 		}
@@ -669,30 +679,31 @@ func ReadVarInt(r io.Reader, pver uint32) (uint64, error) {
 // on its value.
 func WriteVarInt(w io.Writer, pver uint32, val uint64) error {
 	if val < 0xfd {
-		return binarySerializer.PutUint8(w, uint8(val))
+		return writeUint8(w, uint8(val))
 	}
 
 	if val <= math.MaxUint16 {
-		err := binarySerializer.PutUint8(w, 0xfd)
-		if err != nil {
-			return err
-		}
-		return binarySerializer.PutUint16(w, littleEndian, uint16(val))
+		return shortWrite(w, func() (p [8]byte, size int) {
+			p[0] = 0xfd
+			littleEndian.PutUint16(p[1:], uint16(val))
+			return p, 3
+		})
 	}
 
 	if val <= math.MaxUint32 {
-		err := binarySerializer.PutUint8(w, 0xfe)
-		if err != nil {
-			return err
-		}
-		return binarySerializer.PutUint32(w, littleEndian, uint32(val))
+		return shortWrite(w, func() (p [8]byte, size int) {
+			p[0] = 0xfe
+			littleEndian.PutUint32(p[1:], uint32(val))
+			return p, 5
+		})
 	}
 
-	err := binarySerializer.PutUint8(w, 0xff)
+	// shortWrite is not designed for writes > 8 bytes.
+	err := writeUint8(w, 0xff)
 	if err != nil {
 		return err
 	}
-	return binarySerializer.PutUint64(w, littleEndian, val)
+	return writeUint64LE(w, val)
 }
 
 // VarIntSerializeSize returns the number of bytes it would take to serialize
@@ -798,7 +809,13 @@ func WriteVarString(w io.Writer, pver uint32, str string) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write([]byte(str))
+
+	switch w := w.(type) {
+	case *bytes.Buffer:
+		_, err = w.WriteString(str)
+	default:
+		_, err = w.Write([]byte(str))
+	}
 	return err
 }
 
