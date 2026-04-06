@@ -486,6 +486,13 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 		return totalBytes, nil, nil, err
 	}
 
+	// Reject messages that did not consume the full payload.
+	if buf.Len() > 0 {
+		msg := fmt.Sprintf("message payload has %d unconsumed trailing "+
+			"bytes", buf.Len())
+		return totalBytes, nil, nil, messageError(op, ErrTrailingBytes, msg)
+	}
+
 	return totalBytes, msg, payload, nil
 }
 
