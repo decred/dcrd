@@ -42,9 +42,9 @@ func SignMessage(m Signed, priv *secp256k1.PrivateKey) error {
 // VerifySignedMessage verifies that a signed message carries a valid
 // signature for the represented identity.
 func VerifySignedMessage(m Signed) bool {
-	h := blake256.New()
+	h := blake256.NewHasher256()
 	m.WriteSignedData(h)
-	sigHash := h.Sum(nil)
+	sigHash := h.Sum256()
 
 	h.Reset()
 
@@ -56,7 +56,7 @@ func VerifySignedMessage(m Signed) bool {
 		run = 0
 	}
 
-	return verify(h, m.Pub(), m.Sig(), sigHash, command, sid, run)
+	return verify(h, m.Pub(), m.Sig(), sigHash[:], command, sid, run)
 }
 
 // VerifySignature verifies a message signature from its signature hash and
@@ -65,16 +65,16 @@ func VerifySignedMessage(m Signed) bool {
 // the same public key, and demonstrating this can be used to prove malicious
 // behavior by sending different versions of messages through the network.
 func VerifySignature(pub, sig, sigHash []byte, command string, sid []byte, run uint32) bool {
-	h := blake256.New()
+	h := blake256.NewHasher256()
 	return verify(h, pub, sig, sigHash, command, sid, run)
 }
 
 var zeroSID [32]byte
 
 func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
-	h := blake256.New()
+	h := blake256.NewHasher256()
 	m.WriteSignedData(h)
-	sigHash := h.Sum(nil)
+	sigHash := h.Sum256()
 
 	h.Reset()
 
@@ -92,17 +92,18 @@ func sign(priv *secp256k1.PrivateKey, m Signed) ([]byte, error) {
 		64 + // sigHash
 		4, // commas
 	)
-	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", m.Command(), sid, run, sigHash)
+	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", m.Command(), sid, run, sigHash[:])
 	h.Write(buf.Bytes())
 
-	sig, err := schnorr.Sign(priv, h.Sum(nil))
+	hash := h.Sum256()
+	sig, err := schnorr.Sign(priv, hash[:])
 	if err != nil {
 		return nil, err
 	}
 	return sig.Serialize(), nil
 }
 
-func verify(h hash.Hash, pk []byte, sig []byte, sigHash []byte, command string, sid []byte, run uint32) bool {
+func verify(h *blake256.Hasher256, pk []byte, sig []byte, sigHash []byte, command string, sid []byte, run uint32) bool {
 	if len(pk) != secp256k1.PubKeyBytesLenCompressed {
 		return false
 	}
@@ -126,5 +127,6 @@ func verify(h hash.Hash, pk []byte, sig []byte, sigHash []byte, command string, 
 	)
 	fmt.Fprintf(buf, tag+",%s,%x,%d,%x", command, sid, run, sigHash)
 	h.Write(buf.Bytes())
-	return sigParsed.Verify(h.Sum(nil), pkParsed)
+	hash := h.Sum256()
+	return sigParsed.Verify(hash[:], pkParsed)
 }
