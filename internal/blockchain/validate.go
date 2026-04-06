@@ -3127,9 +3127,9 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// to be skipped later.
 	isVote := stake.IsSSGen(msgTx)
 	if isVote {
-		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
-			chainParams, prevHeader, isTreasuryEnabled,
-			isAutoRevocationsEnabled, subsidySplitVariant)
+		err := checkVoteInputs(subsidyCache, tx, txHeight, view, chainParams,
+			prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled,
+			subsidySplitVariant)
 		if err != nil {
 			return 0, err
 		}
@@ -3150,34 +3150,37 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		}
 	}
 
-	// Perform additional checks on TSpend transactions.
-	var (
-		isTSpend          bool
-		signature, pubKey []byte
-		err               error
-	)
+	// The required maturity for revocation and vote outputs depends on whether
+	// or not the treaury agenda is active.
 	reqStakeOutMaturity := int64(chainParams.SStxChangeMaturity)
 	if isTreasuryEnabled {
-		signature, pubKey, err = stake.CheckTSpend(msgTx)
-		isTSpend = err == nil
 		reqStakeOutMaturity = int64(chainParams.CoinbaseMaturity)
 	}
 
-	// If we have a TSpend verify the signature.
-	if isTSpend {
-		// Check if this is a sanctioned PI key.
-		if !chainParams.PiKeyExists(pubKey) {
-			str := fmt.Sprintf("Unknown Pi Key: %x", pubKey)
-			return 0, ruleError(ErrUnknownPiKey, str)
-		}
+	// Perform additional checks on treasury spend transactions such as ensuring
+	// they have a valid signature from a sanctioned key.
+	//
+	// Also keep track of whether or not it is a treasury spend for later.
+	var isTSpend bool
+	if isTreasuryEnabled {
+		signature, pubKey, err := stake.CheckTSpend(msgTx)
+		isTSpend = err == nil
+		if isTSpend {
+			// The public key used to sign the treasury spend must be one of the
+			// sanctioned pi keys.
+			if !chainParams.PiKeyExists(pubKey) {
+				str := fmt.Sprintf("unknown treasury spend pi key: %x", pubKey)
+				return 0, ruleError(ErrUnknownPiKey, str)
+			}
 
-		// Verify that the signature is valid and corresponds to the
-		// provided public key.
-		err = verifyTSpendSignature(msgTx, signature, pubKey)
-		if err != nil {
-			str := fmt.Sprintf("Could not verify TSpend "+
-				"signature: %v", err)
-			return 0, ruleError(ErrInvalidPiSignature, str)
+			// Verify that the signature is valid and corresponds to the
+			// provided public key.
+			err = verifyTSpendSignature(msgTx, signature, pubKey)
+			if err != nil {
+				str := fmt.Sprintf("failed to verify treasury spend signature:"+
+					" %v", err)
+				return 0, ruleError(ErrInvalidPiSignature, str)
+			}
 		}
 	}
 
@@ -3209,9 +3212,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		originTxIndex := txInOutpoint.Index
 		utxoEntry := view.LookupEntry(txInOutpoint)
 		if utxoEntry == nil || utxoEntry.IsSpent() {
-			str := fmt.Sprintf("output %v referenced from "+
-				"transaction %s:%d either does not exist or "+
-				"has already been spent", txInOutpoint,
+			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
+				"either does not exist or has already been spent", txInOutpoint,
 				txHash, idx)
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
@@ -3220,78 +3222,69 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 		// Using zero value outputs as inputs is banned.
 		if utxoEntry.Amount() == 0 {
-			str := fmt.Sprintf("tried to spend zero value output "+
-				"from input %v, idx %v", txInHash,
-				originTxIndex)
+			str := fmt.Sprintf("tried to spend zero value output from input "+
+				"%v:%v", txInHash, originTxIndex)
 			return 0, ruleError(ErrZeroValueOutputSpend, str)
 		}
 
 		if checkFraudProof {
-			if txIn.ValueIn !=
-				utxoEntry.Amount() {
-				str := fmt.Sprintf("bad fraud check value in "+
-					"(expected %v, given %v) for txIn %v",
-					utxoEntry.Amount(),
-					txIn.ValueIn, idx)
+			if txIn.ValueIn != utxoEntry.Amount() {
+				str := fmt.Sprintf("bad fraud check value in (expected %v, "+
+					"given %v) for txIn %v", utxoEntry.Amount(), txIn.ValueIn,
+					idx)
 				return 0, ruleError(ErrFraudAmountIn, str)
 			}
 
 			if int64(txIn.BlockHeight) != utxoEntry.BlockHeight() {
-				str := fmt.Sprintf("bad fraud check block "+
-					"height (expected %v, given %v) for "+
-					"txIn %v", utxoEntry.BlockHeight(),
+				str := fmt.Sprintf("bad fraud check block height (expected %v, "+
+					"given %v) for txIn %v", utxoEntry.BlockHeight(),
 					txIn.BlockHeight, idx)
 				return 0, ruleError(ErrFraudBlockHeight, str)
 			}
 
 			if txIn.BlockIndex != utxoEntry.BlockIndex() {
-				str := fmt.Sprintf("bad fraud check block "+
-					"index (expected %v, given %v) for "+
-					"txIn %v", utxoEntry.BlockIndex(),
+				str := fmt.Sprintf("bad fraud check block index (expected %v, "+
+					"given %v) for txIn %v", utxoEntry.BlockIndex(),
 					txIn.BlockIndex, idx)
 				return 0, ruleError(ErrFraudBlockIndex, str)
 			}
 		}
 
-		// Ensure the transaction is not spending coins which have not
-		// yet reached the required coinbase maturity.
+		// Ensure the transaction is not spending coins which have not yet
+		// reached the required coinbase maturity.
 		coinbaseMaturity := int64(chainParams.CoinbaseMaturity)
 		if utxoEntry.IsCoinBase() {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < coinbaseMaturity {
-				str := fmt.Sprintf("tx %v tried to spend "+
-					"coinbase transaction %v from height "+
-					"%v at height %v before required "+
-					"maturity of %v blocks", txHash,
-					txInHash, originHeight, txHeight,
+				str := fmt.Sprintf("tried to spend coinbase transaction %v "+
+					"from height %v at height %v before required maturity of "+
+					"%v blocks", txInHash, originHeight, txHeight,
 					coinbaseMaturity)
 				return 0, ruleError(ErrImmatureSpend, str)
 			}
 		}
 
-		// Ensure that the transaction is not spending coins from a
-		// transaction that included an expiry but which has not yet
-		// reached coinbase maturity many blocks.
+		// Ensure that the transaction is not spending coins from a transaction
+		// that included an expiry but which has not yet reached coinbase
+		// maturity many blocks.
 		if utxoEntry.HasExpiry() {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < coinbaseMaturity {
-				str := fmt.Sprintf("tx %v tried to spend "+
-					"transaction %v including an expiry "+
-					"from height %v at height %v before "+
-					"required maturity of %v blocks",
-					txHash, txInHash, originHeight,
-					txHeight, coinbaseMaturity)
+				str := fmt.Sprintf("tried to spend transaction %v including "+
+					"an expiry from height %v at height %v before required "+
+					"maturity of %v blocks", txInHash, originHeight, txHeight,
+					coinbaseMaturity)
 				return 0, ruleError(ErrExpiryTxSpentEarly, str)
 			}
 		}
 
-		// OP_TGEN tagged outputs can only be spent after coinbase maturity
-		// many blocks.
-		if isTreasuryEnabled && stake.IsTreasuryGenScript(
-			utxoEntry.ScriptVersion(), utxoEntry.PkScript()) {
-
+		// OP_TGEN tagged outputs can only be spent after coinbase maturity many
+		// blocks.
+		scriptVer := utxoEntry.ScriptVersion()
+		pkScript := utxoEntry.PkScript()
+		if isTreasuryEnabled && stake.IsTreasuryGenScript(scriptVer, pkScript) {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < coinbaseMaturity {
@@ -3308,92 +3301,84 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		// from non votes and revocations and make sure that they spend no
 		// OP_SSTX tagged outputs.
 		if !(isVote || isRevocation) {
-			if stake.IsTicketPurchaseScript(utxoEntry.ScriptVersion(),
-				utxoEntry.PkScript()) {
-				errSSGen := stake.CheckSSGen(msgTx)
-				errSSRtx := stake.CheckSSRtx(msgTx)
-				errStr := fmt.Sprintf("Tx %v attempted to "+
-					"spend an OP_SSTX tagged output, "+
-					"however it was not an SSGen or SSRtx"+
-					" tx; SSGen err: %v, SSRtx err: %v",
-					txHash, errSSGen.Error(),
-					errSSRtx.Error())
-				return 0, ruleError(ErrTxSStxOutSpend, errStr)
+			if stake.IsTicketPurchaseScript(scriptVer, pkScript) {
+				str := fmt.Sprintf("tried to spend OP_SSTX output %v from a "+
+					"transaction that is not a vote or revocation", txInOutpoint)
+				return 0, ruleError(ErrTxSStxOutSpend, str)
 			}
 		}
 
-		// OP_SSGEN and OP_SSRTX tagged outputs can only be spent after
-		// coinbase maturity many blocks.
-		if stake.IsRevocationScript(utxoEntry.ScriptVersion(),
-			utxoEntry.PkScript()) ||
-			stake.IsVoteScript(utxoEntry.ScriptVersion(),
-				utxoEntry.PkScript()) {
+		// Treasury adds are never spendable.
+		if isTreasuryEnabled && scriptVer == 0 && len(pkScript) == 1 &&
+			pkScript[0] == txscript.OP_TADD {
+
+			str := fmt.Sprintf("tried to spend treasury add output %v",
+				txInOutpoint)
+			return 0, ruleError(ErrBadTxInput, str)
+		}
+
+		// OP_SSGEN and OP_SSRTX tagged outputs can only be spent after coinbase
+		// maturity many blocks.
+		if stake.IsRevocationScript(scriptVer, pkScript) ||
+			stake.IsVoteScript(scriptVer, pkScript) {
+
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev < reqStakeOutMaturity {
-				str := fmt.Sprintf("tried to spend OP_SSGEN or"+
-					" OP_SSRTX output from tx %v from "+
-					"height %v at height %v before "+
-					"required maturity of %v blocks",
-					txInHash, originHeight, txHeight,
-					coinbaseMaturity)
+				str := fmt.Sprintf("tried to spend OP_SSGEN or OP_SSRTX "+
+					"output %v from height %v at height %v before required "+
+					"maturity of %v blocks", txInOutpoint, originHeight,
+					txHeight, coinbaseMaturity)
 				return 0, ruleError(ErrImmatureSpend, str)
 			}
 		}
 
-		// Ticket change outputs may only be spent after ticket change
-		// maturity many blocks.
-		if stake.IsStakeChangeScript(utxoEntry.ScriptVersion(),
-			utxoEntry.PkScript()) {
+		// Ticket change outputs may only be spent after ticket change maturity
+		// many blocks.
+		if stake.IsStakeChangeScript(scriptVer, pkScript) {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
-			if blocksSincePrev <
-				int64(chainParams.SStxChangeMaturity) {
-				str := fmt.Sprintf("tried to spend ticket change"+
-					" output from tx %v from height %v at "+
-					"height %v before required maturity "+
-					"of %v blocks", txInHash, originHeight,
-					txHeight, chainParams.SStxChangeMaturity)
+			if blocksSincePrev < int64(chainParams.SStxChangeMaturity) {
+				str := fmt.Sprintf("tried to spend ticket change output %v "+
+					"from height %v at height %v before required maturity of "+
+					"%v blocks", txInOutpoint, originHeight, txHeight,
+					chainParams.SStxChangeMaturity)
 				return 0, ruleError(ErrImmatureSpend, str)
 			}
 		}
 
-		// Ensure the transaction amounts are in range.  Each of the
-		// output values of the input transactions must not be negative
-		// or more than the max allowed per transaction.  All amounts
-		// in a transaction are in a unit value known as an atom.  One
-		// Decred is a quantity of atoms as defined by the AtomPerCoin
-		// constant.
+		// Ensure the transaction amounts are in range.  Each of the output
+		// values of the input transactions must not be negative or more than
+		// the max allowed per transaction.  All amounts in a transaction are in
+		// a unit value known as an atom.  One Decred is a quantity of atoms as
+		// defined by the [dcrutil.AtomsPerCoin] constant.
 		originTxAtom := utxoEntry.Amount()
 		if originTxAtom < 0 {
-			str := fmt.Sprintf("transaction output has negative "+
-				"value of %v", originTxAtom)
+			str := fmt.Sprintf("transaction output has negative value of %v",
+				originTxAtom)
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}
 		if originTxAtom > dcrutil.MaxAmount {
-			str := fmt.Sprintf("transaction output value of %v is "+
-				"higher than max allowed value of %v",
-				originTxAtom, dcrutil.MaxAmount)
+			str := fmt.Sprintf("transaction output value of %v is higher than "+
+				"max allowed value of %v", originTxAtom, dcrutil.MaxAmount)
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}
 
-		// The total of all outputs must not be more than the max
-		// allowed per transaction.  Also, we could potentially
-		// overflow the accumulator so check for overflow.
+		// The total of all outputs must not be more than the max allowed per
+		// transaction.  Also, we could potentially overflow the accumulator so
+		// check for overflow.
 		lastAtomIn := totalAtomIn
 		totalAtomIn += originTxAtom
-		if totalAtomIn < lastAtomIn ||
-			totalAtomIn > dcrutil.MaxAmount {
-			str := fmt.Sprintf("total value of all transaction "+
-				"inputs is %v which is higher than max "+
-				"allowed value of %v", totalAtomIn,
+		if totalAtomIn < lastAtomIn || totalAtomIn > dcrutil.MaxAmount {
+			str := fmt.Sprintf("total value of all transaction inputs is %v "+
+				"which is higher than max allowed value of %v", totalAtomIn,
 				dcrutil.MaxAmount)
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}
 	}
 
-	// Calculate the total output amount for this transaction.  It is safe
-	// to ignore overflow and out of range errors here because those error
+	// Calculate the total output amount for this transaction.  It is safe to
+	// ignore overflow and out of range errors here because those error
 	// conditions would have already been caught by the transaction sanity
 	// checks.
 	var totalAtomOut int64
@@ -3404,8 +3389,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// Ensure the transaction does not spend more than its inputs.
 	if totalAtomIn < totalAtomOut {
 		str := fmt.Sprintf("total value of all transaction inputs for "+
-			"transaction %v is %v which is less than the amount "+
-			"spent of %v", txHash, totalAtomIn, totalAtomOut)
+			"transaction %v is %v which is less than the amount spent of %v",
+			txHash, totalAtomIn, totalAtomOut)
 		return 0, ruleError(ErrSpendTooHigh, str)
 	}
 
