@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/math/uint256"
 	"github.com/decred/dcrd/mixing"
+	"github.com/decred/dcrd/mixing/mixpool"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -202,7 +203,7 @@ type SyncManager interface {
 
 	// AcceptMixMessage attempts to accept a mixing message to the local mixing
 	// pool.
-	AcceptMixMessage(msg mixing.Message) error
+	AcceptMixMessage(msg mixing.Message, src mixpool.Source) error
 }
 
 // UtxoEntry represents a utxo entry for use with the RPC server.

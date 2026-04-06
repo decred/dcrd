@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -153,7 +153,7 @@ func TestOrphans(t *testing.T) {
 		mp := NewPool(newTestBlockchain())
 
 		for j, a := range accepts {
-			accepted, err := mp.AcceptMessage(a.message)
+			accepted, err := mp.AcceptMessage(a.message, ZeroSource)
 			if err != nil != a.errors {
 				t.Errorf("test %d call %d %q: unexpected error: %v", i, j, a.desc, err)
 			}
