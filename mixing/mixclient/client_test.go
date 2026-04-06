@@ -45,7 +45,8 @@ const (
 
 func newTestClient(w *testWallet, logger slog.Logger) *Client {
 	c := NewClient(w)
-	c.testTickC = make(chan struct{})
+	c.testWaiting = make(chan struct{})
+	c.testTickC = make(chan time.Time)
 	c.SetLogger(logger)
 	return c
 }
@@ -223,7 +224,8 @@ func TestHonest(t *testing.T) {
 		<-doneRun
 	}()
 
-	c.testTick()
+	<-c.testWaiting
+	c.testTick(time.Now().Truncate(time.Second))
 
 	var g errgroup.Group
 	for i := range peers {
@@ -235,7 +237,8 @@ func TestHonest(t *testing.T) {
 
 	go func() {
 		for {
-			c.testTick()
+			<-c.testWaiting
+			c.testTick(time.Now().Truncate(time.Second))
 			select {
 			case <-ctx.Done():
 				return
@@ -329,8 +332,11 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	}()
 
 	testTick := func() {
-		c.testTick()
-		c2.testTick()
+		<-c.testWaiting
+		<-c2.testWaiting
+		t := time.Now().Truncate(time.Second)
+		c.testTick(t)
+		c2.testTick(t)
 	}
 	testTick()
 
