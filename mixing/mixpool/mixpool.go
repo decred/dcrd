@@ -29,6 +29,7 @@ import (
 
 const minconf = 1
 const feeRate = 0.0001e8
+const maxRelayFeeMultiplier = 1e4
 const earlyKEDuration = 5 * time.Second
 
 const (
@@ -1243,16 +1244,34 @@ func (p *Pool) AcceptMessage(msg mixing.Message, src Source) (accepted []mixing.
 		return allAccepted, nil
 
 	case *wire.MsgMixCiphertexts:
+		if err := checkCTLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeCT
 	case *wire.MsgMixSlotReserve:
+		if err := checkSRLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeSR
 	case *wire.MsgMixDCNet:
+		if err := checkDCLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeDC
 	case *wire.MsgMixConfirm:
+		if err := checkCMLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeCM
 	case *wire.MsgMixFactoredPoly:
+		if err := checkFPLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeFP
 	case *wire.MsgMixSecrets:
+		if err := checkRSLimits(msg); err != nil {
+			return nil, err
+		}
 		msgtype = msgtypeRS
 	default:
 		return nil, fmt.Errorf("unknown mix message type %T", msg)
@@ -1347,21 +1366,38 @@ func (p *Pool) removePR(pr *wire.MsgMixPairReq, reason string) {
 }
 
 func (p *Pool) checkAcceptPR(pr *wire.MsgMixPairReq) error {
+	if err := checkPRLimits(pr); err != nil {
+		return err
+	}
+
+	inputValue := pr.InputValue
+	if pr.Change != nil {
+		if pr.Change.Value < 0 || isDustAmount(pr.Change.Value, p2pkhv0PkScriptSize, feeRate) {
+			return ruleError(ErrChangeDust)
+		}
+
+		if pr.Change.Value > inputValue {
+			return ruleError(ErrLowInput)
+		}
+		inputValue -= pr.Change.Value
+
+		if pr.Change.Version != 0 {
+			return ruleError(fmt.Errorf("unrecognized script version"))
+		}
+		if pr.Change.Version == 0 && (!stdscript.IsPubKeyHashScriptV0(pr.Change.PkScript) &&
+			!stdscript.IsScriptHashScriptV0(pr.Change.PkScript)) {
+			return ruleError(ErrInvalidScript)
+		}
+	}
 	switch {
 	case len(pr.UTXOs) == 0: // Require at least one utxo.
 		return ruleError(ErrMissingUTXOs)
 	case pr.MessageCount == 0: // Require at least one mixed message.
 		return ruleError(ErrInvalidMessageCount)
-	case pr.InputValue < int64(pr.MessageCount)*pr.MixAmount:
+	case isDustAmount(pr.MixAmount, p2pkhv0PkScriptSize, feeRate):
+		return ruleError(ErrMixDust)
+	case inputValue < int64(pr.MessageCount)*pr.MixAmount:
 		return ruleError(ErrInvalidTotalMixAmount)
-	case pr.Change != nil:
-		if isDustAmount(pr.Change.Value, p2pkhv0PkScriptSize, feeRate) {
-			return ruleError(ErrChangeDust)
-		}
-		if !stdscript.IsPubKeyHashScriptV0(pr.Change.PkScript) &&
-			!stdscript.IsScriptHashScriptV0(pr.Change.PkScript) {
-			return ruleError(ErrInvalidScript)
-		}
 	}
 
 	// Check that expiry has not been reached, nor that it is too far
@@ -1608,6 +1644,10 @@ func validateOwnerProofP2PKHv0(extractFunc func([]byte) []byte, pkscript, pubkey
 }
 
 func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
+	if err := checkKELimits(ke); err != nil {
+		return err
+	}
+
 	// Validate PR order and session ID.
 	if err := mixing.ValidateSession(ke); err != nil {
 		return ruleError(err)
@@ -1777,6 +1817,10 @@ func checkFee(pr *wire.MsgMixPairReq, feeRate int64) error {
 	requiredFee := feeForSerializeSize(feeRate, estimatedSize)
 	if fee < requiredFee {
 		return ruleError(ErrLowInput)
+	}
+	maxFee := feeForSerializeSize(feeRate, estimatedSize*maxRelayFeeMultiplier)
+	if fee > maxFee {
+		return ruleError(ErrHighFee)
 	}
 
 	return nil
