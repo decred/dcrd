@@ -1436,7 +1436,7 @@ func (p *Pool) checkAcceptPR(pr *wire.MsgMixPairReq) error {
 		}
 		outpoints[utxo.OutPoint] = struct{}{}
 
-		if utxo.Script != nil {
+		if len(utxo.Script) != 0 {
 			return ruleError(fmt.Errorf("P2SH inputs are unsupported"))
 		}
 
