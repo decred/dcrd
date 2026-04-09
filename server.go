@@ -2332,6 +2332,7 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 	sp := newServerPeer(s, false)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp))
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.AssociateConnection(conn)
 	select {
 	case <-sp.handshakeDone:
@@ -2339,7 +2340,6 @@ func (s *server) inboundPeerConnected(conn net.Conn) {
 		srvrLog.Debugf("Handshake timeout for inbound peer %s", conn.RemoteAddr())
 		return
 	}
-	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	go sp.Run()
 }
 
@@ -2357,6 +2357,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		return
 	}
 	sp.Peer = p
+	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	sp.connReq.Store(c)
 	sp.isWhitelisted = isWhitelisted(conn.RemoteAddr())
 	sp.AssociateConnection(conn)
@@ -2367,7 +2368,6 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 		s.connManager.Disconnect(c.ID())
 		return
 	}
-	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
 	go sp.Run()
 }
 
