@@ -1292,7 +1292,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 				return
 			}
 
-			r.logf("Recreating as session %x due to standard tx size limits (pairid=%x)",
+			r.logf("Recreating as session %x due to exceeded mixing limits (pairid=%x)",
 				sizeLimitedErr.sid[:], ps.pairing)
 
 			rerun = &sessionRun{
@@ -1578,24 +1578,38 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	}
 
 	// Before confirming the pairing, check all of the agreed-upon PRs
-	// that they will not result in a coinjoin transaction that exceeds
-	// the standard size limits.
+	// that they will not result in exceeding the limits.
 	//
 	// PRs are randomly ordered in each epoch based on the session ID, so
 	// they can be iterated in order to discover any PR that would
-	// increase the final coinjoin size above the limits.
+	// increase the final mix above the limits.
 	if !ps.peerAgreement {
 		ps.peerAgreement = true
 		ps.peerAgreementRunIdx = sesRun.idx
 
 		var sizeExcluded []*wire.MsgMixPairReq
+		var npeers int
+		var mtot uint32
 		var cjSize coinjoinSize
 		for _, pr := range sesRun.prs {
+			if npeers+1 > mixing.MaxPeers {
+				sizeExcluded = append(sizeExcluded, pr)
+				continue
+			}
+			if mtot+pr.MessageCount > mixing.MaxMtot {
+				sizeExcluded = append(sizeExcluded, pr)
+				continue
+			}
+
 			contributedInputs := len(pr.UTXOs)
 			mcount := int(pr.MessageCount)
 			if err := cjSize.join(contributedInputs, mcount, pr.Change); err != nil {
 				sizeExcluded = append(sizeExcluded, pr)
+				continue
 			}
+
+			npeers++
+			mtot += pr.MessageCount
 		}
 
 		if len(sizeExcluded) > 0 {
@@ -2270,7 +2284,7 @@ type sizeLimited struct {
 }
 
 func (e *sizeLimited) Error() string {
-	return "mix session coinjoin exceeds standard size limits"
+	return "session exceeds mixing limits"
 }
 
 type alternateSession struct {
