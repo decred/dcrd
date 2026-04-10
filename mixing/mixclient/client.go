@@ -38,7 +38,7 @@ import (
 // This value may change over time and is not a stable part of the package API.
 const MinPeers = mixing.MinPeers
 
-const pairingVersion byte = 1
+const pairingVersion byte = 2
 
 const (
 	timeoutDuration = 30 * time.Second
