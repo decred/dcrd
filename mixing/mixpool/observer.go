@@ -155,6 +155,7 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 	prByKE := make(map[chainhash.Hash]*wire.MsgMixPairReq)
 	timedOut := make(map[string]map[idPubKey]struct{})
 	active := o.mixpool.activeInEpoch(prevEpoch)
+	sizeLimited := make(map[idPubKey]string)
 	for _, a := range active {
 		pairing, err := a.pr.Pairing()
 		if err != nil {
@@ -173,7 +174,7 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 	r := &Received{
 		ReceiveAll: true,
 	}
-	for _, ses := range pairings {
+	for pairing, ses := range pairings {
 		for sid, sesKEs := range ses {
 			// Sessions formed with fewer than the
 			// required minimum peer count can't be used
@@ -206,7 +207,16 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 			// When no ciphertext messages were received, a
 			// session was not formed, and timeout can not be
 			// observed.
+			//
+			// As this occurs when sessions exceeding the mix
+			// limits are recreated, mark all peers in this
+			// session as potentially limited, so they can be
+			// removed from the active map later.
 			if len(r.CTs) == 0 {
+				for _, ke := range sesKEs {
+					sizeLimited[ke.Identity] = pairing
+				}
+
 				continue
 			}
 
@@ -217,10 +227,6 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 				continue
 			}
 
-			pairing, err := prByKE[sesKEs[0].Hash()].Pairing()
-			if err != nil {
-				return err
-			}
 			if len(r.CMs) == len(sesKEs) {
 				completed[sid] = sesKEs
 				continue
@@ -264,11 +270,11 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 					delete(ids, cm.Identity)
 				}
 			}
-			if _, ok := timedOut[string(pairing)]; !ok {
-				timedOut[string(pairing)] = make(map[idPubKey]struct{})
+			if _, ok := timedOut[pairing]; !ok {
+				timedOut[pairing] = make(map[idPubKey]struct{})
 			}
 			for id := range ids {
-				timedOut[string(pairing)][id] = struct{}{}
+				timedOut[pairing][id] = struct{}{}
 			}
 		}
 	}
@@ -313,6 +319,19 @@ func (o *Observer) checkPrevEpoch(cancelledCtx context.Context, prevEpoch uint64
 			}
 			delete(active, id)
 		}
+	}
+
+	// Modify the active map by removing identities that were in abandoned
+	// sessions exceeding the mix limits.  If any of these peers also
+	// timed out in another session, do not exclude them from the
+	// misbehaving peer set.
+	for id, pairing := range sizeLimited {
+		if timedOutIDs, ok := timedOut[pairing]; ok {
+			if _, ok := timedOutIDs[id]; ok {
+				continue
+			}
+		}
+		delete(active, id)
 	}
 
 	o.updateStrikes(prevEpoch, active, prByKE, completed)
