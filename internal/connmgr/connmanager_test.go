@@ -731,8 +731,8 @@ func TestDialTimeout(t *testing.T) {
 		return mockDialer(ctx, network, addr)
 	}
 	cmgr, err := New(&Config{
-		Dial:    timeoutDialer,
-		Timeout: dialTimeout,
+		Dial:        timeoutDialer,
+		DialTimeout: dialTimeout,
 	})
 	if err != nil {
 		t.Fatalf("New error: %v", err)

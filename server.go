@@ -4416,7 +4416,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
-		Timeout:        cfg.DialTimeout,
+		DialTimeout:    cfg.DialTimeout,
 		OnConnection: func(c *connmgr.ConnReq, conn net.Conn) {
 			s.outboundPeerConnected(ctx, c, conn)
 		},
