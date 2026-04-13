@@ -17,7 +17,7 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrDialNil, "ErrDialNil"},
-		{ErrBothDialsFilled, "ErrBothDialsFilled"},
+		{ErrNotFound, "ErrNotFound"},
 		{ErrTorInvalidAddressResponse, "ErrTorInvalidAddressResponse"},
 		{ErrTorInvalidProxyResponse, "ErrTorInvalidProxyResponse"},
 		{ErrTorUnrecognizedAuthMethod, "ErrTorUnrecognizedAuthMethod"},
@@ -90,35 +90,35 @@ func TestErrorKindIsAs(t *testing.T) {
 		wantMatch: true,
 		wantAs:    ErrDialNil,
 	}, {
-		name:      "ErrBothDialsFilled != ErrDialNil",
-		err:       ErrBothDialsFilled,
+		name:      "ErrNotFound != ErrDialNil",
+		err:       ErrNotFound,
 		target:    ErrDialNil,
 		wantMatch: false,
-		wantAs:    ErrBothDialsFilled,
+		wantAs:    ErrNotFound,
 	}, {
-		name:      "Error.ErrBothDialsFilled != ErrDialNil",
-		err:       MakeError(ErrBothDialsFilled, ""),
+		name:      "Error.ErrNotFound != ErrDialNil",
+		err:       MakeError(ErrNotFound, ""),
 		target:    ErrDialNil,
 		wantMatch: false,
-		wantAs:    ErrBothDialsFilled,
+		wantAs:    ErrNotFound,
 	}, {
-		name:      "ErrBothDialsFilled != Error.ErrDialNil",
-		err:       ErrBothDialsFilled,
+		name:      "ErrNotFound != Error.ErrDialNil",
+		err:       ErrNotFound,
 		target:    MakeError(ErrDialNil, ""),
 		wantMatch: false,
-		wantAs:    ErrBothDialsFilled,
+		wantAs:    ErrNotFound,
 	}, {
-		name:      "Error.ErrBothDialsFilled != Error.ErrDialNil",
-		err:       MakeError(ErrBothDialsFilled, ""),
+		name:      "Error.ErrNotFound != Error.ErrDialNil",
+		err:       MakeError(ErrNotFound, ""),
 		target:    MakeError(ErrDialNil, ""),
 		wantMatch: false,
-		wantAs:    ErrBothDialsFilled,
+		wantAs:    ErrNotFound,
 	}, {
-		name:      "Error.ErrBothDialsFilled != io.EOF",
-		err:       MakeError(ErrBothDialsFilled, ""),
+		name:      "Error.ErrNotFound != io.EOF",
+		err:       MakeError(ErrNotFound, ""),
 		target:    io.EOF,
 		wantMatch: false,
-		wantAs:    ErrBothDialsFilled,
+		wantAs:    ErrNotFound,
 	}}
 
 	for _, test := range tests {
