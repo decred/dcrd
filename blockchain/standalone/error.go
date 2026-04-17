@@ -49,6 +49,11 @@ const (
 	// invalid in some way such as being out of range.
 	ErrBadTxOutValue = ErrorKind("ErrBadTxOutValue")
 
+	// ErrFraudAmountIn indicates a fraud proof witness amount (aka the input
+	// value) for a transaction is invalid in some way such as being out of
+	// range.
+	ErrFraudAmountIn = ErrorKind("ErrFraudAmountIn")
+
 	// ErrDuplicateTxInputs indicates a transaction references the same
 	// input more than once.
 	ErrDuplicateTxInputs = ErrorKind("ErrDuplicateTxInputs")
