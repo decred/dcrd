@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -38,9 +38,6 @@ const (
 )
 
 const (
-	// consensusVersion = txscript.consensusVersion
-	consensusVersion = 0
-
 	// TxVersionAutoRevocations is the revocation transaction version that enables
 	// automatic ticket revocations.
 	TxVersionAutoRevocations uint16 = 2
@@ -734,9 +731,10 @@ func CheckSStx(tx *wire.MsgTx) error {
 		return stakeRuleError(ErrSStxNoOutputs, str)
 	}
 
-	// Check to make sure that all output scripts are the consensus version.
+	// All output scripts must be version 0.
+	const consensusScriptVer = 0
 	for idx, txOut := range tx.TxOut {
-		if txOut.Version != consensusVersion {
+		if txOut.Version != consensusScriptVer {
 			str := fmt.Sprintf("invalid script version found in "+
 				"txOut idx %v", idx)
 			return stakeRuleError(ErrSStxInvalidOutputs, str)
@@ -1037,9 +1035,10 @@ func CheckSSGenVotes(tx *wire.MsgTx) ([]TreasuryVoteTuple, error) {
 		}
 	}
 
-	// Check to make sure that all output scripts are the consensus version.
+	// All output scripts must be version 0.
+	const consensusScriptVer = 0
 	for _, txOut := range tx.TxOut {
-		if txOut.Version != consensusVersion {
+		if txOut.Version != consensusScriptVer {
 			str := "invalid script version found in txOut"
 			return nil, stakeRuleError(ErrSSGenBadGenOuts, str)
 		}
@@ -1209,9 +1208,10 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 		return stakeRuleError(ErrSSRtxNoOutputs, str)
 	}
 
-	// Check to make sure that all output scripts are the consensus version.
+	// All output scripts must be version 0.
+	const consensusScriptVer = 0
 	for _, txOut := range tx.TxOut {
-		if txOut.Version != consensusVersion {
+		if txOut.Version != consensusScriptVer {
 			str := "invalid script version found in txOut"
 			return stakeRuleError(ErrSSRtxBadOuts, str)
 		}
@@ -1381,9 +1381,10 @@ func CreateRevocationFromTicket(ticketHash *chainhash.Hash,
 	txIn := wire.NewTxIn(prevOut, ticketSubmissionAmount, nil)
 	revocationTx.AddTxIn(txIn)
 
-	// Check to make sure that all scripts are the consensus version.
+	// All output scripts must be version 0.
+	const consensusScriptVer = 0
 	for i, ticketMinOut := range ticketMinOuts {
-		if ticketMinOut.Version != consensusVersion {
+		if ticketMinOut.Version != consensusScriptVer {
 			str := fmt.Sprintf("invalid script version found in ticket minimal "+
 				"outputs idx %d", i)
 			return nil, stakeRuleError(ErrSStxInvalidOutputs, str)
