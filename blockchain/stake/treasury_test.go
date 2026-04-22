@@ -725,7 +725,7 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		expected: ErrTreasuryBaseInvalid,
 	}}
 	for _, test := range tests {
-		err := checkTreasuryBase(test.tx)
+		err := CheckTreasuryBase(test.tx)
 		if !errors.Is(err, test.expected) {
 			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
 				test.expected)
