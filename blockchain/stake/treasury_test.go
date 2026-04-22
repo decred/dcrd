@@ -484,7 +484,7 @@ func TestTreasurySpendErrors(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		err := checkTSpend(test.tx)
+		_, _, err := CheckTSpend(test.tx)
 		if !errors.Is(err, test.expected) {
 			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
 				test.expected)
