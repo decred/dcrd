@@ -584,7 +584,7 @@ func TestTreasuryAddErrors(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		err := checkTAdd(test.tx)
+		err := CheckTAdd(test.tx)
 		if !errors.Is(err, test.expected) {
 			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
 				test.expected)
