@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -135,34 +135,6 @@ var (
 		0x01, // OP_DATA_1, ByteIndex test in CheckTSpend
 	}
 )
-
-// generateKeys generates all the keys that are hard coded in this file.
-//func generateKeys() {
-//	key := secp256k1.PrivKeyFromBytes(privateKey)
-//	pubKey := key.PubKey()
-//	message := "test message"
-//	messageHash := chainhash.HashB([]byte(message))
-//	signature, err := schnorr.Sign(key, messageHash)
-//	if err != nil {
-//		panic(err)
-//	}
-//	fmt.Printf("Sig 0x%x: %x\n", len(signature.Serialize()),
-//		signature.Serialize())
-//	fmt.Printf("Public key 0x%x: %x\n", len(pubKey.SerializeCompressed()),
-//		pubKey.SerializeCompressed())
-//	for k, v := range signature.Serialize() {
-//		if k%8 == 0 {
-//			fmt.Printf("\n")
-//		}
-//		fmt.Printf("0x%02x,", v)
-//	}
-//	fmt.Printf("\n")
-//}
-//
-//func init() {
-//	generateKeys()
-//	panic("x")
-//}
 
 // newTxOut returns a new transaction output with the given parameters.
 func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
