@@ -230,73 +230,90 @@ func IsTSpend(tx *wire.MsgTx) bool {
 	return err == nil
 }
 
-// checkTreasuryBase verifies that the provided MsgTx is a treasury base.
-func checkTreasuryBase(mtx *wire.MsgTx) error {
-	// Require version TxVersionTreasury.
-	if mtx.Version != wire.TxVersionTreasury {
-		return stakeRuleError(ErrTreasuryBaseInvalidTxVersion,
-			fmt.Sprintf("invalid treasurybase script version: %v",
-				mtx.Version))
+// CheckTreasuryBase verifies that the provided transaction satisfies the
+// structural requirements to be a valid treasurybase transaction.
+//
+// A valid treasurybase must have:
+//   - The transaction version set to [wire.TxVersionTreasury]
+//   - A single treasurybase input (no signature script, null prevout)
+//   - An output with a treasury add script (OP_TADD)
+//   - An output with a 12 byte nulldata script
+//     (<4-byte LE encoded height + 8-byte random>)
+//   - All script versions set to 0
+func CheckTreasuryBase(tx *wire.MsgTx) error {
+	// The transaction version must be the required treasury version.
+	if tx.Version != wire.TxVersionTreasury {
+		str := fmt.Sprintf("treasurybase transaction version is %d instead of %d",
+			tx.Version, wire.TxVersionTreasury)
+		return stakeRuleError(ErrTreasuryBaseInvalidTxVersion, str)
 	}
 
-	// A TADD consists of one OP_TADD in PkScript[0] followed by an
-	// OP_RETURN <random> in  PkScript[1].
-	if len(mtx.TxIn) != 1 || len(mtx.TxOut) != 2 {
-		return stakeRuleError(ErrTreasuryBaseInvalidCount,
-			fmt.Sprintf("invalid treasurybase in/out script "+
-				"count: %v/%v", len(mtx.TxIn),
-				len(mtx.TxOut)))
+	// A treasurybase must have exactly one input and two outputs.
+	if len(tx.TxIn) != 1 {
+		str := fmt.Sprintf("treasurybase transaction has %d inputs instead of 1",
+			len(tx.TxIn))
+		return stakeRuleError(ErrTreasuryBaseInvalidCount, str)
+	}
+	if len(tx.TxOut) != 2 {
+		str := fmt.Sprintf("treasurybase transaction has %d output(s) instead "+
+			"of 2", len(tx.TxOut))
+		return stakeRuleError(ErrTreasuryBaseInvalidCount, str)
 	}
 
-	// Ensure that there is no SignatureScript on the zeroth input.
-	if len(mtx.TxIn[0].SignatureScript) != 0 {
-		return stakeRuleError(ErrTreasuryBaseInvalidLength,
-			"treasurybase input 0 contains a script")
+	// The first input signature script must be empty and its previous output
+	// must be a null outpoint (max value index, a zero hash, regular tx tree).
+	if len(tx.TxIn[0].SignatureScript) != 0 {
+		str := fmt.Sprintf("treasurybase input 0 signature script is %d "+
+			"byte(s) instead of 0", len(tx.TxIn[0].SignatureScript))
+		return stakeRuleError(ErrTreasuryBaseInvalidLength, str)
+	}
+	if !isNullOutpoint(tx) {
+		prevOut := &tx.TxIn[0].PreviousOutPoint
+		str := fmt.Sprintf("treasurybase input 0 previous output %s:%d:%d is "+
+			"not a null outpoint", prevOut.Hash, prevOut.Index, prevOut.Tree)
+		return stakeRuleError(ErrTreasuryBaseInvalid, str)
 	}
 
 	// All output scripts must be version 0.
 	const consensusScriptVer = 0
-	for k := range mtx.TxOut {
-		if mtx.TxOut[k].Version != consensusScriptVer {
-			return stakeRuleError(ErrTreasuryBaseInvalidVersion,
-				fmt.Sprintf("invalid script version found in "+
-					"treasurybase: output %v", k))
+	for txOutIdx, txOut := range tx.TxOut {
+		if txOut.Version != consensusScriptVer {
+			str := fmt.Sprintf("treasurybase transaction output %d script "+
+				"version is %d instead of %d", txOutIdx, txOut.Version,
+				consensusScriptVer)
+			return stakeRuleError(ErrTreasuryBaseInvalidVersion, str)
 		}
 	}
 
-	// First output must be a TADD
-	if len(mtx.TxOut[0].PkScript) != 1 ||
-		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTreasuryBaseInvalidOpcode0,
-			"first treasurybase output must be a TADD")
+	// The first output must be a script that only consists of OP_TADD.
+	firstTxOut := tx.TxOut[0]
+	if len(firstTxOut.PkScript) != 1 {
+		str := fmt.Sprintf("treasurybase transaction output 0 script length "+
+			"is %d bytes instead of 1 byte", len(firstTxOut.PkScript))
+		return stakeRuleError(ErrTreasuryBaseInvalidOpcode0, str)
+	}
+	if firstTxOut.PkScript[0] != txscript.OP_TADD {
+		str := fmt.Sprintf("treasurybase transaction output 0 script is 0x%x "+
+			"instead of OP_TADD (0x%x)", firstTxOut.PkScript[0],
+			txscript.OP_TADD)
+		return stakeRuleError(ErrTreasuryBaseInvalidOpcode0, str)
 	}
 
-	// Required OP_RETURN, OP_DATA_12 <4 bytes le encoded height>
-	// <8 bytes random> = 14 bytes total.
-	if len(mtx.TxOut[1].PkScript) != 14 ||
-		mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN ||
-		mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
-		return stakeRuleError(ErrTreasuryBaseInvalidOpcode1,
-			"second treasurybase output must be an OP_RETURN "+
-				"OP_DATA_12 data script")
-	}
-
-	if !isNullOutpoint(mtx) {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"invalid treasurybase constants")
+	// The second output must be an OP_RETURN followed by a 12 byte data push.
+	opRetTxOut := tx.TxOut[1]
+	if !txscript.IsStrictNullData(opRetTxOut.Version, opRetTxOut.PkScript, 12) {
+		const str = "treasurybase transaction output 1 is not an OP_RETURN " +
+			"followed by a 12 byte data push"
+		return stakeRuleError(ErrTreasuryBaseInvalidOpcode1, str)
 	}
 
 	return nil
 }
 
-// CheckTreasuryBase verifies that the provided MsgTx is a treasury base. This
-// is exported for testing purposes.
-func CheckTreasuryBase(mtx *wire.MsgTx) error {
-	return checkTreasuryBase(mtx)
-}
-
-// IsTreasuryBase returns true if the provided transaction is a treasury base
-// transaction.
+// IsTreasuryBase returns whether or not the provided transaction satisfies the
+// structural requirements to be a valid treasurybase transaction.
+//
+// See the [CheckTreasuryBase] documentation for more details.
 func IsTreasuryBase(tx *wire.MsgTx) bool {
-	return checkTreasuryBase(tx) == nil
+	return CheckTreasuryBase(tx) == nil
 }
