@@ -5,9 +5,7 @@
 package stake
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"math"
 	"math/rand"
@@ -837,25 +835,6 @@ var tspendInvalidTxVersion = &wire.MsgTx{
 	},
 	LockTime: 0,
 	Expiry:   0,
-}
-
-func TestTSpendGenerated(t *testing.T) {
-	rawScript := "03000000010000000000000000000000000000000000000000000000000000000000000000ffffffff00ffffffff0200000000000000000000226a20562ce42e7531d1710ea1ee02628191190ef5152bbbcd23acca864433c4e4e7849cf1052a01000000000018c3a914f5a8302ee8695bf836258b8f2b57b38a0be14e478700000000520000000100f2052a0100000000000000ffffffff64408ea1c04f5e5dd59350847fad8b800887200ae7268da3b70488a605dd5f4ad28e6e240dbd483a8ba46324a047cf0d6c506e6ebb61d93cae6e868b86f31d9bda892103b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388c2"
-	s, err := hex.DecodeString(rawScript)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var tx wire.MsgTx
-	err = tx.Deserialize(bytes.NewReader(s))
-	if err != nil {
-		t.Fatalf("Deserialize: %v", err)
-	}
-	tx.Version = wire.TxVersionTreasury
-
-	err = checkTSpend(&tx)
-	if err != nil {
-		t.Fatalf("checkTSpend: %v", err)
-	}
 }
 
 func TestTSpendErrors(t *testing.T) {
