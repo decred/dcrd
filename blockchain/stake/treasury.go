@@ -36,7 +36,7 @@ const (
 //
 // == Spend from treasury ==
 // TxIn[0]     <signature> <pi pubkey> OP_TSPEND
-// TxOut[0]    OP_RETURN <random>
+// TxOut[0]    OP_RETURN OP_DATA_32 [8]{LE encoded input value} [24]{random}
 // TxOut[1..N] OP_TGEN <paytopubkeyhash || paytoscripthash>
 // -----------------------------------------------------------------------------
 
@@ -122,101 +122,112 @@ func IsTAdd(tx *wire.MsgTx) bool {
 	return CheckTAdd(tx) == nil
 }
 
-// CheckTSpend verifies if a MsgTx is a valid TSPEND.
+// CheckTSpend verifies that the provided transaction satisfies the structural
+// requirements to be a valid treasury spend transaction.  It returns the
+// signature and public key encoded in the first input when the error is nil.
+//
 // This function DOES NOT check the signature or if the public key is a well
-// known PI key. This is a convenience function to obtain the signature and
-// public key without iterating over the same MsgTx over and over again. The
-// return values are signature, public key and an error.
-func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
-	// Require version TxVersionTreasury.
-	if mtx.Version != wire.TxVersionTreasury {
-		return nil, nil, stakeRuleError(ErrTSpendInvalidTxVersion,
-			fmt.Sprintf("invalid TSpend script version: %v",
-				mtx.Version))
+// known PI key.  It also DOES NOT check the input value encoded in the data
+// push of the first output matches the input value.
+//
+// A valid treasury spend must have:
+//   - The transaction version set to [wire.TxVersionTreasury]
+//   - A single input with a treasury spend script (<sig> <pi pubkey> OP_TSPEND)
+//   - The first output with a 32 byte nulldata script
+//     (<8-byte LE encoded input value + 24-byte random>)
+//   - One or more remaining outputs that must be treasury gen scripts (OP_TGEN
+//     followed by pay-to-pubkey-hash or pay-to-script-hash)
+//   - All script versions set to 0
+func CheckTSpend(tx *wire.MsgTx) ([]byte, []byte, error) {
+	// The transaction version must be the required treasury version.
+	if tx.Version != wire.TxVersionTreasury {
+		str := fmt.Sprintf("treasury spend transaction version is %d instead "+
+			"of %d", tx.Version, wire.TxVersionTreasury)
+		return nil, nil, stakeRuleError(ErrTSpendInvalidTxVersion, str)
 	}
 
-	// A valid TSPEND consists of a single TxIn that contains a signature,
-	// a public key and an OP_TSPEND opcode.
-	//
-	// There must be at least two outputs. The first must contain an
-	// OP_RETURN followed by a 32 byte data push of a random number. This
-	// is used to randomize the transaction hash.
-	// The second output must be a TGEN tagged P2SH or P2PKH script.
-	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
-		return nil, nil, stakeRuleError(ErrTSpendInvalidLength,
-			fmt.Sprintf("invalid TSPEND script lengths in: %v "+
-				"out: %v", len(mtx.TxIn), len(mtx.TxOut)))
+	// A treasury spend must have exactly one input and at least two outputs.
+	if len(tx.TxIn) != 1 {
+		str := fmt.Sprintf("treasury spend transaction has %d inputs instead "+
+			"of 1", len(tx.TxIn))
+		return nil, nil, stakeRuleError(ErrTSpendInvalidLength, str)
+	}
+	if len(tx.TxOut) < 2 {
+		str := fmt.Sprintf("treasury spend transaction does not have enough "+
+			"outputs (min: %d, have: %d)", 2, len(tx.TxOut))
+		return nil, nil, stakeRuleError(ErrTSpendInvalidLength, str)
 	}
 
 	// All output scripts must be version 0 and non-empty.
 	const consensusScriptVer = 0
-	for k, txOut := range mtx.TxOut {
+	for txOutIdx, txOut := range tx.TxOut {
 		if txOut.Version != consensusScriptVer {
-			return nil, nil, stakeRuleError(ErrTSpendInvalidVersion,
-				fmt.Sprintf("invalid script version found in "+
-					"TxOut: %v", k))
+			str := fmt.Sprintf("treasury spend transaction output %d script "+
+				"version is %d instead of %d", txOutIdx, txOut.Version,
+				consensusScriptVer)
+			return nil, nil, stakeRuleError(ErrTSpendInvalidVersion, str)
 		}
 		if len(txOut.PkScript) == 0 {
-			return nil, nil, stakeRuleError(ErrTSpendInvalidScriptLength,
-				fmt.Sprintf("invalid TxOut script length %v: "+
-					"%v", k, len(txOut.PkScript)))
+			str := fmt.Sprintf("treasury spend transaction output %d script "+
+				"is empty", txOutIdx)
+			return nil, nil, stakeRuleError(ErrTSpendInvalidScriptLength, str)
 		}
 	}
 
-	txIn := mtx.TxIn[0].SignatureScript
-	if !(len(txIn) == TSpendScriptLen &&
-		txIn[0] == txscript.OP_DATA_64 &&
-		txIn[65] == txscript.OP_DATA_33 &&
-		txIn[99] == txscript.OP_TSPEND) {
-		return nil, nil, stakeRuleError(ErrTSpendInvalidScript,
-			"TSPEND invalid tspend script")
-	}
+	// The single input must have the exact treasury spend script format:
+	//
+	// DATA_64 <64-byte schnorr signature> DATA_33 <33-byte pubkey> OP_TSPEND
+	txIn := tx.TxIn[0].SignatureScript
+	if len(txIn) != TSpendScriptLen || txIn[0] != txscript.OP_DATA_64 ||
+		txIn[65] != txscript.OP_DATA_33 || txIn[99] != txscript.OP_TSPEND {
 
-	// Pull out signature, pubkey.
+		const str = "treasury spend transaction input 0 script is malformed"
+		return nil, nil, stakeRuleError(ErrTSpendInvalidScript, str)
+	}
 	signature := txIn[1 : 1+schnorr.SignatureSize]
 	pubKey := txIn[66 : 66+secp256k1.PubKeyBytesLenCompressed]
+
+	// The public key must adhere to the strict compressed public key encoding.
 	if !txscript.IsStrictCompressedPubKeyEncoding(pubKey) {
-		return nil, nil, stakeRuleError(ErrTSpendInvalidPubkey,
-			"TSPEND invalid public key")
+		str := fmt.Sprintf("treasury spend transaction input 0 public key %x "+
+			"does not use strict compressed encoding", pubKey)
+		return nil, nil, stakeRuleError(ErrTSpendInvalidPubkey, str)
 	}
 
-	// Make sure TxOut[0] contains an OP_RETURN followed by a 32 byte data
-	// push.
-	if !txscript.IsStrictNullData(mtx.TxOut[0].Version,
-		mtx.TxOut[0].PkScript, 32) {
-		return nil, nil, stakeRuleError(ErrTSpendInvalidTransaction,
-			"First TSPEND output should have been an OP_RETURN "+
-				"followed by a 32 byte data push")
+	// The first output must be an OP_RETURN followed by a 32 byte data push.
+	firstTxOut := tx.TxOut[0]
+	if !txscript.IsStrictNullData(firstTxOut.Version, firstTxOut.PkScript, 32) {
+		const str = "treasury spend transaction output 0 script is not an " +
+			"OP_RETURN followed by a 32 byte data push"
+		return nil, nil, stakeRuleError(ErrTSpendInvalidTransaction, str)
 	}
 
-	// Verify that the TxOut's contains a P2PKH or P2PKH scripts.
-	for k, txOut := range mtx.TxOut[1:] {
-		// All tx outs are tagged with OP_TGEN
-		if txOut.PkScript[0] != txscript.OP_TGEN {
-			return nil, nil, stakeRuleError(ErrTSpendInvalidTGen,
-				fmt.Sprintf("Output %v is not tagged with "+
-					"OP_TGEN", k+1))
+	// All outputs after the first one must have OP_TGEN tagged p2pkh or p2sh
+	// scripts.
+	for txOutIdx, txOut := range tx.TxOut[1:] {
+		script := txOut.PkScript
+		if script[0] != txscript.OP_TGEN {
+			str := fmt.Sprintf("treasury spend transaction output %d script "+
+				"is not tagged with OP_TGEN", txOutIdx+1)
+			return nil, nil, stakeRuleError(ErrTSpendInvalidTGen, str)
 		}
-		if !(isPubKeyHashScript(txOut.PkScript[1:]) ||
-			isScriptHashScript(txOut.PkScript[1:])) {
-
-			return nil, nil, stakeRuleError(ErrTSpendInvalidSpendScript,
-				fmt.Sprintf("Output %v is not P2SH or P2PKH", k+1))
+		if !isPubKeyHashScript(script[1:]) && !isScriptHashScript(script[1:]) {
+			str := fmt.Sprintf("treasury spend transaction output %d script "+
+				"is not pay-to-script-hash or pay-to-pubkey-hash", txOutIdx+1)
+			return nil, nil, stakeRuleError(ErrTSpendInvalidSpendScript, str)
 		}
 	}
 
 	return signature, pubKey, nil
 }
 
-// checkTSpend verifies if a MsgTx is a valid TSPEND.
-func checkTSpend(mtx *wire.MsgTx) error {
-	_, _, err := CheckTSpend(mtx)
-	return err
-}
-
-// IsTSpend returns true if the provided transaction is a proper TSPEND.
+// IsTSpend returns whether or not the provided transaction satisfies the
+// structural requirements to be a valid treasury spend transaction.
+//
+// See the [CheckTSpend] documentation for more details.
 func IsTSpend(tx *wire.MsgTx) bool {
-	return checkTSpend(tx) == nil
+	_, _, err := CheckTSpend(tx)
+	return err == nil
 }
 
 // checkTreasuryBase verifies that the provided MsgTx is a treasury base.
