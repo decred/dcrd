@@ -13,7 +13,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
@@ -499,215 +498,101 @@ func TestTreasurySpendErrors(t *testing.T) {
 	}
 }
 
-// taddInvalidOutCount has a valid TxIn count but an invalid TxOut count.
-var taddInvalidOutCount = &wire.MsgTx{
-	SerType:  wire.TxSerializeFull,
-	Version:  3,
-	TxIn:     []*wire.TxIn{},
-	TxOut:    []*wire.TxOut{},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidOutCount2 has a valid TxIn count but an invalid TxOut count.
-var taddInvalidOutCount2 = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Valid TxIn count
-	},
-	TxOut: []*wire.TxOut{
-		{},
-		{},
-		{},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidOutCount3 has a valid TxIn count but an invalid TxIn count.
-var taddInvalidOutCount3 = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn:    []*wire.TxIn{},
-	TxOut: []*wire.TxOut{
-		{},
-		{},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidVersion has an invalid out script version.
-var taddInvalidVersion = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Empty TxIn
-	},
-	TxOut: []*wire.TxOut{
-		{Version: 1},
-		{Version: 0},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidScriptLength has a zero script length.
-var taddInvalidScriptLength = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Empty TxIn
-	},
-	TxOut: []*wire.TxOut{
-		{Version: 0},
-		{Version: 0},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidLength has an invalid out script.
-var taddInvalidLength = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Empty TxIn
-	},
-	TxOut: []*wire.TxOut{
-		{PkScript: []byte{
-			0xc2, // OP_TSPEND instead of OP_TADD
-			0x00, // Fail length test
-		}},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidLength has an invalid out script opcode.
-var taddInvalidOpcode = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Empty TxIn
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0xc2, // OP_TSPEND instead of OP_TADD
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidChange has an invalid out chnage script.
-var taddInvalidChange = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		{}, // Empty TxIn
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0xc1, // OP_TADD
-			},
-		},
-		{
-			PkScript: []byte{
-				0x00, // Not OP_SSTXCHANGE
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// taddInvalidTxVersion has an invalid transaction version.
-var taddInvalidTxVersion = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 1, // Invalid
-	TxIn:    []*wire.TxIn{},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0xc1, // OP_TADD
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// TestTAddErrors verifies that all TADD errors can be hit and return the
-// proper error.
-func TestTAddErrors(t *testing.T) {
+// TestTreasuryAddErrors verifies that all check treasury add errors can be hit
+// and return the proper error.
+func TestTreasuryAddErrors(t *testing.T) {
 	tests := []struct {
 		name     string
 		tx       *wire.MsgTx
 		expected error
-	}{
-		{
-			name:     "taddInvalidOutCount",
-			tx:       taddInvalidOutCount,
-			expected: ErrTAddInvalidCount,
-		},
-		{
-			name:     "taddInvalidOutCount2",
-			tx:       taddInvalidOutCount2,
-			expected: ErrTAddInvalidCount,
-		},
-		{
-			name:     "taddInvalidOutCount3",
-			tx:       taddInvalidOutCount3,
-			expected: ErrTAddInvalidCount,
-		},
-		{
-			name:     "taddInvalidVersion",
-			tx:       taddInvalidVersion,
-			expected: ErrTAddInvalidVersion,
-		},
-		{
-			name:     "taddInvalidScriptLength",
-			tx:       taddInvalidScriptLength,
-			expected: ErrTAddInvalidScriptLength,
-		},
-		{
-			name:     "taddInvalidLength",
-			tx:       taddInvalidLength,
-			expected: ErrTAddInvalidLength,
-		},
-		{
-			name:     "taddInvalidOpcode",
-			tx:       taddInvalidOpcode,
-			expected: ErrTAddInvalidOpcode,
-		},
-		{
-			name:     "taddInvalidChange",
-			tx:       taddInvalidChange,
-			expected: ErrTAddInvalidChange,
-		},
-		{
-			name:     "taddInvalidTxVersion",
-			tx:       taddInvalidTxVersion,
-			expected: ErrTAddInvalidTxVersion,
-		},
-	}
-	for i, tt := range tests {
-		test := dcrutil.NewTx(tt.tx)
-		test.SetTree(wire.TxTreeStake)
-		test.SetIndex(0)
-		err := checkTAdd(test.MsgTx())
-		if !errors.Is(err, tt.expected) {
-			t.Errorf("%v: checkTAdd should have returned %v but "+
-				"instead returned %v", tt.name, tt.expected, err)
+	}{{
+		name: "treasury add invalid tx version",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.Version = 1
+			return tx
+		}(),
+		expected: ErrTAddInvalidTxVersion,
+	}, {
+		name: "treasury add invalid num outputs - none",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxOut = nil
+			return tx
+		}(),
+		expected: ErrTAddInvalidCount,
+	}, {
+		name: "treasury add invalid num outputs - two change outputs",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.AddTxOut(tx.TxOut[1])
+			return tx
+		}(),
+		expected: ErrTAddInvalidCount,
+	}, {
+		name: "treasury add invalid num inputs - none",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxIn = nil
+			return tx
+		}(),
+		expected: ErrTAddInvalidCount,
+	}, {
+		name: "treasury add with invalid output - bad script version",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxOut[0].Version = 1
+			return tx
+		}(),
+		expected: ErrTAddInvalidVersion,
+	}, {
+		name: "treasury add with invalid output - missing script",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxOut[0].PkScript = nil
+			return tx
+		}(),
+		expected: ErrTAddInvalidScriptLength,
+	}, {
+		name: "treasury add with invalid output - extra trailing byte",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxOut[0].PkScript = append(tx.TxOut[0].PkScript, txscript.OP_TRUE)
+			return tx
+		}(),
+		expected: ErrTAddInvalidLength,
+	}, {
+		name: "treasury add with invalid output - wrong opcode for OP_TADD",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			if tx.TxOut[0].PkScript[0] != txscript.OP_TADD {
+				panic("public key script format changed")
+			}
+			tx.TxOut[0].PkScript[0] = txscript.OP_TSPEND
+			return tx
+		}(),
+		expected: ErrTAddInvalidOpcode,
+	}, {
+		name: "treasury add with invalid output - wrong opcode for change",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			if tx.TxOut[1].PkScript[0] != txscript.OP_SSTXCHANGE {
+				panic("public key script format changed")
+			}
+			tx.TxOut[1].PkScript = tx.TxOut[1].PkScript[1:]
+			return tx
+		}(),
+		expected: ErrTAddInvalidChange,
+	}}
+
+	for _, test := range tests {
+		err := checkTAdd(test.tx)
+		if !errors.Is(err, test.expected) {
+			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
+				test.expected)
 		}
-		if IsTAdd(test.MsgTx()) {
-			t.Errorf("IsTAdd claimed an invalid tadd is valid"+
-				" %v %v", i, tt.name)
+		if IsTAdd(test.tx) {
+			t.Errorf("%q: IsTAdd claimed an invalid tadd is valid", test.name)
 		}
 	}
 }
