@@ -20,11 +20,12 @@ const (
 	TSpendScriptLen = 100
 )
 
-// This file contains the functions that verify that treasury transactions
-// strictly adhere to the specified format.
+// -----------------------------------------------------------------------------
+// This file contains functions that verify that treasury transactions strictly
+// adhere to the specified format.
 //
 // == User sends to treasury ==
-// TxIn:  Normal TxIn signature scripts
+// TxIn:    Normal TxIn signature scripts
 // TxOut[0] OP_TADD
 // TxOut[1] optional OP_SSTXCHANGE
 //
@@ -37,73 +38,88 @@ const (
 // TxIn[0]     <signature> <pi pubkey> OP_TSPEND
 // TxOut[0]    OP_RETURN <random>
 // TxOut[1..N] OP_TGEN <paytopubkeyhash || paytoscripthash>
+// -----------------------------------------------------------------------------
 
-// checkTAdd verifies that the provided MsgTx is a valid TADD.
-// Note: this function does not recognize treasurybase TADDs.
-func checkTAdd(mtx *wire.MsgTx) error {
-	// Require version TxVersionTreasury.
-	if mtx.Version != wire.TxVersionTreasury {
-		return stakeRuleError(ErrTAddInvalidTxVersion,
-			fmt.Sprintf("invalid TADD script version: %v",
-				mtx.Version))
+// CheckTAdd verifies that the provided transaction satisfies the structural
+// requirements to be a valid treasury add transaction.  A treasury adds
+// transaction is one that sends existing funds to the decentralized treasury.
+//
+// A valid treasury add must have:
+//   - The transaction version set to [wire.TxVersionTreasury]
+//   - One or more normal inputs referencing the coins to spend
+//   - An output with a treasury add script (OP_TADD)
+//   - An optional second output that must be a stake change script
+//     (OP_SSTXCHANGE) when present
+//   - All script versions set to 0
+func CheckTAdd(tx *wire.MsgTx) error {
+	// The transaction version must be the required treasury version.
+	if tx.Version != wire.TxVersionTreasury {
+		str := fmt.Sprintf("treasury add transaction version is %d instead of %d",
+			tx.Version, wire.TxVersionTreasury)
+		return stakeRuleError(ErrTAddInvalidTxVersion, str)
 	}
 
-	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
-	// stake change outputs. It also requires at least one input.
-	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) || len(mtx.TxIn) < 1 {
-		return stakeRuleError(ErrTAddInvalidCount,
-			fmt.Sprintf("invalid TADD script: TxIn %v TxOut %v",
-				len(mtx.TxIn), len(mtx.TxOut)))
+	// A treasury add must have at least one input and one or two outputs.
+	if len(tx.TxIn) < 1 {
+		const str = "treasury add transaction does not have any inputs"
+		return stakeRuleError(ErrTAddInvalidCount, str)
+	}
+	if len(tx.TxOut) != 1 && len(tx.TxOut) != 2 {
+		str := fmt.Sprintf("treasury add transaction has %d outputs instead "+
+			"of 1 or 2", len(tx.TxOut))
+		return stakeRuleError(ErrTAddInvalidCount, str)
 	}
 
 	// All output scripts must be version 0 and non-empty.
 	const consensusScriptVer = 0
-	for k := range mtx.TxOut {
-		if mtx.TxOut[k].Version != consensusScriptVer {
-			return stakeRuleError(ErrTAddInvalidVersion,
-				fmt.Sprintf("invalid script version found "+
-					"in TADD TxOut: %v", k))
+	for txOutIdx := range tx.TxOut {
+		txOut := tx.TxOut[txOutIdx]
+		if txOut.Version != consensusScriptVer {
+			str := fmt.Sprintf("treasury add transaction output %d script "+
+				"version is %d instead of %d", txOutIdx, txOut.Version,
+				consensusScriptVer)
+			return stakeRuleError(ErrTAddInvalidVersion, str)
 		}
-
-		if len(mtx.TxOut[k].PkScript) == 0 {
-			return stakeRuleError(ErrTAddInvalidScriptLength,
-				fmt.Sprintf("zero script length found in "+
-					"TADD: %v", k))
+		if len(txOut.PkScript) == 0 {
+			str := fmt.Sprintf("treasury add transaction output %d script is "+
+				"empty", txOutIdx)
+			return stakeRuleError(ErrTAddInvalidScriptLength, str)
 		}
 	}
 
-	// First output must be a TADD
-	if len(mtx.TxOut[0].PkScript) != 1 {
-		return stakeRuleError(ErrTAddInvalidLength,
-			fmt.Sprintf("TADD script length is not 1 byte, got %v",
-				len(mtx.TxOut[0].PkScript)))
+	// The first output must be a script that only consists of OP_TADD.
+	firstTxOut := tx.TxOut[0]
+	if len(firstTxOut.PkScript) != 1 {
+		str := fmt.Sprintf("treasury add transaction output 0 script length "+
+			"is %d bytes instead of 1 byte", len(firstTxOut.PkScript))
+		return stakeRuleError(ErrTAddInvalidLength, str)
 	}
-	if mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTAddInvalidOpcode,
-			fmt.Sprintf("first output must be a TADD, got 0x%x",
-				mtx.TxOut[0].PkScript[0]))
+	if firstTxOut.PkScript[0] != txscript.OP_TADD {
+		str := fmt.Sprintf("treasury add transaction output 0 script is 0x%x "+
+			"instead of OP_TADD (0x%x)", firstTxOut.PkScript[0],
+			txscript.OP_TADD)
+		return stakeRuleError(ErrTAddInvalidOpcode, str)
 	}
 
-	// Only 1 stake change output allowed.
-	if len(mtx.TxOut) == 2 {
-		// Script length has been already verified.
-		if !IsStakeChangeScript(mtx.TxOut[1].Version, mtx.TxOut[1].PkScript) {
-			return stakeRuleError(ErrTAddInvalidChange,
-				"second output must be an OP_SSTXCHANGE script")
+	// The second output must be a valid stake change output when present.
+	if len(tx.TxOut) == 2 {
+		changeTxOut := tx.TxOut[1]
+		if !IsStakeChangeScript(changeTxOut.Version, changeTxOut.PkScript) {
+			const str = "treasury add transaction output 1 is not a " +
+				"stake change script"
+			return stakeRuleError(ErrTAddInvalidChange, str)
 		}
 	}
 
 	return nil
 }
 
-// CheckTAdd exports checkTAdd for testing purposes.
-func CheckTAdd(mtx *wire.MsgTx) error {
-	return checkTAdd(mtx)
-}
-
-// IsTAdd returns true if the provided transaction is a proper TADD.
+// IsTAdd returns whether or not the provided transaction satisfies the
+// structural requirements to be a valid treasury add transaction.
+//
+// See the [CheckTAdd] documentation for more details.
 func IsTAdd(tx *wire.MsgTx) bool {
-	return checkTAdd(tx) == nil
+	return CheckTAdd(tx) == nil
 }
 
 // CheckTSpend verifies if a MsgTx is a valid TSPEND.
