@@ -33,89 +33,6 @@ var (
 	validSignature = hexToBytes("776984f68313b1ac629e624af0595bdc09d8ded02bc2" +
 		"b29fbdb39595e03ac8b0cf818ca536723e6390d3084e0e31c7942229153ce34d8739" +
 		"29b16088d9e1af43")
-
-	// OP_DATA_64 <signature> <pikey> OP_TSPEND
-	tspendValidKey = []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 valid public key
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c,
-		0xc2, // OP_TSPEND
-	}
-
-	// OP_DATA_64 <signature> <pikey>
-	tspendNoTSpend = []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 valid public key
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c, // No OP_TSPEND
-	}
-
-	// nolint: dupword
-	//
-	// OP_DATA_64 <signature> <pikey> OP_TSPEND OP_TSPEND
-	tspendTwoTSpend = []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 valid public key
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c, // No OP_TSPEND
-		0xc2, // OP_TSPEND
-		0xc2, // Extra OP_TSPEND
-	}
-
-	// OP_DATA_64 <signature> <pikey> OP_TSPEND OP_DATA_1
-	tspendTrailingData = []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 valid public key
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c, // No OP_TSPEND
-		0xc2, // OP_TSPEND
-		0x01, // OP_DATA_1, ByteIndex test in CheckTSpend
-	}
 )
 
 // opReturnScript returns a provably-pruneable OP_RETURN script with the
@@ -380,557 +297,204 @@ func TestTreasuryIsFunctions(t *testing.T) {
 	}
 }
 
-var tspendTxInNoPubkey = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: []byte{
-		0xc2, // OP_TSPEND
-	},
-	BlockHeight: wire.NullBlockHeight,
-	BlockIndex:  wire.NullBlockIndex,
-	Sequence:    0xffffffff,
-}
-
-// tspendTxInInvalidPubkey is a TxIn with an invalid key on the OP_TSPEND.
-var tspendTxInInvalidPubkey = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: []byte{
-		0xc2, // OP_TSPEND
-		0x23, // OP_DATA_35
-		0x03, // Valid pubkey version
-		0x00, // invalid compressed key
-	},
-	BlockHeight: wire.NullBlockHeight,
-	BlockIndex:  wire.NullBlockIndex,
-	Sequence:    0xffffffff,
-}
-
-// tspendTxInInvalidOpcode is a TxIn with an invalid opcode where OP_TSPEND was
-// supposed to be.
-var tspendTxInInvalidOpcode = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 valid public key
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c,
-		0x6a, // OP_RETURN instead of OP_TSPEND
-	},
-	BlockHeight: wire.NullBlockHeight,
-	BlockIndex:  wire.NullBlockIndex,
-	Sequence:    0xffffffff,
-}
-
-// tspendTxInInvalidPubkey2 is a TxIn with an invalid public key on the
-// OP_TSPEND.
-var tspendTxInInvalidPubkey2 = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: []byte{
-		0x40, // OP_DATA_64 valid signature
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-		0x21, // OP_DATA_33 INVALID public key
-		0x00, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c,
-		0xc2, // OP_TSPEND
-	},
-	BlockHeight: wire.NullBlockHeight,
-	BlockIndex:  wire.NullBlockIndex,
-	Sequence:    0xffffffff,
-}
-
-var tspendTxOutValidReturn = wire.TxOut{
-	Value:   500000000,
-	Version: 0,
-	PkScript: []byte{
-		0x6a, // OP_RETURN
-		0x20, // OP_DATA_32
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	},
-}
-
-var tspendTxOutInvalidReturn = wire.TxOut{
-	Value:   500000000,
-	Version: 0,
-	PkScript: []byte{
-		0x6a, // OP_RETURN
-		0x20, // OP_DATA_32
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1 byte short
-	},
-}
-
-// tspendTxInValidPubkey is a TxIn with a public key on the OP_TSPEND.
-var tspendTxInValidPubkey = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: tspendValidKey,
-	BlockHeight:     wire.NullBlockHeight,
-	BlockIndex:      wire.NullBlockIndex,
-	Sequence:        0xffffffff,
-}
-
-// tspendTxInNoTSpend is a TxIn with a public key but not TSpend opcode.
-var tspendTxInNoTSpend = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: tspendNoTSpend,
-	BlockHeight:     wire.NullBlockHeight,
-	BlockIndex:      wire.NullBlockIndex,
-	Sequence:        0xffffffff,
-}
-
-// tspendTxInTwoTSpend is a TxIn with a public key but two TSpend opcodes.
-var tspendTxInTwoTSpend = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: tspendTwoTSpend,
-	BlockHeight:     wire.NullBlockHeight,
-	BlockIndex:      wire.NullBlockIndex,
-	Sequence:        0xffffffff,
-}
-
-// tspendTxTrailingData is a TxIn with a public key, one TSpend and an
-// OP_DATA_1.
-var tspendTxTrailingData = wire.TxIn{
-	PreviousOutPoint: wire.OutPoint{
-		Hash:  chainhash.Hash{},
-		Index: 0xffffffff,
-		Tree:  wire.TxTreeRegular,
-	},
-	SignatureScript: tspendTrailingData,
-	BlockHeight:     wire.NullBlockHeight,
-	BlockIndex:      wire.NullBlockIndex,
-	Sequence:        0xffffffff,
-}
-
-// tspendInvalidInCount has an invalid TxIn count but a valid TxOut count.
-var tspendInvalidInCount = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn:    []*wire.TxIn{},
-	TxOut: []*wire.TxOut{
-		{}, // 2 TxOuts is valid
-		{},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidOutCount has a valid TxIn count but an invalid TxOut count.
-var tspendInvalidOutCount = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInNoPubkey,
-	},
-	TxOut:    []*wire.TxOut{},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidVersion has an invalid version in an out script.
-var tspendInvalidVersion = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInNoPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		{
-			Version: 0,
-			PkScript: []byte{
-				0x6a, // OP_RETURN
-			},
-		},
-		{
-			Version: 1, // Fail
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidSignature has no publick key in the input script.
-var tspendInvalidSignature = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInNoPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0x6a, // OP_RETURN
-			},
-		},
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidSignature2 has an invalid public key in the input script.
-var tspendInvalidSignature2 = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInInvalidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0x6a, // OP_RETURN
-			},
-		},
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidOpcode has an invalid opcode in the first TxIn.
-var tspendInvalidOpcode = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInInvalidOpcode,
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0x6a, // OP_RETURN
-			},
-		},
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidPubkey has an invalid public key on the TSPEND.
-var tspendInvalidPubkey = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInInvalidPubkey2,
-	},
-	TxOut: []*wire.TxOut{
-		{
-			PkScript: []byte{
-				0x6a, // OP_RETURN
-			},
-		},
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidScriptLength has an invalid TxOut that has a zero length.
-var tspendInvalidScriptLength = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInValidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidTokenCount does not have enough tokens in input script.
-var tspendInvalidTokenCount = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInNoTSpend,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidTokenCount2 has too many tokens on input script.
-var tspendInvalidTokenCount2 = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInTwoTSpend,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidTokenCount3 has trailing data after TSpend.
-var tspendInvalidTokenCount3 = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxTrailingData,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidTransaction has an invalid hash on the OP_RETURN.
-var tspendInvalidTransaction = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInValidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutInvalidReturn,
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-			},
-		},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidTGen has an invalid TxOut that isn't tagged with an OP_TGEN.
-var tspendInvalidTGen = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInValidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{
-			PkScript: []byte{
-				0x6a, // OP_RETURN instead of OP_TGEN
-			}},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-// tspendInvalidP2SH has an invalid TxOut that doesn't have a valid P2SH
-// script.
-var tspendInvalidP2SH = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 3,
-	TxIn: []*wire.TxIn{
-		&tspendTxInValidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-		{
-			PkScript: []byte{
-				0xc3, // OP_TGEN
-				0x00, // Invalid P2SH
-			}},
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-var tspendInvalidTxVersion = &wire.MsgTx{
-	SerType: wire.TxSerializeFull,
-	Version: 1, // Invalid version
-	TxIn: []*wire.TxIn{
-		&tspendTxInValidPubkey,
-	},
-	TxOut: []*wire.TxOut{
-		&tspendTxOutValidReturn,
-	},
-	LockTime: 0,
-	Expiry:   0,
-}
-
-func TestTSpendErrors(t *testing.T) {
+// TestTreasurySpendErrors verifies that all check treasury spend errors can be
+// hit and return the proper error.
+func TestTreasurySpendErrors(t *testing.T) {
 	tests := []struct {
-		name     string
-		tx       *wire.MsgTx
-		expected error
-	}{
-		{
-			name:     "tspendInvalidOutCount",
-			tx:       tspendInvalidOutCount,
-			expected: ErrTSpendInvalidLength,
-		},
-		{
-			name:     "tspendInvalidInCount",
-			tx:       tspendInvalidInCount,
-			expected: ErrTSpendInvalidLength,
-		},
-		{
-			name:     "tspendInvalidVersion",
-			tx:       tspendInvalidVersion,
-			expected: ErrTSpendInvalidVersion,
-		},
-		{
-			name:     "tspendInvalidSignature",
-			tx:       tspendInvalidSignature,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidSignature2",
-			tx:       tspendInvalidSignature2,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidOpcode",
-			tx:       tspendInvalidOpcode,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidPubkey",
-			tx:       tspendInvalidPubkey,
-			expected: ErrTSpendInvalidPubkey,
-		},
-		{
-			name:     "tspendInvalidTokenCount",
-			tx:       tspendInvalidTokenCount,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidTokenCount2",
-			tx:       tspendInvalidTokenCount2,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidTokenCount3",
-			tx:       tspendInvalidTokenCount3,
-			expected: ErrTSpendInvalidScript,
-		},
-		{
-			name:     "tspendInvalidScriptLength",
-			tx:       tspendInvalidScriptLength,
-			expected: ErrTSpendInvalidScriptLength,
-		},
-		{
-			name:     "tspendInvalidTransaction",
-			tx:       tspendInvalidTransaction,
-			expected: ErrTSpendInvalidTransaction,
-		},
-		{
-			name:     "tspendInvalidTGen",
-			tx:       tspendInvalidTGen,
-			expected: ErrTSpendInvalidTGen,
-		},
-		{
-			name:     "tspendInvalidP2SH",
-			tx:       tspendInvalidP2SH,
-			expected: ErrTSpendInvalidSpendScript,
-		},
-		{
-			name:     "tspendInvalidTxVersion",
-			tx:       tspendInvalidTxVersion,
-			expected: ErrTSpendInvalidTxVersion,
-		},
-	}
-	for i, tt := range tests {
-		test := dcrutil.NewTx(tt.tx)
-		test.SetTree(wire.TxTreeStake)
-		test.SetIndex(0)
-		err := checkTSpend(test.MsgTx())
-		if !errors.Is(err, tt.expected) {
-			t.Errorf("%v: checkTSpend should have returned %v but "+
-				"instead returned %v", tt.name, tt.expected, err)
+		name     string      // test description
+		tx       *wire.MsgTx // transaction to test
+		expected error       // expected error
+	}{{
+		name: "treasury spend invalid tx version",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.Version = 1
+			return tx
+		}(),
+		expected: ErrTSpendInvalidTxVersion,
+	}, {
+		name: "treasury spend with invalid num inputs",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxIn = nil
+			return tx
+		}(),
+		expected: ErrTSpendInvalidLength,
+	}, {
+		name: "treasury spend with invalid num outputs",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut = nil
+			return tx
+		}(),
+		expected: ErrTSpendInvalidLength,
+	}, {
+		name: "treasury spend with an invalid script version",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut[1].Version = 1
+			return tx
+		}(),
+		expected: ErrTSpendInvalidVersion,
+	}, {
+		name: "treasury spend with invalid output - no pubkey script",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut[1].PkScript = nil
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScriptLength,
+	}, {
+		name: "treasury spend invalid input sig script - wrong script length",
+		tx: func() *wire.MsgTx {
+			sig := treasurySpendSignature(validSignature, nil)
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxIn[0].SignatureScript = sig
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig script invalid - wrong sig len",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			if sig[0] != txscript.OP_DATA_64 {
+				panic("signature script format changed")
+			}
+			sig[0] = txscript.OP_DATA_65 // Wrong length.
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig script invalid - wrong pubkey len",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			if sig[65] != txscript.OP_DATA_33 {
+				panic("signature script format changed")
+			}
+			sig[65] = txscript.OP_DATA_34 // Wrong length.
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig invalid - wrong opcode for OP_TSPEND",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			if sig[len(sig)-1] != txscript.OP_TSPEND {
+				panic("signature script format changed")
+			}
+			sig[len(sig)-1] = txscript.OP_RETURN // Wrong opcode.
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig invalid - no tspend opcode",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			tx.TxIn[0].SignatureScript = sig[:len(sig)-1]
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig invalid - two tspend opcodes",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			sig = append(sig, txscript.OP_TSPEND)
+			tx.TxIn[0].SignatureScript = sig
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig invalid - trailing data",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			sig := tx.TxIn[0].SignatureScript
+			sig = append(sig, 0x01)
+			tx.TxIn[0].SignatureScript = sig
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScript,
+	}, {
+		name: "treasury spend input sig script invalid - bad pubkey type",
+		tx: func() *wire.MsgTx {
+			pubKey := make([]byte, len(publicKey))
+			copy(pubKey, publicKey)
+			pubKey[0] |= 0x04
+			sig := treasurySpendSignature(validSignature, pubKey)
+
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxIn[0].SignatureScript = sig
+			return tx
+		}(),
+		expected: ErrTSpendInvalidPubkey,
+	}, {
+		name: "treasury spend invalid - extra empty output",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			tx.AddTxOut(&wire.TxOut{})
+			return tx
+		}(),
+		expected: ErrTSpendInvalidScriptLength,
+	}, {
+		name: "treasury spend invalid OP_RETURN output - short one byte",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			script := tx.TxOut[0].PkScript
+			script = script[:len(script)-1]
+			tx.TxOut[0].PkScript = script
+			return tx
+		}(),
+		expected: ErrTSpendInvalidTransaction,
+	}, {
+		name: "treasury spend payment output - wrong opcode for OP_TGEN",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasurySpendTx.Copy()
+			if tx.TxOut[1].PkScript[0] != txscript.OP_TGEN {
+				panic("payment output format changed")
+			}
+			tx.TxOut[1].PkScript[0] = txscript.OP_RETURN
+			return tx
+		}(),
+		expected: ErrTSpendInvalidTGen,
+	}, {
+		name: "treasury spend payment output - unsupported p2pk",
+		tx: func() *wire.MsgTx {
+			// Start with a normal payment script for the p2pk and manually add
+			// the OP_TGEN prefix since there is no standard method to create
+			// the pay from treasury script on a p2pk address given it is
+			// invalid.
+			params := chaincfg.RegNetParams()
+			p2pkAddr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0Raw(
+				publicKey, params)
+			if err != nil {
+				panic(err)
+			}
+			payoutScriptVer, payScript := p2pkAddr.PaymentScript()
+			payoutScript := make([]byte, len(payScript)+1)
+			payoutScript[0] = txscript.OP_TGEN
+			copy(payoutScript[1:], payScript)
+
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut[1].Version = payoutScriptVer
+			tx.TxOut[1].PkScript = payoutScript
+			return tx
+		}(),
+		expected: ErrTSpendInvalidSpendScript,
+	}}
+
+	for _, test := range tests {
+		err := checkTSpend(test.tx)
+		if !errors.Is(err, test.expected) {
+			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
+				test.expected)
 		}
-		if IsTSpend(test.MsgTx()) {
-			t.Errorf("IsTSpend claimed an invalid tspend is valid"+
-				" %v %v", i, tt.name)
+		if IsTSpend(test.tx) {
+			t.Errorf("%q: IsTSpend claimed an invalid treasury spend is valid",
+				test.name)
 		}
 	}
 }
