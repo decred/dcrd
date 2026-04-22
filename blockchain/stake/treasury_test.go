@@ -6,6 +6,7 @@ package stake
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"math"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -24,33 +24,17 @@ import (
 // Private and public keys for tests.
 var (
 	// Serialized private key.
-	//privateKey = []byte{
-	//	0x76, 0x87, 0x56, 0x13, 0x94, 0xcc, 0xc6, 0x11,
-	//	0x01, 0x51, 0xbd, 0x9f, 0x26, 0xd4, 0x22, 0x8e,
-	//	0xb2, 0xd5, 0x7b, 0xe1, 0x28, 0xc0, 0x36, 0x12,
-	//	0xe3, 0x9a, 0x84, 0x4a, 0x3e, 0xcd, 0x3c, 0xcf,
-	//}
+	// privateKey = hexToBytes("7687561394ccc6110151bd9f26d4228eb2d57be128c036" +
+	// 	"12e39a844a3ecd3ccf")
 
 	// Serialized compressed public key.
-	publicKey = []byte{
-		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
-		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
-		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
-		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
-		0x2c,
-	}
+	publicKey = hexToBytes("02a4f64586e172c3d9a20cfa6c7ac8fb12f0115b3f69c3c3" +
+		"5aec933a4c47c7d92c")
 
 	// Valid signature of chainhash.HashB([]byte("test message"))
-	validSignature = []byte{
-		0x77, 0x69, 0x84, 0xf6, 0x83, 0x13, 0xb1, 0xac,
-		0x62, 0x9e, 0x62, 0x4a, 0xf0, 0x59, 0x5b, 0xdc,
-		0x09, 0xd8, 0xde, 0xd0, 0x2b, 0xc2, 0xb2, 0x9f,
-		0xbd, 0xb3, 0x95, 0x95, 0xe0, 0x3a, 0xc8, 0xb0,
-		0xcf, 0x81, 0x8c, 0xa5, 0x36, 0x72, 0x3e, 0x63,
-		0x90, 0xd3, 0x08, 0x4e, 0x0e, 0x31, 0xc7, 0x94,
-		0x22, 0x29, 0x15, 0x3c, 0xe3, 0x4d, 0x87, 0x39,
-		0x29, 0xb1, 0x60, 0x88, 0xd9, 0xe1, 0xaf, 0x43,
-	}
+	validSignature = hexToBytes("776984f68313b1ac629e624af0595bdc09d8ded02bc2" +
+		"b29fbdb39595e03ac8b0cf818ca536723e6390d3084e0e31c7942229153ce34d8739" +
+		"29b16088d9e1af43")
 
 	// OP_DATA_64 <signature> <pikey> OP_TSPEND
 	tspendValidKey = []byte{
@@ -136,6 +120,61 @@ var (
 	}
 )
 
+// opReturnScript returns a provably-pruneable OP_RETURN script with the
+// provided data.
+func opReturnScript(data []byte) []byte {
+	builder := txscript.NewScriptBuilder()
+	script, err := builder.AddOp(txscript.OP_RETURN).AddData(data).Script()
+	if err != nil {
+		panic(err)
+	}
+	return script
+}
+
+// treasurybaseOpReturnScript returns a script suitable for use as the second
+// output of the treasurybase transaction of a new block.  In particular, the
+// serialized data used with the OP_RETURN starts with the block height and is
+// followed by 8 bytes of cryptographically random data.
+func treasurybaseOpReturnScript(blockHeight uint32) []byte {
+	data := make([]byte, 12)
+	binary.LittleEndian.PutUint32(data[0:4], blockHeight)
+	binary.LittleEndian.PutUint64(data[4:12], rand.Uint64())
+	return opReturnScript(data)
+}
+
+// treasurySpendOpReturnScript returns a script suitable for use as the first
+// output of a treasury spend transaction.  In particular, the serialized data
+// used with the OP_RETURN starts with the total spend amount and is followed by
+// 24 bytes of cryptographically random data.
+func treasurySpendOpReturnScript(amount int64) []byte {
+	data := make([]byte, 32)
+	binary.LittleEndian.PutUint64(data[0:8], uint64(amount))
+	rand.Read(data[8:])
+	return opReturnScript(data)
+}
+
+// treasurySpendSignature returns a treasury spend signature script with the
+// provided signature and public key.
+func treasurySpendSignature(sig, pubKey []byte) []byte {
+	builder := txscript.NewScriptBuilder()
+	builder.AddData(sig)
+	builder.AddData(pubKey)
+	builder.AddOp(txscript.OP_TSPEND)
+	script, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	return script
+}
+
+// fakeTreasurySpendSignature returns a signature script that is valid enough to
+// pass all checks, but would fail if actually checked.  This identification
+// funcs in this package do not verify signatures, so valid signatures are not
+// required for the tests.
+func fakeTreasurySpendSignature() []byte {
+	return treasurySpendSignature(validSignature, publicKey)
+}
+
 // newTxOut returns a new transaction output with the given parameters.
 func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	return &wire.TxOut{
@@ -145,398 +184,200 @@ func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
 	}
 }
 
-// TestTreasuryIsFunctions goes through all valid treasury opcode combinations.
+var (
+	// opTrueScript is a simple public key script that contains the OP_TRUE
+	// opcode.
+	opTrueScript = []byte{txscript.OP_TRUE}
+
+	// p2shOpTrueAddr is a pay-to-script-hash address that can be redeemed with
+	// [opTrueScript].
+	p2shOpTrueAddr = func() *stdaddr.AddressScriptHashV0 {
+		params := chaincfg.RegNetParams()
+		addr, err := stdaddr.NewAddressScriptHashV0(opTrueScript, params)
+		if err != nil {
+			panic(err)
+		}
+		return addr
+	}()
+
+	// baseTreasuryAddTx is a valid treasury add transaction that includes a
+	// change output.  It is used as a base to be further manipulated in the
+	// tests.
+	baseTreasuryAddTx = func() *wire.MsgTx {
+		changeScriptVer, changeScript := p2shOpTrueAddr.StakeChangeScript()
+
+		tx := wire.NewMsgTx()
+		tx.Version = wire.TxVersionTreasury
+		tx.AddTxIn(&wire.TxIn{}) // One input required
+		tx.AddTxOut(newTxOut(0, 0, []byte{txscript.OP_TADD}))
+		tx.AddTxOut(newTxOut(1, changeScriptVer, changeScript))
+		return tx
+	}()
+
+	// baseTreasuryBaseTx is a valid treasury base transaction that commits to a
+	// random height.  It is used as a base to be further manipulated in the
+	// tests.
+	baseTreasuryBaseTx = func() *wire.MsgTx {
+		tx := wire.NewMsgTx()
+		tx.Version = wire.TxVersionTreasury
+		tx.AddTxIn(&wire.TxIn{
+			// Treasurybase transactions have no inputs, so previous outpoint is
+			// zero hash and max index.
+			PreviousOutPoint: *wire.NewOutPoint(zeroHash, wire.MaxPrevOutIndex,
+				wire.TxTreeRegular),
+			Sequence:        wire.MaxTxInSequenceNum,
+			ValueIn:         0,
+			BlockHeight:     wire.NullBlockHeight,
+			BlockIndex:      wire.NullBlockIndex,
+			SignatureScript: nil, // Must be nil by consensus.
+		})
+		tx.AddTxOut(newTxOut(0, 0, []byte{txscript.OP_TADD}))
+		tx.AddTxOut(newTxOut(0, 0, treasurybaseOpReturnScript(rand.Uint32())))
+		return tx
+	}()
+
+	// baseTreasurySpendTx is a valid treasury spend transaction that pays to a
+	// p2sh script.  It is used as a base to be further manipulated in the
+	// tests.
+	baseTreasurySpendTx = func() *wire.MsgTx {
+		const payout = 1e8
+		const fee = 5000
+		payoutScriptVer, payoutScript := p2shOpTrueAddr.PayFromTreasuryScript()
+
+		tx := wire.NewMsgTx()
+		tx.Version = wire.TxVersionTreasury
+		tx.AddTxIn(&wire.TxIn{
+			// Treasury spend transactions have no inputs, so previous outpoint
+			// is zero hash and max index.
+			PreviousOutPoint: *wire.NewOutPoint(zeroHash, wire.MaxPrevOutIndex,
+				wire.TxTreeRegular),
+			Sequence:        wire.MaxTxInSequenceNum,
+			ValueIn:         fee + payout,
+			BlockHeight:     wire.NullBlockHeight,
+			BlockIndex:      wire.NullBlockIndex,
+			SignatureScript: fakeTreasurySpendSignature(),
+		})
+		tx.AddTxOut(newTxOut(0, 0, treasurySpendOpReturnScript(payout)))
+		tx.AddTxOut(newTxOut(0, payoutScriptVer, payoutScript))
+		return tx
+	}()
+)
+
+// TestTreasuryIsFunctions confirms the various treasury transaction type
+// identification functions return the expected results.  Each transaction is
+// tested against all funcs to help ensure none of them are incorrectly detected
+// as any other.
 func TestTreasuryIsFunctions(t *testing.T) {
 	tests := []struct {
-		name     string
-		createTx func() *wire.MsgTx
-		is       func(*wire.MsgTx) bool
-		expected bool
-		check    func(*wire.MsgTx) error
+		name          string      // test description
+		tx            *wire.MsgTx // transaction to test
+		treasuryAdd   bool        // expected check is treasury add
+		treasuryBase  bool        // expected is treasury base
+		treasurySpend bool        // expected is treasury spend
 	}{{
-		name: "tadd from user, no change",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-			msgTx.AddTxIn(&wire.TxIn{}) // One input required
-			return msgTx
-		},
-		is:       IsTAdd,
-		expected: true,
-		check:    checkTAdd,
+		name:        "treasury add from user with change",
+		tx:          baseTreasuryAddTx,
+		treasuryAdd: true,
 	}, {
-		name: "check tadd from user, no change with istreasurybase",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-			msgTx.AddTxIn(&wire.TxIn{}) // One input required
-			return msgTx
-		},
-		is:       IsTreasuryBase,
-		expected: false,
-		check:    checkTreasuryBase,
+		name: "treasury add from user with no change",
+		tx: func() *wire.MsgTx {
+			tx := baseTreasuryAddTx.Copy()
+			tx.TxOut = tx.TxOut[:1]
+			return tx
+		}(),
+		treasuryAdd: true,
 	}, {
-		// This is a valid stakebase but NOT a valid TADD.
-		name: "tadd from user, with OP_RETURN",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
+		// This passes stakebase checks but is NOT a valid TADD.
+		name: "treasury add from user with OP_RETURN",
+		tx: func() *wire.MsgTx {
+			params := chaincfg.RegNetParams()
 
-			// OP_RETURN <data>
-			payload := make([]byte, chainhash.HashSize)
-			_, err = rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder = txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			script, err = builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: []byte{txscript.OP_TRUE},
+			const voteSubsidy = 1e8
+			const ticketPrice = 2e8
+			tx := baseTreasuryBaseTx.Copy()
+			tx.TxIn[0].ValueIn = voteSubsidy
+			tx.TxIn[0].SignatureScript = params.StakeBaseSigScript
+			tx.AddTxIn(&wire.TxIn{
+				PreviousOutPoint: *wire.NewOutPoint(zeroHash, 0, wire.TxTreeStake),
+				Sequence:         wire.MaxTxInSequenceNum,
+				ValueIn:          ticketPrice,
+				BlockHeight:      wire.NullBlockHeight,
+				BlockIndex:       wire.NullBlockIndex,
+				SignatureScript:  opTrueScript,
 			})
-			return msgTx
-		},
-		is:       IsTAdd,
-		expected: false,
-		check:    checkTAdd,
+			if !IsStakeBase(tx) {
+				panic("transaction does not pass stakebase checks")
+			}
+			return tx
+		}(),
 	}, {
-		name: "tadd from user, with change",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			opTrueScript := []byte{txscript.OP_TRUE}
-			p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(opTrueScript,
-				chaincfg.MainNetParams())
-			if err != nil {
-				panic(err)
-			}
-			changeScriptVer, changeScript := p2shOpTrueAddr.StakeChangeScript()
-			msgTx.AddTxOut(newTxOut(1, changeScriptVer, changeScript))
-			msgTx.AddTxIn(&wire.TxIn{}) // One input required
-			return msgTx
-		},
-		is:       IsTAdd,
-		expected: true,
-		check:    checkTAdd,
+		name:         "treasury add from treasurybase",
+		tx:           baseTreasuryBaseTx,
+		treasuryBase: true,
 	}, {
-		name: "tadd from treasurybase",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			// OP_RETURN <height> <random>
-			payload := make([]byte, 12)
-			_, err = rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder = txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			script, err = builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			// treasurybase
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: nil,
-			})
-
-			return msgTx
-		},
-		is:       IsTreasuryBase,
-		expected: true,
-		check:    checkTreasuryBase,
+		name:          "treasury spend p2sh",
+		tx:            baseTreasurySpendTx,
+		treasurySpend: true,
 	}, {
-		name: "check treasury base with tadd",
-		createTx: func() *wire.MsgTx {
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_TADD)
-			script, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			// OP_RETURN <height> <random>
-			payload := make([]byte, 12)
-			_, err = rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder = txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			script, err = builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
-
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: nil,
-			})
-
-			return msgTx
-		},
-		is:       IsTAdd,
-		expected: false,
-		check:    checkTAdd,
-	}, {
-		name: "tspend P2SH",
-		createTx: func() *wire.MsgTx {
-			// OP_RETURN <32 byte random>
-			payload := make([]byte, chainhash.HashSize)
-			_, err := rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			opretScript, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
-
-			// OP_TGEN
-			opTrueScript := []byte{txscript.OP_TRUE}
-			p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(opTrueScript,
-				chaincfg.MainNetParams())
-			if err != nil {
-				panic(err)
-			}
-			genScriptVer, genScript := p2shOpTrueAddr.PayFromTreasuryScript()
-			msgTx.AddTxOut(newTxOut(0, genScriptVer, genScript))
-
-			// tspend
-			builder = txscript.NewScriptBuilder()
-			builder.AddData(validSignature)
-			builder.AddData(publicKey)
-			builder.AddOp(txscript.OP_TSPEND)
-			tspendScript, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: tspendScript,
-			})
-
-			return msgTx
-		},
-		is:       IsTSpend,
-		expected: true,
-		check:    checkTSpend,
-	}, {
-		name: "tspend invalid output 1 (not P2SH/P2PKH)",
-		createTx: func() *wire.MsgTx {
-			// OP_RETURN <32 byte random>
-			payload := make([]byte, chainhash.HashSize)
-			_, err := rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			opretScript, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
-
-			// OP_TGEN
-			privKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
-			pubKey := privKey.PubKey().SerializeCompressed()
-			p2pkAddr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0Raw(pubKey,
-				chaincfg.MainNetParams())
-			if err != nil {
-				panic(err)
-			}
-			p2pkScriptVer, p2pkScript := p2pkAddr.PaymentScript()
-			script := make([]byte, len(p2pkScript)+1)
-			script[0] = txscript.OP_TGEN
-			copy(script[1:], p2pkScript)
-			msgTx.AddTxOut(newTxOut(0, p2pkScriptVer, script))
-
-			// tspend
-			builder = txscript.NewScriptBuilder()
-			builder.AddData(validSignature)
-			builder.AddData(publicKey)
-			builder.AddOp(txscript.OP_TSPEND)
-			tspendScript, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: tspendScript,
-			})
-
-			return msgTx
-		},
-		is:       IsTSpend,
-		expected: false,
-		check:    checkTSpend,
-	}, {
-		name: "tspend P2PKH",
-		createTx: func() *wire.MsgTx {
-			// OP_RETURN <32 byte random>
-			payload := make([]byte, chainhash.HashSize)
-			_, err := rand.Read(payload)
-			if err != nil {
-				panic(err)
-			}
-			builder := txscript.NewScriptBuilder()
-			builder.AddOp(txscript.OP_RETURN)
-			builder.AddData(payload)
-			opretScript, err := builder.Script()
-			if err != nil {
-				panic(err)
-			}
-			msgTx := wire.NewMsgTx()
-			msgTx.Version = wire.TxVersionTreasury
-			msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
-
-			// OP_TGEN
-			privKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
-			pubKey := privKey.PubKey()
-			pkHash := stdaddr.Hash160(pubKey.SerializeCompressed())
+		name: "treasury spend p2pkh",
+		tx: func() *wire.MsgTx {
+			params := chaincfg.RegNetParams()
+			pkHash := stdaddr.Hash160(publicKey)
 			p2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
-				pkHash, chaincfg.MainNetParams())
+				pkHash, params)
 			if err != nil {
 				panic(err)
 			}
-			genScriptVer, genScript := p2pkhAddr.PayFromTreasuryScript()
-			msgTx.AddTxOut(newTxOut(0, genScriptVer, genScript))
+			payoutScriptVer, payoutScript := p2pkhAddr.PayFromTreasuryScript()
 
-			// tspend
-			builder = txscript.NewScriptBuilder()
-			builder.AddData(validSignature)
-			builder.AddData(publicKey)
-			builder.AddOp(txscript.OP_TSPEND)
-			tspendScript, err := builder.Script()
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut[1].Version = payoutScriptVer
+			tx.TxOut[1].PkScript = payoutScript
+			return tx
+		}(),
+		treasurySpend: true,
+	}, {
+		name: "treasury spend invalid output 1 p2pk (not p2sh/p2pkh)",
+		tx: func() *wire.MsgTx {
+			// Start with a normal payment script for the p2pk and manually add
+			// the OP_TGEN prefix since there is no standard method to create
+			// the pay from treasury script on a p2pk address given it is
+			// invalid.
+			params := chaincfg.RegNetParams()
+			p2pkAddr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0Raw(
+				publicKey, params)
 			if err != nil {
 				panic(err)
 			}
+			payoutScriptVer, payScript := p2pkAddr.PaymentScript()
+			payoutScript := make([]byte, len(payScript)+1)
+			payoutScript[0] = txscript.OP_TGEN
+			copy(payoutScript[1:], payScript)
 
-			msgTx.AddTxIn(&wire.TxIn{
-				// Stakebase transactions have no
-				// inputs, so previous outpoint is zero
-				// hash and max index.
-				PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-					wire.MaxPrevOutIndex, wire.TxTreeRegular),
-				Sequence:        wire.MaxTxInSequenceNum,
-				BlockHeight:     wire.NullBlockHeight,
-				BlockIndex:      wire.NullBlockIndex,
-				SignatureScript: tspendScript,
-			})
-
-			return msgTx
-		},
-		is:       IsTSpend,
-		expected: true,
-		check:    checkTSpend,
+			tx := baseTreasurySpendTx.Copy()
+			tx.TxOut[1].Version = payoutScriptVer
+			tx.TxOut[1].PkScript = payoutScript
+			return tx
+		}(),
 	}}
 
-	for i, test := range tests {
-		if got := test.is(test.createTx()); got != test.expected {
-			// Obtain error
-			err := test.check(test.createTx())
-			t.Fatalf("%v %v: failed got %v want %v error %v",
-				i, test.name, got, test.expected, err)
+	for _, test := range tests {
+		gotTreasuryAdd := IsTAdd(test.tx)
+		if gotTreasuryAdd != test.treasuryAdd {
+			t.Errorf("%s: unexpected treasury add result - got %v, want %v",
+				test.name, gotTreasuryAdd, test.treasuryAdd)
+		}
+
+		gotTreasuryBase := IsTreasuryBase(test.tx)
+		if gotTreasuryBase != test.treasuryBase {
+			t.Errorf("%s: unexpected treasurybase result - got %v, want %v",
+				test.name, gotTreasuryBase, test.treasuryBase)
+		}
+
+		gotTreasurySpend := IsTSpend(test.tx)
+		if gotTreasurySpend != test.treasurySpend {
+			t.Errorf("%s: unexpected treasury spend result - got %v, want %v",
+				test.name, gotTreasurySpend, test.treasurySpend)
 		}
 	}
 }
