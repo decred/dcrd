@@ -1002,10 +1002,10 @@ func varBytesLen(l uint32) uint32 {
 	return uint32(VarIntSerializeSize(uint64(l))) + l
 }
 
-// expectedSerializationCompare compares serialized bytes to the expected
+// expectedSerializationEqual compares serialized bytes to the expected
 // sequence of bytes.  When got and expected are not equal, the test t will be
 // errored with descriptive messages of how the two encodings are different.
-// Returns true if the serialization are equal, and false if the test
+// Returns true if the serializations are equal, and false if the test
 // errors.
 func expectedSerializationEqual(t *testing.T, got, expected []byte) bool {
 	if bytes.Equal(got, expected) {
