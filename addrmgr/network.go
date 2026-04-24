@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -107,6 +107,7 @@ type NetAddressType uint8
 // NOTE: This specifically does not use iota since the NetAddressType is used in
 // serialization.  These constants cannot be changed or re-used if new items are
 // added.
+// nolint: godoclint
 const (
 	UnknownAddressType NetAddressType = 0
 	IPv4Address        NetAddressType = 1

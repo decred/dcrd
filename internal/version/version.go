@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -60,10 +60,9 @@ var (
 	Version = "2.2.0-pre"
 
 	// NOTE: The following values are set via init by parsing the above Version
-	// string.
+	// string. These fields are the individual semantic version components that
+	// define the application version.
 
-	// These fields are the individual semantic version components that define
-	// the application version.
 	Major         uint32
 	Minor         uint32
 	Patch         uint32
