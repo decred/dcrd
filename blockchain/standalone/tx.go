@@ -199,6 +199,22 @@ func CheckTransactionSanity(tx *wire.MsgTx, maxTxSize uint64) error {
 		}
 	}
 
+	// Input values in the fraud proof must either be in the valid range or the
+	// special sentinel value that signals it needs to be filled in later.
+	for _, txIn := range tx.TxIn {
+		atoms := txIn.ValueIn
+		if atoms < 0 && atoms != wire.NullValueIn {
+			str := fmt.Sprintf("transaction input value has negative value of "+
+				"%v", atoms)
+			return ruleError(ErrFraudAmountIn, str)
+		}
+		if atoms > maxAtoms {
+			str := fmt.Sprintf("transaction input value %v is higher than max "+
+				"allowed value of %v", atoms, maxAtoms)
+			return ruleError(ErrFraudAmountIn, str)
+		}
+	}
+
 	// Check for duplicate transaction inputs.
 	existingTxOut := make(map[wire.OutPoint]struct{})
 	for _, txIn := range tx.TxIn {
