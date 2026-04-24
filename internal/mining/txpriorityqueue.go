@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -93,7 +93,7 @@ const (
 	votePriority
 )
 
-// stakePriority assigns a stake priority based on a transaction type.
+// txStakePriority assigns a stake priority based on a transaction type.
 func txStakePriority(txType stake.TxType, autoRevocation bool) stakePriority {
 	prio := regOrRevocPriority
 	switch {

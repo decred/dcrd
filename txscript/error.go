@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -50,10 +50,10 @@ const (
 	// a script that has not finished executing.
 	ErrScriptUnfinished = ErrorKind("ErrScriptUnfinished")
 
-	// ErrScriptDone is returned when an attempt to execute an opcode is
-	// made once all of them have already been executed.  This can happen
-	// due to things such as a second call to Execute or calling Step after
-	// all opcodes have already been executed.
+	// ErrInvalidProgramCounter is returned when an attempt to execute an opcode
+	// is made once all of them have already been executed.  This can happen due
+	// to things such as a second call to Execute or calling Step after all
+	// opcodes have already been executed.
 	ErrInvalidProgramCounter = ErrorKind("ErrInvalidProgramCounter")
 
 	// -----------------------------------------------------
@@ -115,7 +115,7 @@ const (
 	// true.
 	ErrCheckSigVerify = ErrorKind("ErrCheckSigVerify")
 
-	// ErrCheckSigVerify is returned when OP_CHECKMULTISIGVERIFY is
+	// ErrCheckMultiSigVerify is returned when OP_CHECKMULTISIGVERIFY is
 	// encountered in a script and the top item on the data stack does not
 	// evaluate to true.
 	ErrCheckMultiSigVerify = ErrorKind("ErrCheckMultiSigVerify")
@@ -178,7 +178,7 @@ const (
 	// divide by zero.
 	ErrDivideByZero = ErrorKind("ErrDivideByZero")
 
-	// ErrNegativeRotation is returned when an OP_LSHIFT or OP_RSHIFT opcode
+	// ErrNegativeShift is returned when an OP_LSHIFT or OP_RSHIFT opcode
 	// attempts to perform a shift with a negative count.
 	ErrNegativeShift = ErrorKind("ErrNegativeShift")
 

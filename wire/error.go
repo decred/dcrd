@@ -126,12 +126,12 @@ const (
 	// formatting requirements does not conform to the requirements.
 	ErrMalformedStrictString
 
-	// ErrTooManyInitialStateTypes is returned when the number of initial
-	// state types is larger than the maximum allowed by the protocol.
+	// ErrTooManyInitStateTypes is returned when the number of initial state
+	// types is larger than the maximum allowed by the protocol.
 	ErrTooManyInitStateTypes
 
-	// ErrInitialStateTypeTooLong is returned when an individual initial
-	// state type is longer than allowed by the protocol.
+	// ErrInitStateTypeTooLong is returned when an individual initial state type
+	// is longer than allowed by the protocol.
 	ErrInitStateTypeTooLong
 
 	// ErrTooManyTSpends is returned when the number of tspend hashes

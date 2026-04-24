@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -2226,7 +2226,7 @@ func handleStopNotifyTSpend(_ context.Context, wsc *wsClient, _ any) (any, error
 	return nil, nil
 }
 
-// handleNotifyNewTransations implements the notifynewtransactions command
+// handleNotifyNewTransactions implements the notifynewtransactions command
 // extension for websocket connections.
 func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd any) (any, error) {
 	cmd, ok := icmd.(*types.NotifyNewTransactionsCmd)
@@ -2239,7 +2239,7 @@ func handleNotifyNewTransactions(_ context.Context, wsc *wsClient, icmd any) (an
 	return nil, nil
 }
 
-// handleStopNotifyNewTransations implements the stopnotifynewtransactions
+// handleStopNotifyNewTransactions implements the stopnotifynewtransactions
 // command extension for websocket connections.
 func handleStopNotifyNewTransactions(_ context.Context, wsc *wsClient, _ any) (any, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterNewMempoolTxsUpdates(wsc)

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	// maxAllowedOffsetSeconds is the maximum number of seconds in either
-	// direction that local clock will be adjusted.  When the median time
-	// of the network is outside of this range, no offset will be applied.
+	// maxAllowedOffsetSecs is the maximum number of seconds in either direction
+	// that local clock will be adjusted.  When the median time of the network
+	// is outside of this range, no offset will be applied.
 	maxAllowedOffsetSecs = 70 * 60 // 1 hour 10 minutes
 
 	// similarTimeSecs is the number of seconds in either direction from the

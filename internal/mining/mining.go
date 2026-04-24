@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -283,8 +283,8 @@ const (
 	kilobyte = 1000
 )
 
-// containsTx is a helper function that checks to see if a list of transactions
-// contains any of the TxIns of some transaction.
+// containsTxIns is a helper function that checks to see if a list of
+// transactions contains any of the TxIns of some transaction.
 func containsTxIns(txs []*dcrutil.Tx, tx *dcrutil.Tx) bool {
 	for _, txToCheck := range txs {
 		for _, txIn := range tx.MsgTx().TxIn {
@@ -448,7 +448,7 @@ func mergeUtxoView(viewA *blockchain.UtxoViewpoint, viewB *blockchain.UtxoViewpo
 	}
 }
 
-// hashExistsInList checks if a hash exists in a list of hash pointers.
+// hashInSlice checks if a hash exists in a list of hash pointers.
 func hashInSlice(h chainhash.Hash, list []chainhash.Hash) bool {
 	for i := range list {
 		if h == list[i] {

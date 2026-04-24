@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -920,7 +920,7 @@ func NewReconsiderBlockCmd(hash string) *ReconsiderBlockCmd {
 	}
 }
 
-// SendRawMixMessage defines the sendrawmixmessage JSON-RPC command.
+// SendRawMixMessageCmd defines the sendrawmixmessage JSON-RPC command.
 type SendRawMixMessageCmd struct {
 	Command string
 	Message string

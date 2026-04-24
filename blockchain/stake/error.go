@@ -1,5 +1,5 @@
 // Copyright (c) 2014 Conformal Systems LLC.
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,15 +23,15 @@ const (
 	// ErrSStxNoOutputs indicates that a given SStx has no outputs.
 	ErrSStxNoOutputs = ErrorKind("ErrSStxNoOutputs")
 
-	// ErrSStxInvalidInput indicates that an invalid output has been used as
-	// an input for a SStx; only non-SStx tagged outputs may be used to
-	// purchase stake tickets.
+	// ErrSStxInvalidInputs indicates that an invalid output has been used as an
+	// input for a SStx; only non-SStx tagged outputs may be used to purchase
+	// stake tickets.
 	// TODO: Add this into validate
 	// Ensure that all inputs are not tagged SStx outputs of some sort,
 	// along with checks to make sure they exist and are available.
 	ErrSStxInvalidInputs = ErrorKind("ErrSStxInvalidInputs")
 
-	// ErrSStxInvalidOutput indicates that the output for an SStx tx is
+	// ErrSStxInvalidOutputs indicates that the output for an SStx tx is
 	// invalid; in particular, either the output was not tagged SStx or the
 	// OP_RETURNs were missing or contained invalid addresses.
 	ErrSStxInvalidOutputs = ErrorKind("ErrSStxInvalidOutputs")
@@ -79,8 +79,8 @@ const (
 	// included as the first output.
 	ErrSSGenNoReference = ErrorKind("ErrSSGenNoReference")
 
-	// ErrSSGenNoReference indicates that the OP_RETURN included as the
-	// first output was corrupted in some way.
+	// ErrSSGenBadReference indicates that the OP_RETURN included as the first
+	// output was corrupted in some way.
 	ErrSSGenBadReference = ErrorKind("ErrSSGenBadReference")
 
 	// ErrSSGenNoVotePush indicates that there is no vote bits OP_RETURN

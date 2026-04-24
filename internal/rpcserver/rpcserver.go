@@ -4666,7 +4666,7 @@ func feeInfoForMempool(s *Server, txType stake.TxType) *types.FeeInfoMempool {
 	}
 }
 
-// calcFee calculates the fee of a transaction that has its fraud proofs
+// calcFeePerKb calculates the fee of a transaction that has its fraud proofs
 // properly set.
 func calcFeePerKb(tx *dcrutil.Tx) dcrutil.Amount {
 	var in dcrutil.Amount

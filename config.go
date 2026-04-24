@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -463,8 +463,9 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 	return parser
 }
 
-// createDefaultConfig copies the file sample-dcrd.conf to the given destination path,
-// and populates it with some randomly generated RPC username and password.
+// createDefaultConfigFile copies the file sample-dcrd.conf to the given
+// destination path, and populates it with some randomly generated RPC username
+// and password.
 func createDefaultConfigFile(destPath string, authType string) error {
 	// Create the destination directory if it does not exist.
 	err := os.MkdirAll(filepath.Dir(destPath), 0700)
