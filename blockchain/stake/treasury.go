@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,9 +56,10 @@ func checkTAdd(mtx *wire.MsgTx) error {
 				len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
-	// Verify all TxOut script versions and lengths.
+	// All output scripts must be version 0 and non-empty.
+	const consensusScriptVer = 0
 	for k := range mtx.TxOut {
-		if mtx.TxOut[k].Version != consensusVersion {
+		if mtx.TxOut[k].Version != consensusScriptVer {
 			return stakeRuleError(ErrTAddInvalidVersion,
 				fmt.Sprintf("invalid script version found "+
 					"in TADD TxOut: %v", k))
@@ -131,15 +132,14 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 				"out: %v", len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
-	// Check to make sure that all output scripts are the consensus version.
+	// All output scripts must be version 0 and non-empty.
+	const consensusScriptVer = 0
 	for k, txOut := range mtx.TxOut {
-		if txOut.Version != consensusVersion {
+		if txOut.Version != consensusScriptVer {
 			return nil, nil, stakeRuleError(ErrTSpendInvalidVersion,
 				fmt.Sprintf("invalid script version found in "+
 					"TxOut: %v", k))
 		}
-
-		// Make sure there is a script.
 		if len(txOut.PkScript) == 0 {
 			return nil, nil, stakeRuleError(ErrTSpendInvalidScriptLength,
 				fmt.Sprintf("invalid TxOut script length %v: "+
@@ -227,9 +227,10 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 			"treasurybase input 0 contains a script")
 	}
 
-	// Verify all TxOut script versions.
+	// All output scripts must be version 0.
+	const consensusScriptVer = 0
 	for k := range mtx.TxOut {
-		if mtx.TxOut[k].Version != consensusVersion {
+		if mtx.TxOut[k].Version != consensusScriptVer {
 			return stakeRuleError(ErrTreasuryBaseInvalidVersion,
 				fmt.Sprintf("invalid script version found in "+
 					"treasurybase: output %v", k))
