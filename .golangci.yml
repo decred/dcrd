@@ -13,6 +13,7 @@ linters:
     - durationcheck
     - errchkjson
     - errorlint
+    - godoclint
     - govet
     - grouper
     - ineffassign
@@ -30,6 +31,13 @@ linters:
     staticcheck:
       checks:
           - S1*
+    godoclint:
+      default: none
+      enable:
+        - pkg-doc
+        - start-with-name
+        - deprecated
+        - no-unused-link
 formatters:
   enable:
     - gofmt
