@@ -413,7 +413,7 @@ func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block) error {
 	return b.syncMgr.ProcessBlock(block)
 }
 
-// SyncPeer returns the id of the current peer being synced with.
+// SyncPeerID returns the id of the current peer being synced with.
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
