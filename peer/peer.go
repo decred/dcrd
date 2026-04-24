@@ -35,7 +35,7 @@ const (
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
 
-	// invTrickleSize is the maximum amount of inventory to send in a single
+	// maxInvTrickleSize is the maximum amount of inventory to send in a single
 	// message when trickling inventory to remote peers.
 	maxInvTrickleSize = 1000
 
@@ -61,9 +61,9 @@ const (
 	// only checked on each stall tick interval.
 	stallResponseTimeout = 30 * time.Second
 
-	// minInvTrickleSize and maxInvTrickleSize define the lower and upper
-	// limits, respectively, of random delay waited while batching
-	// inventory before it is trickled to a peer.
+	// minInvTrickleTimeout and maxInvTrickleTimeout define the lower and upper
+	// limits, respectively, of random delay waited while batching inventory
+	// before it is trickled to a peer.
 	minInvTrickleTimeout = 100 * time.Millisecond
 	maxInvTrickleTimeout = 500 * time.Millisecond
 
@@ -384,7 +384,7 @@ const (
 	// sccHandlerStart indicates a callback handler is about to be invoked.
 	sccHandlerStart
 
-	// sccHandlerStart indicates a callback handler has completed.
+	// sccHandlerDone indicates a callback handler has completed.
 	sccHandlerDone
 )
 

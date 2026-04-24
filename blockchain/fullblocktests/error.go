@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Decred developers
+// Copyright (c) 2022-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -205,8 +205,8 @@ const (
 	// have a valid missed sstx input as per the stake ticket database.
 	ErrInvalidSSRtx = ErrorKind("ErrInvalidSSRtx")
 
-	// ErrInvalidRevNum indicates that the number of revocations from the header
-	// was not the same as the number of SSRtx included in the block.
+	// ErrRevocationsMismatch indicates that the number of revocations from the
+	// header was not the same as the number of SSRtx included in the block.
 	ErrRevocationsMismatch = ErrorKind("ErrRevocationsMismatch")
 
 	// ErrTicketCommitment indicates that a ticket commitment contains an amount
@@ -218,7 +218,7 @@ const (
 	// commitments.
 	ErrBadNumPayees = ErrorKind("ErrBadNumPayees")
 
-	// ErrBadPayeeScriptType indicates that either a vote or revocation
+	// ErrMismatchedPayeeHash indicates that either a vote or revocation
 	// transaction output that corresponds to a ticket commitment does not pay
 	// to the hash required by the commitment.
 	ErrMismatchedPayeeHash = ErrorKind("ErrMismatchedPayeeHash")

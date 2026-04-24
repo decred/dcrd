@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,8 +15,8 @@ const (
 	// was took small.
 	ErrUndoDataShortRead = ErrorKind("ErrUndoDataShortRead")
 
-	// ErrUndoDataNoEntries indicates that the data for undoing ticket data
-	// in a serialized entry was corrupt.
+	// ErrUndoDataCorrupt indicates that the data for undoing ticket data in a
+	// serialized entry was corrupt.
 	ErrUndoDataCorrupt = ErrorKind("ErrUndoDataCorrupt")
 
 	// ErrTicketHashesShortRead indicates that the given ticket hashes

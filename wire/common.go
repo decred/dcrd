@@ -87,7 +87,7 @@ func (l binaryFreeList) Return(buf []byte) {
 // deserializing primitive integer values to and from io.Readers and io.Writers.
 var binarySerializer binaryFreeList = make(chan []byte, binaryFreeListMaxItems)
 
-// errNonCanonicalVarInt is the common format string used for non-canonically
+// nonCanonicalVarIntFormat is the common format string used for non-canonically
 // encoded variable length integer errors.
 var nonCanonicalVarIntFormat = "non-canonical varint %x - discriminant " +
 	"%x must encode a value greater than %x"

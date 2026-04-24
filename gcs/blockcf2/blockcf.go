@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -146,9 +146,9 @@ type commitmentConverter struct {
 	allScripts []byte
 }
 
-// commitmentToPaymentScript converts a commitment output script of a ticket
-// purchase to either a pay-to-pubkey-hash or a pay-to-script-hash script
-// according to the commitment.
+// paymentScript converts a commitment output script of a ticket purchase to
+// either a pay-to-pubkey-hash or a pay-to-script-hash script according to the
+// commitment.
 func (c *commitmentConverter) paymentScript(commitmentScript []byte) []byte {
 	commitmentHash := extractTicketCommitHash(commitmentScript)
 	if isTicketCommitP2SH(commitmentScript) {

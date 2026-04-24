@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -228,8 +228,7 @@ func (p *PRNG) Shuffle(n int, swap func(i, j int)) {
 	}
 }
 
-// Int returns a uniform random value in [0,max).
-// Panics if max <= 0.
+// BigInt returns a uniform random value in [0,max). Panics if max <= 0.
 func (p *PRNG) BigInt(max *big.Int) *big.Int {
 	// Will never error with our reader.
 	n, _ := rand.Int(p, max)

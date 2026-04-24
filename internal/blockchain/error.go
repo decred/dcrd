@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -300,7 +300,7 @@ const (
 	// have a valid missed sstx input as per the stake ticket database.
 	ErrInvalidSSRtx = ErrorKind("ErrInvalidSSRtx")
 
-	// ErrInvalidRevNum indicates that the number of revocations from the
+	// ErrRevocationsMismatch indicates that the number of revocations from the
 	// header was not the same as the number of SSRtx included in the block.
 	ErrRevocationsMismatch = ErrorKind("ErrRevocationsMismatch")
 
@@ -331,7 +331,7 @@ const (
 	// to the same script type required by the commitment.
 	ErrBadPayeeScriptType = ErrorKind("ErrBadPayeeScriptType")
 
-	// ErrBadPayeeScriptType indicates that either a vote or revocation
+	// ErrMismatchedPayeeHash indicates that either a vote or revocation
 	// transaction output that corresponds to a ticket commitment does not pay
 	// to the hash required by the commitment.
 	ErrMismatchedPayeeHash = ErrorKind("ErrMismatchedPayeeHash")
