@@ -3897,14 +3897,12 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			voteSubsidy := b.subsidyCache.CalcStakeVoteSubsidyV3(node.height-1,
 				subsidySplitVariant)
 			expAtomOut = voteSubsidy * int64(node.voters)
-		} else {
-			expAtomOut = totalFees
 		}
 
 		if totalAtomOutStake > expAtomOut {
-			str := fmt.Sprintf("stakebase transactions for block "+
-				"pays %v which is more than expected value "+
-				"of %v", totalAtomOutStake, expAtomOut)
+			str := fmt.Sprintf("stakebase transactions for block pays %v "+
+				"which is more than expected value of %v", totalAtomOutStake,
+				expAtomOut)
 			return ruleError(ErrBadStakebaseValue, str)
 		}
 	}
