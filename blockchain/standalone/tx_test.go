@@ -370,6 +370,29 @@ func TestCheckTransactionSanity(t *testing.T) {
 		}(),
 		err: ErrBadTxOutValue,
 	}, {
+		name: "transaction with input value == wire.NullValueIn (ok)",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxIn[0].ValueIn = wire.NullValueIn
+			return tx
+		}(),
+	}, {
+		name: "transaction with negative input value",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxIn[0].ValueIn = -2
+			return tx
+		}(),
+		err: ErrFraudAmountIn,
+	}, {
+		name: "transaction with single input value > max per tx",
+		tx: func() *wire.MsgTx {
+			tx := baseTx.Copy()
+			tx.TxIn[0].ValueIn = maxAtoms + 1
+			return tx
+		}(),
+		err: ErrFraudAmountIn,
+	}, {
 		name: "transaction spending duplicate input",
 		tx: func() *wire.MsgTx {
 			tx := baseTx.Copy()
