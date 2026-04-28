@@ -1676,7 +1676,7 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 	// is saved as an orphan and may be processed later.
 	// Of all PRs that are known, their pairing types must be compatible.
 	var missingOwnPR *chainhash.Hash
-	prs := make([]*wire.MsgMixPairReq, 0, len(ke.SeenPRs))
+	expiry := ^uint32(0)
 	var pairing []byte
 	for i := range ke.SeenPRs {
 		seenPR := &ke.SeenPRs[i]
@@ -1686,6 +1686,9 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 				missingOwnPR = seenPR
 			}
 			continue
+		}
+		if prExpiry := pr.Expires(); expiry > prExpiry {
+			expiry = prExpiry
 		}
 		if uint32(i) == ke.Pos && pr.Identity != ke.Identity {
 			// This cannot be a bannable rule error.  One peer may
@@ -1729,13 +1732,6 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 
 	// Create a session for the first KE
 	if ses == nil {
-		expiry := ^uint32(0)
-		for i := range prs {
-			prExpiry := prs[i].Expires()
-			if expiry > prExpiry {
-				expiry = prExpiry
-			}
-		}
 		ses = &session{
 			sid:    sid,
 			prs:    ke.SeenPRs,
