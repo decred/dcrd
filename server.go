@@ -692,6 +692,15 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
+	// initStateReceived tracks whether or not the peer has already received an
+	// initstate or miningstate message.  It is used to prevent more than one
+	// per connection.
+	//
+	// It is only accessed directly in callbacks which run in the same peer
+	// input handler goroutine and thus does not need to be protected for
+	// concurrent access.
+	initStateReceived bool
+
 	// peerNa is network address of the peer connected to.
 	peerNa atomic.Pointer[wire.NetAddress]
 
@@ -1366,8 +1375,11 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 		return
 	}
 
+	// Ban peers sending more than one request for an initial state message.
 	if sp.getMiningStateSent {
-		peerLog.Tracef("Ignoring getminingstate from %v - already sent", sp)
+		reason := fmt.Sprintf("send more than one %s", msg.Command())
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
 		return
 	}
 	sp.getMiningStateSent = true
@@ -1439,6 +1451,15 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 		return
 	}
 
+	// Ban peers sending more than one initial state message.
+	if sp.initStateReceived {
+		const reason = "sent more than one initial state message (miningstate)"
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
+		return
+	}
+	sp.initStateReceived = true
+
 	var blockHashes, voteHashes []chainhash.Hash
 	if len(msg.BlockHashes) > 0 {
 		blockHashes = make([]chainhash.Hash, 0, len(msg.BlockHashes))
@@ -1460,8 +1481,11 @@ func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
 // OnGetInitState is invoked when a peer receives a getinitstate wire message.
 // It sends the available requested info to the remote peer.
 func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
+	// Ban peers sending more than one request for an initial state message.
 	if sp.initStateSent {
-		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp)
+		reason := fmt.Sprintf("sent more than one %s", msg.Command())
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
 		return
 	}
 	sp.initStateSent = true
@@ -1536,6 +1560,15 @@ func (sp *serverPeer) OnGetInitState(_ *peer.Peer, msg *wire.MsgGetInitState) {
 // OnInitState is invoked when a peer receives a initstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(_ *peer.Peer, msg *wire.MsgInitState) {
+	// Ban peers sending more than one initial state message.
+	if sp.initStateReceived {
+		const reason = "sent more than one initial state message (initstate)"
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
+		return
+	}
+	sp.initStateReceived = true
+
 	sp.server.syncManager.RequestFromPeer(sp.syncMgrPeer, msg.BlockHashes,
 		msg.VoteHashes, msg.TSpendHashes)
 }
