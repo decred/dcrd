@@ -1355,6 +1355,17 @@ func (sp *serverPeer) pushMiningStateMsg(height uint32, blockHashes []chainhash.
 // It constructs a list of the current best blocks and votes that should be
 // mined on and pushes a miningstate wire message back to the requesting peer.
 func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState) {
+	// Ban peers attempting to request the initial state via miningstate once
+	// the protocol version is high enough that the peer is knowingly violating
+	// the protocol.
+	if sp.ProtocolVersion() >= wire.InitStateVersion {
+		reason := fmt.Sprintf("sent %s request with protocol version %d >= %d",
+			msg.Command(), sp.ProtocolVersion(), wire.InitStateVersion)
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
+		return
+	}
+
 	if sp.getMiningStateSent {
 		peerLog.Tracef("Ignoring getminingstate from %v - already sent", sp)
 		return
@@ -1417,6 +1428,17 @@ func (sp *serverPeer) OnGetMiningState(_ *peer.Peer, msg *wire.MsgGetMiningState
 // OnMiningState is invoked when a peer receives a miningstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnMiningState(_ *peer.Peer, msg *wire.MsgMiningState) {
+	// Ban peers attempting to send the initial state via miningstate once
+	// the protocol version is high enough that the peer is knowingly violating
+	// the protocol.
+	if sp.ProtocolVersion() >= wire.InitStateVersion {
+		reason := fmt.Sprintf("sent %s with protocol version %d >= %d",
+			msg.Command(), sp.ProtocolVersion(), wire.InitStateVersion)
+		sp.server.BanPeer(sp, reason)
+		sp.Disconnect()
+		return
+	}
+
 	var blockHashes, voteHashes []chainhash.Hash
 	if len(msg.BlockHashes) > 0 {
 		blockHashes = make([]chainhash.Hash, 0, len(msg.BlockHashes))
