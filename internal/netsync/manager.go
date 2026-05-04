@@ -2070,9 +2070,10 @@ func (m *SyncManager) SyncPeerID() int32 {
 	return 0
 }
 
-// RequestFromPeer requests any combination of blocks, votes, and treasury
-// spends from the given peer.  It ensures all of the requests are tracked so
-// the peer is not banned for sending unrequested data when it responds.
+// RequestFromPeer makes a best effort to request any combination of blocks,
+// votes, and treasury spends from the given peer.  It ensures all of the
+// requests are tracked so the peer is not banned for sending unrequested data
+// when it responds.
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes, tSpendHashes []chainhash.Hash) {
@@ -2092,6 +2093,12 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes, tSpendHash
 		blockHash := &blocks[i]
 		if m.isRequestedBlock(blockHash) || m.cfg.Chain.HaveBlock(blockHash) {
 			continue
+		}
+
+		// Stop requesting when the request would exceed the max size of the map
+		// used to track requests.
+		if len(m.requestedBlocks)+1 > maxRequestedBlocks {
+			break
 		}
 
 		gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, blockHash))
@@ -2115,6 +2122,12 @@ func (m *SyncManager) RequestFromPeer(peer *Peer, blocks, voteHashes, tSpendHash
 			_, alreadyRequested := m.requestedTxns[*txHash]
 			if alreadyRequested || !m.needTx(txHash) {
 				continue
+			}
+
+			// Stop requesting when the request would exceed the max size of the
+			// map used to track requests.
+			if len(m.requestedTxns)+1 > maxRequestedTxns {
+				break
 			}
 
 			gdMsg.AddInvVect(wire.NewInvVect(wire.InvTypeTx, txHash))
