@@ -629,32 +629,30 @@ func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags
 // checkProofOfStake ensures that all ticket purchases in the block pay at least
 // the amount required by the block header stake bits which indicate the target
 // stake difficulty (aka ticket price) as claimed.
-func checkProofOfStake(block *dcrutil.Block, posLimit int64) error {
-	msgBlock := block.MsgBlock()
-	for _, staketx := range block.STransactions() {
-		msgTx := staketx.MsgTx()
-		if stake.IsSStx(msgTx) {
-			commitValue := msgTx.TxOut[0].Value
+func checkProofOfStake(block *dcrutil.Block, minStakeDiff int64) error {
+	header := &block.MsgBlock().Header
+	for _, stx := range block.STransactions() {
+		msgTx := stx.MsgTx()
+		if !stake.IsSStx(msgTx) {
+			continue
+		}
 
-			// Check for underflow block sbits.
-			if commitValue < msgBlock.Header.SBits {
-				errStr := fmt.Sprintf("Stake tx %v has a "+
-					"commitment value less than the "+
-					"minimum stake difficulty specified in"+
-					" the block (%v)", staketx.Hash(),
-					msgBlock.Header.SBits)
-				return ruleError(ErrNotEnoughStake, errStr)
-			}
+		// The ticket price must not be below the stake difficulty claimed by
+		// the block header.
+		ticketPaidAmt := msgTx.TxOut[submissionOutputIdx].Value
+		if ticketPaidAmt < header.SBits {
+			str := fmt.Sprintf("ticket %v pays less than the stake difficulty "+
+				"committed to by the block header (%v < %v)", stx.Hash(),
+				ticketPaidAmt, header.SBits)
+			return ruleError(ErrNotEnoughStake, str)
+		}
 
-			// Check if it's above the PoS limit.
-			if commitValue < posLimit {
-				errStr := fmt.Sprintf("Stake tx %v has a "+
-					"commitment value less than the "+
-					"minimum stake difficulty for the "+
-					"network (%v)", staketx.Hash(),
-					posLimit)
-				return ruleError(ErrStakeBelowMinimum, errStr)
-			}
+		// The ticket price must not be below the network minimum.
+		if ticketPaidAmt < minStakeDiff {
+			str := fmt.Sprintf("ticket %v pays less than the network minimum "+
+				"stake difficulty of (%v < %v)", stx.Hash(), ticketPaidAmt,
+				minStakeDiff)
+			return ruleError(ErrStakeBelowMinimum, str)
 		}
 	}
 
