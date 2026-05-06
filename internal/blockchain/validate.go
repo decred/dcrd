@@ -3165,7 +3165,7 @@ func checkTreasurySpendInputs(msgTx *wire.MsgTx) error {
 // that value.
 //
 // NOTE: The transaction MUST have already been sanity checked with the
-// standalone.CheckTransactionSanity function prior to calling this function.
+// [standalone.CheckTransactionSanity] function prior to calling this function.
 func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool,
 	chainParams *chaincfg.Params, prevHeader *wire.BlockHeader,
@@ -3276,22 +3276,60 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// Decred general transaction testing (and a few stake exceptions).
 	// -------------------------------------------------------------------
 
-	txHash := tx.Hash()
+	// sumTotalAtomIn is a convenience func that adds the provided amount to the
+	// total sum of all inputs while ensuring that the accumulator does not
+	// overflow.  It also ensures the total does not exceed the max allowed per
+	// transaction.
+	//
+	// In practice, at the time this comment is being written, it is not
+	// possible to overflow the accumulator due to the combination of limits
+	// placed on the amounts and number of inputs possible per transaction, but
+	// be safe and check anyway in case that is no longer true at some point in
+	// the future.
 	var totalAtomIn int64
-	for idx, txIn := range msgTx.TxIn {
-		// Inputs won't exist for stakebase tx, so ignore them.
-		if isVote && idx == 0 {
-			// However, do add the reward amount.
-			_, heightVotingOn := stake.SSGenBlockVotedOn(msgTx)
-			stakeVoteSubsidy := subsidyCache.CalcStakeVoteSubsidyV3(
-				int64(heightVotingOn), subsidySplitVariant)
-			totalAtomIn += stakeVoteSubsidy
-			continue
+	sumTotalAtomIn := func(amount int64) error {
+		var ok bool
+		totalAtomIn, ok = addSigned(totalAtomIn, amount)
+		if !ok {
+			const str = "total value of all transaction inputs overflows " +
+				"accumulator"
+			return ruleError(ErrBadTxOutValue, str)
+		}
+		if totalAtomIn > dcrutil.MaxAmount {
+			str := fmt.Sprintf("total value of all transaction inputs is %v "+
+				"which is higher than max allowed value of %v", totalAtomIn,
+				dcrutil.MaxAmount)
+			return ruleError(ErrBadTxOutValue, str)
 		}
 
-		// idx can only be 0 in this case but check it anyway.
-		if (isTreasuryBase || isTreasurySpend) && idx == 0 {
-			totalAtomIn += txIn.ValueIn
+		return nil
+	}
+
+	txHash := tx.Hash()
+	for idx, txIn := range msgTx.TxIn {
+		// The stakebase of votes, treasurybases, and treasuryspends do not have
+		// normal inputs, so handle them separately.
+		//
+		// Their input value commitments all contribute to the total input sum
+		// and are safe to use here because they have been proven to commit to
+		// correct values that are in a valid range previously.
+		//
+		// The input values correspond to the following:
+		//   - Stakebases: the stake vote subsidy
+		//   - Treasurybases: the treasury subsidy
+		//   - Treasury spends: the amount to deduct from the treasury
+		//
+		// Treasurybases and treasury spends only have a single input, so their
+		// index can only be 0.  That means their input sums could technically
+		// just be set directly.  However, be paranoid and double check in case
+		// that ever changes in the future.
+		if idx == 0 && (isVote || isTreasuryBase || isTreasurySpend) {
+			// The total of all input amounts must not be more than the max
+			// allowed per transaction.  Also, ensure the accumulator does not
+			// overflow.
+			if err := sumTotalAtomIn(txIn.ValueIn); err != nil {
+				return 0, err
+			}
 			continue
 		}
 
@@ -3452,16 +3490,10 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 			return 0, ruleError(ErrBadTxOutValue, str)
 		}
 
-		// The total of all outputs must not be more than the max allowed per
-		// transaction.  Also, we could potentially overflow the accumulator so
-		// check for overflow.
-		lastAtomIn := totalAtomIn
-		totalAtomIn += originTxAtom
-		if totalAtomIn < lastAtomIn || totalAtomIn > dcrutil.MaxAmount {
-			str := fmt.Sprintf("total value of all transaction inputs is %v "+
-				"which is higher than max allowed value of %v", totalAtomIn,
-				dcrutil.MaxAmount)
-			return 0, ruleError(ErrBadTxOutValue, str)
+		// The total of all input amounts must not be more than the max allowed
+		// per transaction.  Also, ensure the accumulator does not overflow.
+		if err := sumTotalAtomIn(originTxAtom); err != nil {
+			return 0, err
 		}
 	}
 
@@ -3794,13 +3826,11 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			return 0, err
 		}
 
-		// Sum the total fees and ensure we don't overflow the
-		// accumulator.
-		lastTotalFees := totalFees
-		totalFees += txFee
-		if totalFees < lastTotalFees {
-			return 0, ruleError(ErrBadFees, "total fees for block "+
-				"overflows accumulator")
+		// Sum the total fees and ensure they do overflow the accumulator.
+		totalFees, ok = addSigned(totalFees, txFee)
+		if !ok {
+			const str = "total fees for block overflows accumulator"
+			return 0, ruleError(ErrBadFees, str)
 		}
 
 		// Update the view to mark all utxos spent by the transaction as spent
@@ -4017,8 +4047,19 @@ func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) err
 		// A valid treasury spend always stores the entire amount that the
 		// treasury is spending in the first input.  It is safe to use since it
 		// has already been verified to match the commitment value.
+		//
+		// The extra overflow checks could technically be avoided here because
+		// the treasury spends are a subset of all transactions in the tree
+		// which means the overall sum for all transactions would overflow and
+		// cause the block to be rejected anyway, but be paranoid to protect
+		// against refactors violating that assumption.
+		var ok bool
 		valueIn := stx.MsgTx().TxIn[0].ValueIn
-		totalTSpendAmount += valueIn
+		totalTSpendAmount, ok = addSigned(totalTSpendAmount, valueIn)
+		if !ok {
+			const str = "total value of all treasury spends overflows accumulator"
+			return ruleError(ErrBadTxOutValue, str)
+		}
 
 		// Verify this TSpend hash has not been included in a
 		// prior block.
