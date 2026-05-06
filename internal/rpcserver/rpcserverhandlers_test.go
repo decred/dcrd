@@ -127,8 +127,8 @@ func (u *testRPCUtxoEntry) TicketMinimalOutputs() []*stake.MinimalOutput {
 
 // tspendVotes is used to mock the results of a chain TSpendCountVotes call.
 type tspendVotes struct {
-	yes int64
-	no  int64
+	yes uint32
+	no  uint32
 	err error
 }
 
@@ -434,7 +434,7 @@ func (c *testRPCChain) FetchTSpend(chainhash.Hash) ([]chainhash.Hash, error) {
 
 // TSpendCountVotes counts the number of votes a given tspend has received up
 // to the given block.
-func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error) {
+func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (uint32, uint32, error) {
 	return c.tspendVotes.yes, c.tspendVotes.no, c.tspendVotes.err
 }
 

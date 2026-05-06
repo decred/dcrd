@@ -505,13 +505,13 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("invalid end block got %v wanted %v", tv.end, end)
 	}
 
-	expectedYesVotes := 0 // We voted a bunch of times outside the window
+	const expectedYesVotes = 0 // We voted a bunch of times outside the window
 	expectedNoVotes := tvi * mul * uint64(params.TicketsPerBlock)
-	if expectedYesVotes != tv.yes {
-		t.Fatalf("invalid yes votes got %v wanted %v", expectedYesVotes, tv.yes)
+	if tv.yes != expectedYesVotes {
+		t.Fatalf("invalid yes votes got %v wanted %v", tv.yes, expectedYesVotes)
 	}
-	if expectedNoVotes != uint64(tv.no) {
-		t.Fatalf("invalid no votes got %v wanted %v", expectedNoVotes, tv.no)
+	if uint64(tv.no) != expectedNoVotes {
+		t.Fatalf("invalid no votes got %v wanted %v", tv.no, expectedNoVotes)
 	}
 
 	// ---------------------------------------------------------------------
@@ -614,9 +614,8 @@ func TestTSpendVoteCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if int(quorum-1) != tv.yes {
-		t.Fatalf("unexpected yesVote count got %v wanted %v",
-			tv.yes, quorum-1)
+	if uint64(tv.yes) != quorum-1 {
+		t.Fatalf("unexpected yesVote count got %v wanted %v", tv.yes, quorum-1)
 	}
 
 	// Hit exact yes vote quorum
@@ -647,9 +646,8 @@ func TestTSpendVoteCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if int(quorum) != tv.yes {
-		t.Fatalf("unexpected yesVote count got %v wanted %v",
-			tv.yes, quorum)
+	if uint64(tv.yes) != quorum {
+		t.Fatalf("unexpected yesVote count got %v wanted %v", tv.yes, quorum)
 	}
 
 	// Verify TSpend can be added exactly on quorum.
@@ -2853,13 +2851,13 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		numNodes         int64
 		set              func(*BlockChain, *blockNode)
 		blockVersion     int32
-		expectedYesVotes int
-		expectedNoVotes  int
+		expectedYesVotes uint32
+		expectedNoVotes  uint32
 		failure          bool
 	}{{
 		name:             "All yes",
 		numNodes:         int64(end),
-		expectedYesVotes: int(tpb) * int(tvi*mul),
+		expectedYesVotes: uint32(tpb) * uint32(tvi*mul),
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
@@ -2887,7 +2885,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		name:             "All no",
 		numNodes:         int64(end),
 		expectedYesVotes: 0,
-		expectedNoVotes:  int(tpb) * int(tvi*mul),
+		expectedNoVotes:  uint32(tpb) * uint32(tvi*mul),
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
 			// Create block.
@@ -2979,7 +2977,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "All yes quorum",
 		numNodes:         int64(end),
-		expectedYesVotes: int(quorum),
+		expectedYesVotes: uint32(quorum),
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
@@ -3010,7 +3008,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "All yes quorum - 1",
 		numNodes:         int64(end),
-		expectedYesVotes: int(quorum - 1),
+		expectedYesVotes: uint32(quorum - 1),
 		expectedNoVotes:  0,
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
@@ -3041,7 +3039,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "All yes quorum + 1",
 		numNodes:         int64(end),
-		expectedYesVotes: int(quorum + 1),
+		expectedYesVotes: uint32(quorum + 1),
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
@@ -3072,8 +3070,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "Exactly yes required",
 		numNodes:         int64(end),
-		expectedYesVotes: int(requiredVotes),
-		expectedNoVotes:  int(maxVotes) - int(requiredVotes),
+		expectedYesVotes: uint32(requiredVotes),
+		expectedNoVotes:  maxVotes - uint32(requiredVotes),
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
 			// Create block.
@@ -3105,8 +3103,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "Yes required - 1",
 		numNodes:         int64(end),
-		expectedYesVotes: int(requiredVotes - 1),
-		expectedNoVotes:  int(maxVotes) - int(requiredVotes-1),
+		expectedYesVotes: uint32(requiredVotes - 1),
+		expectedNoVotes:  maxVotes - uint32(requiredVotes-1),
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
 			// Create block.
@@ -3138,8 +3136,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "Yes required + 1",
 		numNodes:         int64(end),
-		expectedYesVotes: int(requiredVotes + 1),
-		expectedNoVotes:  int(maxVotes) - int(requiredVotes+1),
+		expectedYesVotes: uint32(requiredVotes + 1),
+		expectedNoVotes:  maxVotes - uint32(requiredVotes+1),
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
 			// Create block.
@@ -3171,7 +3169,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	}, {
 		name:             "Exactly yes required with abstain",
 		numNodes:         int64(end),
-		expectedYesVotes: int(requiredVotes),
+		expectedYesVotes: uint32(requiredVotes),
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {

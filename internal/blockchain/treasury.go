@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -976,104 +976,105 @@ func (b *BlockChain) CheckTSpendExists(prevHash, tspend chainhash.Hash) error {
 	return b.checkTSpendExists(prevNode, tspend)
 }
 
-// getVotes returns yes and no votes for the provided hash.
-func getVotes(votes []stake.TreasuryVoteTuple, hash *chainhash.Hash) (yes int, no int) {
-	if votes == nil {
-		return
-	}
-
-	for _, v := range votes {
-		if !hash.IsEqual(&v.Hash) {
-			continue
-		}
-
-		switch v.Vote {
-		case stake.TreasuryVoteYes:
-			yes++
-		case stake.TreasuryVoteNo:
-			no++
-		default:
-			// Can't happen.
-			trsyLog.Criticalf("getVotes: invalid vote 0x%v", v.Vote)
-		}
-	}
-
-	return
-}
-
 // tspendVotes is a structure that contains a treasury vote tally for a given
 // window.
 type tspendVotes struct {
 	start uint32 // Start block
 	end   uint32 // End block
-	yes   int    // Yes vote tally
-	no    int    // No vote tally
+	yes   uint32 // Yes vote tally
+	no    uint32 // No vote tally
 }
 
-// tSpendCountVotes returns the vote tally for a given tspend up to the
-// specified block. Note that this function errors if the block is outside the
-// voting window for the given tspend.
+// tSpendCountVotes returns the total yes and no vote counts for a given
+// treasury spend up to the specified block.
+//
+// An error is returned if the block is outside the voting window for the given
+// treasury spend.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (*tspendVotes, error) {
-	var (
-		t   tspendVotes
-		err error
-	)
+	// Shorter version of various parameter for convenience.
+	tvi := b.chainParams.TreasuryVoteInterval
+	tvim := b.chainParams.TreasuryVoteIntervalMultiplier
 
 	expiry := tspend.MsgTx().Expiry
-	t.start, t.end, err = standalone.CalcTSpendWindow(expiry,
-		b.chainParams.TreasuryVoteInterval,
-		b.chainParams.TreasuryVoteIntervalMultiplier)
+	start, end, err := standalone.CalcTSpendWindow(expiry, tvi, tvim)
 	if err != nil {
-		return nil, err
+		return nil, standaloneToChainRuleError(err)
 	}
 
+	trsySpendHash := tspend.Hash()
 	nextHeight := prevNode.height + 1
 	trsyLog.Tracef("Counting votes for treasury spend %s (height %d, voting "+
-		"window [%d, %d], expiry %d)", tspend.Hash(), nextHeight, t.start,
-		t.end, expiry)
+		"window [%d, %d], expiry %d)", trsySpendHash, nextHeight, start, end,
+		expiry)
 
-	// Ensure tspend is within the window.
-	if !standalone.InsideTSpendWindow(nextHeight,
-		expiry, b.chainParams.TreasuryVoteInterval,
-		b.chainParams.TreasuryVoteIntervalMultiplier) {
-		err = fmt.Errorf("tspend outside of window: nextHeight %v "+
-			"start %v expiry %v", nextHeight, t.start, expiry)
-		return nil, err
+	// Ensure the treasury spend is within its valid voting window.
+	if !standalone.InsideTSpendWindow(nextHeight, expiry, tvi, tvim) {
+		str := fmt.Sprintf("treasury spend %v at height %d with expiry %d is "+
+			"outside of the valid window [%d, %d]", trsySpendHash, nextHeight,
+			expiry, start, end)
+		return nil, ruleError(ErrInvalidTSpendWindow, str)
 	}
 
-	node := prevNode
-	for {
-		if node.height < int64(t.start) {
-			break
-		}
-
-		// Find SSGen and peel out votes.
-		var xblock *dcrutil.Block
-		xblock, err = b.fetchBlockByNode(node)
+	// Tally the total number of yes and no votes in the voting window.
+	var totalYes, totalNo uint32
+	for n := prevNode; n != nil && n.height >= int64(start); n = n.parent {
+		// Find stake votes and extract treasury spend votes.
+		var ok bool
+		var block *dcrutil.Block
+		block, err = b.fetchBlockByNode(n)
 		if err != nil {
 			// Should not happen.
 			return nil, err
 		}
-		for _, v := range xblock.STransactions() {
-			votes, err := stake.CheckSSGenVotes(v.MsgTx())
+		for _, stx := range block.MsgBlock().STransactions {
+			// Nothing to do for transactions that are not stake votes or do not
+			// contain any treasury spend votes.
+			votes, err := stake.CheckSSGenVotes(stx)
 			if err != nil {
-				// Not an SSGEN
+				// Not a stake vote.
+				continue
+			}
+			if len(votes) == 0 {
 				continue
 			}
 
-			// Find our vote bits.
-			yes, no := getVotes(votes, tspend.Hash())
-			t.yes += yes
-			t.no += no
-		}
+			// Find and tally votes for the treasury spend hash.
+			for _, v := range votes {
+				if *trsySpendHash != v.Hash {
+					continue
+				}
 
-		node = node.parent
-		if node == nil {
-			break
+				switch v.Vote {
+				case stake.TreasuryVoteYes:
+					totalYes, ok = addUnsigned(totalYes, 1)
+					if !ok {
+						str := fmt.Sprintf("yes vote for treasury spend %v at "+
+							"height %d causes yes count to overflow",
+							trsySpendHash, n.height)
+						return nil, ruleError(ErrTooManyTreasurySpendVotes, str)
+					}
+
+				case stake.TreasuryVoteNo:
+					totalNo, ok = addUnsigned(totalNo, 1)
+					if !ok {
+						str := fmt.Sprintf("no vote for treasury spend %v at "+
+							"height %d causes no count to overflow",
+							trsySpendHash, n.height)
+						return nil, ruleError(ErrTooManyTreasurySpendVotes, str)
+					}
+				}
+			}
 		}
 	}
 
-	return &t, nil
+	return &tspendVotes{
+		start: start,
+		end:   end,
+		yes:   totalYes,
+		no:    totalNo,
+	}, nil
 }
 
 // TSpendCountVotes tallies the votes given for the specified tspend during its
@@ -1086,20 +1087,18 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 // the next block is outside the voting interval.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) TSpendCountVotes(blockHash *chainhash.Hash, tspend *dcrutil.Tx) (yesVotes, noVotes int64, err error) {
-	b.index.RLock()
-	defer b.index.RUnlock()
-
-	prevNode := b.index.lookupNode(blockHash)
+func (b *BlockChain) TSpendCountVotes(blockHash *chainhash.Hash, tspend *dcrutil.Tx) (yesVotes, noVotes uint32, err error) {
+	prevNode := b.index.LookupNode(blockHash)
 	if prevNode == nil {
 		return 0, 0, unknownBlockError(blockHash)
 	}
+
 	tv, err := b.tSpendCountVotes(prevNode, tspend)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	return int64(tv.yes), int64(tv.no), nil
+	return tv.yes, tv.no, nil
 }
 
 // checkTSpendHasVotes verifies that the provided TSpend has enough votes to be

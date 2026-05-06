@@ -690,6 +690,8 @@ func standaloneToChainRuleError(err error) error {
 		return ruleError(ErrFraudAmountIn, err.Error())
 	case errors.Is(err, standalone.ErrDuplicateTxInputs):
 		return ruleError(ErrDuplicateTxInputs, err.Error())
+	case errors.Is(err, standalone.ErrInvalidTSpendExpiry):
+		return ruleError(ErrInvalidTreasurySpendExpiry, err.Error())
 	}
 
 	return err

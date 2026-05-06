@@ -440,7 +440,7 @@ type Chain interface {
 
 	// TSpendCountVotes returns the votes for the specified tspend up to
 	// the specified block.
-	TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error)
+	TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (uint32, uint32, error)
 
 	// InvalidateBlock manually invalidates the provided block as if the block
 	// had violated a consensus rule and marks all of its descendants as having

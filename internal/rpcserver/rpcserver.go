@@ -3437,7 +3437,7 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd any) (any, er
 		// We only count votes for tspends that are inside their voting
 		// window. Otherwise we just return the appropriate vote start
 		// and end heights for it.
-		var yes, no int64
+		var yes, no uint32
 		insideWindow := standalone.InsideTSpendWindow(blockHeight, expiry, tvi, mul)
 		minedBlock, isMined := endBlocks[*txHash]
 		if insideWindow || isMined {
@@ -3470,8 +3470,8 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd any) (any, er
 			Expiry:    int64(expiry),
 			VoteStart: int64(start),
 			VoteEnd:   int64(end),
-			YesVotes:  yes,
-			NoVotes:   no,
+			YesVotes:  int64(yes),
+			NoVotes:   int64(no),
 		}
 	}
 

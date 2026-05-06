@@ -477,13 +477,29 @@ const (
 	// block that is not at a TVI interval.
 	ErrNotTVI = ErrorKind("ErrNotTVI")
 
-	// ErrInvalidTSpendWindow indicates that this treasury spend
-	// transaction is outside of the allowed window.
+	// ErrInvalidTreasurySpendExpiry indicates that a treasury spend transaction
+	// has an invalid expiry.
+	ErrInvalidTreasurySpendExpiry = ErrorKind("ErrInvalidTreasurySpendExpiry")
+
+	// ErrInvalidTSpendWindow indicates that a treasury spend transaction is
+	// outside of the allowed window.
 	ErrInvalidTSpendWindow = ErrorKind("ErrInvalidTSpendWindow")
 
 	// ErrNotEnoughTSpendVotes indicates that a treasury spend transaction
 	// does not have enough votes to be included in block.
 	ErrNotEnoughTSpendVotes = ErrorKind("ErrNotEnoughTSpendVotes")
+
+	// ErrTooManyTreasurySpendVotes indicates that the number of treasury spend
+	// votes in a treasury voting window exceeeded maximum allowable number of
+	// votes.
+	//
+	// In practice, this implies there was an unexpected overflow when tallying
+	// votes since there is not directly an explicit upper bound on the allowed
+	// votes.  Rather, the upper bound is implicit due to the size of the voting
+	// window and the maximum number of allowed stake votes per block.
+	//
+	// This error is not possible to hit at the time this comment was written.
+	ErrTooManyTreasurySpendVotes = ErrorKind("ErrTooManyTreasurySpendVotes")
 
 	// ErrInvalidTSpendValueIn indicates that a treasury spend transaction
 	// ValueIn does not match the encoded copy in the first TxOut.
