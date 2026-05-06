@@ -3092,6 +3092,68 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint,
 		false, 0, prevHeader, isTreasuryEnabled, isAutoRevocationsEnabled)
 }
 
+// extractTreasurySpendCommitAmount extracts and decodes the amount from a
+// treasury spend output commitment script.
+//
+// NOTE: The caller MUST have already determined that the provided script is the
+// script from the first output of a treasury spend and that the script is well
+// formed as required or the function may panic.
+func extractTreasurySpendCommitAmount(script []byte) int64 {
+	// A treasury spend commitment output is an OP_RETURN script with a 32-byte
+	// data push that consists of an 8-byte little-endian amount to commit to
+	// and a 24-byte random value.  Thus, 1 byte for the OP_RETURN + 1 byte for
+	// the data push means the encoded amount is at offset 2.
+	const startIdx = 2
+	const endIdx = startIdx + 8
+	encodedValue := script[startIdx:endIdx]
+	return int64(binary.LittleEndian.Uint64(encodedValue))
+}
+
+// checkTreasurySpendInputs performs a series of checks on the inputs to a
+// treasury spend transaction.  An example of some of the checks include
+// verifying the input values are sane and the spend amount commitment in the
+// first output matches the input amount.
+//
+// NOTE: The caller MUST have already determined that the provided transaction
+// is a treasury spend or the function may panic.
+func checkTreasurySpendInputs(msgTx *wire.MsgTx) error {
+	// Assert there is at least one input and one output.
+	if len(msgTx.TxIn) < 1 || len(msgTx.TxOut) < 1 {
+		panicf("attempt to check treasury spend inputs on tx %s which does "+
+			"not appear to be a treasury spend (%d inputs, %d outputs)",
+			msgTx.TxHash(), len(msgTx.TxIn), len(msgTx.TxOut))
+	}
+
+	// Ensure all input amounts are sane.  This is only a fast check for
+	// obviously invalid values.  The expenditure policy is enforced separately.
+	for _, txIn := range msgTx.TxIn {
+		valueIn := txIn.ValueIn
+		if valueIn < 0 {
+			str := fmt.Sprintf("treasury spend has negative value of %v",
+				valueIn)
+			return ruleError(ErrBadTxInput, str)
+		}
+		if valueIn > dcrutil.MaxAmount {
+			str := fmt.Sprintf("treasury spend value of %v is higher than "+
+				"max allowed value of %v", valueIn, dcrutil.MaxAmount)
+			return ruleError(ErrBadTxInput, str)
+		}
+	}
+
+	// A valid treasury spend must specify the entire amount that the treasury
+	// is spending in the first input and commit to that amount in the script of
+	// the first output.
+	valueIn := msgTx.TxIn[0].ValueIn
+	commitmentAmt := extractTreasurySpendCommitAmount(msgTx.TxOut[0].PkScript)
+	if valueIn != commitmentAmt {
+		str := fmt.Sprintf("treasury spend input value %v does not match "+
+			"spend amount commitment %v", valueIn, commitmentAmt)
+		return ruleError(ErrInvalidTSpendValueIn, str)
+	}
+
+	return nil
+}
+
 // CheckTransactionInputs performs a series of checks on the inputs to a
 // transaction to ensure they are valid.  An example of some of the checks
 // include verifying all inputs exist, ensuring the coinbase seasoning
@@ -3177,11 +3239,11 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	// they have a valid signature from a sanctioned key.
 	//
 	// Also keep track of whether or not it is a treasury spend for later.
-	var isTSpend bool
+	var isTreasurySpend bool
 	if isTreasuryEnabled {
 		signature, pubKey, err := stake.CheckTSpend(msgTx)
-		isTSpend = err == nil
-		if isTSpend {
+		isTreasurySpend = err == nil
+		if isTreasurySpend {
 			// The public key used to sign the treasury spend must be one of the
 			// sanctioned pi keys.
 			if !chainParams.PiKeyExists(pubKey) {
@@ -3197,6 +3259,16 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 					" %v", err)
 				return 0, ruleError(ErrInvalidPiSignature, str)
 			}
+		}
+	}
+
+	// Perform additional checks on treasury spends such as verifying the input
+	// values are sane and the spend amount commitment in the first output
+	// matches the input amount.
+	if isTreasurySpend {
+		err := checkTreasurySpendInputs(tx.MsgTx())
+		if err != nil {
+			return 0, err
 		}
 	}
 
@@ -3218,7 +3290,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		}
 
 		// idx can only be 0 in this case but check it anyway.
-		if (isTreasuryBase || isTSpend) && idx == 0 {
+		if (isTreasuryBase || isTreasurySpend) && idx == 0 {
 			totalAtomIn += txIn.ValueIn
 			continue
 		}
@@ -3977,6 +4049,9 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // block. It verifies that it is on a TVI, is within the correct window, has
 // not been mined before and that it doesn't overspend the treasury. This
 // function assumes that the treasury agenda is enabled.
+//
+// The caller MUST have already have already called [checkTreasurySpendInputs]
+// on all treasury spends in the block and prior to calling this method.
 func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) error {
 	blockHeight := prevNode.height + 1
 	isTVI := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
@@ -4007,24 +4082,11 @@ func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) err
 			return ruleError(ErrInvalidTSpendWindow, str)
 		}
 
-		// A valid TSPEND always stores the entire amount that the
-		// treasury is spending in the first TxIn.
+		// A valid treasury spend always stores the entire amount that the
+		// treasury is spending in the first input.  It is safe to use since it
+		// has already been verified to match the commitment value.
 		valueIn := stx.MsgTx().TxIn[0].ValueIn
 		totalTSpendAmount += valueIn
-
-		// Verify that the ValueIn amount is identical to the LE
-		// encoded ValueIn in the OP_RETURN. Since the TSpend has been
-		// validated to be correct we simply index the bytes directly
-		// without additional checks.
-		leValueIn := stx.MsgTx().TxOut[0].PkScript[2 : 2+8]
-		valueInOpRet := int64(binary.LittleEndian.Uint64(leValueIn))
-		if valueIn != valueInOpRet {
-			str := fmt.Sprintf("block contains TSpend transaction "+
-				"(%v) that did not encode ValueIn correctly "+
-				"got %v wanted %v", stx.Hash(), valueInOpRet,
-				valueIn)
-			return ruleError(ErrInvalidTSpendValueIn, str)
-		}
 
 		// Verify this TSpend hash has not been included in a
 		// prior block.
@@ -4116,15 +4178,6 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		}
 	}
 
-	// Verify treasury spends.  This is done relatively late because the
-	// database needs to be coherent.
-	if isTreasuryEnabled {
-		err = b.tspendChecks(node.parent, block)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Don't run scripts if this node is both an ancestor of the assumed valid
 	// block and an ancestor of the best header since the validity is verified
 	// via the assumed valid node (all transactions are included in the merkle
@@ -4199,6 +4252,16 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	if err != nil {
 		log.Tracef("checkTransactionsAndConnect failed for stake tree: %v", err)
 		return err
+	}
+
+	// Verify treasury spends.  This is done relatively late because the
+	// database needs to be coherent and it depends on input checks already
+	// being done.
+	if isTreasuryEnabled {
+		err = b.tspendChecks(node.parent, block)
+		if err != nil {
+			return err
+		}
 	}
 
 	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
