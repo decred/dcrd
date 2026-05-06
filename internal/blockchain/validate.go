@@ -2161,9 +2161,9 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return ruleError(ErrRevocationsMismatch, str)
 	}
 
-	// The number of signature operations must be less than the maximum allowed
-	// per block.
-	totalSigOps := 0
+	// The number of signature operations must not overflow the accumulator and
+	// be less than the maximum allowed per block.
+	var totalSigOps uint32
 	regularTxns := block.Transactions()
 	stakeTxns := block.STransactions()
 	allTxns := make([]*dcrutil.Tx, 0, len(regularTxns)+len(stakeTxns))
@@ -2172,12 +2172,21 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	for _, tx := range allTxns {
 		msgTx := tx.MsgTx()
 
-		// We could potentially overflow the accumulator so check for overflow.
-		lastSigOps := totalSigOps
 		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 		isSSGen := stake.IsSSGen(msgTx)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
-		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
+		numSigOps, err := countSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
+		if err != nil {
+			return err
+		}
+
+		var ok bool
+		totalSigOps, ok = addUnsigned(totalSigOps, numSigOps)
+		if !ok {
+			str := fmt.Sprintf("tx %v causes block signature operation count "+
+				"to overflow", tx.Hash())
+			return ruleError(ErrTooManySigOps, str)
+		}
+		if totalSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature operations "+
 				"- got %v, max %v", totalSigOps, MaxSigOpsPerBlock)
 			return ruleError(ErrTooManySigOps, str)
@@ -3404,58 +3413,64 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	return txFeeInAtom, nil
 }
 
-// CountSigOps returns the number of signature operations for all transaction
-// input and output scripts in the provided transaction.  This uses the
-// quicker, but imprecise, signature operation counting mechanism from
-// txscript.
-func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int {
+// countSigOps returns the number of signature operations for all input and
+// output scripts in the provided transaction.  This uses the quicker, but
+// imprecise, signature operation counting mechanism from the script engine.
+func countSigOps(tx *dcrutil.Tx, isCoinBase bool, isVote bool, isTreasuryEnabled bool) (uint32, error) {
+	// Treasurybases do not have any signature operations.
 	msgTx := tx.MsgTx()
-
-	totalSigOps := 0
-
 	if isTreasuryEnabled && stake.IsTreasuryBase(msgTx) {
-		return totalSigOps
-	}
-
-	if !isCoinBaseTx {
-		// Accumulate the number of signature operations in all
-		// transaction inputs.
-		for i, txIn := range msgTx.TxIn {
-			// Skip stakebase inputs.
-			if isSSGen && i == 0 {
-				continue
-			}
-
-			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript,
-				isTreasuryEnabled)
-			totalSigOps += numSigOps
-		}
-	}
-
-	// Accumulate the number of signature operations in all transaction
-	// outputs.
-	for _, txOut := range msgTx.TxOut {
-		numSigOps := txscript.GetSigOpCount(txOut.PkScript,
-			isTreasuryEnabled)
-		totalSigOps += numSigOps
-	}
-
-	return totalSigOps
-}
-
-// CountP2SHSigOps returns the number of signature operations for all input
-// transactions which are of the pay-to-script-hash type.  This uses the
-// precise, signature operation counting mechanism from the script engine which
-// requires access to the input transaction scripts.
-func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view *UtxoViewpoint, isTreasuryEnabled bool) (int, error) {
-	// Coinbase transactions have no interesting inputs.
-	if isCoinBaseTx {
 		return 0, nil
 	}
 
-	// Stakebase (SSGen) transactions have no P2SH inputs.  Same with SSRtx,
-	// but they will still pass the checks below.
-	if isStakeBaseTx {
+	// Determine which transaction inputs to consider.  Coinbase transactions
+	// and the first input (aka stakebase) of a vote do not have normal input
+	// scripts to consider.
+	var txInStartIdx int
+	txIns := msgTx.TxIn
+	if isCoinBase {
+		txIns = nil
+	} else if isVote && len(txIns) > 0 {
+		txInStartIdx = 1
+		txIns = txIns[txInStartIdx:]
+	}
+
+	// Accumulate the number of signature operations in all relevant transaction
+	// inputs.
+	var totalSigOps uint32
+	var ok bool
+	for txInIdx, txIn := range txIns {
+		sigScript := txIn.SignatureScript
+		numSigOps := txscript.GetSigOpCount(sigScript, isTreasuryEnabled)
+		totalSigOps, ok = addUnsigned(totalSigOps, uint32(numSigOps))
+		if !ok {
+			str := fmt.Sprintf("input %v:%d signature script causes signature "+
+				"operation count to overflow", tx.Hash(), txInIdx+txInStartIdx)
+			return 0, ruleError(ErrTooManySigOps, str)
+		}
+	}
+
+	// Accumulate the number of signature operations in all transaction outputs.
+	for txOutIdx, txOut := range msgTx.TxOut {
+		numSigOps := txscript.GetSigOpCount(txOut.PkScript, isTreasuryEnabled)
+		totalSigOps, ok = addUnsigned(totalSigOps, uint32(numSigOps))
+		if !ok {
+			str := fmt.Sprintf("output %v:%d public key script causes "+
+				"signature operation count to overflow", tx.Hash(), txOutIdx)
+			return 0, ruleError(ErrTooManySigOps, str)
+		}
+	}
+
+	return totalSigOps, nil
+}
+
+// countP2SHSigOps returns the number of signature operations for all input
+// transactions which are of the pay-to-script-hash type.  This uses the
+// precise, signature operation counting mechanism from the script engine which
+// requires access to the input transaction scripts.
+func countP2SHSigOps(tx *dcrutil.Tx, isCoinBase bool, isVote bool, view *UtxoViewpoint, isTreasuryEnabled bool) (uint32, error) {
+	// Coinbase transactions have no interesting inputs.
+	if isCoinBase {
 		return 0, nil
 	}
 
@@ -3469,42 +3484,44 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		}
 	}
 
-	// Accumulate the number of signature operations in all transaction
-	// inputs.
-	totalSigOps := 0
-	for txInIndex, txIn := range msgTx.TxIn {
+	// The first input (aka stakebase) of votes have no P2SH inputs.
+	var txInStartIdx int
+	txIns := msgTx.TxIn
+	if isVote && len(txIns) > 0 {
+		txInStartIdx = 1
+		txIns = txIns[txInStartIdx:]
+	}
+
+	// Accumulate the number of signature operations from all pay-to-script-hash
+	// transaction inputs.
+	var totalSigOps uint32
+	for txInIndex, txIn := range txIns {
 		// Ensure the referenced input transaction is available.
 		txInOutpoint := txIn.PreviousOutPoint
 		utxoEntry := view.LookupEntry(txInOutpoint)
 		if utxoEntry == nil || utxoEntry.IsSpent() {
-			str := fmt.Sprintf("output %v referenced from "+
-				"transaction %s:%d either does not exist or "+
-				"has already been spent", txInOutpoint,
-				tx.Hash(), txInIndex)
+			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
+				"either does not exist or has already been spent", txInOutpoint,
+				tx.Hash(), txInIndex+txInStartIdx)
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
-		// We're only interested in pay-to-script-hash types, so skip
-		// this input if it's not one.
+		// Skip inputs that aren't pay-to-script-hash.
 		pkScript := utxoEntry.PkScript()
 		if !txscript.IsPayToScriptHash(pkScript) {
 			continue
 		}
 
-		// Count the precise number of signature operations in the
-		// referenced public key script.
+		// Count the precise number of signature operations in the referenced
+		// public key script.
+		var ok bool
 		sigScript := txIn.SignatureScript
 		numSigOps := txscript.GetPreciseSigOpCount(sigScript, pkScript,
 			isTreasuryEnabled)
-
-		// We could potentially overflow the accumulator so check for
-		// overflow.
-		lastSigOps := totalSigOps
-		totalSigOps += numSigOps
-		if totalSigOps < lastSigOps {
-			str := fmt.Sprintf("the public key script from output "+
-				"%v contains too many signature operations - "+
-				"overflow", txInOutpoint)
+		totalSigOps, ok = addUnsigned(totalSigOps, uint32(numSigOps))
+		if !ok {
+			str := fmt.Sprintf("output %v public key script causes signature "+
+				"operations count to overflow", txInOutpoint)
 			return 0, ruleError(ErrTooManySigOps, str)
 		}
 	}
@@ -3512,42 +3529,32 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 	return totalSigOps, nil
 }
 
-// checkNumSigOps Checks the number of P2SH signature operations to make
-// sure they don't overflow the limits.  It takes a cumulative number of sig
-// ops as an argument and increments will each call.
-func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, stakeTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
-	msgTx := tx.MsgTx()
-	isSSGen := stake.IsSSGen(msgTx)
-	isCoinbaseTx := (index == 0) && !stakeTree
-	numsigOps := CountSigOps(tx, isCoinbaseTx, isSSGen, isTreasuryEnabled)
-
-	// Since the first (and only the first) transaction has already been
-	// verified to be a coinbase transaction, use (i == 0) && TxTree as an
-	// optimization for the flag to countP2SHSigOps for whether or not the
-	// transaction is a coinbase transaction rather than having to do a
-	// full coinbase check again.
-	numP2SHSigOps, err := CountP2SHSigOps(tx, isCoinbaseTx, isSSGen, view,
-		isTreasuryEnabled)
+// CountTotalSigOps returns the total number of signature operations for the
+// given transaction.  This includes all input and output scripts as well as
+// signature operations in any redeemed pay-to-script-hash inputs.
+func CountTotalSigOps(tx *dcrutil.Tx, isCoinBase, isVote bool, view *UtxoViewpoint, isTreasuryEnabled bool) (uint32, error) {
+	// Count the number of regular signature operations.
+	numSigOps, err := countSigOps(tx, isCoinBase, isVote, isTreasuryEnabled)
 	if err != nil {
-		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err
 	}
 
-	startCumSigOps := cumulativeSigOps
-	cumulativeSigOps += numsigOps
-	cumulativeSigOps += numP2SHSigOps
+	// Count the number of precise pay-to-script-hash signature operations.
+	numP2SHSigOps, err := countP2SHSigOps(tx, isCoinBase, isVote, view,
+		isTreasuryEnabled)
+	if err != nil {
+		return 0, err
+	}
 
-	// Check for overflow or going over the limits.  We have to do
-	// this on every loop iteration to avoid overflow.
-	if cumulativeSigOps < startCumSigOps ||
-		cumulativeSigOps > MaxSigOpsPerBlock {
-		str := fmt.Sprintf("block contains too many signature "+
-			"operations - got %v, max %v", cumulativeSigOps,
-			MaxSigOpsPerBlock)
+	// Ensure the combined total does not overflow.
+	totalSigOps, ok := addUnsigned(numSigOps, numP2SHSigOps)
+	if !ok {
+		str := fmt.Sprintf("tx %v total signature operations overflow",
+			tx.Hash())
 		return 0, ruleError(ErrTooManySigOps, str)
 	}
 
-	return cumulativeSigOps, nil
+	return totalSigOps, nil
 }
 
 // checkStakeBaseAmounts calculates the total amount given as subsidy from
@@ -3735,15 +3742,33 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 	}
 	totalFees := int64(inputFees) // Stake tx tree carry forward
 	prevHeader := node.parent.Header()
-	var cumulativeSigOps int
+	var cumulativeSigOps uint32
 	for idx, tx := range txs {
-		// Ensure that the number of signature operations is not beyond
-		// the consensus limit.
-		var err error
-		cumulativeSigOps, err = checkNumSigOps(tx, view, idx, stakeTree,
-			cumulativeSigOps, isTreasuryEnabled)
+		// Since the first (and only the first) transaction has already been
+		// verified to be a coinbase transaction, use (idx == 0) && !stakeTree
+		// as an optimization rather than having to do a full coinbase check
+		// again.
+		isCoinBase := (idx == 0) && !stakeTree
+		isVote := stakeTree && stake.IsSSGen(tx.MsgTx())
+
+		// The number of signature operations must not overflow the accumulator
+		// and be less than the maximum allowed per block.
+		var ok bool
+		numSigOps, err := CountTotalSigOps(tx, isCoinBase, isVote, view,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
+		}
+		cumulativeSigOps, ok = addUnsigned(cumulativeSigOps, numSigOps)
+		if !ok {
+			str := fmt.Sprintf("tx %v causes block signature operation count "+
+				"to overflow", tx.Hash())
+			return ruleError(ErrTooManySigOps, str)
+		}
+		if cumulativeSigOps > MaxSigOpsPerBlock {
+			str := fmt.Sprintf("block contains too many signature operations "+
+				"- got %v, max %v", cumulativeSigOps, MaxSigOpsPerBlock)
+			return ruleError(ErrTooManySigOps, str)
 		}
 
 		// Perform a series of checks on the inputs to the transaction to ensure

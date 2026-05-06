@@ -1130,7 +1130,7 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 // newTxDesc returns a new TxDesc instance that captures mempool state
 // relevant to the provided transaction at the current time.
 func (mp *TxPool) newTxDesc(tx *dcrutil.Tx, txType stake.TxType, height int64,
-	fee int64, totalSigOps int, txSize int64) *TxDesc {
+	fee int64, totalSigOps uint32, txSize int64) *TxDesc {
 
 	return &TxDesc{
 		TxDesc: mining.TxDesc{
@@ -1582,13 +1582,13 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 	// you should add code here to check that the transaction does a
 	// reasonable number of ECDSA signature verifications.
 
-	// Don't allow transactions with an excessive number of signature
-	// operations which would result in making it impossible to mine.  Since
-	// the coinbase address itself can contain signature operations, the
-	// maximum allowed signature operations per transaction is less than
-	// the maximum allowed signature operations per block.
-	numP2SHSigOps, err := blockchain.CountP2SHSigOps(tx, false,
-		(txType == stake.TxTypeSSGen), utxoView, isTreasuryEnabled)
+	// Don't allow transactions with an excessive number of signature operations
+	// which would result in making it impossible to mine.  Since the coinbase
+	// address itself can contain signature operations, the maximum allowed
+	// signature operations per transaction is less than the maximum allowed
+	// signature operations per block.
+	totalSigOps, err := blockchain.CountTotalSigOps(tx, false, isVote, utxoView,
+		isTreasuryEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1596,10 +1596,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		}
 		return nil, err
 	}
-
-	numSigOps := blockchain.CountSigOps(tx, false, isVote, isTreasuryEnabled)
-	totalSigOps := numP2SHSigOps + numSigOps
-	if totalSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
+	if totalSigOps > uint32(mp.cfg.Policy.MaxSigOpsPerTx) {
 		str := fmt.Sprintf("transaction %v has too many sigops: %d > %d",
 			txHash, totalSigOps, mp.cfg.Policy.MaxSigOpsPerTx)
 		return nil, txRuleError(ErrNonStandard, str)

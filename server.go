@@ -4308,7 +4308,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 					isAutoRevocationsEnabled, subsidySplitVariant)
 			},
 			CheckTSpendHasVotes:             s.chain.CheckTSpendHasVotes,
-			CountSigOps:                     blockchain.CountSigOps,
+			CountTotalSigOps:                blockchain.CountTotalSigOps,
 			FetchUtxoEntry:                  s.chain.FetchUtxoEntry,
 			FetchUtxoView:                   s.chain.FetchUtxoView,
 			FetchUtxoViewParentTemplate:     s.chain.FetchUtxoViewParentTemplate,
