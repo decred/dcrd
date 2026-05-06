@@ -2342,7 +2342,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	// corruptTreasurybaseValueIn is a munge function which modifies the
 	// provided block by mutating the treasurybase in value.
 	corruptTreasurybaseValueIn := func(b *wire.MsgBlock) {
-		b.STransactions[0].TxIn[0].ValueIn--
+		b.STransactions[0].TxIn[0].ValueIn++
 	}
 
 	// corruptTreasurybaseValueOut is a munge function which modifies the

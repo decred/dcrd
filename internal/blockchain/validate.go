@@ -3110,14 +3110,13 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 	isTreasuryEnabled, isAutoRevocationsEnabled bool,
 	subsidySplitVariant standalone.SubsidySplitVariant) (int64, error) {
 
-	// Coinbase transactions have no inputs.
+	// NOTE: This check MUST come before the coinbase check because a
+	// treasurybase will be identified as a coinbase as well.
 	msgTx := tx.MsgTx()
-	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
-		return 0, nil
-	}
+	isTreasuryBase := isTreasuryEnabled && standalone.IsTreasuryBase(msgTx)
 
-	// Treasurybase transactions have no inputs.
-	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
+	// Coinbase transactions have no inputs.
+	if !isTreasuryBase && standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		return 0, nil
 	}
 
@@ -3219,7 +3218,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		}
 
 		// idx can only be 0 in this case but check it anyway.
-		if isTSpend && idx == 0 {
+		if (isTreasuryBase || isTSpend) && idx == 0 {
 			totalAtomIn += txIn.ValueIn
 			continue
 		}
