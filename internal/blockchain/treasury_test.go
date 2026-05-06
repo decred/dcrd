@@ -2430,6 +2430,28 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	g.NextBlock("invalidout0", nil, outs[1:], corruptTreasurybaseValueOut)
 	g.RejectTipBlock(ErrTreasurybaseOutValue)
 
+	// -------------------------------------------------------------------------
+	// Treasury base spends more than input amount.
+	// -------------------------------------------------------------------------
+
+	g.SetTip(startTip)
+	g.NextBlock("invalidout1", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.STransactions[0].TxOut[1].Value++
+	})
+	g.RejectTipBlock(ErrSpendTooHigh)
+
+	// -------------------------------------------------------------------------
+	// Treasury base spends the correct amount overall, but does not give the
+	// correct amount to the treasury.
+	// -------------------------------------------------------------------------
+
+	g.SetTip(startTip)
+	g.NextBlock("invalidout2", nil, outs[1:], func(b *wire.MsgBlock) {
+		b.STransactions[0].TxOut[0].Value--
+		b.STransactions[0].TxOut[1].Value++
+	})
+	g.RejectTipBlock(ErrTreasurybaseOutValue)
+
 	// Note we can't hit the following errors in consensus:
 	// * ErrFirstTxNotTreasurybase (missing OP_RETURN)
 	// * ErrFirstTxNotTreasurybase (version)
