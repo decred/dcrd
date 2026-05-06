@@ -3710,96 +3710,28 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 	return totalOutputs - totalInputs, nil
 }
 
-// getStakeTreeFees determines the amount of fees for in the stake tx tree of
-// some node given a utxo view.
-func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64,
-	txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool,
-	subsidySplitVariant standalone.SubsidySplitVariant) (dcrutil.Amount, error) {
-
-	totalInputs := int64(0)
-	totalOutputs := int64(0)
-	for _, tx := range txs {
-		msgTx := tx.MsgTx()
-		isSSGen := stake.IsSSGen(msgTx)
-		isTreasuryBase := isTreasuryEnabled && stake.IsTreasuryBase(msgTx)
-		isTreasurySpend := isTreasuryEnabled && stake.IsTSpend(msgTx)
-
-		for i, in := range msgTx.TxIn {
-			// Ignore stakebases.
-			if isSSGen && i == 0 {
-				continue
-			}
-
-			// Ignore treasury spends and treasurybases since they have no
-			// inputs.
-			if isTreasuryBase || isTreasurySpend {
-				continue
-			}
-
-			txInOutpoint := in.PreviousOutPoint
-			txInHash := &txInOutpoint.Hash
-			utxoEntry, exists := view.entries[txInOutpoint]
-			if !exists || utxoEntry == nil {
-				str := fmt.Sprintf("couldn't find input tx "+
-					"%v for stake tree fee calculation",
-					txInHash)
-				return 0, ruleError(ErrTicketUnavailable, str)
-			}
-
-			originTxAtom := utxoEntry.Amount()
-
-			totalInputs += originTxAtom
-		}
-
-		for _, out := range msgTx.TxOut {
-			totalOutputs += out.Value
-		}
-
-		// For votes, subtract the subsidy to determine actual fees.
-		if isSSGen {
-			// Subsidy aligns with the height we're voting on, not with the
-			// height of the current block.
-			totalOutputs -= subsidyCache.CalcStakeVoteSubsidyV3(height-1,
-				subsidySplitVariant)
-		}
-
-		if isTreasurySpend {
-			totalOutputs -= msgTx.TxIn[0].ValueIn
-		}
-
-		if isTreasuryBase {
-			totalOutputs -= msgTx.TxIn[0].ValueIn
-		}
-	}
-
-	if totalInputs < totalOutputs {
-		str := fmt.Sprintf("negative cumulative fees found in stake " +
-			"tx tree")
-		return 0, ruleError(ErrStakeFees, str)
-	}
-
-	return dcrutil.Amount(totalInputs - totalOutputs), nil
-}
-
 // checkTransactionsAndConnect is the local function used to check the
 // transaction inputs for a transaction list given a predetermined utxo view.
 // After ensuring the transaction is valid, the transaction is connected to the
 // utxo view.
+//
+// It returns the total fees paid by the transactions or 0 when the error is not
+// nil.
 func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 	node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint,
 	stxos *[]spentTxOut, stakeTree bool,
-	subsidySplitVariant standalone.SubsidySplitVariant) error {
+	subsidySplitVariant standalone.SubsidySplitVariant) (dcrutil.Amount, error) {
 
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Determine if the automatic ticket revocations agenda is active as of the
 	// block being checked.
 	isAutoRevocationsEnabled, err := b.isAutoRevocationsAgendaActive(node.parent)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Perform several checks on the inputs for each transaction.  Also
@@ -3830,18 +3762,18 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 		numSigOps, err := CountTotalSigOps(tx, isCoinBase, isVote, view,
 			isTreasuryEnabled)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		cumulativeSigOps, ok = addUnsigned(cumulativeSigOps, numSigOps)
 		if !ok {
 			str := fmt.Sprintf("tx %v causes block signature operation count "+
 				"to overflow", tx.Hash())
-			return ruleError(ErrTooManySigOps, str)
+			return 0, ruleError(ErrTooManySigOps, str)
 		}
 		if cumulativeSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature operations "+
 				"- got %v, max %v", cumulativeSigOps, MaxSigOpsPerBlock)
-			return ruleError(ErrTooManySigOps, str)
+			return 0, ruleError(ErrTooManySigOps, str)
 		}
 
 		// Perform a series of checks on the inputs to the transaction to ensure
@@ -3859,7 +3791,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			isTreasuryEnabled, isAutoRevocationsEnabled, subsidySplitVariant)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error returned: %v", err)
-			return err
+			return 0, err
 		}
 
 		// Sum the total fees and ensure we don't overflow the
@@ -3867,7 +3799,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 		lastTotalFees := totalFees
 		totalFees += txFee
 		if totalFees < lastTotalFees {
-			return ruleError(ErrBadFees, "total fees for block "+
+			return 0, ruleError(ErrBadFees, "total fees for block "+
 				"overflows accumulator")
 		}
 
@@ -3885,13 +3817,13 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			err := view.connectRegularTransaction(tx, node.height, uint32(idx),
 				inFlightRegularTx, stxos, isTreasuryEnabled)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		} else {
 			err := view.connectStakeTransaction(tx, node.height, uint32(idx),
 				stxos, isTreasuryEnabled)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
@@ -3939,7 +3871,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			errStr := fmt.Sprintf("bad coinbase subsidy in input;"+
 				" got %v, expected %v", coinbaseIn.ValueIn,
 				subsidyWithoutFees)
-			return ruleError(ErrBadCoinbaseAmountIn, errStr)
+			return 0, ruleError(ErrBadCoinbaseAmountIn, errStr)
 		}
 
 		if totalAtomOutRegular > expAtomOut {
@@ -3947,7 +3879,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 				" pays %v which is more than expected value "+
 				"of %v", node.hash, totalAtomOutRegular,
 				expAtomOut)
-			return ruleError(ErrBadCoinbaseValue, str)
+			return 0, ruleError(ErrBadCoinbaseValue, str)
 		}
 	} else { // TxTreeStake
 		// When treasury is enabled check treasurybase value
@@ -3958,7 +3890,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 				str := fmt.Sprintf("empty tx tree stake, "+
 					"expected treasurybase at height %v",
 					node.height)
-				return ruleError(ErrNoStakeTx, str)
+				return 0, ruleError(ErrNoStakeTx, str)
 			}
 			subsidyTax := b.subsidyCache.CalcTreasurySubsidy(node.height,
 				node.voters, isTreasuryEnabled)
@@ -3968,30 +3900,30 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 					"subsidy in input; got %v, expected %v",
 					treasurybaseIn.ValueIn,
 					subsidyTax)
-				return ruleError(ErrBadTreasurybaseAmountIn, errStr)
+				return 0, ruleError(ErrBadTreasurybaseAmountIn, errStr)
 			}
 		}
 
 		if len(txs) == 0 &&
 			node.height < b.chainParams.StakeValidationHeight {
-			return nil
+			return dcrutil.Amount(totalFees), nil
 		}
 		if len(txs) == 0 &&
 			node.height >= b.chainParams.StakeValidationHeight {
 			str := fmt.Sprintf("empty tx tree stake in block " +
 				"after stake validation height")
-			return ruleError(ErrNoStakeTx, str)
+			return 0, ruleError(ErrNoStakeTx, str)
 		}
 
 		err := checkStakeBaseAmounts(b.subsidyCache, node.height, txs, view,
 			subsidySplitVariant)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		totalAtomOutStake, err := getStakeBaseAmounts(txs, view)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		var expAtomOut int64
@@ -4007,11 +3939,11 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 			str := fmt.Sprintf("stakebase transactions for block pays %v "+
 				"which is more than expected value of %v", totalAtomOutStake,
 				expAtomOut)
-			return ruleError(ErrBadStakebaseValue, str)
+			return 0, ruleError(ErrBadStakebaseValue, str)
 		}
 	}
 
-	return nil
+	return dcrutil.Amount(totalFees), nil
 }
 
 // consensusScriptVerifyFlags returns the script flags that must be used when
@@ -4247,8 +4179,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	const stakeTreeTrue = true
-	err = b.checkTransactionsAndConnect(0, node, block.STransactions(),
-		view, stxos, stakeTreeTrue, subsidySplitVariant)
+	stakeTreeFees, err := b.checkTransactionsAndConnect(0, node,
+		block.STransactions(), view, stxos, stakeTreeTrue, subsidySplitVariant)
 	if err != nil {
 		log.Tracef("checkTransactionsAndConnect failed for stake tree: %v", err)
 		return err
@@ -4262,13 +4194,6 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		if err != nil {
 			return err
 		}
-	}
-
-	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
-		block.STransactions(), view, isTreasuryEnabled, subsidySplitVariant)
-	if err != nil {
-		log.Tracef("getStakeTreeFees failed for stake tree: %v", err)
-		return err
 	}
 
 	// Enforce all relative lock times via sequence numbers for the stake
@@ -4320,7 +4245,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	const stakeTreeFalse = false
-	err = b.checkTransactionsAndConnect(stakeTreeFees, node,
+	_, err = b.checkTransactionsAndConnect(stakeTreeFees, node,
 		block.Transactions(), view, stxos, stakeTreeFalse, subsidySplitVariant)
 	if err != nil {
 		log.Tracef("checkTransactionsAndConnect failed for regular tree: %v",
