@@ -1036,42 +1036,6 @@ func (sp *serverPeer) OnVersion(msg *wire.MsgVersion) error {
 			"providing desired services %v", msg.Services, missingServices)
 	}
 
-	// Update the address manager and request known addresses from the
-	// remote peer for outbound connections.  This is skipped when running
-	// on the simulation and regression test networks since they are only
-	// intended to connect to specified peers and actively avoid advertising
-	// and connecting to discovered peers.
-	if !cfg.SimNet && !cfg.RegNet && !isInbound {
-		// Advertise the local address when the server accepts incoming
-		// connections and it believes itself to be close to the best
-		// known tip.
-		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
-			// Get address that best matches.
-			pver := uint32(msg.ProtocolVersion)
-			addrTypeFilter := natfSupported(pver)
-			lna := addrManager.GetBestLocalAddress(sp.remoteAddr, addrTypeFilter)
-			if lna.IsRoutable() {
-				addresses := []*addrmgr.NetAddress{lna}
-				sp.pushAddrMsg(pver, addresses)
-			} else {
-				srvrLog.Debugf("Local address %s is not routable and will not "+
-					"be broadcast to outbound peer %v", lna.Key(), sp.Addr())
-			}
-		}
-
-		// Request known addresses if the server address manager needs
-		// more.
-		if addrManager.NeedMoreAddresses() {
-			sp.QueueMessage(wire.NewMsgGetAddr(), nil)
-		}
-
-		// Mark the address as a known good address.
-		err := addrManager.Good(sp.remoteAddr)
-		if err != nil {
-			srvrLog.Errorf("Marking address as good failed: %v", err)
-		}
-	}
-
 	sp.reportedLocalAddr.Store(&msg.AddrYou)
 
 	// Choose whether or not to relay transactions.
@@ -2735,6 +2699,41 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		srvrLog.Infof("New peer %s ignored - server is shutting down", sp)
 		sp.Disconnect()
 		return false
+	}
+
+	// Update the address manager and request known addresses from the remote
+	// peer for outbound connections.  This is skipped when running on the
+	// simulation and regression test networks since they are only intended to
+	// connect to specified peers and actively avoid advertising and connecting
+	// to discovered peers.
+	addrManager := sp.server.addrManager
+	if !cfg.SimNet && !cfg.RegNet && !sp.Inbound() {
+		// Advertise the local address when the server accepts incoming
+		// connections and it believes itself to be close to the best known tip.
+		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
+			// Get address that best matches.
+			pver := sp.ProtocolVersion()
+			addrTypeFilter := natfSupported(pver)
+			lna := addrManager.GetBestLocalAddress(sp.remoteAddr, addrTypeFilter)
+			if lna.IsRoutable() {
+				addrs := []*addrmgr.NetAddress{lna}
+				sp.pushAddrMsg(pver, addrs)
+			} else {
+				srvrLog.Debugf("Local address %s is not routable and will not "+
+					"be broadcast to outbound peer %v", lna.Key(), sp.Addr())
+			}
+		}
+
+		// Request known addresses if the server address manager needs more.
+		if addrManager.NeedMoreAddresses() {
+			sp.QueueMessage(wire.NewMsgGetAddr(), nil)
+		}
+
+		// Mark the address as a known good address.
+		err := addrManager.Good(sp.remoteAddr)
+		if err != nil {
+			srvrLog.Errorf("Marking address as good failed: %v", err)
+		}
 	}
 
 	// Consider the address the remote peer reported for the local connection as
