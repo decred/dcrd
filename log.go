@@ -59,7 +59,6 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	adxrLog = backendLog.Logger("ADXR")
 	amgrLog = backendLog.Logger("AMGR")
 	bcdbLog = backendLog.Logger("BCDB")
 	chanLog = backendLog.Logger("CHAN")
@@ -102,7 +101,6 @@ func init() {
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
-	"ADXR": adxrLog,
 	"AMGR": amgrLog,
 	"BCDB": bcdbLog,
 	"CHAN": chanLog,
