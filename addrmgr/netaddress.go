@@ -75,9 +75,18 @@ func (netAddr *NetAddress) Key() string {
 	return net.JoinHostPort(netAddr.ipString(), portString)
 }
 
+// Network returns the name of the network.  It is always tcp.
+//
+// This is part of the [net.Addr] implementation.
+func (netAddr *NetAddress) Network() string {
+	return "tcp"
+}
+
 // String returns a human-readable string for the network address.  This is
 // equivalent to calling Key, but is provided so the type can be used as a
 // fmt.Stringer.
+//
+// This is part of the [net.Addr] implementation.
 func (netAddr *NetAddress) String() string {
 	return netAddr.Key()
 }
