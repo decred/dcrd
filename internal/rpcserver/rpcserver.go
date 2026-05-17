@@ -598,7 +598,7 @@ func newWorkState() *workState {
 }
 
 // handleAddNode handles addnode commands.
-func handleAddNode(_ context.Context, s *Server, cmd any) (any, error) {
+func handleAddNode(ctx context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.AddNodeCmd)
 
 	addr := normalizeAddress(c.Addr, s.cfg.ChainParams.DefaultPort)
@@ -606,25 +606,47 @@ func handleAddNode(_ context.Context, s *Server, cmd any) (any, error) {
 	var err error
 	switch c.SubCmd {
 	case "add":
-		err = connMgr.Connect(addr, true)
+		err = connMgr.Connect(ctx, addr, true)
 	case "remove":
 		err = connMgr.RemoveByAddr(addr)
 	case "onetry":
-		err = connMgr.Connect(addr, false)
+		err = connMgr.Connect(ctx, addr, false)
 	default:
 		return nil, rpcInvalidError("Invalid subcommand for addnode")
 	}
 
 	if err != nil {
-		return nil, rpcInvalidError("%v: %v", c.SubCmd, err)
+		switch {
+		// Connecting involves child contexts, so there is no guarantee that
+		// context errors returned from Connect are the result of the parent
+		// context.
+		//
+		// Check the parent context first to determine if the failure is the
+		// result of the RPC server (e.g. RPC connection closed, server
+		// shutdown, etc).
+		//
+		// Otherwise, context errors refer to the actual connection attempt.
+		case ctx.Err() != nil:
+			return nil, rpcConnectionClosedError()
+
+		case errors.Is(err, context.Canceled):
+			return nil, rpcCancelError("%v: connection attempt to %v canceled",
+				c.SubCmd, addr)
+
+		case errors.Is(err, context.DeadlineExceeded):
+			return nil, rpcCancelError("%v: timeout connecting to %v", c.SubCmd,
+				addr)
+		}
+
+		prefix := fmt.Sprintf("%v: failed operation on %v", c.SubCmd, addr)
+		return nil, rpcInternalErr(err, prefix)
 	}
 
-	// no data returned unless an error.
 	return nil, nil
 }
 
 // handleNode handles node commands.
-func handleNode(_ context.Context, s *Server, cmd any) (any, error) {
+func handleNode(ctx context.Context, s *Server, cmd any) (any, error) {
 	c := cmd.(*types.NodeCmd)
 
 	connMgr := s.cfg.ConnMgr
@@ -646,13 +668,16 @@ func handleNode(_ context.Context, s *Server, cmd any) (any, error) {
 				addr = normalizeAddress(c.Target, params.DefaultPort)
 				err = connMgr.DisconnectByAddr(addr)
 			} else {
-				return nil, rpcInvalidError("%v: Invalid "+
-					"address or node ID", c.SubCmd)
+				return nil, rpcInvalidError("%v: invalid address or node ID",
+					c.SubCmd)
 			}
 		}
 		if err != nil && peerExists(connMgr, addr, int32(nodeID)) {
-			return nil, rpcMiscError("can't disconnect a permanent peer, " +
-				"use remove")
+			return nil, rpcMiscError("can't disconnect a permanent peer, use " +
+				"remove")
+		}
+		if err != nil {
+			return nil, rpcInvalidError("%v: %v", c.SubCmd, err)
 		}
 
 	case "remove":
@@ -667,13 +692,16 @@ func handleNode(_ context.Context, s *Server, cmd any) (any, error) {
 				addr = normalizeAddress(c.Target, params.DefaultPort)
 				err = connMgr.RemoveByAddr(addr)
 			} else {
-				return nil, rpcInvalidError("%v: invalid "+
-					"address or node ID", c.SubCmd)
+				return nil, rpcInvalidError("%v: invalid address or node ID",
+					c.SubCmd)
 			}
 		}
 		if err != nil && peerExists(connMgr, addr, int32(nodeID)) {
-			return nil, rpcMiscError("can't remove a temporary peer, " +
-				"use disconnect")
+			return nil, rpcMiscError("can't remove a temporary peer, use " +
+				"disconnect")
+		}
+		if err != nil {
+			return nil, rpcInvalidError("%v: %v", c.SubCmd, err)
 		}
 
 	case "connect":
@@ -687,20 +715,42 @@ func handleNode(_ context.Context, s *Server, cmd any) (any, error) {
 
 		switch subCmd {
 		case "perm", "temp":
-			err = connMgr.Connect(addr, subCmd == "perm")
+			err = connMgr.Connect(ctx, addr, subCmd == "perm")
 		default:
-			return nil, rpcInvalidError("%v: invalid subcommand "+
-				"for node connect", subCmd)
+			return nil, rpcInvalidError("%v: invalid subcommand for node "+
+				"connect", subCmd)
 		}
+		if err != nil {
+			// Connecting involves child contexts, so there is no guarantee that
+			// context errors returned from Connect are the result of the parent
+			// context.
+			//
+			// Check the parent context first to determine if the failure is the
+			// result of the RPC server (e.g. RPC connection closed, server
+			// shutdown, etc).
+			//
+			// Otherwise, context errors refer to the actual connection attempt.
+			switch {
+			case ctx.Err() != nil:
+				return nil, rpcConnectionClosedError()
+
+			case errors.Is(err, context.Canceled):
+				return nil, rpcCancelError("%v: connection attempt to %v "+
+					"canceled", c.SubCmd, addr)
+
+			case errors.Is(err, context.DeadlineExceeded):
+				return nil, rpcCancelError("%v: timeout connecting to %v",
+					c.SubCmd, addr)
+			}
+
+			prefix := fmt.Sprintf("%v: failed operation on %v", c.SubCmd, addr)
+			return nil, rpcInternalErr(err, prefix)
+		}
+
 	default:
 		return nil, rpcInvalidError("%v: invalid subcommand for node", c.SubCmd)
 	}
 
-	if err != nil {
-		return nil, rpcInvalidError("%v: %v", c.SubCmd, err)
-	}
-
-	// no data returned unless an error.
 	return nil, nil
 }
 

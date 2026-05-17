@@ -15,7 +15,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/blockchain"
-	"github.com/decred/dcrd/internal/connmgr"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/mining/cpuminer"
@@ -125,29 +124,7 @@ var _ rpcserver.ConnManager = (*rpcConnManager)(nil)
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.ConnManager interface implementation.
-func (cm *rpcConnManager) Connect(addr string, permanent bool) error {
-	// Prevent duplicate connections to the same peer.
-	connManager := cm.server.connManager
-	err := connManager.ForEachConnReq(func(c *connmgr.ConnReq) error {
-		if c.Addr != nil && c.Addr.String() == addr {
-			if c.Permanent {
-				return errors.New("peer exists as a permanent peer")
-			}
-
-			switch c.State() {
-			case connmgr.ConnPending:
-				return errors.New("peer pending connection")
-			case connmgr.ConnEstablished:
-				return errors.New("peer already connected")
-
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
+func (cm *rpcConnManager) Connect(ctx context.Context, addr string, permanent bool) error {
 	netAddr, err := addrStringToNetAddr(addr)
 	if err != nil {
 		return err
@@ -161,40 +138,44 @@ func (cm *rpcConnManager) Connect(addr string, permanent bool) error {
 		return errors.New("max peers reached")
 	}
 
-	go connManager.Connect(context.Background(), &connmgr.ConnReq{
-		Addr:      netAddr,
-		Permanent: permanent,
-	})
-	return nil
+	// Attempt to add a persistent peer when requested.
+	connManager := cm.server.connManager
+	if permanent {
+		_, err := connManager.AddPersistent(netAddr)
+		return err
+	}
+
+	// Attempt to connect to the address.
+	_, err = connManager.Connect(ctx, netAddr)
+	return err
 }
 
-// removeNode removes any peers that the provided compare function return true
+// errPeerNotFound is returned by the RPC conn manager when no matching peer for
+// a given address or ID is found.
+var errPeerNotFound = errors.New("peer not found")
+
+// removeNode removes any peer that the provided compare function return true
 // for from the list of persistent peers.
 //
-// An error will be returned if no matching peers are found (aka the compare
+// An error will be returned if no matching peer is found (aka the compare
 // function returns false for all peers).
 func (cm *rpcConnManager) removeNode(cmp func(*serverPeer) bool) error {
 	state := &cm.server.peerState
+	var found *serverPeer
 	state.Lock()
-	found := disconnectPeer(state.persistentPeers, cmp, func(sp *serverPeer) {
-		// Update the group counts since the peer will be removed from the
-		// persistent peers just after this func returns.
-		state.outboundGroups[sp.remoteAddr.GroupKey()]--
-
-		connReq := sp.connReq.Load()
-		peerLog.Debugf("Removing persistent peer %s (reqid %d)", sp.remoteAddr,
-			connReq.ID())
-
-		// Mark the peer's connReq as nil to prevent it from scheduling a
-		// re-connect attempt.
-		sp.connReq.Store(nil)
-		cm.server.connManager.Remove(connReq.ID())
-	})
-	state.Unlock()
-
-	if !found {
-		return errors.New("peer not found")
+	for _, peer := range state.persistentPeers {
+		if cmp(peer) {
+			found = peer
+			break
+		}
 	}
+	state.Unlock()
+	if found == nil {
+		return errPeerNotFound
+	}
+
+	peerLog.Debugf("Removing persistent peer %s", found.remoteAddr)
+	cm.server.connManager.Remove(found.conn.ID())
 	return nil
 }
 
@@ -203,10 +184,20 @@ func (cm *rpcConnManager) removeNode(cmp func(*serverPeer) bool) error {
 // an error.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserver.ConnManager interface implementation.
+// [rpcserver.ConnManager] interface implementation.
 func (cm *rpcConnManager) RemoveByID(id int32) error {
+	// Attempt to remove the peer by ID first.  When the ID does not correspond
+	// to an established persistent peer, fall back to treating the ID as a
+	// connection ID and remove it when it is for a persistent connection.
+	connManager := cm.server.connManager
 	cmp := func(sp *serverPeer) bool { return sp.ID() == id }
-	return cm.removeNode(cmp)
+	err := cm.removeNode(cmp)
+	if errors.Is(err, errPeerNotFound) && connManager.IsPersistent(uint64(id)) {
+		if rErr := connManager.Remove(uint64(id)); rErr == nil {
+			return nil
+		}
+	}
+	return err
 }
 
 // RemoveByAddr removes the peer associated with the provided address from the
@@ -214,57 +205,67 @@ func (cm *rpcConnManager) RemoveByID(id int32) error {
 // exist will return an error.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserver.ConnManager interface implementation.
+// [rpcserver.ConnManager] interface implementation.
 func (cm *rpcConnManager) RemoveByAddr(addr string) error {
+	// Attempt to remove the peer by address first.  When the address does not
+	// correspond to an established persistent peer, fall back to searching the
+	// connection manager directly for a matching persistent connection entry
+	// and remove it when found.
 	cmp := func(sp *serverPeer) bool { return sp.Addr() == addr }
 	err := cm.removeNode(cmp)
-	if err != nil {
-		netAddr, err := addrStringToNetAddr(addr)
-		if err != nil {
-			return err
+	if errors.Is(err, errPeerNotFound) {
+		netAddr := simpleAddr{"tcp", addr}
+		if id, ok := cm.server.connManager.FindPersistentAddrID(netAddr); ok {
+			cm.server.connManager.Remove(id)
+			return nil
 		}
-		return cm.server.connManager.CancelPending(netAddr)
 	}
-	return nil
+	return err
 }
 
-// disconnectNode disconnects any peers that the provided compare function
+// disconnectNode disconnects any peer that the provided compare function
 // returns true for.  It applies to both inbound and outbound peers.
 //
-// An error will be returned if no matching peers are found (aka the compare
+// An error will be returned if no matching peer is found (aka the compare
 // function returns false for all peers).
 //
 // This function is safe for concurrent access.
 func (cm *rpcConnManager) disconnectNode(cmp func(sp *serverPeer) bool) error {
 	state := &cm.server.peerState
-	defer state.Unlock()
+
 	state.Lock()
+	defer state.Unlock()
 
-	// Check inbound peers.  No callback is passed since there are no additional
-	// actions on disconnect for inbound peers.
-	found := disconnectPeer(state.inboundPeers, cmp, nil)
-	if found {
-		return nil
-	}
+	// The code below uses the fact that the connection manager prevents
+	// connections with duplicate addresses to limit the search to a single
+	// match.
 
-	// Check outbound peers in a loop to ensure all outbound connections to the
-	// same ip:port are disconnected when there are multiple.
-	var numFound uint32
-	for ; ; numFound++ {
-		found = disconnectPeer(state.outboundPeers, cmp, func(sp *serverPeer) {
-			// Update the group counts since the peer will be removed from the
-			// persistent peers just after this func returns.
-			state.outboundGroups[sp.remoteAddr.GroupKey()]--
-		})
-		if !found {
+	// Check inbound peers.
+	var inbound *serverPeer
+	for _, peer := range state.inboundPeers {
+		if cmp(peer) {
+			inbound = peer
 			break
 		}
 	}
-
-	if numFound == 0 {
-		return errors.New("peer not found")
+	if inbound != nil {
+		inbound.Disconnect()
+		return nil
 	}
-	return nil
+
+	// Check outbound peers.
+	var outbound *serverPeer
+	for _, peer := range state.outboundPeers {
+		if cmp(peer) {
+			outbound = peer
+		}
+	}
+	if outbound != nil {
+		outbound.Disconnect()
+		return nil
+	}
+
+	return errPeerNotFound
 }
 
 // DisconnectByID disconnects the peer associated with the provided id.  This

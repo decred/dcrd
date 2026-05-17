@@ -114,7 +114,7 @@ type ConnManager interface {
 	// permanent flag indicates whether or not to make the peer persistent
 	// and reconnect if the connection is lost.  Attempting to connect to an
 	// already existing peer will return an error.
-	Connect(addr string, permanent bool) error
+	Connect(ctx context.Context, addr string, permanent bool) error
 
 	// RemoveByID removes the peer associated with the provided id from the
 	// list of persistent peers.  Attempting to remove an id that does not

@@ -856,7 +856,7 @@ type testConnManager struct {
 
 // Connect provides a mock implementation for adding the provided address as a
 // new outbound peer.
-func (c *testConnManager) Connect(addr string, permanent bool) error {
+func (c *testConnManager) Connect(ctx context.Context, addr string, permanent bool) error {
 	return c.connectErr
 }
 
@@ -1919,7 +1919,7 @@ func TestHandleAddNode(t *testing.T) {
 			return connManager
 		}(),
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInvalidParameter,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
 		name:    "handleAddNode: 'remove' subcommand error",
 		handler: handleAddNode,
@@ -1933,7 +1933,7 @@ func TestHandleAddNode(t *testing.T) {
 			return connManager
 		}(),
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInvalidParameter,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
 		name:    "handleAddNode: 'onetry' subcommand error",
 		handler: handleAddNode,
@@ -1947,7 +1947,7 @@ func TestHandleAddNode(t *testing.T) {
 			return connManager
 		}(),
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInvalidParameter,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
 		name:    "handleAddNode: invalid subcommand",
 		handler: handleAddNode,

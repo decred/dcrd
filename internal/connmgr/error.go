@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,9 +14,33 @@ const (
 	// the configuration.
 	ErrDialNil = ErrorKind("ErrDialNil")
 
+	// ErrAlreadyPending indicates an attempt to connect to an address that
+	// already has a pending connection attempt.
+	ErrAlreadyPending = ErrorKind("ErrAlreadyPending")
+
+	// ErrAlreadyConnected indicates an attempt to connect to an address that
+	// already has an established connection.
+	ErrAlreadyConnected = ErrorKind("ErrAlreadyConnected")
+
+	// ErrMaxPersistent indicates an attempt to add more than the maximum
+	// allowed number of persistent connections.
+	ErrMaxPersistent = ErrorKind("ErrMaxPersistent")
+
+	// ErrDuplicatePersistent indicates an attempt to add a persistent
+	// connection to an address that already exists.
+	ErrDuplicatePersistent = ErrorKind("ErrDuplicatePersistent")
+
 	// ErrNotFound indicates a specified connection ID or address is unknown to
 	// the connection manager.
 	ErrNotFound = ErrorKind("ErrNotFound")
+
+	// ErrUnsupportedAddr indicates an address is either an unsupported type or
+	// an unrecognized type due to being malformed.
+	ErrUnsupportedAddr = ErrorKind("ErrUnsupportedAddr")
+
+	// ErrShutdown indicates the connection manager is either in the process of
+	// shutting down or has already been shutdown.
+	ErrShutdown = ErrorKind("ErrShutdown")
 
 	// ErrTorInvalidAddressResponse indicates an invalid address was
 	// returned by the Tor DNS resolver.

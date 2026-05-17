@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,13 @@ func TestErrorKindStringer(t *testing.T) {
 		want string
 	}{
 		{ErrDialNil, "ErrDialNil"},
+		{ErrAlreadyPending, "ErrAlreadyPending"},
+		{ErrAlreadyConnected, "ErrAlreadyConnected"},
+		{ErrMaxPersistent, "ErrMaxPersistent"},
+		{ErrDuplicatePersistent, "ErrDuplicatePersistent"},
 		{ErrNotFound, "ErrNotFound"},
+		{ErrUnsupportedAddr, "ErrUnsupportedAddr"},
+		{ErrShutdown, "ErrShutdown"},
 		{ErrTorInvalidAddressResponse, "ErrTorInvalidAddressResponse"},
 		{ErrTorInvalidProxyResponse, "ErrTorInvalidProxyResponse"},
 		{ErrTorUnrecognizedAuthMethod, "ErrTorUnrecognizedAuthMethod"},

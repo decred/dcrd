@@ -442,6 +442,7 @@ type serverPeer struct {
 	// The service flags are updated in the address manager directly once the
 	// peer reports them.  The service flags on this instance are never used.
 	server        *server
+	conn          *connmgr.Conn
 	remoteAddr    *addrmgr.NetAddress
 	persistent    bool
 	isWhitelisted bool
@@ -455,7 +456,6 @@ type serverPeer struct {
 	// otherwise modified during operation and thus need to consider whether or
 	// not they need to be protected for concurrent access.
 
-	connReq        atomic.Pointer[connmgr.ConnReq]
 	continueHash   atomic.Pointer[chainhash.Hash]
 	disableRelayTx atomic.Bool
 	knownAddresses *apbf.Filter
@@ -507,11 +507,12 @@ type serverPeer struct {
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
 // the caller.
-func newServerPeer(s *server, remoteAddr *addrmgr.NetAddress, isPersistent bool) *serverPeer {
+func newServerPeer(s *server, conn *connmgr.Conn, remoteAddr *addrmgr.NetAddress) *serverPeer {
 	return &serverPeer{
 		server:         s,
+		conn:           conn,
 		remoteAddr:     remoteAddr,
-		persistent:     isPersistent,
+		persistent:     s.connManager.IsPersistent(conn.ID()),
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
@@ -2177,57 +2178,6 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 	})
 }
 
-// disconnectPeer attempts to drop the connection of a targeted peer in the
-// passed peer list. Targets are identified via usage of the passed
-// `compareFunc`, which should return `true` if the passed peer is the target
-// peer. This function returns true on success and false if the peer is unable
-// to be located. If the peer is found, and the passed callback: `whenFound'
-// isn't nil, we call it with the peer as the argument before it is removed
-// from the peerList, and is disconnected from the server.
-func disconnectPeer(peerList map[int32]*serverPeer, compareFunc func(*serverPeer) bool, whenFound func(*serverPeer)) bool {
-	for addr, peer := range peerList {
-		if compareFunc(peer) {
-			if whenFound != nil {
-				whenFound(peer)
-			}
-
-			// This is ok because we are not continuing
-			// to iterate so won't corrupt the loop.
-			delete(peerList, addr)
-			peer.Disconnect()
-			return true
-		}
-	}
-	return false
-}
-
-// connToNetAddr parses and returns an address manager network address from the
-// remote address associated with the given connection.
-//
-// This function is safe for concurrent access.
-func connToNetAddr(conn net.Conn) (*addrmgr.NetAddress, error) {
-	addrStr := conn.RemoteAddr().String()
-	host, portStr, err := net.SplitHostPort(addrStr)
-	if err != nil {
-		return nil, err
-	}
-	port, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	addrType, addrBytes := addrmgr.EncodeHost(host)
-	if addrType == addrmgr.UnknownAddressType {
-		return nil, fmt.Errorf("unable to determine address type: %v", addrStr)
-	}
-
-	// Since the host type has been successfully recognized and encoded,
-	// there is no need to perform a DNS lookup.
-	now := time.Unix(time.Now().Unix(), 0)
-	return addrmgr.NewNetAddressFromParams(addrType, addrBytes, uint16(port),
-		now, 0)
-}
-
 // handleBannedConn closes the provided connection if the remote address
 // associated with it is banned or the address can't be properly parsed.  It
 // returns true when the connection is closed.
@@ -2323,11 +2273,11 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 // instance, associates it with the connection, runs the peer (which starts all
 // additional server peer processing goroutines) and blocks until the peer
 // disconnects.
-func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
-	remoteNetAddr, err := connToNetAddr(conn)
-	if err != nil {
-		srvrLog.Debugf("Unable to create inbound peer for address %s: %v",
-			conn.RemoteAddr(), err)
+func (s *server) inboundPeerConnected(ctx context.Context, conn *connmgr.Conn) {
+	remoteNetAddr, ok := conn.RemoteAddr().(*addrmgr.NetAddress)
+	if !ok {
+		srvrLog.Warnf("remote address for connection is incorrect type %T",
+			conn.RemoteAddr())
 		conn.Close()
 		return
 	}
@@ -2337,9 +2287,9 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	sp := newServerPeer(s, remoteNetAddr, false)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
+	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
+	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
 			remoteNetAddr, err)
@@ -2355,31 +2305,28 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn net.Conn) {
 // peer instance, associates it with the relevant state such as the connection
 // request instance and the connection itself, and start all additional server
 // peer processing goroutines.
-func (s *server) outboundPeerConnected(ctx context.Context, c *connmgr.ConnReq, conn net.Conn) {
-	remoteNetAddr, err := connToNetAddr(conn)
-	if err != nil {
-		srvrLog.Debugf("Unable to create outbound peer for address %s: %v",
-			conn.RemoteAddr(), err)
+func (s *server) outboundPeerConnected(ctx context.Context, conn *connmgr.Conn) {
+	remoteNetAddr, ok := conn.RemoteAddr().(*addrmgr.NetAddress)
+	if !ok {
+		srvrLog.Warnf("remote address for connection is incorrect type %T",
+			conn.RemoteAddr())
 		conn.Close()
-		s.connManager.Disconnect(c.ID())
+		return
 	}
 
 	// Disconnect banned connections.  Ideally we would never connect to a
 	// banned peer, but the connection manager is currently unaware of banned
 	// addresses, so this is needed.
 	if disconnected := s.handleBannedConn(remoteNetAddr, conn); disconnected {
-		s.connManager.Disconnect(c.ID())
 		return
 	}
 
-	sp := newServerPeer(s, remoteNetAddr, c.Permanent)
-	p := peer.NewOutboundPeer(newPeerConfig(sp), c.Addr, conn)
-	sp.Peer = p
-	sp.connReq.Store(c)
+	sp := newServerPeer(s, conn, remoteNetAddr)
+	sp.Peer = peer.NewOutboundPeer(newPeerConfig(sp), conn.RemoteAddr(), conn)
 	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
-		srvrLog.Debugf("Failed handshake for outbound peer %s: %v", c.Addr, err)
-		s.connManager.Disconnect(c.ID())
+		srvrLog.Debugf("Failed handshake for outbound peer %s: %v",
+			conn.RemoteAddr(), err)
 		return
 	}
 	sp.syncMgrPeer = netsync.NewPeer(sp.Peer)
@@ -2818,19 +2765,10 @@ func (s *server) DonePeer(sp *serverPeer) {
 	if _, ok := list[sp.ID()]; ok {
 		if !sp.Inbound() {
 			state.outboundGroups[sp.remoteAddr.GroupKey()]--
-			connReq := sp.connReq.Load()
-			if connReq != nil {
-				s.connManager.Disconnect(connReq.ID())
-			}
 		}
 		delete(list, sp.ID())
 		srvrLog.Debugf("Removed peer %s", sp)
 		return
-	}
-
-	connReq := sp.connReq.Load()
-	if connReq != nil {
-		s.connManager.Disconnect(connReq.ID())
 	}
 
 	// Update the address manager with the last seen time.  This is skipped when
@@ -4418,15 +4356,15 @@ func newServer(ctx context.Context, profiler *profileServer,
 	}
 	cmgr, err := connmgr.New(&connmgr.Config{
 		Listeners: listeners,
-		OnAccept: func(conn net.Conn) {
+		OnAccept: func(conn *connmgr.Conn) {
 			s.inboundPeerConnected(ctx, conn)
 		},
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
 		DialTimeout:    cfg.DialTimeout,
-		OnConnection: func(c *connmgr.ConnReq, conn net.Conn) {
-			s.outboundPeerConnected(ctx, c, conn)
+		OnConnection: func(conn *connmgr.Conn) {
+			s.outboundPeerConnected(ctx, conn)
 		},
 		GetNewAddress: newAddressFunc,
 	})
@@ -4435,22 +4373,21 @@ func newServer(ctx context.Context, profiler *profileServer,
 	}
 	s.connManager = cmgr
 
-	// Start up persistent peers.
-	permanentPeers := cfg.ConnectPeers
-	if len(permanentPeers) == 0 {
-		permanentPeers = cfg.AddPeers
+	// Add persistent peers.
+	persistentPeers := cfg.ConnectPeers
+	if len(persistentPeers) == 0 {
+		persistentPeers = cfg.AddPeers
 	}
-	for _, addr := range permanentPeers {
+	for _, addr := range persistentPeers {
 		tcpAddr, err := addrStringToNetAddr(addr)
 		if err != nil {
 			return nil, err
 		}
 
-		go s.connManager.Connect(ctx,
-			&connmgr.ConnReq{
-				Addr:      tcpAddr,
-				Permanent: true,
-			})
+		_, err = s.connManager.AddPersistent(tcpAddr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if !cfg.DisableRPC {
@@ -4636,14 +4573,14 @@ func addrStringToNetAddr(addr string) (net.Addr, error) {
 		return nil, fmt.Errorf("no addresses found for %s", host)
 	}
 
-	port, err := strconv.Atoi(strPort)
+	port, err := strconv.ParseUint(strPort, 10, 16)
 	if err != nil {
 		return nil, err
 	}
 
 	return &net.TCPAddr{
 		IP:   ips[0],
-		Port: port,
+		Port: int(port),
 	}, nil
 }
 
