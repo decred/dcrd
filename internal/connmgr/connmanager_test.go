@@ -934,3 +934,132 @@ func TestListeners(t *testing.T) {
 	shutdown()
 	wg.Wait()
 }
+
+// TestRejectDuplicateConns ensures duplicate addresses are rejected.  This
+// includes:
+//   - Attempts to dial addresses that already have pending, established, and
+//     persistent connections (via [ConnManager.Connect]
+//   - Attempts to add duplicate persistent conns (via [ConnManager.AddPersistent])
+//   - Attempts to receive inbound remote addresses that already have pending,
+//     established, and persistent connections
+func TestRejectDuplicateConns(t *testing.T) {
+	t.Parallel()
+
+	var closeDialedOnce sync.Once
+	inboundConns := make(chan *Conn)
+	listener := newMockListener("127.0.0.1:18109")
+	connected := make(chan *Conn)
+	disconnected := make(chan *Conn)
+	dialed := make(chan struct{})
+	pending := make(chan struct{})
+	pendingDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		closeDialedOnce.Do(func() { close(dialed) })
+		<-pending
+		return mockDialer(ctx, network, addr)
+	}
+	cmgr := newTestConnManager(t, &Config{
+		Listeners: []net.Listener{listener},
+		OnAccept: func(conn *Conn) {
+			inboundConns <- conn
+		},
+		Dial: pendingDialer,
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Dial a manual connection and wait for it to become pending.
+	addr := mustParseAddrPort("127.0.0.1:18555")
+	go cmgr.Connect(ctx, addr)
+	select {
+	case <-dialed:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("did not receive pending dial before timeout")
+	}
+	assertPendingAddr(t, cmgr, addr)
+
+	// Duplicate connect to the pending address should be rejected.
+	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyPending) {
+		t.Fatalf("did not reject duplicate pending connection, err: %v", err)
+	}
+
+	// Inbound attempts from the pending outbound address should be rejected.
+	go listener.Connect(addr)
+	assertNoConnReceived(t, inboundConns)
+
+	// Allow the pending connection to complete.
+	close(pending)
+	conn := assertConnReceived(t, connected, 0, ConnTypeManual)
+
+	// Duplicate connect to the established address should be rejected.
+	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
+		t.Fatalf("did not reject duplicate active connection, err: %v", err)
+	}
+
+	// Inbound attempts from the established outbound address should be
+	// rejected.
+	go listener.Connect(addr)
+	assertNoConnReceived(t, inboundConns)
+
+	// Close the connection and wait for the disconnect.
+	conn.Close()
+	assertConnReceived(t, disconnected, conn.ID(), ConnTypeManual)
+
+	// Add a persistent connection back to the same address and wait for it to
+	// connect since there are no longer any connections to the address.
+	connID, err := cmgr.AddPersistent(addr)
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+
+	// Duplicate persistent connection attempts should be rejected.
+	_, err = cmgr.AddPersistent(addr)
+	if !errors.Is(err, ErrDuplicatePersistent) {
+		t.Fatalf("did not reject duplicate persistent connection, err: %v", err)
+	}
+
+	// Manual connection attempts to persistent connection should be rejected.
+	_, err = cmgr.Connect(ctx, addr)
+	if !errors.Is(err, ErrDuplicatePersistent) {
+		t.Fatalf("did not reject manual connection to persistent, err: %v", err)
+	}
+
+	// Inbound atempts from the persistent address should be rejected.
+	go listener.Connect(addr)
+	assertNoConnReceived(t, inboundConns)
+
+	// Remove the persistent connection, wait for it to disconnect, and ensure
+	// it is actually removed.
+	if err := cmgr.Remove(connID); err != nil {
+		t.Fatalf("failed to remove persistent connection: %v", err)
+	}
+	assertConnReceived(t, disconnected, connID, ConnTypeManual)
+	assertRemovedPersistent(t, cmgr, addr)
+
+	// Inbound connections from the same address should now succeed.
+	go listener.Connect(addr)
+	assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
+
+	// Manual connection attempts to the inbound address should be rejected.
+	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
+		t.Fatalf("did not reject outbound for existing inbound conn, err: %v",
+			err)
+	}
+
+	// Attempts to add a persistent connection to an existing inbound should be
+	// rejected.
+	_, err = cmgr.AddPersistent(addr)
+	if !errors.Is(err, ErrAlreadyConnected) {
+		t.Fatalf("did not reject persistent conn for existing inbound conn: %v",
+			err)
+	}
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+}
