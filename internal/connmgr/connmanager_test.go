@@ -396,6 +396,86 @@ func TestRetryPersistent(t *testing.T) {
 	wg.Wait()
 }
 
+// TestMaxPersistent ensures [ConnManager.AddPersistent] limits the maximum
+// number of persistent connections including a removal and addition of a new
+// one after achieving the max.
+func TestMaxPersistent(t *testing.T) {
+	t.Parallel()
+
+	connected := make(chan *Conn)
+	disconnected := make(chan *Conn)
+	cmgr := newTestConnManager(t, &Config{
+		Dial: mockDialer,
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	var numAddrs uint32
+	nextAddr := func() net.Addr {
+		numAddrs++
+		addrStr := fmt.Sprintf("127.0.0.%d:18555", numAddrs)
+		return mustParseAddrPort(addrStr)
+	}
+
+	// Add the maximum allowed number of persistent conns.
+	connIDs := make([]uint64, 0, MaxPersistent)
+	addrs := make([]net.Addr, 0, MaxPersistent)
+	for range MaxPersistent {
+		addr := nextAddr()
+		connID, err := cmgr.AddPersistent(addr)
+		if err != nil {
+			t.Fatalf("failed to add persistent connection %v: %v", addr, err)
+		}
+		connIDs = append(connIDs, connID)
+		addrs = append(addrs, addr)
+
+		// Wait for the connection.
+		assertConnReceived(t, connected, connID, ConnTypeManual)
+	}
+
+	// Attempting to add more than the max allowed number of persistent conns
+	// should be rejected.
+	_, err := cmgr.AddPersistent(nextAddr())
+	if !errors.Is(err, ErrMaxPersistent) {
+		t.Fatalf("did not reject > max persistent, err: %v", err)
+	}
+
+	// Ensure disconnecting the persistent conn does not incorrectly decrement
+	// the count.
+	connID, addr := connIDs[0], addrs[0]
+	if err := cmgr.Disconnect(connID); err != nil {
+		t.Fatalf("failed to disconnect persistent conn %v: %v", addr, err)
+	}
+	_, err = cmgr.AddPersistent(nextAddr())
+	if !errors.Is(err, ErrMaxPersistent) {
+		t.Fatalf("did not reject max persistent after dc, err: %v", err)
+	}
+
+	// Remove the first persistent connection, wait for it to disconnect, and
+	// ensure it is actually removed.
+	if err := cmgr.Remove(connID); err != nil {
+		t.Fatalf("failed to remove persistent conn %v: %v", addr, err)
+	}
+	assertConnReceived(t, disconnected, connID, ConnTypeManual)
+	assertRemovedPersistent(t, cmgr, addr)
+
+	// A new persistent conn should now be allowed.
+	addr = nextAddr()
+	_, err = cmgr.AddPersistent(addr)
+	if err != nil {
+		t.Fatalf("failed to add persistent connection %v: %v", addr, err)
+	}
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+}
+
 // TestMaxRetryDuration tests the maximum retry duration.
 //
 // We have a timed dialer which initially returns err but after RetryDuration
