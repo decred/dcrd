@@ -5,26 +5,48 @@ connmgr
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/connmgr)
 
-Package connmgr implements a generic Decred network connection manager.
-
 ## Overview
 
-This package handles all the general connection concerns such as maintaining a
-set number of outbound connections, sourcing peers, banning, limiting max
-connections, tor lookup, etc.
+Package `connmgr` provides a flexible and robust context-aware connection
+manager for inbound, outbound, and persistent network connections with retry
+logic.
 
-The package provides a generic connection manager which is able to accept
-connection requests from a source or a set of given addresses, dial them and
-notify the caller on connections.  The main intended use is to initialize a pool
-of active connections and maintain them to remain connected to the P2P network.
+It handles all general connection lifecycle concerns such as accepting inbound
+connections, automatically maintaining a set number of outbound connections,
+maintaining persistent connections, and limiting max connections.
 
-In addition the connection manager provides the following utilities:
+The design has a strong emphasis on reliability, readability, and efficiency under high connection load while also aiming to provide an ergonomic API.
 
-- Notifications on connections or disconnections
-- Handle failures and retry new addresses from the source
-- Connect only to specified addresses
-- Permanent connections with increasing backoff retry timers
-- Disconnect or Remove an established connection
+The following is a brief overview of the key features:
+
+- Full context support
+- Inbound listening
+  - Accepts inbound connections on provided `Listeners`
+  - Uses connection shedding for rejected inbound connections
+- Automatic outbound maintenance
+  - Maintains up to `TargetOutbound` normal outbound connections via a provided
+    address source (`GetNewAddress`)
+- Persistent connections
+  - Maintains up to `MaxPersistent` addresses that are automatically retried
+    with exponential backoff on disconnect
+- Manual connections
+  - Supports manual connection establishment via `Connect`
+- Duplicate address prevention
+  - Rejects duplicate connections to and from the same address (host:port)
+- Rich managed connections via `Conn`
+  - Connection types for differentiated handling
+  - Automatic cleanup on connection close
+  - Concrete parsed address access
+- Manual disconnection and removal
+  - Ability to disconnect / remove established, pending, and persistent
+    connections via `Disconnect` and `Remove`
+- Notification callbacks
+  - Provides callbacks for connection establishment and disconnects
+- Graceful network outage handling
+  - Automatic connection attempts are throttled during network outages
+- Clear and actionable programatically-detectable errors
+
+A full suite of tests is provided to help ensure proper functionality.
 
 ## License
 

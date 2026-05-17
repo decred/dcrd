@@ -3,6 +3,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package connmgr provides a robust connection manager for inbound, outbound,
+// and persistent network connections with retry logic.
 package connmgr
 
 import (
