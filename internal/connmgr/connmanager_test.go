@@ -272,6 +272,157 @@ func TestConnectMode(t *testing.T) {
 	wg.Wait()
 }
 
+// TestDisconnect ensures that [ConnManager.Disconnect] properly disconnects
+// pending and established connections for both non-persistent and persistent
+// connections.
+func TestDisconnect(t *testing.T) {
+	t.Parallel()
+
+	// Create a connection manager instance with a dialer that has a few
+	// synchronization channels to notify when a dial attempt is made, to keep
+	// connection attempts in a pending state, and to notify when the context
+	// for the attempt is canceled.  Whether or not to wait/send the signals are
+	// controlled by the associated atomic flags.
+	connected := make(chan *Conn)
+	disconnected := make(chan *Conn)
+	dialed := make(chan struct{})
+	pending := make(chan struct{})
+	canceled := make(chan struct{})
+	var notifyDialed, waitForPending, notifyCanceled atomic.Bool
+	pendingDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if notifyDialed.Load() {
+			dialed <- struct{}{}
+		}
+		if waitForPending.Load() {
+			<-pending
+		}
+		conn, err := mockDialer(ctx, network, addr)
+		if errors.Is(err, context.Canceled) && notifyCanceled.Load() {
+			canceled <- struct{}{}
+		}
+		return conn, err
+	}
+	cmgr := newTestConnManager(t, &Config{
+		Dial: pendingDialer,
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Attempt a connection to a localhost IP.
+	notifyDialed.Store(true)
+	waitForPending.Store(true)
+	notifyCanceled.Store(true)
+	addr := mustParseAddrPort("127.0.0.1:18555")
+	go cmgr.Connect(ctx, addr)
+
+	// Wait for the connection manager to attempt to dial and ensure the
+	// connection is marked as pending while the dialer is blocked.
+	select {
+	case <-dialed:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for dial")
+	}
+	assertPendingAddr(t, cmgr, addr)
+
+	// Disconnect the connection attempt while it's still pending.
+	connID, _ := pendingAddrConnID(cmgr, addr)
+	if err := cmgr.Disconnect(connID); err != nil {
+		t.Fatalf("unexpected disconnect err: %v", err)
+	}
+
+	// Allow the dialer to proceed with the disconnected connection attempt and
+	// then wait for the dialer to signal the context associated with the dial
+	// was canceled.  Finally, ensure the internal pending state is removed.
+	select {
+	case pending <- struct{}{}:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting to signal pending")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for cancel")
+	}
+	if _, ok := pendingAddrConnID(cmgr, addr); ok {
+		t.Fatalf("connection %s is still pending", addr)
+	}
+
+	// Start a connection attempt and wait for it to be established.
+	notifyDialed.Store(false)
+	waitForPending.Store(false)
+	notifyCanceled.Store(false)
+	go cmgr.Connect(ctx, addr)
+	conn := assertConnReceived(t, connected, 0, ConnTypeManual)
+
+	// Disconnect the established connection and wait for the disconnect
+	// notification to ensure it is disconnected as intended.
+	connID = conn.ID()
+	if err := cmgr.Disconnect(connID); err != nil {
+		t.Fatalf("unexpected disconnect err: %v", err)
+	}
+	assertConnReceived(t, disconnected, connID, ConnTypeManual)
+
+	// Add a persistent connection back to the same address.
+	notifyDialed.Store(true)
+	waitForPending.Store(true)
+	notifyCanceled.Store(true)
+	connID, err := cmgr.AddPersistent(addr)
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+
+	// Wait for the connection manager to attempt to dial and ensure the
+	// connection is marked as pending while the dialer is blocked.
+	select {
+	case <-dialed:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for dial")
+	}
+	assertPendingAddr(t, cmgr, addr)
+
+	// Disconnect the persistent connection attempt while it's still pending.
+	if err := cmgr.Disconnect(connID); err != nil {
+		t.Fatalf("unexpected disconnect err: %v", err)
+	}
+
+	// Allow the dialer to proceed with the disconnected persistent connection
+	// attempt and then wait for the dialer to signal the context associated
+	// with the dial was canceled.
+	select {
+	case pending <- struct{}{}:
+		// Ensure the reconnect attempt doesn't notify the dialed chan or
+		// wait for the pending chan.
+		notifyDialed.Store(false)
+		waitForPending.Store(false)
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting to signal pending")
+	}
+	select {
+	case <-canceled:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for cancel")
+	}
+
+	// Wait for the retry to be established.
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+
+	// Disconnect the established persistent connection and wait for the
+	// disconnect notification to ensure it is disconnected as intended.
+	if err := cmgr.Disconnect(connID); err != nil {
+		t.Fatalf("unexpected disconnect err: %v", err)
+	}
+	assertConnReceived(t, disconnected, connID, ConnTypeManual)
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+}
+
 // TestTargetOutbound tests the target number of outbound connections
 // configuration option by waiting until all connections are established and
 // ensuring they are the only connections made.
