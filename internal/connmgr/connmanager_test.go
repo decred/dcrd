@@ -306,6 +306,48 @@ func TestTargetOutbound(t *testing.T) {
 	wg.Wait()
 }
 
+// TestDoubleClose ensures closing a connection multiple times is a noop after
+// the first call.
+func TestDoubleClose(t *testing.T) {
+	t.Parallel()
+
+	connected := make(chan *Conn)
+	cmgr := newTestConnManager(t, &Config{
+		TargetOutbound: 1,
+		Dial:           mockDialer,
+		GetNewAddress: func() (net.Addr, error) {
+			return mustParseAddrPort("127.0.0.1:18555"), nil
+		},
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+	})
+	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Wait for the connection to be established.
+	conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+
+	// Override the close func to cleanly detect closes.
+	var numClosed uint32
+	origOnClose := conn.onClose
+	conn.onClose = func() {
+		numClosed++
+		origOnClose()
+	}
+
+	// Close the connection multiple times and make sure it only happens once.
+	for range 3 {
+		conn.Close()
+	}
+	if numClosed != 1 {
+		t.Fatal("connection closed more than once")
+	}
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+}
+
 // TestRetryPersistent tests that persistent connections are retried.
 func TestRetryPersistent(t *testing.T) {
 	t.Parallel()
