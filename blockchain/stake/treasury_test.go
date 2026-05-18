@@ -80,7 +80,7 @@ func treasurySpendSignature(sig, pubKey []byte) []byte {
 }
 
 // fakeTreasurySpendSignature returns a signature script that is valid enough to
-// pass all checks, but would fail if actually checked.  This identification
+// pass all checks, but would fail if actually checked.  The identification
 // funcs in this package do not verify signatures, so valid signatures are not
 // required for the tests.
 func fakeTreasurySpendSignature() []byte {
@@ -183,7 +183,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 	tests := []struct {
 		name          string      // test description
 		tx            *wire.MsgTx // transaction to test
-		treasuryAdd   bool        // expected check is treasury add
+		treasuryAdd   bool        // expected is treasury add
 		treasuryBase  bool        // expected is treasury base
 		treasurySpend bool        // expected is treasury spend
 	}{{

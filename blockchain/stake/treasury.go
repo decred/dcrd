@@ -72,8 +72,7 @@ func CheckTAdd(tx *wire.MsgTx) error {
 
 	// All output scripts must be version 0 and non-empty.
 	const consensusScriptVer = 0
-	for txOutIdx := range tx.TxOut {
-		txOut := tx.TxOut[txOutIdx]
+	for txOutIdx, txOut := range tx.TxOut {
 		if txOut.Version != consensusScriptVer {
 			str := fmt.Sprintf("treasury add transaction output %d script "+
 				"version is %d instead of %d", txOutIdx, txOut.Version,
