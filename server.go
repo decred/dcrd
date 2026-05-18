@@ -513,6 +513,7 @@ func newServerPeer(s *server, conn *connmgr.Conn, remoteAddr *addrmgr.NetAddress
 		conn:           conn,
 		remoteAddr:     remoteAddr,
 		persistent:     s.connManager.IsPersistent(conn.ID()),
+		isWhitelisted:  s.connManager.IsWhitelisted(remoteAddr),
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
@@ -2289,7 +2290,6 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn *connmgr.Conn) {
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
 			remoteNetAddr, err)
@@ -2323,7 +2323,6 @@ func (s *server) outboundPeerConnected(ctx context.Context, conn *connmgr.Conn) 
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewOutboundPeer(newPeerConfig(sp), conn.RemoteAddr(), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for outbound peer %s: %v",
 			conn.RemoteAddr(), err)
@@ -4367,6 +4366,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			s.outboundPeerConnected(ctx, conn)
 		},
 		GetNewAddress: newAddressFunc,
+		Whitelists:    cfg.whitelists,
 	})
 	if err != nil {
 		return nil, err
@@ -4630,20 +4630,4 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 	}
 
 	return nil
-}
-
-// isWhitelisted returns whether the IP address is included in the whitelisted
-// networks and IPs.
-func isWhitelisted(addr *addrmgr.NetAddress) bool {
-	if len(cfg.whitelists) == 0 {
-		return false
-	}
-
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	for _, prefix := range cfg.whitelists {
-		if prefix.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
