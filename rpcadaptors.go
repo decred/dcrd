@@ -130,14 +130,6 @@ func (cm *rpcConnManager) Connect(ctx context.Context, addr string, permanent bo
 		return err
 	}
 
-	// Limit max number of total peers.
-	cm.server.peerState.Lock()
-	count := cm.server.peerState.count()
-	cm.server.peerState.Unlock()
-	if count >= cfg.MaxPeers {
-		return errors.New("max peers reached")
-	}
-
 	// Attempt to add a persistent peer when requested.
 	connManager := cm.server.connManager
 	if permanent {

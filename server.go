@@ -2703,17 +2703,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 		return false
 	}
 
-	// Limit max number of total peers.  However, allow whitelisted inbound
-	// peers regardless.
-	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
-		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
-			cfg.MaxPeers, sp)
-		sp.Disconnect()
-		// TODO: how to handle permanent peers here?
-		// they should be rescheduled.
-		return false
-	}
-
 	// Add the new peer.
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
@@ -4359,6 +4348,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			s.inboundPeerConnected(ctx, conn)
 		},
 		RetryDuration:  connectionRetryInterval,
+		MaxNormalConns: uint32(cfg.MaxPeers),
 		TargetOutbound: s.targetOutbound,
 		Dial:           s.attemptDcrdDial,
 		DialTimeout:    cfg.DialTimeout,
