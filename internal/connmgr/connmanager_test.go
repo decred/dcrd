@@ -1710,3 +1710,157 @@ func TestRejectDuplicateConns(t *testing.T) {
 	wg.Wait()
 	assertConnManagerCleanShutdown(t, cmgr)
 }
+
+// TestMaxNormalConns ensures the connection manager limits the total number of
+// normal connections to [Config.MaxNormalConns] including automatic outbound,
+// manual outbound, and inbound connections.  It also ensures that it is not
+// applied to persistent connections.
+func TestMaxNormalConns(t *testing.T) {
+	t.Parallel()
+
+	// nextAddr is a convenience func to return a new unique address with every
+	// invocation.
+	var numAddrs atomic.Uint32
+	nextAddr := func() net.Addr {
+		addrStr := fmt.Sprintf("10.0.0.%d:18555", numAddrs.Add(1))
+		return mustParseAddrPort(addrStr)
+	}
+
+	// Constants for the number of various normal connection types to test
+	// overall max normal connection limits.
+	const (
+		targetOutbound = 3
+		targetManual   = 4
+		targetInbound  = 5
+		maxNormalConns = targetOutbound + targetManual + targetInbound
+	)
+	connected := make(chan *Conn)
+	disconnected := make(chan *Conn)
+	inboundConns := make(chan *Conn)
+	listener := newMockListener("127.0.0.1:9108")
+	var pauseTargetOutbound atomic.Bool
+	var totalPausedAddrs atomic.Uint32
+	hitMaxFailedAttempts := make(chan struct{})
+	cmgr := newTestConnManager(t, &Config{
+		Listeners:      []net.Listener{listener},
+		MaxNormalConns: maxNormalConns,
+		TargetOutbound: targetOutbound,
+		RetryDuration:  50 * time.Millisecond,
+		Dial:           mockDialer,
+		OnAccept: func(conn *Conn) {
+			inboundConns <- conn
+		},
+		GetNewAddress: func() (net.Addr, error) {
+			if pauseTargetOutbound.Load() {
+				total := totalPausedAddrs.Add(1)
+				if total == maxFailedAttempts {
+					hitMaxFailedAttempts <- struct{}{}
+				}
+				return nil, errors.New("network down")
+			}
+			return nextAddr(), nil
+		},
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	cmgr.maxRetryDuration = cmgr.cfg.RetryDuration
+	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Wait for the expected number of target outbound conns to be established.
+	outbounds := make([]*Conn, 0, targetOutbound)
+	for len(outbounds) < targetOutbound {
+		conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+		outbounds = append(outbounds, conn)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Establish target number of inbounds to the listener and wait for them to
+	// be established.
+	go func() {
+		for range targetInbound {
+			listener.Connect(nextAddr())
+		}
+	}()
+	inbounds := make([]*Conn, 0, targetInbound)
+	for len(inbounds) < targetInbound {
+		conn := assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
+		inbounds = append(inbounds, conn)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Establish target number of manual connections and wait for them to be
+	// established.
+	go func() {
+		for range targetManual {
+			go cmgr.Connect(ctx, nextAddr())
+		}
+	}()
+	manualConns := make([]*Conn, 0, targetManual+1)
+	for len(manualConns) < targetManual {
+		conn := assertConnReceived(t, connected, 0, ConnTypeManual)
+		manualConns = append(manualConns, conn)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure manual connections that would exceed the max allowed normal
+	// connections are rejected.
+	_, err := cmgr.Connect(ctx, nextAddr())
+	if !errors.Is(err, ErrMaxNormalConns) {
+		t.Fatalf("did not reject manual connection at max allowed, err: %v", err)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure inbound connections that would exceed the max allowed normal
+	// connections are rejected.
+	go listener.Connect(nextAddr())
+	assertNoConnReceived(t, inboundConns)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Pause the target outbound dials and remove one of the target outbound
+	// connections to make room for another manual connection.  Then wait for
+	// the max failures to be hit so attempts are paused for a retry timeout.
+	pauseTargetOutbound.Store(true)
+	outboundConn := outbounds[0]
+	outboundConn.Close()
+	assertConnReceived(t, disconnected, outboundConn.ID(), ConnTypeOutbound)
+	select {
+	case <-hitMaxFailedAttempts:
+		time.Sleep(connTestReceiveTimeout)
+	case <-time.After(maxFailedAttempts * connTestReceiveTimeout):
+		t.Fatal("did not reach max failed attempts before timeout")
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Establish another manual connection to take the place of the target
+	// outbound connection that was just closed and wait for it to be
+	// established.
+	go cmgr.Connect(ctx, nextAddr())
+	assertConnReceived(t, connected, 0, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Unpause the target outbound dials and ensure no additional automatic
+	// outbound connections are made despite being under the target outbound due
+	// to max total conns.
+	pauseTargetOutbound.Store(false)
+	assertNoConnReceivedTimeout(t, connected, connTestNonReceiveTimeout+
+		cmgr.cfg.RetryDuration)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure persistent connections are not subject to the max total normal
+	// connections by adding one and waiting for it to be established.
+	connID, err := cmgr.AddPersistent(nextAddr())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+	assertConnManagerCleanShutdown(t, cmgr)
+}
