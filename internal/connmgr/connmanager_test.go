@@ -18,12 +18,11 @@ import (
 	"time"
 )
 
-func init() {
-	// Override the max retry duration when running tests.
-	maxRetryDuration = 2 * time.Millisecond
-}
-
 const (
+	// defaultTestMaxRetryDuration is the default max duration a connection
+	// retry backoff is allowed to grow to when running tests.
+	defaultTestMaxRetryDuration = 2 * time.Millisecond
+
 	// connTestReceiveTimeout is the default receive timeout used throughout the
 	// tests when expecting to receive connections to prevent test hangs.
 	connTestReceiveTimeout = 10 * time.Millisecond
@@ -109,18 +108,32 @@ func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 	return c, ctx.Err()
 }
 
+// newTestConnManager returns a new connection manager with the provided
+// configuration and some timeout tweaks so that it is suitable for use in the
+// tests.
+func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
+	t.Helper()
+
+	cmgr, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: unexpected error: %v", err)
+	}
+	cmgr.maxRetryDuration = defaultTestMaxRetryDuration
+	return cmgr
+}
+
 // TestNewConfig tests that new ConnManager config is validated as expected.
 func TestNewConfig(t *testing.T) {
+	t.Parallel()
+
 	_, err := New(&Config{})
 	if err == nil {
 		t.Fatal("New expected error: 'Dial can't be nil', got nil")
 	}
-	_, err = New(&Config{
+
+	newTestConnManager(t, &Config{
 		Dial: mockDialer,
 	})
-	if err != nil {
-		t.Fatalf("New unexpected error: %v", err)
-	}
 }
 
 // assertConnID ensures the provided connection has the given ID.
@@ -235,17 +248,16 @@ func assertNoConnReceived(t *testing.T, ch <-chan *Conn) {
 // using [ConnManager.Connect] are handled and that no other connections are
 // made.
 func TestConnectMode(t *testing.T) {
+	t.Parallel()
+
 	connected := make(chan *Conn)
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		TargetOutbound: 2,
 		Dial:           mockDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -264,10 +276,12 @@ func TestConnectMode(t *testing.T) {
 // configuration option by waiting until all connections are established and
 // ensuring they are the only connections made.
 func TestTargetOutbound(t *testing.T) {
+	t.Parallel()
+
 	const targetOutbound = 10
 	var nextAddr atomic.Uint32
 	connected := make(chan *Conn)
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
 		GetNewAddress: func() (net.Addr, error) {
@@ -278,9 +292,6 @@ func TestTargetOutbound(t *testing.T) {
 			connected <- conn
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Ensure only the expected number of target outbound conns are established
@@ -297,9 +308,11 @@ func TestTargetOutbound(t *testing.T) {
 
 // TestRetryPersistent tests that persistent connections are retried.
 func TestRetryPersistent(t *testing.T) {
+	t.Parallel()
+
 	connected := make(chan *Conn)
 	disconnected := make(chan *Conn)
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		RetryDuration:  time.Millisecond,
 		TargetOutbound: 1,
 		Dial:           mockDialer,
@@ -310,9 +323,6 @@ func TestRetryPersistent(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -349,11 +359,13 @@ func TestRetryPersistent(t *testing.T) {
 // We have a timed dialer which initially returns err but after RetryDuration
 // hits maxRetryDuration returns a mock conn.
 func TestMaxRetryDuration(t *testing.T) {
+	t.Parallel()
+
 	// This test relies on the current value of the max retry duration defined
 	// in the tests, so assert it.
-	if maxRetryDuration != 2*time.Millisecond {
+	if defaultTestMaxRetryDuration != 2*time.Millisecond {
 		t.Fatalf("max retry duration of %v is not the required value for test",
-			maxRetryDuration)
+			defaultTestMaxRetryDuration)
 	}
 
 	networkUp := make(chan struct{})
@@ -367,7 +379,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	}
 
 	connected := make(chan *Conn)
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		RetryDuration:  time.Millisecond,
 		TargetOutbound: 1,
 		Dial:           timedDialer,
@@ -375,9 +387,6 @@ func TestMaxRetryDuration(t *testing.T) {
 			connected <- conn
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	connID, err := cmgr.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
@@ -403,6 +412,8 @@ func TestMaxRetryDuration(t *testing.T) {
 // TestNetworkFailure tests that the connection manager handles a network
 // failure gracefully.
 func TestNetworkFailure(t *testing.T) {
+	t.Parallel()
+
 	var closeOnce sync.Once
 	const targetOutbound = 5
 	const retryTimeout = time.Millisecond * 5
@@ -418,7 +429,7 @@ func TestNetworkFailure(t *testing.T) {
 		return nil, errors.New("network down")
 	}
 	var nextAddr atomic.Uint32
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
@@ -431,9 +442,6 @@ func TestNetworkFailure(t *testing.T) {
 				conn.RemoteAddr())
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Shutdown the connection manager after the max failed attempts is reached
@@ -464,13 +472,11 @@ func TestNetworkFailure(t *testing.T) {
 // responsive when there are multiple simultaneous failed connections for
 // persistent conns in the retry state.
 func TestMultipleFailedConns(t *testing.T) {
+	t.Parallel()
+
 	// Override the max retry duration for this test since it relies on having
 	// multiple connections in the retry state.
-	curMaxRetryDuration := maxRetryDuration
-	maxRetryDuration = 500 * time.Millisecond
-	defer func() {
-		maxRetryDuration = curMaxRetryDuration
-	}()
+	const maxRetryDuration = 500 * time.Millisecond
 
 	const targetFailed = 5
 	var dials atomic.Uint32
@@ -483,13 +489,11 @@ func TestMultipleFailedConns(t *testing.T) {
 		}
 		return nil, errors.New("network down")
 	}
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		RetryDuration: maxRetryDuration,
 		Dial:          errDialer,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
+	cmgr.maxRetryDuration = maxRetryDuration
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Establish several connection requests to localhost IPs.
@@ -531,26 +535,25 @@ func TestMultipleFailedConns(t *testing.T) {
 // TestShutdownFailedConns tests that failed connections are ignored after
 // connmgr is shutdown.
 func TestShutdownFailedConns(t *testing.T) {
+	t.Parallel()
+
 	var closeOnce sync.Once
 	dialed := make(chan struct{})
 	waitDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		closeOnce.Do(func() { close(dialed) })
 		return nil, errors.New("network down")
 	}
-	cmgr, err := New(&Config{
-		RetryDuration: maxRetryDuration,
+	cmgr := newTestConnManager(t, &Config{
+		RetryDuration: defaultTestMaxRetryDuration,
 		Dial:          waitDialer,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Shutdown the connection manager during the retry timeout after a failed
 	// dial attempt.
 	go func() {
 		<-dialed
-		time.Sleep(maxRetryDuration / 2)
+		time.Sleep(cmgr.maxRetryDuration / 2)
 		shutdown()
 	}()
 
@@ -566,6 +569,8 @@ func TestShutdownFailedConns(t *testing.T) {
 // connection correctly cancels the context used to dial and removes the
 // internal state.
 func TestRemovePendingConnection(t *testing.T) {
+	t.Parallel()
+
 	// Create a conn manager with an instance of a dialer that'll never succeed.
 	dialed := make(chan struct{})
 	canceled := make(chan struct{})
@@ -575,12 +580,9 @@ func TestRemovePendingConnection(t *testing.T) {
 		close(canceled)
 		return nil, errors.New("error")
 	}
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Establish a connection request to a localhost IP.
@@ -622,6 +624,8 @@ func TestRemovePendingConnection(t *testing.T) {
 // connection will not execute the on connection callback, even if a pending
 // retry succeeds.
 func TestCancelIgnoreDelayedConnection(t *testing.T) {
+	t.Parallel()
+
 	const retryTimeout = 10 * time.Millisecond
 
 	// Setup a dialer that returns an error on the first attempt and then blocks
@@ -645,16 +649,13 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	}
 
 	connected := make(chan *Conn)
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		Dial:          failingDialer,
 		RetryDuration: retryTimeout,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Establish a persistent connection to a localhost IP.
@@ -694,6 +695,8 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 // dialer that blocks for three times the configured dial timeout before
 // connecting and ensuring the connection fails as expected.
 func TestDialTimeout(t *testing.T) {
+	t.Parallel()
+
 	// Create a connection manager instance with a dialer that blocks for three
 	// times the configured dial timeout before connecting.
 	const dialTimeout = time.Millisecond * 20
@@ -708,13 +711,10 @@ func TestDialTimeout(t *testing.T) {
 
 		return mockDialer(ctx, network, addr)
 	}
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		Dial:        timeoutDialer,
 		DialTimeout: dialTimeout,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Establish a connection to a localhost IP.
@@ -737,6 +737,8 @@ func TestDialTimeout(t *testing.T) {
 // TestConnectContext ensures the [ConnManager.Connect] method works as intended
 // when provided with a context that is canceled before a dial attempt succeeds.
 func TestConnectContext(t *testing.T) {
+	t.Parallel()
+
 	// Create a connection manager instance with a dialer that blocks until its
 	// provided context is canceled.
 	dialed := make(chan struct{})
@@ -745,12 +747,9 @@ func TestConnectContext(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Establish a connection request to a localhost IP with a separate context
@@ -850,22 +849,21 @@ func newMockListener(localAddr string) *mockListener {
 // TestListeners ensures providing listeners to the connection manager along
 // with an accept callback works properly.
 func TestListeners(t *testing.T) {
+	t.Parallel()
+
 	// Setup a connection manager with a couple of mock listeners that
 	// notify a channel when they receive mock connections.
 	receivedConns := make(chan *Conn)
 	listener1 := newMockListener("127.0.0.1:9108")
 	listener2 := newMockListener("127.0.0.1:9208")
 	listeners := []net.Listener{listener1, listener2}
-	cmgr, err := New(&Config{
+	cmgr := newTestConnManager(t, &Config{
 		Listeners: listeners,
 		OnAccept: func(conn *Conn) {
 			receivedConns <- conn
 		},
 		Dial: mockDialer,
 	})
-	if err != nil {
-		t.Fatalf("New error: %v", err)
-	}
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	// Fake a couple of mock connections to each of the listeners.

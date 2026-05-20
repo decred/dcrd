@@ -25,14 +25,6 @@ const (
 	MaxPersistent = 8
 )
 
-var (
-	// maxRetryDuration is the maximum duration a persistent connection retry
-	// backoff is allowed to grow to.  This is necessary since the retry logic
-	// uses a backoff mechanism which increases the interval base times the
-	// number of retries that have been done.
-	maxRetryDuration = time.Minute * 5
-)
-
 const (
 	// maxFailedAttempts is the maximum number of successive failed connection
 	// attempts after which network failure is assumed and new connections will
@@ -42,6 +34,12 @@ const (
 	// defaultRetryDuration is the default duration of time for retrying
 	// persistent connections.
 	defaultRetryDuration = time.Second * 5
+
+	// defaultMaxRetryDuration is the default maximum duration a persistent
+	// connection retry backoff is allowed to grow to.  This is necessary since
+	// the retry logic uses a backoff mechanism which increases the interval
+	// base times the number of retries that have been done.
+	defaultMaxRetryDuration = time.Minute * 5
 
 	// defaultTargetOutbound is the default number of outbound connections to
 	// maintain.
@@ -273,6 +271,10 @@ type ConnManager struct {
 	// cfg specifies the configuration of the connection manager and is set at
 	// creating time and treated as immutable after that.
 	cfg Config
+
+	// maxRetryDuration is the maximum duration a persistent connection retry
+	// backoff is allowed to grow to.
+	maxRetryDuration time.Duration
 
 	// runPersistentChan is used to signal the persistent connections handler to
 	// launch a goroutine that attempts to always maintain an established
@@ -1026,7 +1028,7 @@ func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr ne
 					retryCount++
 				}
 				retryWait := time.Duration(retryCount) * cm.cfg.RetryDuration
-				retryWait = min(retryWait, maxRetryDuration)
+				retryWait = min(retryWait, cm.maxRetryDuration)
 				log.Debugf("Retrying connection to %v in %v (retries %d)", addr,
 					retryWait, retryCount)
 				retryAfter = time.After(retryWait)
@@ -1237,6 +1239,7 @@ func New(cfg *Config) (*ConnManager, error) {
 	cm := ConnManager{
 		cfg:                *cfg, // Copy so caller can't mutate
 		quit:               make(chan struct{}),
+		maxRetryDuration:   defaultMaxRetryDuration,
 		runPersistentChan:  make(chan *persistentEntry, MaxPersistent),
 		activeOutboundsSem: makeSemaphore(cfg.TargetOutbound),
 		persistent:         make(map[uint64]*persistentEntry, MaxPersistent),
