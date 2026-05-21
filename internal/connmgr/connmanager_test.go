@@ -219,6 +219,93 @@ func TestNewConfig(t *testing.T) {
 	})
 }
 
+// TestIsWhitelisted ensures [ConnManager.IsWhitelisted] works as expected.
+func TestIsWhitelisted(t *testing.T) {
+	type perManagerTest struct {
+		addr        string // address to test against whitelist
+		whitelisted bool   // expected whitelisted result
+	}
+
+	tests := []struct {
+		name            string           // test description
+		prefixes        []netip.Prefix   // CIDR prefixes to whitelist
+		perManagerTests []perManagerTest // tests to run against the prefixes
+	}{{
+		name:     "no whitelisted entries",
+		prefixes: nil,
+		perManagerTests: []perManagerTest{
+			{"1.2.3.4:18555", false},
+			{"127.0.0.1:18555", false},
+		},
+	}, {
+		name: "single /32 IPv4 entry",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("1.2.3.4/32"),
+		},
+		perManagerTests: []perManagerTest{
+			{"1.2.3.4:18555", true},
+			{"1.2.3.4:9108", true},
+			{"[::1.2.3.4]:18555", false}, // IPv4 in IPv6
+			{"1.2.3.5:18555", false},
+		},
+	}, {
+		name: "single /128 IPv6 entry",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("::1.2.3.4/128"),
+		},
+		perManagerTests: []perManagerTest{
+			{"[::1.2.3.4]:18555", true},
+			{"[::1.2.3.4]:9108", true},
+			{"1.2.3.4:18555", false}, // IPv4 doesn't match IPv4 in IPv6
+			{"[::1.2.3.5]:9108", false},
+		},
+	}, {
+		name: "mixed IPv4 and IPv6 with different prefix lengths",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("12.13.14.0/24"),
+			netip.MustParsePrefix("20.21.22.23/8"),
+			netip.MustParsePrefix("fe80::/64"),
+		},
+		perManagerTests: []perManagerTest{
+			{"12.13.14.1:18555", true},
+			{"12.13.14.255:18555", true},
+			{"12.13.15.0:18555", false},
+			{"20.0.0.0:18555", true},
+			{"20.0.0.0:9108", true},
+			{"20.255.255.255:18555", true},
+			{"20.255.255.255:9108", true},
+			{"21.0.0.0:18555", false},
+			{"[fe80::1]:18555", true},
+			{"[fe80::1]:9108", true},
+			{"[fe80::ffff:ffff:ffff:ffff]:18555", true},
+			{"[fe80::ffff:ffff:ffff:ffff]:1234", true},
+			{"[fe80::1:ffff:ffff:ffff:ffff]:18555", false},
+		},
+	}}
+
+	for _, test := range tests {
+		// Parse the whitelist entries for the test.
+		cmgr := newTestConnManager(t, &Config{
+			Dial:       mockDialer,
+			Whitelists: test.prefixes,
+		})
+
+		for _, pmTest := range test.perManagerTests {
+			mAddr := mockAddr{"tcp", pmTest.addr}
+			addr, err := stdlibNetAddrToAddrMgrNetAddr(mAddr)
+			if err != nil {
+				t.Fatalf("%q-%q: failed to parse address: %v", test.name,
+					pmTest.addr, err)
+			}
+			if got := cmgr.IsWhitelisted(addr); got != pmTest.whitelisted {
+				t.Errorf("%q-%q: mismatched result -- got %v, want %v",
+					test.name, pmTest.addr, got, pmTest.whitelisted)
+				continue
+			}
+		}
+	}
+}
+
 // assertConnID ensures the provided connection has the given ID.
 func assertConnID(t *testing.T, conn *Conn, wantID uint64) {
 	t.Helper()
