@@ -33,6 +33,8 @@ The following is a brief overview of the key features:
   - Supports manual connection establishment via `Connect`
 - Connection limits
   - Limits total normal (non-persistent) connections to `MaxNormalConns`
+  - Limits per-host connections to `MaxConnsPerHost` with exemptions for
+    whitelisted and loopback addresses
 - Duplicate address prevention
   - Rejects duplicate connections to and from the same address (host:port)
 - Whitelist support
