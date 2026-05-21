@@ -31,6 +31,8 @@ The following is a brief overview of the key features:
     with exponential backoff on disconnect
 - Manual connections
   - Supports manual connection establishment via `Connect`
+- Connection limits
+  - Limits total normal (non-persistent) connections to `MaxNormalConns`
 - Duplicate address prevention
   - Rejects duplicate connections to and from the same address (host:port)
 - Whitelist support
