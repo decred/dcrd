@@ -33,6 +33,8 @@ The following is a brief overview of the key features:
   - Supports manual connection establishment via `Connect`
 - Duplicate address prevention
   - Rejects duplicate connections to and from the same address (host:port)
+- Whitelist support
+  - CIDR-based whitelists that allow bypassing certain limits and restrictions
 - Rich managed connections via `Conn`
   - Connection types for differentiated handling
   - Automatic cleanup on connection close
