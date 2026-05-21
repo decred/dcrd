@@ -114,6 +114,11 @@ func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	t.Helper()
 
+	// Set default max conns per host to 5 instead of unlimited for tests to
+	// help assert the internal state across all tests.
+	if cfg.MaxConnsPerHost == 0 {
+		cfg.MaxConnsPerHost = 5
+	}
 	cmgr, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New: unexpected error: %v", err)
@@ -122,9 +127,9 @@ func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	return cmgr
 }
 
-// assertConnManagerInternalState ensures the internal state of the passed
+// assertInternalConnState ensures the internal connection state of the passed
 // connection manager instance is coherent.
-func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
+func assertInternalConnState(t *testing.T, cm *ConnManager) {
 	t.Helper()
 
 	cm.connMtx.Lock()
@@ -142,9 +147,6 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 
 	// Assert the pending and active maps are mutually exclusive for both conn
 	// IDs and addrs.
-	//
-	// Also build a map of addrs to conn IDs in the pending, active, and
-	// persistent maps for the checks below.
 	connIDByAddr := make(map[string]uint64)
 	for id, info := range cm.pending {
 		if _, ok := cm.active[id]; ok {
@@ -180,28 +182,92 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 	}
 }
 
+// assertInternalPerHostState ensures the internal per-host state of the passed
+// connection manager instance is coherent.
+func assertInternalPerHostState(t *testing.T, cm *ConnManager) {
+	t.Helper()
+
+	cm.connMtx.Lock()
+	defer cm.connMtx.Unlock()
+
+	cm.perHostCountsMtx.Lock()
+	defer cm.perHostCountsMtx.Unlock()
+
+	perHostCounts := make(map[string]uint32)
+	for _, info := range cm.pending {
+		if cm.needsHostPermit(info.addr) {
+			perHostCounts[addrHostKey(info.addr)]++
+		}
+	}
+	for _, conn := range cm.active {
+		addr := &conn.remoteAddr
+		if cm.needsHostPermit(addr) {
+			perHostCounts[addrHostKey(addr)]++
+		}
+	}
+
+	// Assert the per host counts are >= to the values obtained from manually
+	// tallying them.
+	//
+	// This is intentionally not checking for an exact match since permit
+	// reservations and dials are under separate mutexes and therefore the count
+	// will not always match exactly, however, the number of permits must
+	// never be less than the pending and active connections that need them.
+	for key, want := range perHostCounts {
+		if got := cm.perHostCounts[key]; got < want {
+			t.Fatalf("per host count for %v has too few entries -- got %v, "+
+				"want >= %v", key, got, want)
+		}
+	}
+}
+
+// assertConnManagerInternalState ensures the internal state of the passed
+// connection manager instance is coherent.
+func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
+	t.Helper()
+
+	assertInternalConnState(t, cm)
+	assertInternalPerHostState(t, cm)
+}
+
 // assertConnManagerCleanShutdown ensures the internal state of the passed
 // connection manager is fully cleaned up as expected.  It must only be called
 // after [ConnManager.Run] returns.
 func assertConnManagerCleanShutdown(t *testing.T, cm *ConnManager) {
 	t.Helper()
 
-	cm.connMtx.Lock()
-	defer cm.connMtx.Unlock()
+	func() {
+		t.Helper()
 
-	if len(cm.active) != 0 {
-		t.Fatalf("active map is not empty: %d entries", len(cm.active))
-	}
-	if len(cm.pending) != 0 {
-		t.Fatalf("pending map is not empty: %d entries", len(cm.pending))
-	}
-	if len(cm.persistent) != 0 {
-		t.Fatalf("persistent map is not empty: %d entries", len(cm.persistent))
-	}
-	if len(cm.connIDByAddr) != 0 {
-		t.Fatalf("conn ID by addr map not empty: %d entries",
-			len(cm.connIDByAddr))
-	}
+		cm.connMtx.Lock()
+		defer cm.connMtx.Unlock()
+
+		if len(cm.active) != 0 {
+			t.Fatalf("active map is not empty: %d entries", len(cm.active))
+		}
+		if len(cm.pending) != 0 {
+			t.Fatalf("pending map is not empty: %d entries", len(cm.pending))
+		}
+		if len(cm.persistent) != 0 {
+			t.Fatalf("persistent map is not empty: %d entries", len(cm.persistent))
+		}
+		if len(cm.connIDByAddr) != 0 {
+			t.Fatalf("conn ID by addr map not empty: %d entries",
+				len(cm.connIDByAddr))
+		}
+	}()
+
+	func() {
+		t.Helper()
+
+		cm.perHostCountsMtx.Lock()
+		defer cm.perHostCountsMtx.Unlock()
+
+		if len(cm.perHostCounts) != 0 {
+			t.Fatalf("per host counts map not empty: %d entries",
+				len(cm.perHostCounts))
+		}
+	}()
 }
 
 // TestNewConfig tests that new ConnManager config is validated as expected.
@@ -1875,6 +1941,207 @@ func TestMaxNormalConns(t *testing.T) {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
 	assertConnReceived(t, connected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+	assertConnManagerCleanShutdown(t, cmgr)
+}
+
+// TestMaxConnsPerHost ensures the connection manager limits the total number of
+// connections with the same host to [Config.MaxConnsPerHost] including
+// automatic outbound, manual outbound, inbound, and persistent connections.  It
+// also tests whitelisted addresses are exempt.
+func TestMaxConnsPerHost(t *testing.T) {
+	t.Parallel()
+
+	// nextSameHost is a convenience func to return a new address to the same IP
+	// with a different port on every invocation.
+	var nextPort atomic.Uint32
+	nextSameHost := func() *addrmgr.NetAddress {
+		addrStr := fmt.Sprintf("10.10.0.1:%d", nextPort.Add(1)+1024)
+		return mustParseAddrPort(addrStr)
+	}
+
+	// nextSameWhitelistedHost is a convenience func to return a new address to
+	// the same whitelisted IP with a different port on every invocation.
+	allowedIP := netip.MustParseAddr("10.20.0.1")
+	nextSameWhitelistedHost := func() *addrmgr.NetAddress {
+		addrStr := fmt.Sprintf("%s:%d", allowedIP, nextPort.Add(1)+1024)
+		return mustParseAddrPort(addrStr)
+	}
+
+	const maxConnsPerHost = 3
+	const retryTimeout = 50 * time.Millisecond
+	connected := make(chan *Conn, 1)
+	disconnected := make(chan *Conn, 1)
+	inboundConns := make(chan *Conn)
+	listener := newMockListener("127.0.0.1:9108")
+	var pauseTargetOutbound atomic.Bool
+	var totalPausedAddrs atomic.Uint32
+	hitMaxFailedAttempts := make(chan struct{})
+	cmgr := newTestConnManager(t, &Config{
+		Listeners:       []net.Listener{listener},
+		MaxNormalConns:  30, // High enough to not interfere with per-host tests.
+		MaxConnsPerHost: maxConnsPerHost,
+		TargetOutbound:  maxConnsPerHost,
+		RetryDuration:   retryTimeout,
+		Dial:            mockDialer,
+		Whitelists:      []netip.Prefix{netip.PrefixFrom(allowedIP, 32)},
+		OnAccept: func(conn *Conn) {
+			inboundConns <- conn
+		},
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
+			if pauseTargetOutbound.Load() {
+				total := totalPausedAddrs.Add(1)
+				if total == maxFailedAttempts {
+					close(hitMaxFailedAttempts)
+				}
+				return nil, errors.New("network down")
+			}
+			return nextSameHost(), nil
+		},
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	cmgr.maxRetryDuration = cmgr.cfg.RetryDuration
+	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Wait for the maximum allowed non-whitelisted per-host automatic outbound
+	// conns.
+	outboundConns := make([]*Conn, 0, maxConnsPerHost)
+	for len(outboundConns) < maxConnsPerHost {
+		conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+		outboundConns = append(outboundConns, conn)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure non-whitelisted manual connections that would exceed the max
+	// allowed per-host connections are rejected.
+	_, err := cmgr.Connect(ctx, nextSameHost())
+	if !errors.Is(err, ErrMaxConnsPerHost) {
+		t.Fatalf("did not reject manual connection at per-host limit, err: %v",
+			err)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure non-whitelisted inbound connections that would exceed the max
+	// allowed per-host connections are rejected.
+	go listener.Connect(nextSameHost())
+	assertNoConnReceived(t, inboundConns)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure whitelisted manual connections are allowed to exceed the per-host
+	// limit.
+	for range maxConnsPerHost + 1 {
+		go cmgr.Connect(ctx, nextSameWhitelistedHost())
+		assertConnReceived(t, connected, 0, ConnTypeManual)
+	}
+
+	// Ensure whitelisted inbound connections are allowed to exceed the per-host
+	// limit.
+	go listener.Connect(nextSameWhitelistedHost())
+	assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure whitelisted persistent connections are allowed to exceed the
+	// per-host limit.
+	connID, err := cmgr.AddPersistent(nextSameWhitelistedHost())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Pause the target outbound dials and remove one of the target outbound
+	// connections to make room for another manual connection with the same
+	// host.  Then wait for the max failures to be hit so attempts are paused
+	// for a retry timeout.
+	pauseTargetOutbound.Store(true)
+	outboundConn := outboundConns[0]
+	outboundConn.Close()
+	assertConnReceived(t, disconnected, outboundConn.ID(), ConnTypeOutbound)
+	select {
+	case <-hitMaxFailedAttempts:
+		time.Sleep(connTestReceiveTimeout)
+	case <-time.After(maxFailedAttempts * connTestReceiveTimeout):
+		t.Fatal("did not reach max failed attempts before timeout")
+	}
+
+	// Ensure a new non-whitelisted manual connection to the same host now
+	// succeeds.
+	go cmgr.Connect(ctx, nextSameHost())
+	assertConnReceived(t, connected, 0, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Unpause the target outbound dials and ensure no additional automatic
+	// outbound connections to the same host are made despite being under the
+	// target outbound.
+	noConnWaitTimeout := connTestReceiveTimeout + cmgr.cfg.RetryDuration
+	pauseTargetOutbound.Store(false)
+	assertNoConnReceivedTimeout(t, connected, noConnWaitTimeout)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure persistent connections for a host that already has all available
+	// host slots used by non-persistent conns can still be added but their
+	// connection attempts fail while there are no slots available.
+	//
+	// Then remove it to avoid interfering with the following tests.
+	connID, err = cmgr.AddPersistent(nextSameHost())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertNoConnReceived(t, connected)
+	assertConnManagerInternalState(t, cmgr)
+	if err := cmgr.Remove(connID); err != nil {
+		t.Fatalf("unexpected remove err: %v", err)
+	}
+
+	// nextSameHost2 is a convenience func to return a new address to the same
+	// IP with a different port on every invocation.  It uses a different IP
+	// than the one used above to start with a clean per-host count.
+	var nextPort2 atomic.Uint32
+	nextSameHost2 := func() *addrmgr.NetAddress {
+		addrStr := fmt.Sprintf("20.30.0.1:%d", nextPort2.Add(1)+1024)
+		return mustParseAddrPort(addrStr)
+	}
+
+	// Ensure persistent connections can achieve the per-host limit.
+	persistentConns := make([]*Conn, 0, maxConnsPerHost)
+	for len(persistentConns) < maxConnsPerHost {
+		connID, err := cmgr.AddPersistent(nextSameHost2())
+		if err != nil {
+			t.Fatalf("failed to add persistent connection: %v", err)
+		}
+		conn := assertConnReceived(t, connected, connID, ConnTypeManual)
+		persistentConns = append(persistentConns, conn)
+	}
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure persistent connection reconnects are allowed at the per-host
+	// limit.  Wait for the disconnect first and then for the reconnect to be
+	// established.
+	persistentConn := persistentConns[0]
+	connID = persistentConn.ID()
+	persistentConn.Close()
+	assertConnReceived(t, disconnected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+	timeout := retryTimeout + connTestReceiveTimeout
+	assertConnReceivedTimeout(t, connected, timeout, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cmgr)
+
+	// Ensure persistent connection registrations are limited to the max
+	// per-host connections by attempting to add one and confirming it is
+	// rejected.
+	_, err = cmgr.AddPersistent(nextSameHost2())
+	if !errors.Is(err, ErrMaxPersistentPerHost) {
+		t.Fatalf("did not reject > max persistent per host, err: %v", err)
+	}
 	assertConnManagerInternalState(t, cmgr)
 
 	// Ensure clean shutdown of connection manager.
