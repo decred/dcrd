@@ -2618,20 +2618,6 @@ func (s *server) considerReportedAddr(from *serverPeer, addr *wire.NetAddress) {
 	s.considerReportedAddrOutbound(from, addr)
 }
 
-// connectionsWithIP returns the number of connections with the given IP.
-//
-// This function MUST be called with the embedded mutex locked (for reads).
-func (ps *peerState) connectionsWithIP(ip net.IP) int {
-	var total int
-	ps.forAllPeers(func(sp *serverPeer) {
-		if ip.Equal(sp.remoteAddr.IP) {
-			total++
-		}
-
-	})
-	return total
-}
-
 // handleAddPeer deals with adding new peers and includes logic such as
 // categorizing the type of peer, limiting the maximum allowed number of peers,
 // and local external address resolution.
@@ -2689,19 +2675,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	state := &s.peerState
 	defer state.Unlock()
 	state.Lock()
-
-	// Limit max number of connections from a single IP.  However, allow
-	// whitelisted inbound peers and localhost connections regardless.
-	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := net.IP(sp.remoteAddr.IP)
-	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
-		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
-
-		srvrLog.Infof("Max connections with %s reached [%d] - disconnecting "+
-			"peer", sp, cfg.MaxSameIP)
-		sp.Disconnect()
-		return false
-	}
 
 	// Add the new peer.
 	if sp.Inbound() {
@@ -4347,11 +4320,12 @@ func newServer(ctx context.Context, profiler *profileServer,
 		OnAccept: func(conn *connmgr.Conn) {
 			s.inboundPeerConnected(ctx, conn)
 		},
-		RetryDuration:  connectionRetryInterval,
-		MaxNormalConns: uint32(cfg.MaxPeers),
-		TargetOutbound: s.targetOutbound,
-		Dial:           s.attemptDcrdDial,
-		DialTimeout:    cfg.DialTimeout,
+		RetryDuration:   connectionRetryInterval,
+		MaxNormalConns:  uint32(cfg.MaxPeers),
+		MaxConnsPerHost: uint32(cfg.MaxSameIP),
+		TargetOutbound:  s.targetOutbound,
+		Dial:            s.attemptDcrdDial,
+		DialTimeout:     cfg.DialTimeout,
 		OnConnection: func(conn *connmgr.Conn) {
 			s.outboundPeerConnected(ctx, conn)
 		},

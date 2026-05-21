@@ -7,6 +7,11 @@
 // and persistent network connections with retry logic.
 package connmgr
 
+// The required lock ordering that must be followed to avoid deadlocks is as
+// follows:
+//   1. connMtx
+//   2. perHostCountsMtx
+
 import (
 	"context"
 	"errors"
@@ -248,6 +253,23 @@ type Config struct {
 	// this value.
 	MaxNormalConns uint32
 
+	// MaxConnsPerHost is the maximum number of connections with the same host
+	// to permit.  Setting this to 0 disables the limiting.  Defaults to 0
+	// (unlimited).
+	//
+	// This applies to inbound, outbound, and persistent connections.  However,
+	// in practice, it is highly unlikely that outbound connections to the same
+	// host will even reach more than 1 or 2 (unless intentionally connecting
+	// manually) because:
+	//
+	// - connections to the same host:port are rejected and it is extremely rare
+	//   for the same host to serve multiple instances on different ports
+	// - all automatic outbound connections are heavily biased toward different
+	//   network groups
+	//
+	// This limit is not applied to whitelisted or loopback connections.
+	MaxConnsPerHost uint32
+
 	// TargetOutbound is the number of outbound network connections to maintain
 	// automatically.  Defaults to 8.
 	//
@@ -318,6 +340,13 @@ type ConnManager struct {
 	// outboundSem limits the number of active outbound connections.
 	totalNormalConnsSem semaphore
 	activeOutboundsSem  semaphore
+
+	// perHostCounts provides fast O(1) lookup of the number of entries per
+	// host.  It is used to efficiently enforce per-host connection limits.
+	//
+	// It is protected by the associated mutex.
+	perHostCountsMtx sync.Mutex
+	perHostCounts    map[string]uint32
 
 	// The fields below this point are all protected by the connection mutex.
 	connMtx sync.Mutex
@@ -407,6 +436,12 @@ func stdlibNetAddrToAddrMgrNetAddr(addr net.Addr) (*addrmgr.NetAddress, error) {
 		return nil, MakeError(ErrUnsupportedAddr, err.Error())
 	}
 	return netAddr, nil
+}
+
+// addrHostKey returns the host portion of the passed address as a string
+// suitable for use as a map key.
+func addrHostKey(addr *addrmgr.NetAddress) string {
+	return net.IP(addr.IP).String()
 }
 
 // addPendingInfo adds information about a pending connection attempt to the
@@ -714,6 +749,93 @@ func (cm *ConnManager) dial(ctx context.Context, addr *addrmgr.NetAddress, connT
 	return conn, nil
 }
 
+// noop is a no-op function used as the release callback for addresses that are
+// exempt from per-host limiting (e.g. whitelisted, loopback, or when limiting
+// is disabled).  This allows uniform release handling by callers.
+func noop() {}
+
+// needsHostPermit returns whether or not the provided address requires a
+// per-host permit.
+func (cm *ConnManager) needsHostPermit(addr *addrmgr.NetAddress) bool {
+	// No permit needed when per-host limiting is disabled.
+	if cm.cfg.MaxConnsPerHost == 0 {
+		return false
+	}
+
+	// Whitelisted and loopback addresses are exempt.
+	isWhitelisted := cm.IsWhitelisted(addr)
+	isLoopback := net.IP(addr.IP).IsLoopback()
+	if isWhitelisted || isLoopback {
+		return false
+	}
+	return true
+}
+
+// reserveHostPermit attempts to acquire a permit for the provided host address.
+// It returns [ErrMaxConnsPerHost] when no slot is available.  Otherwise, it is
+// up to the caller to release the permit when it is no longer needed.
+//
+// This function MUST be called with the per-host counts mutex held (writes).
+func (cm *ConnManager) reserveHostPermit(addr *addrmgr.NetAddress) error {
+	hostKey := addrHostKey(addr)
+
+	maxAllowed := cm.cfg.MaxConnsPerHost
+	numConns := cm.perHostCounts[hostKey]
+	if numConns+1 > maxAllowed {
+		str := fmt.Sprintf("a maximum of %d %s per host is allowed", maxAllowed,
+			pickNoun(maxAllowed, "connection", "connections"))
+		return MakeError(ErrMaxConnsPerHost, str)
+	}
+
+	cm.perHostCounts[hostKey]++
+	return nil
+}
+
+// releaseHostPermitFn returns a function that itself releases a host permit for
+// the given host address.
+//
+// This function and the returned function are both safe for concurrent access.
+func (cm *ConnManager) releaseHostPermitFn(addr *addrmgr.NetAddress) func() {
+	hostKey := addrHostKey(addr)
+	return func() {
+		cm.perHostCountsMtx.Lock()
+		cm.perHostCounts[hostKey]--
+		if cm.perHostCounts[hostKey] == 0 {
+			delete(cm.perHostCounts, hostKey)
+		}
+		cm.perHostCountsMtx.Unlock()
+	}
+}
+
+// maybeReserveHostPermit attempts to acquire a permit for the provided host
+// address and returns a function to release the permit.  The caller MUST
+// invoke the returned function when no error is returned and the permit is no
+// longer needed.
+//
+// When the host address is exempt from per-host limiting, no slot is reserved
+// and the returned release function does nothing.  As a result, it is always
+// safe to invoke the returned release function when no error is returned.
+//
+// It returns [ErrMaxConnsPerHost] when a permit is required and no slot is
+// available.
+//
+// This function is safe for concurrent access.
+func (cm *ConnManager) maybeReserveHostPermit(addr *addrmgr.NetAddress) (func(), error) {
+	// Nothing to do when no permit is required.
+	if !cm.needsHostPermit(addr) {
+		return noop, nil
+	}
+
+	cm.perHostCountsMtx.Lock()
+	if err := cm.reserveHostPermit(addr); err != nil {
+		cm.perHostCountsMtx.Unlock()
+		return nil, err
+	}
+	cm.perHostCountsMtx.Unlock()
+
+	return cm.releaseHostPermitFn(addr), nil
+}
+
 // Connect assigns an ID and dials a connection to the provided address using
 // the provided context and the dial function configured when initially creating
 // the connection manager.
@@ -726,6 +848,7 @@ func (cm *ConnManager) dial(ctx context.Context, addr *addrmgr.NetAddress, connT
 // limits are enforced:
 //
 //   - Total normal connections ([Config.MaxNormalConns])
+//   - Total connections with the same host ([Config.MaxConnsPerHost])
 //
 // Note that the context parameter to this function and the lifecycle context
 // may be independent.
@@ -741,6 +864,8 @@ func (cm *ConnManager) dial(ctx context.Context, addr *addrmgr.NetAddress, connT
 //     the address
 //   - [ErrMaxNormalConns] when there are already the maximum allowed number of
 //     normal connections (inbound, outbound, and pending)
+//   - [ErrMaxConnsPerHost] when there are already the maximum allowed number of
+//     connections (pending, active, and persistent) with the same host
 //   - [ErrShutdown] when the connection manager is shutting down
 //   - [context.Canceled] or [context.DeadlineExceeded] depending on the
 //     provided context or when the dialer fails to establish a connection
@@ -753,20 +878,31 @@ func (cm *ConnManager) Connect(ctx context.Context, addr net.Addr) (*Conn, error
 		return nil, err
 	}
 
+	// Limit the max number of connections per host unless exempt.
+	releaseHostPermit, err := cm.maybeReserveHostPermit(rAddr)
+	if err != nil {
+		return nil, err
+	}
+
 	acquired, err := cm.totalNormalConnsSem.TryAcquire(ctx)
 	if err != nil {
+		releaseHostPermit()
 		if sErr := cm.checkShutdown(); sErr != nil {
 			return nil, sErr
 		}
 		return nil, err
 	}
 	if !acquired {
+		releaseHostPermit()
 		maxAllowed := cm.cfg.MaxNormalConns
 		str := fmt.Sprintf("a maximum of %d %s is allowed", maxAllowed,
 			pickNoun(maxAllowed, "connection", "connections"))
 		return nil, MakeError(ErrMaxNormalConns, str)
 	}
-	onClose := cm.totalNormalConnsSem.Release
+	onClose := func() {
+		cm.totalNormalConnsSem.Release()
+		releaseHostPermit()
+	}
 	conn, err := cm.dial(ctx, rAddr, ConnTypeManual, onClose, nil)
 	if err != nil {
 		return nil, err
@@ -925,6 +1061,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 			netConn.Close()
 			continue
 		}
+		isWhitelisted := cm.IsWhitelisted(rAddr)
 
 		// Reject connections with the same host:port as any existing pending,
 		// established, or persistent connections.  Note that this does NOT
@@ -933,7 +1070,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		//
 		// The aforementioned behavior is intentional as it allows connections
 		// from the same host to be independently limited to more than one
-		// elsewhere.
+		// below.
 		cm.connMtx.Lock()
 		if err := cm.rejectDuplicateAddr(rAddr); err != nil {
 			cm.connMtx.Unlock()
@@ -943,20 +1080,30 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		}
 		cm.connMtx.Unlock()
 
+		// Limit the max number of connections per host unless exempt.
+		releaseHostPermit, err := cm.maybeReserveHostPermit(rAddr)
+		if err != nil {
+			log.Debugf("Dropped connection from %v: %v", rAddr, err)
+			netConn.Close()
+			continue
+		}
+
 		// Require a permit to allow the inbound connection unless the address
 		// has special permissions (e.g. whitelisted).
 		//
 		// Attempt to acquire a permit via a non-blocking call and immediately
 		// disconnect if unsuccessful so that all blocking happens on
 		// [net.Listener.Accept] for the reasons described above.
-		requirePermit := !cm.IsWhitelisted(rAddr)
+		requirePermit := !isWhitelisted
 		if requirePermit {
 			acquired, err := cm.totalNormalConnsSem.TryAcquire(ctx)
 			if err != nil {
+				releaseHostPermit()
 				netConn.Close()
 				continue
 			}
 			if !acquired {
+				releaseHostPermit()
 				maxAllowed := cm.cfg.MaxNormalConns
 				log.Debugf("Dropped connection from %v: a maximum of %d %s is "+
 					"allowed", rAddr, maxAllowed, pickNoun(maxAllowed,
@@ -984,6 +1131,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 				if requirePermit {
 					cm.totalNormalConnsSem.Release()
 				}
+				releaseHostPermit()
 			}
 			conn = newConn(cm, netConn, id, connType, rAddr, onClose)
 			cm.connMtx.Lock()
@@ -996,6 +1144,46 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 	}
 }
 
+// rejectMaxPersistentsPerHost returns an error if registering another
+// persistent connection for the provided host address would exceed
+// [Config.MaxConnsPerHost] and is not exempt.
+//
+// Only other persistent connections are counted.  This allows persistent
+// connections to be registered even when all slots are currently used by
+// temporary connections.  The new persistent connection will retry until a
+// slot becomes available.
+//
+// This function MUST be called with the connection mutex held (reads).
+func (cm *ConnManager) rejectMaxPersistentsPerHost(addr *addrmgr.NetAddress) error {
+	// Nothing to do when no permit is required.
+	if !cm.needsHostPermit(addr) {
+		return nil
+	}
+
+	// Count the number of registered persistent connections that already exist
+	// for the host address.
+	//
+	// Note that this intentionally does not interact with the per-host slot
+	// reservations or counts map for the reasons described in the function
+	// comment.
+	hostKey := addrHostKey(addr)
+	var count uint32
+	for _, entry := range cm.persistent {
+		if addrHostKey(entry.addr) == hostKey {
+			count++
+		}
+	}
+
+	maxAllowed := cm.cfg.MaxConnsPerHost
+	if count+1 > maxAllowed {
+		str := fmt.Sprintf("a maximum of %d persistent %s per host is allowed",
+			maxAllowed, pickNoun(maxAllowed, "connection", "connections"))
+		return MakeError(ErrMaxPersistentPerHost, str)
+	}
+
+	return nil
+}
+
 // AddPersistent adds an address the connection manager will attempt to always
 // maintain an established connection with until the persistent connection entry
 // is removed via [ConnManager.Remove] or the context associated with
@@ -1006,6 +1194,10 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 //
 // A maximum of [MaxPersistent] connections may be added.  Attempting to add any
 // more will return [ErrMaxPersistent].
+//
+// A maximum of [Config.MaxConnsPerHost] connections to the same host address
+// may be added unless the address is exempt.  Attempting to add any more will
+// return [ErrMaxPersistentPerHost].
 //
 // Adding a duplicate persistent address will return [ErrDuplicatePersistent]
 // and adding addresses that already have an established or pending connection
@@ -1044,6 +1236,11 @@ func (cm *ConnManager) AddPersistent(addr net.Addr) (uint64, error) {
 	}
 
 	if err := cm.rejectDuplicateAddr(rAddr); err != nil {
+		return 0, err
+	}
+
+	// Limit the max number of persistent connections per host.
+	if err := cm.rejectMaxPersistentsPerHost(rAddr); err != nil {
 		return 0, err
 	}
 
@@ -1098,13 +1295,10 @@ func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr *a
 		}
 	}()
 
-	// Setup a callback that notifies a disconnect channel for use below and
-	// start with the channel signaled.
+	// Setup a disconnect channel for use below and start with the channel
+	// signaled.
 	disconnected := make(chan struct{}, 1)
 	disconnected <- struct{}{}
-	onClose := func() {
-		disconnected <- struct{}{}
-	}
 
 	var retryCount uint32
 	var retryAfter <-chan time.Time
@@ -1153,9 +1347,27 @@ func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr *a
 			retryAfter = nil
 		}
 
+		// attempt enforces any per-attempt requirements and then attempts to
+		// connect to the address.
+		attempt := func() (*Conn, error) {
+			// Limit the max number of connections per host unless exempt.
+			releaseHostPermit, err := cm.maybeReserveHostPermit(addr)
+			if err != nil {
+				disconnected <- struct{}{}
+				return nil, err
+			}
+
+			onClose := func() {
+				releaseHostPermit()
+				disconnected <- struct{}{}
+			}
+			return cm.dial(ctx, addr, ConnTypeManual, onClose, &connID)
+		}
+
+		// Attempt to connect to the persistent address.
 		lastAttempt = time.Now()
 		var err error
-		conn, err = cm.dial(ctx, addr, ConnTypeManual, onClose, &connID)
+		conn, err = attempt()
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -1273,10 +1485,20 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 			continue
 		}
 
+		// Limit the max number of connections per host unless exempt.
+		releaseHostPermit, err := cm.maybeReserveHostPermit(addr)
+		if err != nil {
+			failedAttempts.Add(1)
+			cm.totalNormalConnsSem.Release()
+			cm.activeOutboundsSem.Release()
+			continue
+		}
+
 		wg.Add(1)
 		go func(addr *addrmgr.NetAddress) {
 			defer wg.Done()
 			onClose := func() {
+				releaseHostPermit()
 				cm.totalNormalConnsSem.Release()
 				cm.activeOutboundsSem.Release()
 			}
@@ -1375,6 +1597,7 @@ func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil {
 		return nil, MakeError(ErrDialNil, "dial cannot be nil")
 	}
+
 	// Default to sane values.
 	if cfg.RetryDuration <= 0 {
 		cfg.RetryDuration = defaultRetryDuration
@@ -1397,6 +1620,7 @@ func New(cfg *Config) (*ConnManager, error) {
 		pending:             make(map[uint64]*pendingConnInfo),
 		active:              make(map[uint64]*Conn, cfg.TargetOutbound),
 		connIDByAddr:        make(map[string]uint64),
+		perHostCounts:       make(map[string]uint32),
 	}
 	return &cm, nil
 }
