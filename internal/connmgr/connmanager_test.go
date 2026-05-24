@@ -537,6 +537,7 @@ func TestMultipleFailedConns(t *testing.T) {
 func TestShutdownFailedConns(t *testing.T) {
 	t.Parallel()
 
+	const retryTimeout = time.Second
 	var closeOnce sync.Once
 	dialed := make(chan struct{})
 	waitDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -544,22 +545,28 @@ func TestShutdownFailedConns(t *testing.T) {
 		return nil, errors.New("network down")
 	}
 	cmgr := newTestConnManager(t, &Config{
-		RetryDuration: defaultTestMaxRetryDuration,
+		RetryDuration: retryTimeout,
 		Dial:          waitDialer,
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	cmgr.maxRetryDuration = retryTimeout
+	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Add a persistent connection.
+	addr := mustParseAddrPort("127.0.0.1:18555")
+	_, err := cmgr.AddPersistent(addr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Shutdown the connection manager during the retry timeout after a failed
 	// dial attempt.
-	go func() {
-		<-dialed
-		time.Sleep(cmgr.maxRetryDuration / 2)
-		shutdown()
-	}()
-
-	// Establish a connection.
-	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
+	select {
+	case <-dialed:
+	case <-time.After(connTestNonReceiveTimeout):
+		t.Fatal("timeout waiting for dial")
+	}
+	time.Sleep(connTestNonReceiveTimeout)
+	shutdown()
 
 	// Ensure clean shutdown of connection manager.
 	wg.Wait()
