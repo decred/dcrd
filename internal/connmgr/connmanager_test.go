@@ -1080,11 +1080,11 @@ func TestMaxRetryDuration(t *testing.T) {
 		//
 		//  0s: initial attempt (retry in ~1s)
 		// ~1s: retry 1 (retry in ~2s) - max retry duration reached
-		// ~3s: retry 2 (retry in ~2s, w/o max would be in ~3s => next at ~6s)
-		// ~5s: retry 3 (retry in ~2s, w/o max would be in ~4s => next at ~10s)
-		// ~7s: retry 4 (retry in ~2s, w/o max would be in ~5s => next at ~15s)
-		// ~9s: retry 5 (retry in ~2s, w/o max would be in ~6s => next at ~21s)
-		// ~11s: retry 6 (retry in ~2s, w/o max would be in ~7s => next at ~28s)
+		// ~3s: retry 2 (retry in ~2s, w/o max would be in ~4s => next at ~7s)
+		// ~5s: retry 3 (retry in ~2s, w/o max would be in ~8s => next at ~15s)
+		// ~7s: retry 4 (retry in ~2s, w/o max would be in ~16s => next at ~33s)
+		// ~9s: retry 5 (retry in ~2s, w/o max would be in ~32s => next at ~65s)
+		// ~11s: retry 6 (retry in ~2s, w/o max would be in ~64s => next at ~129s)
 		// ~12s: timedDialer returns [mockDialer]
 		// ~13s: retry 7 succeeds
 		networkUpTimeout := 6 * cm.maxRetryDuration
