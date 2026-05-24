@@ -318,6 +318,13 @@ type ConnManager struct {
 	// creating time and treated as immutable after that.
 	cfg Config
 
+	// csprng provides a cryptographically secure pseudorandom number generator.
+	//
+	// All code in the connection manager that relies on random values is
+	// expected to make use of this so that tests can replace the real
+	// implementation with a deterministic PRNG for reproducibility.
+	csprng csprng
+
 	// maxRetryDuration is the maximum duration a persistent connection retry
 	// backoff is allowed to grow to.
 	maxRetryDuration time.Duration
@@ -340,7 +347,10 @@ type ConnManager struct {
 	totalNormalConnsSem semaphore
 	activeOutboundsSem  semaphore
 
-	// The fields below this point are all protected by the connection mutex.
+	// ******************************************************************
+	// The fields below this point are protected by the connection mutex.
+	// ******************************************************************
+
 	connMtx sync.Mutex
 
 	// persistent tracks all registered persistent connection entries.
@@ -1457,6 +1467,7 @@ func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil {
 		return nil, MakeError(ErrDialNil, "dial cannot be nil")
 	}
+
 	// Default to sane values.
 	if cfg.RetryDuration <= 0 {
 		cfg.RetryDuration = defaultRetryDuration
@@ -1474,6 +1485,7 @@ func New(cfg *Config) (*ConnManager, error) {
 	cm := ConnManager{
 		cfg:                 *cfg, // Copy so caller can't mutate
 		quit:                make(chan struct{}),
+		csprng:              globalRand,
 		maxRetryDuration:    defaultMaxRetryDuration,
 		runPersistentChan:   make(chan *persistentEntry, MaxPersistent),
 		totalNormalConnsSem: makeSemaphore(cfg.MaxNormalConns),

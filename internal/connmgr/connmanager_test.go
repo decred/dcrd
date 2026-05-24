@@ -7,17 +7,100 @@ package connmgr
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
+	mrand "math/rand/v2"
 	"net"
 	"net/netip"
+	"os"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 )
+
+// prngSeed is populated when the tests are initialized either by the -seed
+// parameter if specified or a source of cryptographic randomness otherwise.
+var prngSeed [32]byte
+
+// prngIteration is incremented each time a new test prng seed is requested so
+// that each iteration when testing with -count > 1 gets a unique sequence of
+// reproducible values.  It can be overridden via the -seed parameter when the
+// tests are initialized for easy reproducibility of test failures.
+var prngIteration atomic.Uint32
+
+func TestMain(m *testing.M) {
+	seedFlag := flag.String("seed", "", "use deterministic PRNG seed")
+	flag.Parse()
+	if *seedFlag != "" {
+		parts := strings.Split(*seedFlag, "/")
+		if len(parts) == 0 || len(parts) > 2 {
+			fmt.Fprintln(os.Stderr, "invalid -seed: format must be "+
+				"<32 byte hex seed> or <32 byte hex seed>/<iteration>")
+			os.Exit(1)
+		}
+		b, err := hex.DecodeString(parts[0])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "invalid -seed hex:", err)
+			os.Exit(1)
+		}
+		if len(b) != 32 {
+			fmt.Fprintln(os.Stderr, "invalid -seed: must be 32 bytes")
+			os.Exit(1)
+		}
+		copy(prngSeed[:], b)
+		if len(parts) > 1 {
+			iteration, err := strconv.ParseUint(parts[1], 10, 32)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "invalid -seed iteration:", err)
+				os.Exit(1)
+			}
+			prngIteration.Store(uint32(iteration))
+		}
+	} else {
+		globalRand.Read(prngSeed[:])
+	}
+	os.Exit(m.Run())
+}
+
+// newTestPRNGSeed returns a seed to use for the deterministic test prng for the
+// given iteration based on the global [prngSeed] variable which is populated in
+// [TestMain].
+func newTestPRNGSeed(t testing.TB) [32]byte {
+	t.Helper()
+
+	// Generate a new determinstic seed based on the test iteration count and
+	// global [prngSeed] variable which can be set with flags in [TestMain].
+	iteration := prngIteration.Add(1) - 1
+	t.Cleanup(func() {
+		t.Helper()
+		if t.Failed() {
+			runFlags := fmt.Sprintf("-run=%s", t.Name())
+			if _, ok := t.(*testing.B); ok {
+				runFlags = fmt.Sprintf("-run=^$ -bench=%s", t.Name())
+			}
+			t.Logf("Reproduce with: go test %s -seed=%x/%d -count=1", runFlags,
+				prngSeed, iteration)
+		}
+	})
+
+	// Increment the test seed by the iteration count so each test iteration has
+	// a unique seed derived from the overall test seed.
+	//
+	// This is hacky and not cryptographically sound, but it's is only used for
+	// tests, so it doesn't need to be.
+	seed := prngSeed
+	be := binary.BigEndian
+	be.PutUint32(seed[28:], be.Uint32(seed[28:])+iteration)
+	return seed
+}
 
 const (
 	// defaultTestMaxRetryDuration is the default max duration a connection
@@ -84,6 +167,9 @@ func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 		t.Fatalf("New: unexpected error: %v", err)
 	}
 	cm.maxRetryDuration = defaultTestMaxRetryDuration
+	seed := newTestPRNGSeed(t)
+	src := mrand.NewChaCha8(seed)
+	cm.csprng = mrand.New(src) // nolint:gosec
 	return cm
 }
 
