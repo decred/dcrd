@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"strconv"
@@ -329,6 +330,11 @@ type ConnManager struct {
 	// maxRetryDuration is the maximum duration a persistent connection retry
 	// backoff is allowed to grow to.
 	maxRetryDuration time.Duration
+
+	// maxRetryScalingBits is the maximum number of bits the exponential backoff
+	// scaling factor can occupy such that multiplying by [Config.RetryDuration]
+	// is guaranteed not to overflow.
+	maxRetryScalingBits uint8
 
 	// runPersistentChan is used to signal the persistent connections handler to
 	// launch a goroutine that attempts to always maintain an established
@@ -1289,6 +1295,30 @@ func (cm *ConnManager) FindPersistentAddrID(addr net.Addr) (uint64, bool) {
 	return id, ok
 }
 
+// backoffWithJitter returns an exponential backoff delay with additional jitter
+// for the given number of retries.
+func (cm *ConnManager) backoffWithJitter(retries uint32) time.Duration {
+	if retries == 0 {
+		return 0
+	}
+
+	// Calculate an exponential backoff capped to prevent overflow and clamped
+	// to the max retry duration.
+	shift := min(retries-1, uint32(cm.maxRetryScalingBits))
+	factor := uint64(1) << shift
+
+	baseRetryDuration := cm.cfg.RetryDuration
+	backoff := min(baseRetryDuration*time.Duration(factor), cm.maxRetryDuration)
+	if backoff == 0 {
+		return 0
+	}
+
+	// Apply 50% jitter.
+	halfBackoff := backoff / 2
+	jitter := time.Duration(cm.csprng.Uint64N(uint64(halfBackoff)))
+	return halfBackoff + jitter
+}
+
 // runPersistent attempts to maintain a persistent connection to the provided
 // address until the passed context is canceled.
 //
@@ -1341,10 +1371,9 @@ func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr *a
 				if retryCount < maxUint32 {
 					retryCount++
 				}
-				retryWait := time.Duration(retryCount) * cm.cfg.RetryDuration
-				retryWait = min(retryWait, cm.maxRetryDuration)
+				retryWait := cm.backoffWithJitter(retryCount)
 				log.Debugf("Retrying connection to %v in %v (retries %d)", addr,
-					retryWait, retryCount)
+					retryWait.Truncate(time.Microsecond), retryCount)
 				retryAfter = time.After(retryWait)
 				continue
 			}
@@ -1619,11 +1648,13 @@ func New(cfg *Config) (*ConnManager, error) {
 		cfg.TargetOutbound = defaultTargetOutbound
 	}
 	cfg.TargetOutbound = min(cfg.TargetOutbound, cfg.MaxNormalConns)
+	retryDurationBits := uint8(math.Ceil(math.Log2(float64(cfg.RetryDuration))))
 	cm := ConnManager{
 		cfg:                 *cfg, // Copy so caller can't mutate
 		quit:                make(chan struct{}),
 		csprng:              globalRand,
 		maxRetryDuration:    defaultMaxRetryDuration,
+		maxRetryScalingBits: 63 - retryDurationBits,
 		runPersistentChan:   make(chan *persistentEntry, MaxPersistent),
 		totalNormalConnsSem: makeSemaphore(cfg.MaxNormalConns),
 		activeOutboundsSem:  makeSemaphore(cfg.TargetOutbound),
