@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/decred/dcrd/addrmgr/v4"
@@ -1000,56 +1001,61 @@ func TestMaxPersistent(t *testing.T) {
 	assertConnManagerInternalState(t, cm)
 }
 
-// TestMaxRetryDuration tests the maximum retry duration.
-//
-// We have a timed dialer which initially returns err but after RetryDuration
-// hits maxRetryDuration returns a mock conn.
+// TestMaxRetryDuration ensures the maximum retry duration is respected.
 func TestMaxRetryDuration(t *testing.T) {
 	t.Parallel()
-
-	// This test relies on the current value of the max retry duration defined
-	// in the tests, so assert it.
-	if defaultTestMaxRetryDuration != 2*time.Millisecond {
-		t.Fatalf("max retry duration of %v is not the required value for test",
-			defaultTestMaxRetryDuration)
-	}
-
-	networkUp := make(chan struct{})
-	timedDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		select {
-		case <-networkUp:
-			return mockDialer(ctx, network, addr)
-		default:
-			return nil, errors.New("network down")
+	synctest.Test(t, func(t *testing.T) {
+		networkUp := make(chan struct{})
+		timedDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			select {
+			case <-networkUp:
+				return mockDialer(ctx, network, addr)
+			default:
+				return nil, errors.New("network down")
+			}
 		}
-	}
 
-	connected := make(chan *Conn)
-	cm := newTestConnManager(t, &Config{
-		RetryDuration:  time.Millisecond,
-		TargetOutbound: 1,
-		Dial:           timedDialer,
-		OnConnection: func(conn *Conn) {
-			connected <- conn
-		},
+		connected := make(chan *Conn)
+		cm := newTestConnManager(t, &Config{
+			RetryDuration: time.Second,
+			Dial:          timedDialer,
+			OnConnection: func(conn *Conn) {
+				connected <- conn
+			},
+		})
+		cm.maxRetryDuration = 2 * time.Second
+		runConnMgrAsync(t, cm)
+
+		connID, err := cm.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
+		if err != nil {
+			t.Fatalf("failed to add persistent connection: %v", err)
+		}
+
+		// Approximate sequence of events.  The exact number of retries will
+		// vary due to jitter.
+		//
+		// The test is stable regardless since it expects a connection within
+		// one max retry duration of the network being brought up and, as shown
+		// below, the retry duration without the max imposed would be far
+		// greater and not arrive in time.
+		//
+		//  0s: initial attempt (retry in ~1s)
+		// ~1s: retry 1 (retry in ~2s) - max retry duration reached
+		// ~3s: retry 2 (retry in ~2s, w/o max would be in ~3s => next at ~6s)
+		// ~5s: retry 3 (retry in ~2s, w/o max would be in ~4s => next at ~10s)
+		// ~7s: retry 4 (retry in ~2s, w/o max would be in ~5s => next at ~15s)
+		// ~9s: retry 5 (retry in ~2s, w/o max would be in ~6s => next at ~21s)
+		// ~11s: retry 6 (retry in ~2s, w/o max would be in ~7s => next at ~28s)
+		// ~12s: timedDialer returns [mockDialer]
+		// ~13s: retry 7 succeeds
+		networkUpTimeout := 6 * cm.maxRetryDuration
+		time.AfterFunc(networkUpTimeout, func() {
+			close(networkUp)
+		})
+		timeout := networkUpTimeout + cm.maxRetryDuration
+		assertConnReceivedTimeout(t, connected, timeout, connID, ConnTypeManual)
+		assertConnManagerInternalState(t, cm)
 	})
-	runConnMgrAsync(t, cm)
-
-	connID, err := cm.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
-	if err != nil {
-		t.Fatalf("failed to add persistent connection: %v", err)
-	}
-
-	// retry in 1ms
-	// retry in 2ms - max retry duration reached
-	// retry in 2ms - timedDialer returns [mockDialer]
-	const networkUpTimeout = 5 * time.Millisecond
-	time.AfterFunc(networkUpTimeout, func() {
-		close(networkUp)
-	})
-	const timeout = connTestReceiveTimeout + networkUpTimeout
-	assertConnReceivedTimeout(t, connected, timeout, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cm)
 }
 
 // TestNetworkFailure tests that the connection manager handles a network
