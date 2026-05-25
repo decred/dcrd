@@ -28,7 +28,7 @@ The following is a brief overview of the key features:
     address source (`GetNewAddress`)
 - Persistent connections
   - Maintains up to `MaxPersistent` addresses that are automatically retried
-    with exponential backoff on disconnect
+    with exponential backoff and jitter on disconnect
 - Manual connections
   - Supports manual connection establishment via `Connect`
 - Connection limits
