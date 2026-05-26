@@ -859,7 +859,9 @@ func TestDoubleClose(t *testing.T) {
 	origOnClose := conn.onClose
 	conn.onClose = func() {
 		numClosed++
-		origOnClose()
+		if numClosed == 1 {
+			origOnClose()
+		}
 	}
 
 	// Close the connection multiple times and make sure it only happens once.
