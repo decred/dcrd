@@ -1345,12 +1345,10 @@ func TestDialTimeout(t *testing.T) {
 	// Create a connection manager instance with a dialer that blocks for three
 	// times the configured dial timeout before connecting.
 	const dialTimeout = time.Millisecond * 20
-	cancelled := make(chan struct{})
 	timeoutDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		select {
 		case <-time.After(dialTimeout * 3):
 		case <-ctx.Done():
-			close(cancelled)
 			return nil, ctx.Err()
 		}
 
@@ -1362,15 +1360,21 @@ func TestDialTimeout(t *testing.T) {
 	})
 	ctx, _, _ := runConnMgrAsync(t, cm)
 
-	// Establish a connection to a localhost IP.
-	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cm.Connect(ctx, addr)
+	connectErr := make(chan error, 1)
+	go func() {
+		addr := mustParseAddrPort("127.0.0.1:18555")
+		_, err := cm.Connect(ctx, addr)
+		connectErr <- err
+	}()
 	assertConnManagerInternalState(t, cm)
 
-	// Wait to receive the signal that the dialer context was cancelled, which
-	// means the dial timeout was hit.
+	// Wait for the error from connect and ensure it is the expected deadline
+	// exceeded (aka dial timeout) error.
 	select {
-	case <-cancelled:
+	case err := <-connectErr:
+		if wantErr := context.DeadlineExceeded; !errors.Is(err, wantErr) {
+			t.Fatalf("unexpected connect err: got %v, want %v", err, wantErr)
+		}
 	case <-time.After(dialTimeout * 10):
 		t.Fatal("timeout waiting for dial cancellation")
 	}
