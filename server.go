@@ -4258,7 +4258,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 	// to specified peers and actively avoid advertising and connecting to
 	// discovered peers in order to prevent it from becoming a public test
 	// network.
-	var newAddressFunc func() (net.Addr, error)
+	var newAddressFunc func() (*addrmgr.NetAddress, error)
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
 		filter := func(addrType addrmgr.NetAddressType) bool {
 			switch addrType {
@@ -4270,7 +4270,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 			}
 			return false
 		}
-		newAddressFunc = func() (net.Addr, error) {
+		newAddressFunc = func() (*addrmgr.NetAddress, error) {
 			for tries := 0; tries < 100; tries++ {
 				addr := s.addrManager.GetAddress(filter)
 				if addr == nil {
@@ -4304,7 +4304,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 					continue
 				}
 
-				return addrStringToNetAddr(netAddr.Key())
+				return netAddr, nil
 			}
 
 			return nil, errors.New("no valid connect address")

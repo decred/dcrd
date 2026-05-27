@@ -927,7 +927,7 @@ func TestTargetOutbound(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			return addrGen.Next(), nil
 		},
 		OnConnection: func(conn *Conn) {
@@ -955,7 +955,7 @@ func TestDoubleClose(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		TargetOutbound: 1,
 		Dial:           mockDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			return addrGen.Next(), nil
 		},
 		OnConnection: func(conn *Conn) {
@@ -995,9 +995,8 @@ func TestRetryPersistent(t *testing.T) {
 	connected := make(chan *Conn)
 	disconnected := make(chan *Conn)
 	cm := newTestConnManager(t, &Config{
-		RetryDuration:  time.Millisecond,
-		TargetOutbound: 1,
-		Dial:           mockDialer,
+		RetryDuration: time.Millisecond,
+		Dial:          mockDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
@@ -1190,7 +1189,7 @@ func TestNetworkFailure(t *testing.T) {
 		TargetOutbound: targetOutbound,
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			return addrGen.Next(), nil
 		},
 		OnConnection: func(conn *Conn) {
@@ -1756,7 +1755,7 @@ func TestMaxNormalConns(t *testing.T) {
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
 		},
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			if pauseTargetOutbound.Load() {
 				total := totalPausedAddrs.Add(1)
 				if total == maxFailedAttempts {
@@ -1904,7 +1903,7 @@ func TestMaxConnsPerHost(t *testing.T) {
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
 		},
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			if pauseTargetOutbound.Load() {
 				total := totalPausedAddrs.Add(1)
 				if total == maxFailedAttempts {
