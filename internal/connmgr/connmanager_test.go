@@ -149,6 +149,18 @@ func newAddrGenerator(baseAddrPort string) *addrGenerator {
 	}
 }
 
+// next advances the generator to the next IP and returns the result.  It skips
+// all addresses of the form "x.x.x.0".
+func (g *addrGenerator) next() *addrmgr.NetAddress {
+	// Skip "x.x.x.0".
+	g.addr = g.addr.Next()
+	if g.addr.As4()[3] == 0 {
+		g.addr = g.addr.Next()
+	}
+
+	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
+}
+
 // Next advances the generator to the next IP and returns the result.  It skips
 // all addresses of the form "x.x.x.0".
 //
@@ -158,13 +170,7 @@ func (g *addrGenerator) Next() *addrmgr.NetAddress {
 	g.mtx.Lock()
 	defer g.mtx.Unlock()
 
-	// Skip "x.x.x.0".
-	g.addr = g.addr.Next()
-	if g.addr.As4()[3] == 0 {
-		g.addr = g.addr.Next()
-	}
-
-	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
+	return g.next()
 }
 
 // NextPort advances the generator to the next port of the current IP and
@@ -182,6 +188,47 @@ func (g *addrGenerator) NextPort() *addrmgr.NetAddress {
 	}
 
 	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
+}
+
+// nextPrefix advances the generator to the next IP for the given prefix bits
+// and returns the result.  It skips all addresses of the form "x.x.x.0".
+func (g *addrGenerator) nextPrefix(prefixBits uint) *addrmgr.NetAddress {
+	if prefixBits == 32 {
+		return g.next()
+	}
+
+	// Skip "x.x.x.0".
+	ip := g.addr.As4()
+	ip32 := binary.BigEndian.Uint32(ip[:])
+	if ip32&0xff == 0 {
+		ip32++
+	}
+
+	// Split the IP into network and host bits based on the number of prefix
+	// bits.
+	networkMask := ^uint32(0) << (32 - prefixBits)
+	networkBits := (ip32 & networkMask)
+	hostBits := ip32 & ^networkMask
+
+	// Calculate the next network.
+	nextNet := networkBits + (1 << (32 - prefixBits))
+
+	// Calculate and set the next address.
+	binary.BigEndian.PutUint32(ip[:], nextNet|hostBits)
+	g.addr = netip.AddrFrom4(ip)
+
+	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
+}
+
+// NextOutboundGroup advances the generator to the next outbound group IP and
+// returns the result.  It skips all addresses of the form "x.x.x.0".
+//
+// An outbound group is determined by a certain number of prefix bits.
+func (g *addrGenerator) NextOutboundGroup() *addrmgr.NetAddress {
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	return g.nextPrefix(g.outboundGroupPrefixBits)
 }
 
 // defaultAddrGenerator returns an address generator configured with a default
@@ -928,7 +975,7 @@ func TestTargetOutbound(t *testing.T) {
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
 		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.Next(), nil
+			return addrGen.NextOutboundGroup(), nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -956,7 +1003,7 @@ func TestDoubleClose(t *testing.T) {
 		TargetOutbound: 1,
 		Dial:           mockDialer,
 		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.Next(), nil
+			return addrGen.NextOutboundGroup(), nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1190,7 +1237,7 @@ func TestNetworkFailure(t *testing.T) {
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
 		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.Next(), nil
+			return addrGen.NextOutboundGroup(), nil
 		},
 		OnConnection: func(conn *Conn) {
 			t.Fatalf("network failure: got unexpected connection - %v",
@@ -1763,7 +1810,7 @@ func TestMaxNormalConns(t *testing.T) {
 				}
 				return nil, errors.New("network down")
 			}
-			return addrGen.Next(), nil
+			return addrGen.NextOutboundGroup(), nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1801,7 +1848,7 @@ func TestMaxNormalConns(t *testing.T) {
 	// established.
 	go func() {
 		for range targetManual {
-			go cm.Connect(ctx, addrGen.Next())
+			go cm.Connect(ctx, addrGen.NextOutboundGroup())
 		}
 	}()
 	manualConns := make([]*Conn, 0, targetManual+1)
@@ -1813,7 +1860,7 @@ func TestMaxNormalConns(t *testing.T) {
 
 	// Ensure manual connections that would exceed the max allowed normal
 	// connections are rejected.
-	_, err := cm.Connect(ctx, addrGen.Next())
+	_, err := cm.Connect(ctx, addrGen.NextOutboundGroup())
 	if !errors.Is(err, ErrMaxNormalConns) {
 		t.Fatalf("did not reject manual connection at max allowed, err: %v", err)
 	}
@@ -1821,7 +1868,7 @@ func TestMaxNormalConns(t *testing.T) {
 
 	// Ensure inbound connections that would exceed the max allowed normal
 	// connections are rejected.
-	go listener.Connect(addrGen.Next())
+	go listener.Connect(addrGen.NextOutboundGroup())
 	assertNoConnReceived(t, inboundConns)
 	assertConnManagerInternalState(t, cm)
 
@@ -1843,7 +1890,7 @@ func TestMaxNormalConns(t *testing.T) {
 	// Establish another manual connection to take the place of the target
 	// outbound connection that was just closed and wait for it to be
 	// established.
-	go cm.Connect(ctx, addrGen.Next())
+	go cm.Connect(ctx, addrGen.NextOutboundGroup())
 	assertConnReceived(t, connected, 0, ConnTypeManual)
 	assertConnManagerInternalState(t, cm)
 
@@ -1857,7 +1904,7 @@ func TestMaxNormalConns(t *testing.T) {
 
 	// Ensure persistent connections are not subject to the max total normal
 	// connections by adding one and waiting for it to be established.
-	connID, err := cm.AddPersistent(addrGen.Next())
+	connID, err := cm.AddPersistent(addrGen.NextOutboundGroup())
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
