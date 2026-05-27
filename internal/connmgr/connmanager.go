@@ -271,7 +271,7 @@ type Config struct {
 
 	// GetNewAddress is a way to get an address to make a network connection
 	// to.  If nil, no new connections will be made automatically.
-	GetNewAddress func() (net.Addr, error)
+	GetNewAddress func() (*addrmgr.NetAddress, error)
 
 	// Dial connects to the address on the named network.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
@@ -377,6 +377,12 @@ func (cm *ConnManager) checkShutdown() error {
 // stdlibNetAddrToAddrMgrNetAddr converts the provided standard lib [net.Addr]
 // to a concrete address manager address.
 func stdlibNetAddrToAddrMgrNetAddr(addr net.Addr) (*addrmgr.NetAddress, error) {
+	// Fast path for most addresses.
+	if na, ok := addr.(*addrmgr.NetAddress); ok {
+		return na, nil
+	}
+
+	// Fall back to slower string parsing.
 	host, portStr, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		str := fmt.Sprintf("unable to split address %q", addr)
@@ -575,7 +581,7 @@ func (cm *ConnManager) rejectDuplicateAddr(addr *addrmgr.NetAddress) error {
 //     before the timeout configured for the connection manager
 //
 // This function is safe for concurrent access.
-func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType ConnectionType, onClose func(), persistentConnID *uint64) (*Conn, error) {
+func (cm *ConnManager) dial(ctx context.Context, addr *addrmgr.NetAddress, connType ConnectionType, onClose func(), persistentConnID *uint64) (*Conn, error) {
 	var skipOnClose bool
 	defer func() {
 		if !skipOnClose && onClose != nil {
@@ -592,11 +598,6 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 		return nil, ctx.Err()
 	}
 
-	rAddr, err := stdlibNetAddrToAddrMgrNetAddr(addr)
-	if err != nil {
-		return nil, err
-	}
-
 	// Reject attempts to dial addresses that are already connected (or in the
 	// process of it).  Additionally, reject attempts to dial existing
 	// persistent addresses unless a persistent connection ID was provided
@@ -609,7 +610,7 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 		rejectFn = cm.rejectConnectedAddr
 	}
 	cm.connMtx.Lock()
-	if err := rejectFn(rAddr); err != nil {
+	if err := rejectFn(addr); err != nil {
 		cm.connMtx.Unlock()
 		log.Debugf("Rejected connection: %v", err)
 		return nil, err
@@ -633,7 +634,7 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 	} else {
 		connID = cm.nextConnID.Add(1)
 	}
-	info := &pendingConnInfo{connID, rAddr, cancel}
+	info := &pendingConnInfo{connID, addr, cancel}
 	cm.addPendingInfo(info)
 	cm.connMtx.Unlock()
 	defer func() {
@@ -705,7 +706,7 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 
 	// Create a new connection instance with the connection ID and type and add
 	// an entry to the map that tracks all active connections.
-	conn = newConn(cm, netConn, connID, connType, rAddr, dialOnClose)
+	conn = newConn(cm, netConn, connID, connType, addr, dialOnClose)
 	cm.addActiveConn(conn)
 	cm.connMtx.Unlock()
 
@@ -747,6 +748,11 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 //
 // This function is safe for concurrent access.
 func (cm *ConnManager) Connect(ctx context.Context, addr net.Addr) (*Conn, error) {
+	rAddr, err := stdlibNetAddrToAddrMgrNetAddr(addr)
+	if err != nil {
+		return nil, err
+	}
+
 	acquired, err := cm.totalNormalConnsSem.TryAcquire(ctx)
 	if err != nil {
 		if sErr := cm.checkShutdown(); sErr != nil {
@@ -761,7 +767,7 @@ func (cm *ConnManager) Connect(ctx context.Context, addr net.Addr) (*Conn, error
 		return nil, MakeError(ErrMaxNormalConns, str)
 	}
 	onClose := cm.totalNormalConnsSem.Release
-	conn, err := cm.dial(ctx, addr, ConnTypeManual, onClose, nil)
+	conn, err := cm.dial(ctx, rAddr, ConnTypeManual, onClose, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,7 +1089,7 @@ func (cm *ConnManager) FindPersistentAddrID(addr net.Addr) (uint64, bool) {
 // increasing backoff, up to a maximum for repeated failed attempts.
 //
 // This MUST be run as a goroutine.
-func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr net.Addr) {
+func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr *addrmgr.NetAddress) {
 	// Ensure the connection is closed when the goroutine exits.
 	var conn *Conn
 	defer func() {
@@ -1192,6 +1198,16 @@ func (cm *ConnManager) persistentConnsHandler(ctx context.Context) {
 	}
 }
 
+// pickOutboundAddr returns an address suitable for establishing a new outbound
+// connection.
+//
+// It simply delegates to [Config.GetNewAddress] for now.
+//
+// This function is safe for concurrent access.
+func (cm *ConnManager) pickOutboundAddr() (*addrmgr.NetAddress, error) {
+	return cm.cfg.GetNewAddress()
+}
+
 // targetOutboundHandler attempts to automatically maintain the target number of
 // outbound connections configured via [Config.TargetOutbound] when initially
 // creating the connection manager.
@@ -1248,7 +1264,7 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 			return
 		}
 
-		addr, err := cm.cfg.GetNewAddress()
+		addr, err := cm.pickOutboundAddr()
 		if err != nil {
 			failedAttempts.Add(1)
 			log.Debugf("Failed to get address for outbound connection: %v", err)
@@ -1258,7 +1274,7 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 		}
 
 		wg.Add(1)
-		go func(addr net.Addr) {
+		go func(addr *addrmgr.NetAddress) {
 			defer wg.Done()
 			onClose := func() {
 				cm.totalNormalConnsSem.Release()

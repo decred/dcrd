@@ -794,7 +794,7 @@ func TestTargetOutbound(t *testing.T) {
 	cmgr := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			addrStr := fmt.Sprintf("127.0.0.%d:18555", nextAddr.Add(1))
 			return mustParseAddrPort(addrStr), nil
 		},
@@ -827,7 +827,7 @@ func TestDoubleClose(t *testing.T) {
 	cmgr := newTestConnManager(t, &Config{
 		TargetOutbound: 1,
 		Dial:           mockDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			return mustParseAddrPort("127.0.0.1:18555"), nil
 		},
 		OnConnection: func(conn *Conn) {
@@ -1080,7 +1080,7 @@ func TestNetworkFailure(t *testing.T) {
 		TargetOutbound: targetOutbound,
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			addrStr := fmt.Sprintf("127.0.0.%d:18555", nextAddr.Add(1))
 			return mustParseAddrPort(addrStr), nil
 		},
@@ -1753,7 +1753,7 @@ func TestMaxNormalConns(t *testing.T) {
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
 		},
-		GetNewAddress: func() (net.Addr, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, error) {
 			if pauseTargetOutbound.Load() {
 				total := totalPausedAddrs.Add(1)
 				if total == maxFailedAttempts {
