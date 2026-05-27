@@ -1320,6 +1320,10 @@ func (cm *ConnManager) runPersistent(ctx context.Context, connID uint64, addr ne
 // persistentConnsHandler handles launching individual goroutines for persistent
 // connections.
 func (cm *ConnManager) persistentConnsHandler(ctx context.Context) {
+	// Ensure all persistent handlers are done before returning.
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	for {
 		select {
 		case entry := <-cm.runPersistentChan:
@@ -1327,7 +1331,11 @@ func (cm *ConnManager) persistentConnsHandler(ctx context.Context) {
 			cm.connMtx.Lock()
 			entry.cancel = cancel
 			cm.connMtx.Unlock()
-			go cm.runPersistent(pCtx, entry.id, entry.addr)
+			wg.Add(1)
+			go func() {
+				cm.runPersistent(pCtx, entry.id, entry.addr)
+				wg.Done()
+			}()
 
 		case <-ctx.Done():
 			return
@@ -1343,6 +1351,10 @@ func (cm *ConnManager) persistentConnsHandler(ctx context.Context) {
 func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 	log.Trace("Starting target outbound handler")
 	defer log.Trace("Target outbound handler done")
+
+	// Ensure potential pending dial cleanup is done before returning.
+	var wg sync.WaitGroup
+	defer wg.Wait()
 
 	// failedAttempts tracks the total number of failed outbound connection
 	// attempts since the last successful connection.  It is primarily used to
@@ -1396,7 +1408,9 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 			continue
 		}
 
+		wg.Add(1)
 		go func(addr net.Addr) {
+			defer wg.Done()
 			onClose := func() {
 				cm.totalNormalConnsSem.Release()
 				cm.activeOutboundsSem.Release()
