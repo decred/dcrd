@@ -14,6 +14,7 @@ import (
 // uses.  This primarily exists so tests can replace the real implementation
 // with a deterministic PRNG for reproducibility.
 type csprng interface {
+	Uint64() uint64
 	Uint64N(n uint64) uint64
 }
 

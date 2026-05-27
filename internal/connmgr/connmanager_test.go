@@ -293,6 +293,8 @@ func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	seed := newTestPRNGSeed(t)
 	src := mrand.NewChaCha8(seed)
 	cm.csprng = mrand.New(src) // nolint:gosec
+	cm.outboundGroups.key[0] = cm.csprng.Uint64()
+	cm.outboundGroups.key[1] = cm.csprng.Uint64()
 	return cm
 }
 
@@ -974,8 +976,8 @@ func TestTargetOutbound(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
-		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.NextOutboundGroup(), nil
+		GetNewAddress: func() (*addrmgr.NetAddress, time.Time, error) {
+			return addrGen.NextOutboundGroup(), time.Time{}, nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1002,8 +1004,8 @@ func TestDoubleClose(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		TargetOutbound: 1,
 		Dial:           mockDialer,
-		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.NextOutboundGroup(), nil
+		GetNewAddress: func() (*addrmgr.NetAddress, time.Time, error) {
+			return addrGen.NextOutboundGroup(), time.Time{}, nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1236,8 +1238,8 @@ func TestNetworkFailure(t *testing.T) {
 		TargetOutbound: targetOutbound,
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
-		GetNewAddress: func() (*addrmgr.NetAddress, error) {
-			return addrGen.NextOutboundGroup(), nil
+		GetNewAddress: func() (*addrmgr.NetAddress, time.Time, error) {
+			return addrGen.NextOutboundGroup(), time.Time{}, nil
 		},
 		OnConnection: func(conn *Conn) {
 			t.Fatalf("network failure: got unexpected connection - %v",
@@ -1802,15 +1804,15 @@ func TestMaxNormalConns(t *testing.T) {
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
 		},
-		GetNewAddress: func() (*addrmgr.NetAddress, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, time.Time, error) {
 			if pauseTargetOutbound.Load() {
 				total := totalPausedAddrs.Add(1)
 				if total == maxFailedAttempts {
 					hitMaxFailedAttempts <- struct{}{}
 				}
-				return nil, errors.New("network down")
+				return nil, time.Time{}, errors.New("network down")
 			}
-			return addrGen.NextOutboundGroup(), nil
+			return addrGen.NextOutboundGroup(), time.Time{}, nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1950,15 +1952,15 @@ func TestMaxConnsPerHost(t *testing.T) {
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
 		},
-		GetNewAddress: func() (*addrmgr.NetAddress, error) {
+		GetNewAddress: func() (*addrmgr.NetAddress, time.Time, error) {
 			if pauseTargetOutbound.Load() {
 				total := totalPausedAddrs.Add(1)
 				if total == maxFailedAttempts {
 					close(hitMaxFailedAttempts)
 				}
-				return nil, errors.New("network down")
+				return nil, time.Time{}, errors.New("network down")
 			}
-			return nextSameHost(), nil
+			return nextSameHost(), time.Time{}, nil
 		},
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -1968,6 +1970,7 @@ func TestMaxConnsPerHost(t *testing.T) {
 		},
 	})
 	cm.maxRetryDuration = cm.cfg.RetryDuration
+	cm.maxPerOutboundGroup = maxConnsPerHost + 2
 	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Wait for the maximum allowed non-whitelisted per-host automatic outbound

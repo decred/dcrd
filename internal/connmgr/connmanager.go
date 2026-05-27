@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/addrmgr/v4"
 )
 
@@ -44,6 +45,11 @@ const (
 	// the retry logic uses a backoff mechanism which increases the interval
 	// base times the number of retries that have been done.
 	defaultMaxRetryDuration = time.Minute * 5
+
+	// defaultMaxPerOutboundGroup is the default maximum number of connections
+	// per outbound group to strongly prefer when choosing automatic outbound
+	// addresses.
+	defaultMaxPerOutboundGroup = 1
 
 	// defaultMaxNormalConns is the default maximum number of normal inbound,
 	// outbound, and pending connections to permit.
@@ -243,6 +249,15 @@ type Config struct {
 	// connections in that case.
 	OnAccept func(*Conn)
 
+	// DefaultPort specifies the default peer-to-peer port for the active
+	// network.  It is used to make certain policy decisions related to choosing
+	// suitable addresses.
+	//
+	// A value of 0 removes the default port from policy considerations.
+	//
+	// Defaults to 0.
+	DefaultPort uint16
+
 	// MaxNormalConns is the maximum number of normal inbound, outbound, and
 	// pending connections to permit.  Defaults to 125.
 	//
@@ -290,9 +305,21 @@ type Config struct {
 	// OnDisconnection is a callback that is fired when a connection is closed.
 	OnDisconnection func(*Conn)
 
-	// GetNewAddress is a way to get an address to make a network connection
-	// to.  If nil, no new connections will be made automatically.
-	GetNewAddress func() (*addrmgr.NetAddress, error)
+	// GetNewAddress is invoked to get an address suitable for making an
+	// outbound connection along with the last time the address was attempted.
+	//
+	// An error for the final return value indicates there are no addresses
+	// available at all.
+	//
+	// The function might be invoked several times to find a suitable address
+	// prior to attempting any.  [Config.Dial] can be used to detect and record
+	// all attempts.
+	//
+	// If nil, no new connections will be made automatically.
+	//
+	// If not nil, it is expected to only return valid, routable addresses or an
+	// error indicating there are no addresses available.
+	GetNewAddress func() (*addrmgr.NetAddress, time.Time, error)
 
 	// Dial connects to the address on the named network.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
@@ -304,6 +331,130 @@ type Config struct {
 	// Whitelists specifies CIDR address prefixes to whitelist.  Whitelisted
 	// addresses are exempt from banning and certain connection limits.
 	Whitelists []netip.Prefix
+}
+
+// outboundGroupInfo houses information related to tracking outbound groups.
+//
+// It is used to strongly prefer outbound connections to different network
+// groups such that it is extremely difficult for attackers to gain control
+// of addresses that are a part of a lot of different groups.
+//
+// This is separate and protected by its own mutex in order to prevent potential
+// logic races that could otherwise be induced if it were done via the ordinary
+// pending/active connection tracking.
+//
+// In particular, it is involved in address selection and thus any addresses
+// that will ultimately be attempted need to be tracked under the same lock used
+// for that selection.
+type outboundGroupInfo struct {
+	// key is a unique cryptographically random seed used when determining
+	// outbound network group keys.  It ensures different connection manager
+	// instances produce distinct mappings that are unpredictable to external
+	// observers.
+	key [2]uint64
+
+	sync.Mutex
+
+	// These fields are protected by the embedded mutex.
+	//
+	// addrs tracks all pending and active addresses (host:port) that have
+	// entries in counts.
+	//
+	// counts provides fast O(1) lookup of the number of pending and active
+	// outbound addresses per outbound group.  It is kept in sync with the addrs
+	// map.
+	addrs  map[string]uint32
+	counts map[uint64]uint32
+}
+
+// newOutboundGroupInfo returns an initialized outboundGroupInfo instance using
+// the provided CSPRNG to generate a key.
+func newOutboundGroupInfo(csprng csprng) *outboundGroupInfo {
+	return &outboundGroupInfo{
+		key:    [2]uint64{csprng.Uint64(), csprng.Uint64()},
+		addrs:  make(map[string]uint32),
+		counts: make(map[uint64]uint32),
+	}
+}
+
+// GroupKey returns a key that represents the outbound network group for the
+// address.
+//
+// Addresses are assigned to network groups such that it is extremely difficult
+// for attackers to gain control of addresses that are a part of a lot of
+// different groups.  For example, IPv4 networks use the /16 prefix, so all
+// addresses in an attacker-controlled subnet or ISP are assigned the same
+// group.  Other networks, such as IPv6 and Tor use similarly appropriate values
+// for the respective networks.
+//
+// This function is safe for concurrent access.
+func (g *outboundGroupInfo) GroupKey(addr *addrmgr.NetAddress) uint64 {
+	return siphash.Hash(g.key[0], g.key[1], []byte(addr.GroupKey()))
+}
+
+// addAddr adds information about an address to the local state.  This is
+// expected to be invoked when an eligible outbound address will be dialed.
+//
+// This function MUST be called with the embedded mutex held (writes).
+func (g *outboundGroupInfo) addAddr(addr *addrmgr.NetAddress) {
+	g.addrs[addr.String()]++
+	g.counts[g.GroupKey(addr)]++
+}
+
+// AddAddr adds information about an address to the local state.  This is
+// expected to be invoked when an outbound address will be dialed.
+//
+// This function is safe for concurrent access.
+func (g *outboundGroupInfo) AddAddr(addr *addrmgr.NetAddress) {
+	g.Lock()
+	g.addAddr(addr)
+	g.Unlock()
+}
+
+// removeAddr removes information about an address from the local state.  This
+// is expected to be invoked when an outbound address that was previously added
+// is no longer in use (e.g. a dial failed or a non-persistent connection
+// associated with the previous addition is closed).
+//
+// This function MUST be called with the embedded mutex held (writes).
+func (g *outboundGroupInfo) removeAddr(addr *addrmgr.NetAddress) {
+	// The entry might have already been removed by [ConnManager.Disconnect] or
+	// [ConnManager.Remove].
+	addrStr := addr.String()
+	if _, ok := g.addrs[addrStr]; !ok {
+		return
+	}
+
+	g.addrs[addrStr]--
+	if g.addrs[addrStr] == 0 {
+		delete(g.addrs, addrStr)
+	}
+	groupKey := g.GroupKey(addr)
+	g.counts[groupKey]--
+	if g.counts[groupKey] == 0 {
+		delete(g.counts, groupKey)
+	}
+}
+
+// RemoveAddr removes information about an address from the local state.  This
+// is expected to be invoked when an outbound address that was previously added
+// is no longer in use (e.g. a dial failed or a non-persistent connection
+// associated with the previous addition is closed).
+//
+// This function is safe for concurrent access.
+func (g *outboundGroupInfo) RemoveAddr(addr *addrmgr.NetAddress) {
+	g.Lock()
+	g.removeAddr(addr)
+	g.Unlock()
+}
+
+// groupCount returns the number of actively tracked addresses in the same
+// outbound group as the provided address.
+//
+// This function MUST be called with the embedded mutex held (reads).
+func (g *outboundGroupInfo) groupCount(addr *addrmgr.NetAddress) uint32 {
+	groupKey := g.GroupKey(addr)
+	return g.counts[groupKey]
 }
 
 // ConnManager provides a manager to handle network connections.
@@ -334,6 +485,10 @@ type ConnManager struct {
 	// is guaranteed not to overflow.
 	maxRetryScalingBits uint8
 
+	// maxPerOutboundGroup is the maximum number of connections per outbound
+	// group to strongly prefer when choosing automatic outbound addresses.
+	maxPerOutboundGroup uint32
+
 	// runPersistentChan is used to signal the persistent connections handler to
 	// launch a goroutine that attempts to always maintain an established
 	// connection with a given address.
@@ -351,6 +506,13 @@ type ConnManager struct {
 	// outboundSem limits the number of active outbound connections.
 	totalNormalConnsSem semaphore
 	activeOutboundsSem  semaphore
+
+	// outboundGroups tracks outbound address group information.
+	//
+	// It is used to strongly prefer outbound connections to different network
+	// groups such that it is extremely difficult for attackers to gain control
+	// of addresses that are a part of a lot of different groups.
+	outboundGroups *outboundGroupInfo
 
 	// ******************************************************************
 	// The fields below this point are protected by the connection mutex.
@@ -526,6 +688,7 @@ func (cm *ConnManager) addPersistentEntry(entry *persistentEntry) {
 	cm.persistent[entry.id] = entry
 	cm.connIDByAddr[entry.addr.String()] = entry.id
 	cm.perHostCounts[addrHostKey(entry.addr)]++
+	cm.outboundGroups.AddAddr(entry.addr)
 }
 
 // removePersistentEntry removes a persistent connection entry from the local
@@ -540,6 +703,7 @@ func (cm *ConnManager) removePersistentEntry(entry *persistentEntry) {
 		delete(cm.connIDByAddr, entry.addr.String())
 		cm.decrementPerHostCount(addrHostKey(entry.addr))
 	}
+	cm.outboundGroups.RemoveAddr(entry.addr)
 }
 
 // rejectConnectedAddr returns an error if there is already either an
@@ -873,7 +1037,12 @@ func (cm *ConnManager) Connect(ctx context.Context, addr net.Addr) (*Conn, error
 			pickNoun(maxAllowed, "connection", "connections"))
 		return nil, MakeError(ErrMaxNormalConns, str)
 	}
-	onClose := cm.totalNormalConnsSem.Release
+
+	cm.outboundGroups.AddAddr(rAddr)
+	onClose := func() {
+		cm.outboundGroups.RemoveAddr(rAddr)
+		cm.totalNormalConnsSem.Release()
+	}
 	conn, err := cm.dial(ctx, rAddr, ConnTypeManual, onClose, nil)
 	if err != nil {
 		return nil, err
@@ -895,9 +1064,13 @@ func (cm *ConnManager) Disconnect(id uint64) error {
 	// any connections that are already in progress and later succeed are
 	// ignored.
 	cm.connMtx.Lock()
+	_, isPersistent := cm.persistent[id]
 	if info, ok := cm.pending[id]; ok {
 		info.cancel()
 		cm.removePendingInfo(info)
+		if !isPersistent {
+			cm.outboundGroups.RemoveAddr(info.addr)
+		}
 		cm.connMtx.Unlock()
 		return nil
 	}
@@ -908,7 +1081,6 @@ func (cm *ConnManager) Disconnect(id uint64) error {
 		conn.Close() // Close requires the conn mutex.
 		return nil
 	}
-	_, isPersistent := cm.persistent[id]
 	cm.connMtx.Unlock()
 
 	// Not found in active or pending, but it might still be a persistent conn
@@ -953,6 +1125,9 @@ func (cm *ConnManager) Remove(id uint64) error {
 	if info, ok := cm.pending[id]; ok {
 		info.cancel()
 		cm.removePendingInfo(info)
+		if !isPersistent {
+			cm.outboundGroups.RemoveAddr(info.addr)
+		}
 		cm.connMtx.Unlock()
 		return nil
 	}
@@ -1338,14 +1513,81 @@ func (cm *ConnManager) persistentConnsHandler(ctx context.Context) {
 	}
 }
 
+// errNoSuitableAddr indicates no suitable address was found within the allowed
+// attempts.
+var errNoSuitableAddr = errors.New("no suitable outbound address")
+
 // pickOutboundAddr returns an address suitable for establishing a new outbound
 // connection.
 //
-// It simply delegates to [Config.GetNewAddress] for now.
+// It calls [Config.GetNewAddress] repeatedly (up to a small limit) and applies
+// several heuristics to avoid recently attempted addresses, nondefault ports,
+// and addresses in already connected outbound groups.
+//
+// It returns [errNoSuitableAddr] if no suitable address is found after the
+// allowed attempts.
+//
+// When the error is not nil, the returned address is added to the outbound
+// groups and it is the responsibility of the caller to remove it when the
+// address is no longer in use.
 //
 // This function is safe for concurrent access.
 func (cm *ConnManager) pickOutboundAddr() (*addrmgr.NetAddress, error) {
-	return cm.cfg.GetNewAddress()
+	cm.outboundGroups.Lock()
+	defer cm.outboundGroups.Unlock()
+
+	const (
+		// retries is the number of addrs to request before giving up for now.
+		retries = 100
+
+		// skipRecentsUntil is the number of tries to skip recently attempted
+		// addrs.
+		skipRecentsUntil = (retries * 3) / 10
+
+		// skipDefaultPortUntil is the number of tries to skip addrs with
+		// non-default ports.
+		skipDefaultPortUntil = retries / 2
+	)
+
+	for tries := range retries {
+		// An error means no addresses are available.  No need to retry for now.
+		addr, lastTry, err := cm.cfg.GetNewAddress()
+		if err != nil {
+			return nil, err
+		}
+
+		// [Config.GetNewAddress] stipulates the returned address will not be
+		// invalid or unroutable.  Those conditions are not double checked.
+
+		// Skip addresses that already have too many other outbound connections
+		// in the same network group.
+		//
+		// The default maximum allowed by per group is one which means this
+		// significantly increases attack difficulty.
+		if cm.outboundGroups.groupCount(addr) >= cm.maxPerOutboundGroup {
+			continue
+		}
+
+		// Skip recently attempted addresses unless no suitable address has been
+		// found for enough tries.
+		now := time.Now()
+		if tries < skipRecentsUntil && lastTry.Add(10*time.Minute).After(now) {
+			continue
+		}
+
+		// Skip addresses with non-default ports unless no suitable address has
+		// been found for enough tries.
+		if defaultPort := cm.cfg.DefaultPort; defaultPort != 0 {
+			if tries < skipDefaultPortUntil && addr.Port != defaultPort {
+				continue
+			}
+		}
+
+		cm.outboundGroups.addAddr(addr)
+		return addr, nil
+	}
+
+	return nil, errNoSuitableAddr
 }
 
 // targetOutboundHandler attempts to automatically maintain the target number of
@@ -1417,6 +1659,7 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 		go func(addr *addrmgr.NetAddress) {
 			defer wg.Done()
 			onClose := func() {
+				cm.outboundGroups.RemoveAddr(addr)
 				cm.totalNormalConnsSem.Release()
 				cm.activeOutboundsSem.Release()
 			}
@@ -1531,15 +1774,18 @@ func New(cfg *Config) (*ConnManager, error) {
 	}
 	cfg.TargetOutbound = min(cfg.TargetOutbound, cfg.MaxNormalConns)
 	retryDurationBits := uint8(math.Ceil(math.Log2(float64(cfg.RetryDuration))))
+	csprng := globalRand
 	cm := ConnManager{
 		cfg:                 *cfg, // Copy so caller can't mutate
 		quit:                make(chan struct{}),
-		csprng:              globalRand,
+		csprng:              csprng,
 		maxRetryDuration:    defaultMaxRetryDuration,
 		maxRetryScalingBits: 63 - retryDurationBits,
+		maxPerOutboundGroup: defaultMaxPerOutboundGroup,
 		runPersistentChan:   make(chan *persistentEntry, MaxPersistent),
 		totalNormalConnsSem: makeSemaphore(cfg.MaxNormalConns),
 		activeOutboundsSem:  makeSemaphore(cfg.TargetOutbound),
+		outboundGroups:      newOutboundGroupInfo(csprng),
 		persistent:          make(map[uint64]*persistentEntry, MaxPersistent),
 		pending:             make(map[uint64]*pendingConnInfo),
 		active:              make(map[uint64]*Conn, cfg.TargetOutbound),
