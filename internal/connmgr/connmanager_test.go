@@ -24,6 +24,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/decred/dcrd/addrmgr/v4"
 )
 
 // prngSeed is populated when the tests are initialized either by the -seed
@@ -119,16 +121,13 @@ const (
 	defaultTestP2PPort = 18555
 )
 
-// mustParseAddrPort parses the provided address into a [*net.TCPAddr] and will
-// panic if there is an error.  It will only (and must only) be called with
-// hard-coded, and therefore known good, addresses.
-func mustParseAddrPort(addr string) *net.TCPAddr {
+// mustParseAddrPort parses the provided address into a [*addrmgr.NetAddress]
+// and will panic if there is an error.  It will only (and must only) be called
+// with hard-coded, and therefore known good, addresses.
+func mustParseAddrPort(addr string) *addrmgr.NetAddress {
 	addrPort := netip.MustParseAddrPort(addr)
-	return &net.TCPAddr{
-		IP:   addrPort.Addr().AsSlice(),
-		Port: int(addrPort.Port()),
-		Zone: addrPort.Addr().Zone(),
-	}
+	return addrmgr.NewNetAddressFromIPPort(addrPort.Addr().AsSlice(),
+		addrPort.Port(), 0)
 }
 
 // addrGenerator houses state for an address generator used to simplify tests.
@@ -155,7 +154,7 @@ func newAddrGenerator(baseAddrPort string) *addrGenerator {
 //
 // This provides convenient access to a new unique address with every
 // invocation.
-func (g *addrGenerator) Next() net.Addr {
+func (g *addrGenerator) Next() *addrmgr.NetAddress {
 	g.mtx.Lock()
 	defer g.mtx.Unlock()
 
@@ -165,8 +164,7 @@ func (g *addrGenerator) Next() net.Addr {
 		g.addr = g.addr.Next()
 	}
 
-	port := strconv.Itoa(int(g.port))
-	return mustParseAddrPort(net.JoinHostPort(g.addr.String(), port))
+	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
 }
 
 // NextPort advances the generator to the next port of the current IP and
@@ -174,7 +172,7 @@ func (g *addrGenerator) Next() net.Addr {
 //
 // This provides convenient access to a new endpoint with the same host address
 // with every invocation.
-func (g *addrGenerator) NextPort() net.Addr {
+func (g *addrGenerator) NextPort() *addrmgr.NetAddress {
 	g.mtx.Lock()
 	defer g.mtx.Unlock()
 
@@ -183,8 +181,7 @@ func (g *addrGenerator) NextPort() net.Addr {
 		g.port = 1025
 	}
 
-	port := strconv.Itoa(int(g.port))
-	return mustParseAddrPort(net.JoinHostPort(g.addr.String(), port))
+	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
 }
 
 // defaultAddrGenerator returns an address generator configured with a default
