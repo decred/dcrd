@@ -298,9 +298,9 @@ func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	return cm
 }
 
-// assertConnManagerInternalState ensures the internal state of the passed
+// assertInternalConnState ensures the internal connection state of the passed
 // connection manager instance is coherent.
-func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
+func assertInternalConnState(t *testing.T, cm *ConnManager) {
 	t.Helper()
 
 	cm.connMtx.Lock()
@@ -355,8 +355,8 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 			t.Fatalf("conn ID for addr %s mismatch: %d != %d", addrStr,
 				existingID, id)
 		}
-		perHostCounts[addrHostKey(entry.addr)]++
 		connIDByAddr[addrStr] = id
+		perHostCounts[addrHostKey(entry.addr)]++
 	}
 
 	// Assert the addr to conn ID mappings match the values obtained from
@@ -374,32 +374,73 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 	}
 }
 
+// assertInternalOutboundGroupState ensures the internal outbound group state of
+// the passed connection manager instance is coherent.
+func assertInternalOutboundGroupState(t *testing.T, cm *ConnManager) {
+	t.Helper()
+
+	cm.outboundGroups.Lock()
+	defer cm.outboundGroups.Unlock()
+
+	// Assert the outbound group counts match a manual tally.
+	outboundGroupCounts := make(map[uint64]uint32)
+	for addr, count := range cm.outboundGroups.addrs {
+		netAddr := mustParseAddrPort(addr)
+		outboundGroupCounts[cm.outboundGroups.GroupKey(netAddr)] += count
+	}
+	if !reflect.DeepEqual(cm.outboundGroups.counts, outboundGroupCounts) {
+		t.Fatalf("mismatched outbound group count maps\ngot: %v\nwant %v",
+			cm.outboundGroups.counts, outboundGroupCounts)
+	}
+}
+
+// assertConnManagerInternalState ensures the internal state of the passed
+// connection manager instance is coherent.
+func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
+	t.Helper()
+
+	assertInternalConnState(t, cm)
+	assertInternalOutboundGroupState(t, cm)
+}
+
 // assertConnManagerCleanShutdown ensures the internal state of the passed
 // connection manager is fully cleaned up as expected.  It must only be called
 // after [ConnManager.Run] returns.
 func assertConnManagerCleanShutdown(t *testing.T, cm *ConnManager) {
 	t.Helper()
 
-	cm.connMtx.Lock()
-	defer cm.connMtx.Unlock()
+	func() {
+		cm.connMtx.Lock()
+		defer cm.connMtx.Unlock()
 
-	if len(cm.active) != 0 {
-		t.Fatalf("active map is not empty: %d entries", len(cm.active))
-	}
-	if len(cm.pending) != 0 {
-		t.Fatalf("pending map is not empty: %d entries", len(cm.pending))
-	}
-	if len(cm.persistent) != 0 {
-		t.Fatalf("persistent map is not empty: %d entries", len(cm.persistent))
-	}
-	if len(cm.connIDByAddr) != 0 {
-		t.Fatalf("conn ID by addr map not empty: %d entries",
-			len(cm.connIDByAddr))
-	}
-	if len(cm.perHostCounts) != 0 {
-		t.Fatalf("per host counts map not empty: %d entries",
-			len(cm.perHostCounts))
-	}
+		if count := len(cm.active); count != 0 {
+			t.Fatalf("active map is not empty: %d entries", count)
+		}
+		if count := len(cm.pending); count != 0 {
+			t.Fatalf("pending map is not empty: %d entries", count)
+		}
+		if count := len(cm.persistent); count != 0 {
+			t.Fatalf("persistent map is not empty: %d entries", count)
+		}
+		if count := len(cm.connIDByAddr); count != 0 {
+			t.Fatalf("conn ID by addr map not empty: %d entries", count)
+		}
+		if count := len(cm.perHostCounts); count != 0 {
+			t.Fatalf("per host counts map not empty: %d entries", count)
+		}
+	}()
+
+	func() {
+		cm.outboundGroups.Lock()
+		defer cm.outboundGroups.Unlock()
+
+		if count := len(cm.outboundGroups.addrs); count != 0 {
+			t.Fatalf("outbound group addrs map not empty: %d entries", count)
+		}
+		if count := len(cm.outboundGroups.counts); count != 0 {
+			t.Fatalf("outbound group counts map not empty: %d entries", count)
+		}
+	}()
 }
 
 // TestNewConfig tests that new ConnManager config is validated as expected.
@@ -2056,4 +2097,71 @@ func TestMaxConnsPerHost(t *testing.T) {
 	}
 	assertNoConnReceivedTimeout(t, connected, noConnWaitTimeout)
 	assertConnManagerInternalState(t, cm)
+}
+
+// TestOutboundGroups ensures the connection manager limits the automatic
+// outbound connections to one connection per outbound group.  It includes
+// randomized address generation with some addresses in the same group, some
+// with non-default ports, and some recently attempted or not to exercise the
+// retry logic as well.
+func TestOutboundGroups(t *testing.T) {
+	t.Parallel()
+
+	addrGen := defaultAddrGenerator()
+	defaultPort := addrGen.port
+	var cm *ConnManager
+	randomizedNewAddr := func() (*addrmgr.NetAddress, time.Time, error) {
+		// Only return a new outbound group 10% of the time.
+		var addr *addrmgr.NetAddress
+		if rv := cm.csprng.Uint64N(10); rv < 1 {
+			addr = addrGen.NextOutboundGroup()
+		} else {
+			addr = addrGen.Next()
+		}
+
+		// Return a random port 50% of the time.
+		if cm.csprng.Uint64N(10) < 5 {
+			const minPort = 1025
+			addr.Port = uint16(minPort + cm.csprng.Uint64N(1<<16-1-minPort))
+		}
+
+		// Return a recent last attempt 30% of the time.
+		var lastAttempt time.Time
+		if cm.csprng.Uint64N(10) < 3 {
+			lastAttempt = time.Now().Add(-20 * time.Second)
+		}
+
+		return addr, lastAttempt, nil
+	}
+
+	const targetOutbound = 5
+	connected := make(chan *Conn)
+	cm = newTestConnManager(t, &Config{
+		TargetOutbound: targetOutbound,
+		RetryDuration:  50 * time.Millisecond,
+		DefaultPort:    defaultPort,
+		Dial:           mockDialer,
+		GetNewAddress:  randomizedNewAddr,
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+	})
+	cm.maxRetryDuration = cm.cfg.RetryDuration
+	runConnMgrAsync(t, cm)
+
+	// Wait for the expected number of target outbound conns to be established.
+	groups := make(map[uint64]struct{})
+	outbounds := make([]*Conn, 0, targetOutbound)
+	for len(outbounds) < targetOutbound {
+		conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+		outbounds = append(outbounds, conn)
+		groups[cm.outboundGroups.GroupKey(&conn.remoteAddr)] = struct{}{}
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure only one address per outbound group was selected.
+	if len(groups) != targetOutbound {
+		t.Fatalf("unexpected number of outbound groups -- got %d, want %d",
+			len(groups), targetOutbound)
+	}
 }
