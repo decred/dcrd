@@ -17,6 +17,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/decred/dcrd/addrmgr/v4"
 )
 
 const (
@@ -33,16 +35,13 @@ const (
 	connTestNonReceiveTimeout = 20 * time.Millisecond
 )
 
-// mustParseAddrPort parses the provided address into a [*net.TCPAddr] and will
-// panic if there is an error.  It will only (and must only) be called with
-// hard-coded, and therefore known good, addresses.
-func mustParseAddrPort(addr string) *net.TCPAddr {
+// mustParseAddrPort parses the provided address into a [*addrmgr.NetAddress]
+// and will panic if there is an error.  It will only (and must only) be called
+// with hard-coded, and therefore known good, addresses.
+func mustParseAddrPort(addr string) *addrmgr.NetAddress {
 	addrPort := netip.MustParseAddrPort(addr)
-	return &net.TCPAddr{
-		IP:   addrPort.Addr().AsSlice(),
-		Port: int(addrPort.Port()),
-		Zone: addrPort.Addr().Zone(),
-	}
+	return addrmgr.NewNetAddressFromIPPort(addrPort.Addr().AsSlice(),
+		addrPort.Port(), 0)
 }
 
 // runConnMgrAsync invokes the Run method on the passed connection manager in a
@@ -329,7 +328,7 @@ func assertConnType(t *testing.T, conn *Conn, wantType ConnectionType) {
 // pendingAddrConnID returns the connection ID associated with the pending
 // connection attempt for the provided address.  The second return value will be
 // false if no pending attempt is found.
-func pendingAddrConnID(cm *ConnManager, addr net.Addr) (uint64, bool) {
+func pendingAddrConnID(cm *ConnManager, addr *addrmgr.NetAddress) (uint64, bool) {
 	cm.connMtx.Lock()
 	defer cm.connMtx.Unlock()
 	addrStr := addr.String()
@@ -343,7 +342,7 @@ func pendingAddrConnID(cm *ConnManager, addr net.Addr) (uint64, bool) {
 
 // assertPendingAddr ensures there is a pending connection with the given
 // address.
-func assertPendingAddr(t *testing.T, cm *ConnManager, addr net.Addr) {
+func assertPendingAddr(t *testing.T, cm *ConnManager, addr *addrmgr.NetAddress) {
 	t.Helper()
 
 	if _, ok := pendingAddrConnID(cm, addr); !ok {
@@ -353,7 +352,7 @@ func assertPendingAddr(t *testing.T, cm *ConnManager, addr net.Addr) {
 
 // assertRemovedPersistent ensures there are no persistent conns with the
 // provided address.
-func assertRemovedPersistent(t *testing.T, cm *ConnManager, addr net.Addr) {
+func assertRemovedPersistent(t *testing.T, cm *ConnManager, addr *addrmgr.NetAddress) {
 	t.Helper()
 
 	if _, ok := cm.FindPersistentAddrID(addr); ok {
@@ -871,9 +870,8 @@ func TestRetryPersistent(t *testing.T) {
 	connected := make(chan *Conn)
 	disconnected := make(chan *Conn)
 	cmgr := newTestConnManager(t, &Config{
-		RetryDuration:  time.Millisecond,
-		TargetOutbound: 1,
-		Dial:           mockDialer,
+		RetryDuration: time.Millisecond,
+		Dial:          mockDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
@@ -935,7 +933,7 @@ func TestMaxPersistent(t *testing.T) {
 	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
 
 	var numAddrs uint32
-	nextAddr := func() net.Addr {
+	nextAddr := func() *addrmgr.NetAddress {
 		numAddrs++
 		addrStr := fmt.Sprintf("127.0.0.%d:18555", numAddrs)
 		return mustParseAddrPort(addrStr)
@@ -943,7 +941,7 @@ func TestMaxPersistent(t *testing.T) {
 
 	// Add the maximum allowed number of persistent conns.
 	connIDs := make([]uint64, 0, MaxPersistent)
-	addrs := make([]net.Addr, 0, MaxPersistent)
+	addrs := make([]*addrmgr.NetAddress, 0, MaxPersistent)
 	for range MaxPersistent {
 		addr := nextAddr()
 		connID, err := cmgr.AddPersistent(addr)
@@ -1721,7 +1719,7 @@ func TestMaxNormalConns(t *testing.T) {
 	// nextAddr is a convenience func to return a new unique address with every
 	// invocation.
 	var numAddrs atomic.Uint32
-	nextAddr := func() net.Addr {
+	nextAddr := func() *addrmgr.NetAddress {
 		addrStr := fmt.Sprintf("10.0.0.%d:18555", numAddrs.Add(1))
 		return mustParseAddrPort(addrStr)
 	}
