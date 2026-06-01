@@ -223,6 +223,19 @@ func (g *addrGenerator) nextPrefix(prefixBits uint) *addrmgr.NetAddress {
 	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
 }
 
+// SetFlooded sets the address generator to use inbound prefix groups per the
+// given flooded state.
+func (g *addrGenerator) SetFlooded(active bool) {
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	bits := uint(32)
+	if active {
+		bits = 24
+	}
+	g.inboundGroupPrefixBits = bits
+}
+
 // NextInboundGroup advances the generator to the next inbound group IP and
 // returns the result.  It skips all addresses of the form "x.x.x.0".
 //
@@ -410,6 +423,33 @@ func assertInternalOutboundGroupState(t *testing.T, cm *ConnManager) {
 	}
 }
 
+// assertInternalRateLimiterState ensures the internal rate limiting and
+// flooding state of the passed connection manager instance is coherent.
+func assertInternalRateLimiterState(t *testing.T, cm *ConnManager) {
+	t.Helper()
+
+	l := cm.inboundLimiter
+	l.floodMtx.Lock()
+	defer l.floodMtx.Unlock()
+
+	// Assert the total attempts counts matches the value obtained from manually
+	// tallying it.
+	var totalAttempts uint64
+	for _, attempts := range l.attempts {
+		totalAttempts += uint64(attempts)
+	}
+	if l.totalAttempts != totalAttempts {
+		t.Fatalf("mismatched total attempts count: %d != %d", l.totalAttempts,
+			totalAttempts)
+	}
+
+	// Assert the flooding flag status is correct.
+	flooding := l.totalAttempts > floodLow
+	if got := l.flooding.Load(); got != flooding {
+		t.Fatalf("mismatched flooding flag: %v != %v", got, flooding)
+	}
+}
+
 // assertConnManagerInternalState ensures the internal state of the passed
 // connection manager instance is coherent.
 func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
@@ -417,6 +457,7 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 
 	assertInternalConnState(t, cm)
 	assertInternalOutboundGroupState(t, cm)
+	assertInternalRateLimiterState(t, cm)
 }
 
 // assertConnManagerCleanShutdown ensures the internal state of the passed
@@ -664,6 +705,16 @@ func assertNoConnReceived(t *testing.T, ch <-chan *Conn) {
 	t.Helper()
 
 	assertNoConnReceivedTimeout(t, ch, connTestNonReceiveTimeout)
+}
+
+// assertFlooded ensures the flooding status of the connection manager is the
+// given value.
+func assertFlooded(t *testing.T, cm *ConnManager, want bool) {
+	t.Helper()
+
+	if got := cm.inboundLimiter.flooding.Load(); got != want {
+		t.Fatalf("flooding status %v is not %v", got, want)
+	}
 }
 
 // TestConnectMode tests that the connection manager works in the connect mode.
@@ -2184,8 +2235,8 @@ func TestOutboundGroups(t *testing.T) {
 }
 
 // TestInboundRateLimiting ensures the connection manager rate limits inbound
-// connections as expected.  It includes tests for normal rate limiting and
-// bursts.
+// connections behavior as expected.  It includes tests for normal rate
+// limiting, bursts, flooding, and flood recovery.
 func TestInboundRateLimiting(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inboundConns := make(chan *Conn)
@@ -2250,5 +2301,84 @@ func TestInboundRateLimiting(t *testing.T) {
 		}
 		assertNoConnReceived(t, inboundConns)
 		assertConnManagerInternalState(t, cm)
+
+		// Make exactly enough allowed connections to reach one prior to the low
+		// intensity flood cutover.  Ensure all connections are accepted and
+		// flooding is not detected.
+		//
+		// Wait long enough to reset the flood state first to simplify the
+		// calcs.
+		//
+		// Then, advance time such that the connections fill up the entire
+		// sliding window used to track allowed connections for flood detection.
+		time.Sleep(60 * time.Second)
+		for i := range floodLow {
+			if i%groupBurstLimit == 0 {
+				addrGen.NextInboundGroup()
+			}
+			go listener.Connect(addrGen.NextPort())
+			assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+			time.Sleep(60 * time.Second / (floodLow + 1))
+		}
+		assertConnManagerInternalState(t, cm)
+		assertFlooded(t, cm, false)
+
+		// Ensure the next connection activates flooding mode.
+		//
+		// The current inbound group might be rate limited depending on the
+		// actual values above and flooding mode will have coarsened it, so use
+		// an address from the next inbound group with the coarsened prefix.
+		//
+		// The connection may be probabilistically dropped due to flooding, so
+		// it may or may not be accepted.
+		addrGen.SetFlooded(true)
+		go listener.Connect(addrGen.NextInboundGroup())
+		select {
+		case conn := <-inboundConns:
+			assertConnType(t, conn, ConnTypeInbound)
+			conn.Close()
+		case <-time.After(connTestNonReceiveTimeout):
+		}
+		assertConnManagerInternalState(t, cm)
+		assertFlooded(t, cm, true)
+
+		// Make enough connections from the same address to hit the group burst
+		// limit.
+		//
+		// The connections may be probabilistically dropped due to flooding, so
+		// they may or may not be accepted.
+		for range groupBurstLimit {
+			go listener.Connect(addrGen.NextPort())
+			select {
+			case conn := <-inboundConns:
+				assertConnType(t, conn, ConnTypeInbound)
+				conn.Close()
+			case <-time.After(connTestNonReceiveTimeout):
+			}
+		}
+		assertConnManagerInternalState(t, cm)
+		assertFlooded(t, cm, true)
+
+		// Ensure the next few addresss in the same inbound group are now rate
+		// limited.  Use a value high enough to ensure they aren't just being
+		// dropped probabilistically.
+		for range int(math.Ceil(groupBurstLimit/(1-floodMaxDropProb))) * 2 {
+			go listener.Connect(addrGen.Next())
+		}
+		assertNoConnReceived(t, inboundConns)
+		assertConnManagerInternalState(t, cm)
+
+		// Ensure flood mode is deactivated once flooding subsides.
+		//
+		// Wait for an entire window to pass with no connections and then ensure
+		// the same address can connect up to the burst limit again.
+		time.Sleep(time.Minute)
+		addrGen.SetFlooded(false)
+		for range groupBurstLimit {
+			go listener.Connect(addrGen.NextPort())
+			assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+		}
+		assertConnManagerInternalState(t, cm)
+		assertFlooded(t, cm, false)
 	})
 }
