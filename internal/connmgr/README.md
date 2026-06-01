@@ -13,7 +13,8 @@ logic.
 
 It handles all general connection lifecycle concerns such as accepting inbound
 connections, automatically maintaining a set number of outbound connections,
-maintaining persistent connections, enforcing limits, and preventing duplicates.
+maintaining persistent connections, preventing duplicates, and enforcing
+multiple layers of connection limits and anti-abuse protections.
 
 The design has a strong emphasis on reliability, readability, and efficiency under high connection load while also aiming to provide an ergonomic API.
 
@@ -23,6 +24,12 @@ The following is a brief overview of the key features:
 - Inbound listening
   - Accepts inbound connections on provided `Listeners`
   - Uses connection shedding for rejected inbound connections
+  - Provides token bucket rate limiting on a per network group basis
+  - Anti-flood protection
+    - Detects floods based on allowed connection attempts
+    - Dynamically coarsens network group rate limiting during flooding
+    - Probabilistically drops connections when flooding is active via an S-curve
+    - Rate limits logging of dropped connections
 - Automatic outbound maintenance
   - Maintains up to `TargetOutbound` normal outbound connections via a provided
     address source (`GetNewAddress`)
