@@ -21,6 +21,9 @@ import (
 
 	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/addrmgr/v4"
+	"github.com/decred/dcrd/container/lru"
+	"github.com/decred/dcrd/internal/ratelimit"
+	"github.com/decred/slog"
 )
 
 const (
@@ -63,6 +66,41 @@ const (
 	// defaultTargetOutbound is the default number of outbound connections to
 	// maintain.
 	defaultTargetOutbound = 8
+
+	// *********************************************************************
+	// Constants related to rate limiting inbound connections and associated
+	// logging.
+	// *********************************************************************
+
+	// maxGroupLimiters specifies the maximum number of inbound group limiters
+	// to cache and is set to target a reasonable balance between memory usage
+	// and the number of addresses/network groups simultaneously subject to
+	// direct rate limiting.
+	//
+	// maxPerGroupTTL is the time to keep each inbound rate limiter in the cache
+	// without access before they expire.
+	//
+	// These values result in ~2 MiB memory usage including overhead for normal
+	// operation and a temporary maximum of ~6.5 MiB under sustained worst case
+	// attack scenarios.
+	maxGroupLimiters = 10000
+	maxPerGroupTTL   = 20 * time.Minute
+
+	// groupRateLimit and groupBurstLimit control the inbound rate limiting per
+	// network group.
+	//
+	// These values result in rate limiting each group to an average of one
+	// connection per five seconds with periodic bursts up to 3.
+	groupRateLimit  = 0.2
+	groupBurstLimit = 3
+
+	// dropLogRateLimit and dropLogBurstLimit define how often dropped
+	// connections are allowed to be logged before suppression.
+	//
+	// These values result in only allowing an average of 1 dropped connection
+	// per minute to be logged with periodic bursts up to 4.
+	dropLogRateLimit  = float64(1) / 60
+	dropLogBurstLimit = 4
 )
 
 // ConnectionType specifies the different types of supported connections.
@@ -513,6 +551,10 @@ type ConnManager struct {
 	// groups such that it is extremely difficult for attackers to gain control
 	// of addresses that are a part of a lot of different groups.
 	outboundGroups *outboundGroupInfo
+
+	// inboundLimiter tracks information about inbound connections and provides
+	// per group rate limiting.
+	inboundLimiter *inboundRateLimiter
 
 	// ******************************************************************
 	// The fields below this point are protected by the connection mutex.
@@ -1172,6 +1214,181 @@ func inboundStdlibNetAddrToAddrMgrAddr(addr net.Addr) (*addrmgr.NetAddress, erro
 	return stdlibNetAddrToAddrMgrNetAddr(addr)
 }
 
+// inboundGroupKey represents an inbound network group to use when rate
+// limiting addresses.  See [inboundRateLimiter.GroupKey].
+type inboundGroupKey struct {
+	hash0 uint64
+	hash1 uint64
+}
+
+// inboundRateLimiter houses state related to rate limiting inbound connections.
+type inboundRateLimiter struct {
+	// burstLimit is the max burst size for the group rate limiters.  It is set
+	// to [groupBurstLimit] by default.
+	burstLimit uint32
+
+	// key is a unique cryptographically random seed used when determining
+	// inbound network group keys.  It ensures different connection manager
+	// instances produce distinct mappings that are unpredictable to external
+	// observers.
+	key [2]uint64
+
+	// groupLimiters provides distinct rate limiters per inbound group up to the
+	// max capacity of the LRU.  See [inboundRateLimiter.GroupKey] for details
+	// on how groups are determined.
+	groupMtx      sync.Mutex
+	groupLimiters *lru.Map[inboundGroupKey, *ratelimit.Limiter]
+
+	// These fields are protected by the log mutex.
+	//
+	// logLimiter provides rate limiting for logging of dropped inbound
+	// connections.  It is used in conjunction with [droppedLogs], so even
+	// though it has its own mutex, it typically will also need to be protected
+	// by the embedded mutex.
+	//
+	// droppedLogs tallies the number of dropped inbound connections during log
+	// suppression due to exceeding the logging rate.
+	logMtx      sync.Mutex
+	logLimiter  *ratelimit.Limiter
+	droppedLogs uint64
+}
+
+// newInboundRateLimiter returns an initialized inboundRateLimiter instance.
+func newInboundRateLimiter(csprng csprng) *inboundRateLimiter {
+	newGroupLims := lru.NewMapWithDefaultTTL[inboundGroupKey, *ratelimit.Limiter]
+	return &inboundRateLimiter{
+		key:           [2]uint64{csprng.Uint64(), csprng.Uint64()},
+		burstLimit:    groupBurstLimit,
+		groupLimiters: newGroupLims(maxGroupLimiters, maxPerGroupTTL),
+		logLimiter:    ratelimit.New(dropLogRateLimit, dropLogBurstLimit),
+	}
+}
+
+// GroupKey returns a key that represents an inbound network group to use when
+// rate limiting the provided address.
+//
+// This should not be confused with the outbound group key.  They are not the
+// same and serve different purposes.
+//
+// The group for IPv4 is the entire address (/32 prefix) and the typical
+// residential block for IPv6 (/64 prefix).
+//
+// For IPv4, that has the effect of rate limiting individual addresses.
+//
+// For IPv6, it has the effect of rate limiting all addresses in the typical
+// residential blocks assigned by ISPs as a single entity since they are the
+// easiest for the same attacker to control.
+//
+// This function is safe for concurrent access.
+func (l *inboundRateLimiter) GroupKey(addr *addrmgr.NetAddress) inboundGroupKey {
+	var preimage []byte
+	switch addr.Type {
+	case addrmgr.IPv4Address:
+		const bits = 32
+		ip, _ := netip.AddrFromSlice(addr.IP)
+		prefix, _ := ip.Prefix(bits)
+		prefixBytes := prefix.Addr().As4()
+		preimage = prefixBytes[:]
+
+	case addrmgr.IPv6Address:
+		const bits = 64
+		ip, _ := netip.AddrFromSlice(addr.IP)
+		prefix, _ := ip.Prefix(bits)
+		prefixBytes := prefix.Addr().As16()
+		preimage = prefixBytes[:]
+
+	case addrmgr.TorV3Address:
+		// Remote addresses for inbound connections are never Tor addresses, but
+		// be safe and treat them all as a single group anyway.
+		preimage = []byte("tor")
+
+	case addrmgr.UnknownAddressType:
+		fallthrough
+	default:
+		// Group all unknown or future address types together for safety, but
+		// this should never be hit in practice.
+		preimage = []byte("unknown")
+	}
+
+	h0, h1 := siphash.Hash128(l.key[0], l.key[1], preimage)
+	return inboundGroupKey{h0, h1}
+}
+
+// Allow updates the limiter state for the given address and returns whether an
+// inbound connection from it is permitted at the current time.
+//
+// It enforces a per group (prefix based) rate limit.  The connection is allowed
+// when that rate limit has not been exceeded.
+//
+// Care must be taken when modifying this method.  It is in the critical hot
+// path for every inbound connection and must remain fast and tightly control
+// memory usage in order to remain resilient under sustained misbehavior.
+//
+// This function is safe for concurrent access.
+func (l *inboundRateLimiter) Allow(addr *addrmgr.NetAddress) bool {
+	// Rate limit the inbound group.
+	//
+	// Either get an existing rate limiter or create a new one when one does not
+	// already exist.  Then put the limiter into the LRU cache unconditionally
+	// so its TTL is updated.
+	//
+	// Adding a new entry may evict another limiter when at max capacity.  In
+	// practice, that case is only realistically possible to hit when under
+	// a heavy DDoS attack.
+	groupKey := l.GroupKey(addr)
+	l.groupMtx.Lock()
+	limiter, ok := l.groupLimiters.Get(groupKey)
+	if !ok {
+		limiter = ratelimit.New(groupRateLimit, l.burstLimit)
+	}
+	l.groupLimiters.Put(groupKey, limiter)
+	l.groupMtx.Unlock()
+	allowed := limiter.Allow()
+
+	return allowed
+}
+
+// LogDrops consolidates the logic for logging dropped connections with
+// throttling.
+//
+// This function is safe for concurrent access.
+func (l *inboundRateLimiter) LogDrops(addr *addrmgr.NetAddress, reason string) {
+	l.logMtx.Lock()
+	defer l.logMtx.Unlock()
+
+	// Only log a few dropped connections individually with a periodic summary
+	// once the rate is exceeded to prevent flooding spam.
+	if !l.logLimiter.Allow() {
+		// Report how long no further dropped connections will be logged when
+		// suppression starts.
+		if l.droppedLogs == 0 {
+			nextAllowed := l.logLimiter.UntilNextAllowed()
+			log.Debugf("Dropped connection from %v: %v -- suppressing drop "+
+				"logs for %v", addr, reason, nextAllowed.Round(time.Second))
+
+			// Report a summary of the total number of suppressed dropped
+			// connections once messages are allowed again, but only when the
+			// logging level requires it.
+			if log.Level() <= slog.LevelDebug {
+				time.AfterFunc(nextAllowed, func() {
+					l.logMtx.Lock()
+					defer l.logMtx.Unlock()
+
+					if dropped := l.droppedLogs; dropped > 0 {
+						log.Debugf("Dropped %d %s while suppressed", dropped,
+							pickNoun(dropped, "connection", "connections"))
+					}
+					l.droppedLogs = 0
+				})
+			}
+		}
+
+		l.droppedLogs++
+		return
+	}
+	log.Debugf("Dropped connection from %v: %v", addr, reason)
+}
+
 // listenHandler accepts incoming connections on a given listener.  It must be
 // run as a goroutine.
 func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener) {
@@ -1208,6 +1425,15 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 			continue
 		}
 		isWhitelisted := cm.IsWhitelisted(rAddr)
+		isLoopback := net.IP(rAddr.IP).IsLoopback()
+
+		// Apply rate limiting for inbound connections that are not whitelisted
+		// or originating from a loopback address.
+		if !isWhitelisted && !isLoopback && !cm.inboundLimiter.Allow(rAddr) {
+			cm.inboundLimiter.LogDrops(rAddr, "rate limited")
+			netConn.Close()
+			continue
+		}
 
 		// Reject connections with the same host:port as any existing pending,
 		// established, or persistent connections.  Note that this does NOT
@@ -1220,7 +1446,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		cm.connMtx.Lock()
 		if err := cm.rejectDuplicateAddr(rAddr); err != nil {
 			cm.connMtx.Unlock()
-			log.Debugf("Dropped connection from %v: %v", rAddr, err)
+			cm.inboundLimiter.LogDrops(rAddr, err.Error())
 			netConn.Close()
 			continue
 		}
@@ -1229,7 +1455,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		err = cm.rejectMaxConnsPerHost(rAddr, isWhitelisted)
 		if err != nil {
 			cm.connMtx.Unlock()
-			log.Debugf("Dropped connection from %v: %v", rAddr, err)
+			cm.inboundLimiter.LogDrops(rAddr, err.Error())
 			netConn.Close()
 			continue
 		}
@@ -1249,10 +1475,10 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 				continue
 			}
 			if !acquired {
-				maxAllowed := cm.cfg.MaxNormalConns
-				log.Debugf("Dropped connection from %v: a maximum of %d %s is "+
-					"allowed", rAddr, maxAllowed, pickNoun(maxAllowed,
-					"connection", "connections"))
+				maxConns := cm.cfg.MaxNormalConns
+				reason := fmt.Sprintf("a maximum of %d %s is allowed", maxConns,
+					pickNoun(maxConns, "connection", "connections"))
+				cm.inboundLimiter.LogDrops(rAddr, reason)
 				netConn.Close()
 				continue
 			}
@@ -1786,6 +2012,7 @@ func New(cfg *Config) (*ConnManager, error) {
 		totalNormalConnsSem: makeSemaphore(cfg.MaxNormalConns),
 		activeOutboundsSem:  makeSemaphore(cfg.TargetOutbound),
 		outboundGroups:      newOutboundGroupInfo(csprng),
+		inboundLimiter:      newInboundRateLimiter(csprng),
 		persistent:          make(map[uint64]*persistentEntry, MaxPersistent),
 		pending:             make(map[uint64]*pendingConnInfo),
 		active:              make(map[uint64]*Conn, cfg.TargetOutbound),
