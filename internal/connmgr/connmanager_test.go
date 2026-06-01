@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	mrand "math/rand/v2"
 	"net"
 	"net/netip"
@@ -133,6 +134,7 @@ func mustParseAddrPort(addr string) *addrmgr.NetAddress {
 // addrGenerator houses state for an address generator used to simplify tests.
 type addrGenerator struct {
 	mtx                     sync.Mutex
+	inboundGroupPrefixBits  uint
 	outboundGroupPrefixBits uint
 	addr                    netip.Addr
 	port                    uint16
@@ -143,6 +145,7 @@ type addrGenerator struct {
 func newAddrGenerator(baseAddrPort string) *addrGenerator {
 	addrPort := netip.MustParseAddrPort(baseAddrPort)
 	return &addrGenerator{
+		inboundGroupPrefixBits:  32,
 		outboundGroupPrefixBits: 16,
 		addr:                    addrPort.Addr(),
 		port:                    addrPort.Port(),
@@ -220,6 +223,17 @@ func (g *addrGenerator) nextPrefix(prefixBits uint) *addrmgr.NetAddress {
 	return addrmgr.NewNetAddressFromIPPort(g.addr.AsSlice(), g.port, 0)
 }
 
+// NextInboundGroup advances the generator to the next inbound group IP and
+// returns the result.  It skips all addresses of the form "x.x.x.0".
+//
+// An inbound group is determined by a certain number of prefix bits.
+func (g *addrGenerator) NextInboundGroup() *addrmgr.NetAddress {
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	return g.nextPrefix(g.inboundGroupPrefixBits)
+}
+
 // NextOutboundGroup advances the generator to the next outbound group IP and
 // returns the result.  It skips all addresses of the form "x.x.x.0".
 //
@@ -235,7 +249,7 @@ func (g *addrGenerator) NextOutboundGroup() *addrmgr.NetAddress {
 // starting base address and port useful throughout the tests.  The base address
 // is a normal routable IPv4 address.
 func defaultAddrGenerator() *addrGenerator {
-	return newAddrGenerator(fmt.Sprintf("12.0.0.0:%d", defaultTestP2PPort))
+	return newAddrGenerator(fmt.Sprintf("12.1.1.0:%d", defaultTestP2PPort))
 }
 
 // defaultTestAddr returns a default address to use throughout the tests.  It is
@@ -2273,4 +2287,74 @@ func TestOutboundGroups(t *testing.T) {
 		t.Fatalf("unexpected number of outbound groups -- got %d, want %d",
 			len(groups), targetOutbound)
 	}
+}
+
+// TestInboundRateLimiting ensures the connection manager rate limits inbound
+// connections as expected.  It includes tests for normal rate limiting and
+// bursts.
+func TestInboundRateLimiting(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inboundConns := make(chan *Conn)
+		listener := defaultMockListener()
+		cm := newTestConnManager(t, &Config{
+			Listeners:       []net.Listener{listener},
+			MaxConnsPerHost: 100,
+			OnAccept: func(conn *Conn) {
+				inboundConns <- conn
+			},
+			Dial: mockDialer,
+		})
+		runConnMgrAsync(t, cm)
+
+		// Ensure exactly the max allowed burst of inbound connections from the
+		// same address are accepted.
+		addrGen := defaultAddrGenerator()
+		addrGen.Next()
+		for range groupBurstLimit {
+			go listener.Connect(addrGen.NextPort())
+			assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+		}
+		assertConnManagerInternalState(t, cm)
+
+		// Ensure connections from the same address are now rate limited.
+		for range 3 {
+			go listener.Connect(addrGen.NextPort())
+		}
+		assertNoConnReceived(t, inboundConns)
+		assertConnManagerInternalState(t, cm)
+
+		// Wait just long enough for the next connection to be allowed and
+		// ensure it is.
+		perConnSecs := time.Duration(math.Ceil(1/groupRateLimit)) * time.Second
+		time.Sleep(perConnSecs - connTestNonReceiveTimeout)
+		go listener.Connect(addrGen.NextPort())
+		assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+		assertConnManagerInternalState(t, cm)
+
+		// Wait just long enough to reset the burst tokens and ensure another
+		// burst of inbound connections from the same address are accepted.
+		time.Sleep(groupBurstLimit * perConnSecs)
+		for range groupBurstLimit {
+			go listener.Connect(addrGen.NextPort())
+			assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+		}
+		assertConnManagerInternalState(t, cm)
+
+		// Ensure the next inbound group is not rate limited and independently
+		// allows the max allowed burst.
+		addrGen.NextInboundGroup()
+		for range groupBurstLimit {
+			go listener.Connect(addrGen.NextPort())
+			assertConnReceived(t, inboundConns, 0, ConnTypeInbound).Close()
+		}
+		assertConnManagerInternalState(t, cm)
+
+		// Ensure connections from the same address in the new inbound group are
+		// now rate limited.
+		for range 3 {
+			go listener.Connect(addrGen.NextPort())
+		}
+		assertNoConnReceived(t, inboundConns)
+		assertConnManagerInternalState(t, cm)
+	})
 }
