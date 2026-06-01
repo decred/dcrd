@@ -300,6 +300,8 @@ func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	cm.csprng = mrand.New(src) // nolint:gosec
 	cm.outboundGroups.key[0] = cm.csprng.Uint64()
 	cm.outboundGroups.key[1] = cm.csprng.Uint64()
+	cm.inboundLimiter.key[0] = cm.csprng.Uint64()
+	cm.inboundLimiter.key[1] = cm.csprng.Uint64()
 	return cm
 }
 
@@ -1749,6 +1751,7 @@ func TestRejectDuplicateConns(t *testing.T) {
 			disconnected <- conn
 		},
 	})
+	cm.inboundLimiter.burstLimit = 4
 	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Dial a manual connection and wait for it to become pending.
