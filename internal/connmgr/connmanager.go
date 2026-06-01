@@ -101,6 +101,27 @@ const (
 	// per minute to be logged with periodic bursts up to 4.
 	dropLogRateLimit  = float64(1) / 60
 	dropLogBurstLimit = 4
+
+	// floodLow is the number of allowed connection attempts in the last minute
+	// to consider active low-intensity connection flooding.  ~5 average
+	// attempts per second.
+	//
+	// floodHighFactor is the multiple of [floodLow] to consider active
+	// high-intensity connection flooding.
+	floodLow        = 5 * 60
+	floodHighFactor = 3
+
+	// These values tune how often connections are probabilistically dropped
+	// during active flooding.  A quadratic rational S-curve is used.  See
+	// [inboundRateLimiter.ShouldDropProbabilistic].
+	//
+	// floodMinDropProb and floodMaxDropProb are the minimum and maximum
+	// probability with which to drop connections during active flooding.
+	//
+	// floodRamp is the normalized intensity to start rapid growth.
+	floodMinDropProb = 0.2
+	floodMaxDropProb = 0.85
+	floodRamp        = 0.1
 )
 
 // ConnectionType specifies the different types of supported connections.
@@ -553,7 +574,7 @@ type ConnManager struct {
 	outboundGroups *outboundGroupInfo
 
 	// inboundLimiter tracks information about inbound connections and provides
-	// per group rate limiting.
+	// per group rate limiting with anti-flood protection.
 	inboundLimiter *inboundRateLimiter
 
 	// ******************************************************************
@@ -1221,7 +1242,8 @@ type inboundGroupKey struct {
 	hash1 uint64
 }
 
-// inboundRateLimiter houses state related to rate limiting inbound connections.
+// inboundRateLimiter houses state related to rate limiting inbound connections
+// and flood detection.
 type inboundRateLimiter struct {
 	// burstLimit is the max burst size for the group rate limiters.  It is set
 	// to [groupBurstLimit] by default.
@@ -1238,6 +1260,27 @@ type inboundRateLimiter struct {
 	// on how groups are determined.
 	groupMtx      sync.Mutex
 	groupLimiters *lru.Map[inboundGroupKey, *ratelimit.Limiter]
+
+	// These fields are protected by the flood mutex.
+	//
+	// attempts houses a sliding window of the number of allowed connections per
+	// second over the previous minute as a ring buffer.
+	//
+	// attemptsStart is the current unix time for the head of the ring buffer.
+	//
+	// totalAttempts is the sum of all attempts in the window.
+	floodMtx      sync.RWMutex
+	attempts      [60]uint32
+	attemptsStart int64
+	totalAttempts uint64
+
+	// flooding tracks whether or not flooding mode is active.  It is an atomic
+	// so that it is independently safe to read concurrently without any
+	// additional mutex.
+	//
+	// Nevertheless, it is only modified under [floodMtx] since it depends on
+	// [totalAttempts].
+	flooding atomic.Bool
 
 	// These fields are protected by the log mutex.
 	//
@@ -1270,28 +1313,39 @@ func newInboundRateLimiter(csprng csprng) *inboundRateLimiter {
 // This should not be confused with the outbound group key.  They are not the
 // same and serve different purposes.
 //
-// The group for IPv4 is the entire address (/32 prefix) and the typical
-// residential block for IPv6 (/64 prefix).
+// By default, the group for IPv4 is the entire address (/32 prefix) and the
+// typical residential block for IPv6 (/64 prefix).  When flooding is detected,
+// the groups are coarsened to /24 for IPv4 and /56 for IPv6 in order to
+// increase the cost of prefix spraying.
 //
-// For IPv4, that has the effect of rate limiting individual addresses.
+// For IPv4, that has the effect of rate limiting individual addresses during
+// normal conditions and dynamically adjusting to rate limit the blocks of IPv4s
+// that are the easiest for the same attacker to control as a single entity.
 //
-// For IPv6, it has the effect of rate limiting all addresses in the typical
-// residential blocks assigned by ISPs as a single entity since they are the
-// easiest for the same attacker to control.
+// Similarly, for IPv6, it has the effect of rate limiting all addresses in the
+// typical residential blocks assigned by ISPs as a single entity and
+// dynamically adjusting to encompass the full range typically assigned by an
+// ISP since they are the easiest for the same attacker to control.
 //
 // This function is safe for concurrent access.
 func (l *inboundRateLimiter) GroupKey(addr *addrmgr.NetAddress) inboundGroupKey {
 	var preimage []byte
 	switch addr.Type {
 	case addrmgr.IPv4Address:
-		const bits = 32
+		bits := 32
+		if l.flooding.Load() {
+			bits = 24
+		}
 		ip, _ := netip.AddrFromSlice(addr.IP)
 		prefix, _ := ip.Prefix(bits)
 		prefixBytes := prefix.Addr().As4()
 		preimage = prefixBytes[:]
 
 	case addrmgr.IPv6Address:
-		const bits = 64
+		bits := 64
+		if l.flooding.Load() {
+			bits = 56
+		}
 		ip, _ := netip.AddrFromSlice(addr.IP)
 		prefix, _ := ip.Prefix(bits)
 		prefixBytes := prefix.Addr().As16()
@@ -1314,15 +1368,82 @@ func (l *inboundRateLimiter) GroupKey(addr *addrmgr.NetAddress) inboundGroupKey 
 	return inboundGroupKey{h0, h1}
 }
 
+// recordAttempt updates the flood state to decay stale data and records
+// attempts that were not rate limited by prefix.
+//
+// The flood detection scheme is a simple sliding window over the prior minute
+// implemented as an efficient ring buffer.
+func (l *inboundRateLimiter) recordAttempt(rateLimited bool) {
+	// buckets is the number of one second buckets in the sliding window.
+	const buckets = 60
+
+	now := time.Now()
+	nowUnix := now.Unix()
+	idx := nowUnix % buckets
+
+	l.floodMtx.Lock()
+	defer l.floodMtx.Unlock()
+
+	// Advance the sliding window to the current time.  This approach is
+	// extremely efficient and still provides excellent properties such as
+	// deterministic behavior, good burst detection, and reasonable reaction
+	// time.
+	//
+	// This entire section only runs a max of once per second.
+	//
+	// In other words, in a real flooding scenario where this might be called
+	// hundreds or thousands of times per second, it is effectively a noop.
+	//
+	// On the other end of the spectrum, when more than 1 min has elapsed since
+	// the last update, it reduces to a tiny memcpy to zero the array.
+	//
+	// Otherwise, it is somewhere between clearing 1 to 59 buckets which only
+	// involves very cheap calculations.
+	if l.attemptsStart != nowUnix {
+		numExpired := nowUnix - l.attemptsStart
+		if numExpired >= buckets {
+			for i := range l.attempts {
+				l.attempts[i] = 0
+			}
+			l.totalAttempts = 0
+		} else if numExpired > 0 {
+			tail := l.attemptsStart + 1
+			for i := range numExpired {
+				oldIdx := (tail + i) % buckets
+				l.totalAttempts -= uint64(l.attempts[oldIdx])
+				l.attempts[oldIdx] = 0
+			}
+		}
+		l.attemptsStart = nowUnix
+	}
+
+	// Record allowed attempts.
+	if !rateLimited {
+		l.attempts[idx]++
+		l.totalAttempts++
+	}
+
+	// Activate flooding mode if there have been enough recent allowed attempts
+	// in the last minute.  Deactivate otherwise.
+	l.flooding.Store(l.totalAttempts > floodLow)
+}
+
 // Allow updates the limiter state for the given address and returns whether an
 // inbound connection from it is permitted at the current time.
 //
-// It enforces a per group (prefix based) rate limit.  The connection is allowed
-// when that rate limit has not been exceeded.
+// This is the first line of defense against inbound attacks.
+//
+// It enforces a per group (prefix based) rate limit that is dynamically
+// adjusted depending on whether flooding is detected.  The connection is
+// allowed when that rate limit has not been exceeded.
+//
+// It also records allowed attempts for flood detection and updates the flood
+// state when needed.
 //
 // Care must be taken when modifying this method.  It is in the critical hot
 // path for every inbound connection and must remain fast and tightly control
-// memory usage in order to remain resilient under sustained misbehavior.
+// memory usage in order to remain resilient under sustained misbehavior and
+// flooding.
 //
 // This function is safe for concurrent access.
 func (l *inboundRateLimiter) Allow(addr *addrmgr.NetAddress) bool {
@@ -1334,7 +1455,7 @@ func (l *inboundRateLimiter) Allow(addr *addrmgr.NetAddress) bool {
 	//
 	// Adding a new entry may evict another limiter when at max capacity.  In
 	// practice, that case is only realistically possible to hit when under
-	// a heavy DDoS attack.
+	// a heavy DDoS attack.  The anti-flooding measures help combat that.
 	groupKey := l.GroupKey(addr)
 	l.groupMtx.Lock()
 	limiter, ok := l.groupLimiters.Get(groupKey)
@@ -1345,7 +1466,55 @@ func (l *inboundRateLimiter) Allow(addr *addrmgr.NetAddress) bool {
 	l.groupMtx.Unlock()
 	allowed := limiter.Allow()
 
+	// Tally attempts that were not rate limited and periodically update the
+	// state related to detecting active flooding.
+	l.recordAttempt(!allowed)
+
 	return allowed
+}
+
+// ShouldDropProbabilistic returns whether or not a connection should be
+// probabilistically dropped.
+//
+// No probabilistic dropping is applied unless active flooding is detected and
+// the probability of dropping a connection is increased according to the
+// intensity of flooding per an S-curve.
+//
+// This acts as a second layer of defense against any inbound attackers that
+// make it through the initial rate limiting.
+//
+// This function is safe for concurrent access.
+func (l *inboundRateLimiter) ShouldDropProbabilistic(csprng csprng) bool {
+	// Don't probabilistically drop anything unless flooding has been detected.
+	if !l.flooding.Load() {
+		return false
+	}
+
+	l.floodMtx.RLock()
+	totalAttempts := l.totalAttempts
+	l.floodMtx.RUnlock()
+
+	// Scale the probability of dropping a connection in accordance with the
+	// intensity of flooding using a smooth quadratic rational S-curve between
+	// the min and max drop probability.
+	//
+	// This provides a smooth non-linear curve to apply increasing backpressure
+	// as flooding intensifies.
+	//
+	// The equation is:
+	//
+	// P(x) = minP + (1+r)*(maxP-minP)*x^2 / (r+x^2)
+	//
+	// Where x is the normalized flood intensity in the range [0, 1] and r is
+	// normalized intensity to start rapid growth.
+	const factor = (1 + floodRamp) * (floodMaxDropProb - floodMinDropProb)
+	const floodHigh = floodLow * floodHighFactor
+	norm := float64(max(totalAttempts, floodLow)-floodLow) / float64(floodHigh)
+	norm = min(norm, 1.0)
+	nSquared := norm * norm
+	prob := floodMinDropProb + factor*nSquared/(floodRamp+nSquared)
+
+	return csprng.Float64() < prob
 }
 
 // LogDrops consolidates the logic for logging dropped connections with
@@ -1381,6 +1550,7 @@ func (l *inboundRateLimiter) LogDrops(addr *addrmgr.NetAddress, reason string) {
 					l.droppedLogs = 0
 				})
 			}
+			return
 		}
 
 		l.droppedLogs++
@@ -1427,12 +1597,22 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		isWhitelisted := cm.IsWhitelisted(rAddr)
 		isLoopback := net.IP(rAddr.IP).IsLoopback()
 
-		// Apply rate limiting for inbound connections that are not whitelisted
-		// or originating from a loopback address.
-		if !isWhitelisted && !isLoopback && !cm.inboundLimiter.Allow(rAddr) {
-			cm.inboundLimiter.LogDrops(rAddr, "rate limited")
-			netConn.Close()
-			continue
+		// Apply rate limiting and anti-flooding measures for inbound
+		// connections that are not whitelisted or originating from a loopback
+		// address.
+		if !isWhitelisted && !isLoopback {
+			if !cm.inboundLimiter.Allow(rAddr) {
+				cm.inboundLimiter.LogDrops(rAddr, "rate limited")
+				netConn.Close()
+				continue
+			}
+
+			if cm.inboundLimiter.ShouldDropProbabilistic(cm.csprng) {
+				cm.inboundLimiter.LogDrops(rAddr, "probabilistically blocked "+
+					"during flood")
+				netConn.Close()
+				continue
+			}
 		}
 
 		// Reject connections with the same host:port as any existing pending,

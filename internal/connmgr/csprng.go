@@ -16,6 +16,7 @@ import (
 type csprng interface {
 	Uint64() uint64
 	Uint64N(n uint64) uint64
+	Float64() float64
 }
 
 // lockingPRNG wraps an instance of [rand.PRNG] with a mutex so it can be used
@@ -39,6 +40,14 @@ func (p *lockingPRNG) Uint64N(n uint64) uint64 {
 	defer p.Unlock()
 
 	return p.prng.Uint64N(n)
+}
+
+// Float64 returns a random float64 in the half-open interval [0.0,1.0).
+func (p *lockingPRNG) Float64() float64 {
+	p.Lock()
+	defer p.Unlock()
+
+	return float64(p.prng.Uint64N(1<<53)) / (1 << 53)
 }
 
 // Read fills s with len(s) of cryptographically-secure random bytes.  It never
