@@ -891,19 +891,16 @@ func (p *Peer) PushGetHeadersMsg(locator []chainhash.Hash, stopHash *chainhash.H
 	return nil
 }
 
-// handlePingMsg is invoked when a peer receives a ping wire message.  For
-// recent clients (protocol version > BIP0031Version), it replies with a pong
-// message.  For older clients, it does nothing and anything other than failure
-// is considered a successful ping.
+// handlePingMsg is invoked when a peer receives a ping wire message.  It
+// replies with a pong message.
 func (p *Peer) handlePingMsg(msg *wire.MsgPing) {
 	// Include nonce from ping so pong can be identified.
 	p.QueueMessage(wire.NewMsgPong(msg.Nonce), nil)
 }
 
 // handlePongMsg is invoked when a peer receives a pong wire message.  It
-// updates the ping statistics as required for recent clients (protocol
-// version > BIP0031Version).  There is no effect for older clients or when a
-// ping was not previously sent.
+// updates the ping statistics as required.  There is no effect when a ping was
+// not previously sent.
 func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 	// Arguably we could use a buffered channel here sending data
 	// in a fifo manner whenever we send a ping, or a list keeping track of
@@ -1033,59 +1030,117 @@ func (p *Peer) shouldHandleReadError(err error) bool {
 	return true
 }
 
+// pendingDeadlines houses response deadline information for the messages that
+// require them.
+type pendingDeadlines struct {
+	pendingData map[wire.InvVect]time.Time
+	pendingCmds map[string]time.Time
+}
+
 // maybeAddDeadline potentially adds a deadline for the appropriate expected
-// response for the passed wire protocol command to the pending responses map.
-func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd string) {
+// response for the passed wire protocol message to the pending deadlines.
+func (p *Peer) maybeAddDeadline(d *pendingDeadlines, msg wire.Message) {
 	// Setup a deadline for each message being sent that expects a response.
 	//
-	// NOTE: Pings are intentionally ignored here since they are typically sent
-	// asynchronously and as a result of a long backlog of messages, such as is
-	// typical in the case of the initial chain sync, the response won't be
-	// received in time.
+	// NOTE: [wire.MsgPing] is intentionally ignored here since pings are
+	// typically sent asynchronously and as a result of a long backlog of
+	// messages, such as is typical in the case of the initial chain sync, the
+	// response won't be received in time.
 	//
-	// Also, getheaders is intentionally ignored since there is no guaranteed
-	// response if the remote peer does not have any headers for the locator.
+	// [wire.MsgVersion] and [wire.MsgVerAck] are handled by [Peer.Handshake]
+	// before the async processing is started.
+	//
+	// Also, the following messages are intentionally ignored:
+	//
+	// - [wire.MsgMemPool] is not required to send a response when empty
+	// - [wire.MsgGetMiningState] is not required to send a response when empty
+	// - [wire.MsgGetBlocks] is deprecated and not required to send a response
+	//   if the remote peer does not have any blocks for the locator
+	// - [wire.MsgGetHeaders] is not required to send a response if the remote
+	//   peer does not have any headers for the locator
 	var addedDeadline bool
 	deadline := time.Now().Add(stallResponseTimeout)
-	switch msgCmd {
-	case wire.CmdVersion:
-		// Expects a verack message.
-		pendingResponses[wire.CmdVerAck] = deadline
+	switch msg := msg.(type) {
+	case *wire.MsgGetData:
+		// Prevent the peer from getting too far ahead with advertised inventory
+		// before serving it.
+		const maxBurst = wire.MaxInvPerMsg + wire.MaxInvPerMsg/2
+		if len(d.pendingData)+len(msg.InvList) > maxBurst {
+			log.Debugf("Peer %s exceeded max pending inventory announcements "+
+				"without serving data -- disconnecting", p)
+			p.Disconnect()
+			return
+		}
+
+		// Expects a block, tx, mix, or notfound message based on each requested
+		// type and hash.
+		for _, iv := range msg.InvList {
+			d.pendingData[*iv] = deadline
+		}
 		addedDeadline = true
 
-	case wire.CmdMemPool:
-		// Expects an inv message.
-		pendingResponses[wire.CmdInv] = deadline
-		addedDeadline = true
-
-	case wire.CmdGetData:
-		// Expects a block, tx, mix, or notfound message.
-		pendingResponses[wire.CmdBlock] = deadline
-		pendingResponses[wire.CmdTx] = deadline
-		pendingResponses[wire.CmdMixPairReq] = deadline
-		pendingResponses[wire.CmdMixKeyExchange] = deadline
-		pendingResponses[wire.CmdMixCiphertexts] = deadline
-		pendingResponses[wire.CmdMixSlotReserve] = deadline
-		pendingResponses[wire.CmdMixDCNet] = deadline
-		pendingResponses[wire.CmdMixFactoredPoly] = deadline
-		pendingResponses[wire.CmdMixConfirm] = deadline
-		pendingResponses[wire.CmdMixSecrets] = deadline
-		pendingResponses[wire.CmdNotFound] = deadline
-		addedDeadline = true
-
-	case wire.CmdGetMiningState:
-		pendingResponses[wire.CmdMiningState] = deadline
-		addedDeadline = true
-
-	case wire.CmdGetInitState:
-		pendingResponses[wire.CmdInitState] = deadline
+	case *wire.MsgGetInitState:
+		d.pendingCmds[wire.CmdInitState] = deadline
 		addedDeadline = true
 	}
 
 	if addedDeadline {
-		log.Debugf("Adding deadline for command %s for peer %s", msgCmd,
+		log.Debugf("Adding deadline for command %s for peer %s", msg.Command(),
 			p.remoteAddr)
 	}
+}
+
+// maybeRemoveDeadline removes a deadline for the passed received response when
+// one exists.
+func (p *Peer) maybeRemoveDeadline(d *pendingDeadlines, msg wire.Message) {
+	switch msg := msg.(type) {
+	case *wire.MsgBlock:
+		hash := msg.BlockHash()
+		iv := wire.InvVect{Type: wire.InvTypeBlock, Hash: hash}
+		delete(d.pendingData, iv)
+
+	case *wire.MsgTx:
+		hash := msg.TxHash()
+		iv := wire.InvVect{Type: wire.InvTypeTx, Hash: hash}
+		delete(d.pendingData, iv)
+
+	case *wire.MsgMixPairReq, *wire.MsgMixKeyExchange,
+		*wire.MsgMixCiphertexts, *wire.MsgMixSlotReserve,
+		*wire.MsgMixDCNet, *wire.MsgMixFactoredPoly,
+		*wire.MsgMixConfirm, *wire.MsgMixSecrets:
+
+		if msg, ok := msg.(hashable); ok {
+			hash := msg.Hash()
+			iv := wire.InvVect{Type: wire.InvTypeMix, Hash: hash}
+			delete(d.pendingData, iv)
+		}
+
+	case *wire.MsgNotFound:
+		for _, iv := range msg.InvList {
+			delete(d.pendingData, *iv)
+		}
+
+	case *wire.MsgInitState:
+		delete(d.pendingCmds, msg.Command())
+	}
+}
+
+// checkDeadlines returns an error if any of the pending responses don't arrive
+// by their adjusted deadline.
+func (p *Peer) checkDeadlines(d *pendingDeadlines, now time.Time, offset time.Duration) error {
+	for command, deadline := range d.pendingCmds {
+		if now.Before(deadline.Add(offset)) {
+			continue
+		}
+		return fmt.Errorf("deadline exceeded for %s", command)
+	}
+	for iv, deadline := range d.pendingData {
+		if now.Before(deadline.Add(offset)) {
+			continue
+		}
+		return fmt.Errorf("deadline exceeded for %s", invVectSummary(&iv))
+	}
+	return nil
 }
 
 // stallHandler handles stall detection for the peer.  This entails keeping
@@ -1101,8 +1156,11 @@ func (p *Peer) stallHandler() {
 	var handlersStartTime time.Time
 	var deadlineOffset time.Duration
 
-	// pendingResponses tracks the expected response deadline times.
-	pendingResponses := make(map[string]time.Time)
+	// deadlines tracks the expected response deadline times.
+	deadlines := pendingDeadlines{
+		pendingData: make(map[wire.InvVect]time.Time),
+		pendingCmds: make(map[string]time.Time),
+	}
 
 	// stallTicker is used to periodically check pending responses that have
 	// exceeded the expected deadline and disconnect the peer due to
@@ -1119,59 +1177,17 @@ out:
 		case msg := <-p.stallControl:
 			switch msg.command {
 			case sccSendMessage:
-				// Add a deadline for the expected response
-				// message if needed.
-				p.maybeAddDeadline(pendingResponses,
-					msg.message.Command())
+				// Add a deadline for the expected response message if needed.
+				p.maybeAddDeadline(&deadlines, msg.message)
 
 			case sccReceiveMessage:
-				// Remove received messages from the expected
-				// response map.  Since certain commands expect
-				// one of a group of responses, remove
-				// everything in the expected group accordingly.
-				switch msgCmd := msg.message.Command(); msgCmd {
-				case wire.CmdBlock:
-					fallthrough
-				case wire.CmdTx:
-					fallthrough
-				case wire.CmdMixPairReq:
-					fallthrough
-				case wire.CmdMixKeyExchange:
-					fallthrough
-				case wire.CmdMixCiphertexts:
-					fallthrough
-				case wire.CmdMixSlotReserve:
-					fallthrough
-				case wire.CmdMixDCNet:
-					fallthrough
-				case wire.CmdMixFactoredPoly:
-					fallthrough
-				case wire.CmdMixConfirm:
-					fallthrough
-				case wire.CmdMixSecrets:
-					fallthrough
-				case wire.CmdNotFound:
-					delete(pendingResponses, wire.CmdBlock)
-					delete(pendingResponses, wire.CmdTx)
-					delete(pendingResponses, wire.CmdMixPairReq)
-					delete(pendingResponses, wire.CmdMixKeyExchange)
-					delete(pendingResponses, wire.CmdMixCiphertexts)
-					delete(pendingResponses, wire.CmdMixSlotReserve)
-					delete(pendingResponses, wire.CmdMixDCNet)
-					delete(pendingResponses, wire.CmdMixFactoredPoly)
-					delete(pendingResponses, wire.CmdMixConfirm)
-					delete(pendingResponses, wire.CmdMixSecrets)
-					delete(pendingResponses, wire.CmdNotFound)
-
-				default:
-					delete(pendingResponses, msgCmd)
-				}
+				// Remove received messages from the expected response maps.
+				p.maybeRemoveDeadline(&deadlines, msg.message)
 
 			case sccHandlerStart:
 				// Warn on unbalanced callback signaling.
 				if handlerActive {
-					log.Warn("Received handler start " +
-						"control command while a " +
+					log.Warn("Received handler start control command while a " +
 						"handler is already active")
 					continue
 				}
@@ -1182,50 +1198,35 @@ out:
 			case sccHandlerDone:
 				// Warn on unbalanced callback signaling.
 				if !handlerActive {
-					log.Warn("Received handler done " +
-						"control command when a " +
+					log.Warn("Received handler done control command when a " +
 						"handler is not already active")
 					continue
 				}
 
-				// Extend active deadlines by the time it took
-				// to execute the callback.
+				// Extend active deadlines by the time it took to execute the
+				// callback.
 				duration := time.Since(handlersStartTime)
 				deadlineOffset += duration
 				handlerActive = false
 
 			default:
-				log.Warnf("Unsupported message command %v",
-					msg.command)
+				log.Warnf("Unsupported message command %v", msg.command)
 			}
 
 		case <-stallTicker.C:
-			// Calculate the offset to apply to the deadline based
-			// on how long the handlers have taken to execute since
-			// the last tick.
+			// Calculate the offset to apply to the deadline based on how long
+			// the handlers have taken to execute since the last tick.
 			now := time.Now()
 			offset := deadlineOffset
 			if handlerActive {
 				offset += now.Sub(handlersStartTime)
 			}
 
-			// Disconnect the peer if any of the pending responses
-			// don't arrive by their adjusted deadline.
-			for command, deadline := range pendingResponses {
-				if command == wire.CmdMiningState {
-					continue
-				}
-
-				if now.Before(deadline.Add(offset)) {
-					log.Debugf("Stall ticker rolling over for peer %s on "+
-						"cmd %s (deadline for data: %s)", p, command,
-						deadline.String())
-					continue
-				}
-
-				log.Infof("Peer %s appears to be stalled or "+
-					"misbehaving, %s timeout -- "+
-					"disconnecting", p, command)
+			// Disconnect the peer if any of the pending responses don't arrive
+			// by their adjusted deadline.
+			if err := p.checkDeadlines(&deadlines, now, offset); err != nil {
+				log.Infof("Peer %s appears to be stalled or misbehaving ("+
+					"reason: %s) -- disconnecting", p, err)
 				p.Disconnect()
 				break
 			}

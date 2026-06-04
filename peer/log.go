@@ -48,6 +48,24 @@ func formatLockTime(lockTime uint32) string {
 	return time.Unix(int64(lockTime), 0).String()
 }
 
+// invVectSummary returns a single inventory vector as a human-readable string.
+func invVectSummary(iv *wire.InvVect) string {
+	switch iv.Type {
+	case wire.InvTypeError:
+		return fmt.Sprintf("error %s", iv.Hash)
+	case wire.InvTypeBlock:
+		return fmt.Sprintf("block %s", iv.Hash)
+	case wire.InvTypeTx:
+		return fmt.Sprintf("tx %s", iv.Hash)
+	case wire.InvTypeFilteredBlock:
+		return fmt.Sprintf("filtered block %s", iv.Hash)
+	case wire.InvTypeMix:
+		return fmt.Sprintf("mix message %s", iv.Hash)
+	}
+
+	return fmt.Sprintf("unknown (%d) %s", uint32(iv.Type), iv.Hash)
+}
+
 // invSummary returns an inventory message as a human-readable string.
 func invSummary(invList []*wire.InvVect) string {
 	// No inventory.
@@ -58,21 +76,7 @@ func invSummary(invList []*wire.InvVect) string {
 
 	// One inventory item.
 	if invLen == 1 {
-		iv := invList[0]
-		switch iv.Type {
-		case wire.InvTypeError:
-			return fmt.Sprintf("error %s", iv.Hash)
-		case wire.InvTypeBlock:
-			return fmt.Sprintf("block %s", iv.Hash)
-		case wire.InvTypeTx:
-			return fmt.Sprintf("tx %s", iv.Hash)
-		case wire.InvTypeFilteredBlock:
-			return fmt.Sprintf("filtered block %s", iv.Hash)
-		case wire.InvTypeMix:
-			return fmt.Sprintf("mix message %s", iv.Hash)
-		}
-
-		return fmt.Sprintf("unknown (%d) %s", uint32(iv.Type), iv.Hash)
+		return invVectSummary(invList[0])
 	}
 
 	// More than one inv item.
