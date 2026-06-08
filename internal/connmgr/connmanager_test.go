@@ -50,10 +50,10 @@ func mustParseAddrPort(addr string) *addrmgr.NetAddress {
 //
 // It also registers a test cleanup func that waits for shutdown and asserts the
 // internal state of the connection manager is empty as expected.
-func runConnMgrAsync(t *testing.T, ctx context.Context, cm *ConnManager) (context.Context, context.CancelFunc, *sync.WaitGroup) {
+func runConnMgrAsync(t *testing.T, cm *ConnManager) (context.Context, context.CancelFunc, *sync.WaitGroup) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -461,7 +461,7 @@ func TestConnectMode(t *testing.T) {
 			connected <- conn
 		},
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
 	go cm.Connect(ctx, addr)
@@ -511,7 +511,7 @@ func TestDisconnect(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Attempt a connection to a localhost IP.
 	notifyDialed.Store(true)
@@ -669,7 +669,7 @@ func TestRemove(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Ensure removing an ID that doesn't exist returns the expected error.
 	if err := cm.Remove(^uint64(0)); !errors.Is(err, ErrNotFound) {
@@ -821,7 +821,7 @@ func TestTargetOutbound(t *testing.T) {
 			connected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Ensure only the expected number of target outbound conns are established
 	// and no more.
@@ -848,7 +848,7 @@ func TestDoubleClose(t *testing.T) {
 			connected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Wait for the connection to be established.
 	conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
@@ -888,7 +888,7 @@ func TestRetryPersistent(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
 	connID, err := cm.AddPersistent(addr)
@@ -934,7 +934,7 @@ func TestMaxPersistent(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	var numAddrs uint32
 	nextAddr := func() *addrmgr.NetAddress {
@@ -1031,7 +1031,7 @@ func TestMaxRetryDuration(t *testing.T) {
 			connected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	connID, err := cm.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
 	if err != nil {
@@ -1083,7 +1083,7 @@ func TestNetworkFailure(t *testing.T) {
 				conn.RemoteAddr())
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(t, context.Background(), cm)
+	_, shutdown, wg := runConnMgrAsync(t, cm)
 
 	// Shutdown the connection manager after the max failed attempts is reached
 	// and an additional retry duration has passed and then wait for the
@@ -1135,7 +1135,7 @@ func TestMultipleFailedConns(t *testing.T) {
 		Dial:          errDialer,
 	})
 	cm.maxRetryDuration = maxRetryDuration
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Establish several connection requests to localhost IPs.
 	for i := range targetFailed {
@@ -1189,7 +1189,7 @@ func TestShutdownFailedConns(t *testing.T) {
 		Dial:          waitDialer,
 	})
 	cm.maxRetryDuration = retryTimeout
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Add a persistent connection.
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -1227,7 +1227,7 @@ func TestRemovePendingConnection(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Establish a connection request to a localhost IP.
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -1300,7 +1300,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 			connected <- conn
 		},
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Establish a persistent connection to a localhost IP.
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -1358,7 +1358,7 @@ func TestDialTimeout(t *testing.T) {
 		Dial:        timeoutDialer,
 		DialTimeout: dialTimeout,
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Establish a connection to a localhost IP.
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -1391,7 +1391,7 @@ func TestConnectContext(t *testing.T) {
 	cm := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Establish a connection request to a localhost IP with a separate context
 	// that can be canceled.
@@ -1447,7 +1447,7 @@ func TestListeners(t *testing.T) {
 		},
 		Dial: mockDialer,
 	})
-	runConnMgrAsync(t, context.Background(), cm)
+	runConnMgrAsync(t, cm)
 
 	// Fake a couple of mock connections to each of the listeners.
 	go func() {
@@ -1501,7 +1501,7 @@ func TestRejectDuplicateConns(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Dial a manual connection and wait for it to become pending.
 	addr := mustParseAddrPort("127.0.0.1:18555")
@@ -1667,7 +1667,7 @@ func TestMaxNormalConns(t *testing.T) {
 		},
 	})
 	cm.maxRetryDuration = cm.cfg.RetryDuration
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Wait for the expected number of target outbound conns to be established.
 	outbounds := make([]*Conn, 0, targetOutbound)
@@ -1835,7 +1835,7 @@ func TestMaxConnsPerHost(t *testing.T) {
 		},
 	})
 	cm.maxRetryDuration = cm.cfg.RetryDuration
-	ctx, _, _ := runConnMgrAsync(t, context.Background(), cm)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Wait for the maximum allowed non-whitelisted per-host automatic outbound
 	// conns.
