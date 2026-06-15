@@ -2211,13 +2211,6 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, allowHighFees 
 	if !allowOrphan {
 		// Only use the first missing parent transaction in
 		// the error message.
-		//
-		// NOTE: RejectDuplicate is really not an accurate
-		// reject code here, but it matches the reference
-		// implementation and there isn't a better choice due
-		// to the limited number of reject codes.  Missing
-		// inputs is assumed to mean they are already spent
-		// which is not really always the case.
 		str := fmt.Sprintf("orphan transaction %v references "+
 			"output %v of unknown or fully-spent transaction",
 			tx.Hash(), missingParents[0])
