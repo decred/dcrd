@@ -40,19 +40,16 @@ func BenchmarkFieldSqrt(b *testing.B) {
 	}
 }
 
-// BenchmarkBigSqrt benchmarks calculating the square root of an unsigned
+// BenchmarkBigIntSqrtModP benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
-func BenchmarkBigSqrt(b *testing.B) {
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	val, ok := new(big.Int).SetString(valHex, 16)
-	if !ok {
-		b.Fatalf("failed to parse hex %s", valHex)
-	}
+func BenchmarkBigIntSqrtModP(b *testing.B) {
+	v1Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	v1 := fromHex(v1Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = new(big.Int).ModSqrt(val, curveParams.P)
+		_ = new(big.Int).ModSqrt(v1, curveParams.P)
 	}
 }
 
@@ -70,20 +67,17 @@ func BenchmarkFieldInverse(b *testing.B) {
 	}
 }
 
-// BenchmarkBigInverse benchmarks calculating the multiplicative inverse of an
-// unsigned 256-bit big-endian integer modulo the field prime with stdlib big
-// integers.
-func BenchmarkBigInverse(b *testing.B) {
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	val, ok := new(big.Int).SetString(valHex, 16)
-	if !ok {
-		b.Fatalf("failed to parse hex %s", valHex)
-	}
+// BenchmarkBigIntInverseModP benchmarks calculating the multiplicative inverse
+// of an unsigned 256-bit big-endian integer modulo the field prime with stdlib
+// big integers.
+func BenchmarkBigIntInverseModP(b *testing.B) {
+	v1Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	v1 := fromHex(v1Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = new(big.Int).ModInverse(val, curveParams.P)
+		_ = new(big.Int).ModInverse(v1, curveParams.P)
 	}
 }
 
@@ -102,16 +96,13 @@ func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	}
 }
 
-// BenchmarkBigIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
+// BenchmarkBigIntIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
 // is greater than or equal to the field prime minus the group order with stdlib
 // big integers.
-func BenchmarkBigIsGtOrEqPrimeMinusOrder(b *testing.B) {
+func BenchmarkBigIntIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// Same value used in field val version.
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	val, ok := new(big.Int).SetString(valHex, 16)
-	if !ok {
-		b.Fatalf("failed to parse hex %s", valHex)
-	}
+	v1Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	v1 := fromHex(v1Hex)
 	bigPMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
 
 	b.ReportAllocs()
@@ -120,6 +111,6 @@ func BenchmarkBigIsGtOrEqPrimeMinusOrder(b *testing.B) {
 		// In practice, the internal value to compare would have to be converted
 		// to a big integer from bytes, so it's a fair comparison to allocate a
 		// new big int here and set all bytes.
-		_ = new(big.Int).SetBytes(val.Bytes()).Cmp(bigPMinusN) >= 0
+		_ = new(big.Int).SetBytes(v1.Bytes()).Cmp(bigPMinusN) >= 0
 	}
 }
