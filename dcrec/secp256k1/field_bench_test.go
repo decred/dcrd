@@ -150,6 +150,20 @@ func BenchmarkFieldSqrt(b *testing.B) {
 	}
 }
 
+// BenchmarkBigIntSquareModP benchmarks squaring an unsigned 256-bit big-endian
+// integer modulo the field prime with stdlib big integers.
+func BenchmarkBigIntSquareModP(b *testing.B) {
+	v1Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	v1 := fromHex(v1Hex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result := new(big.Int).Mul(v1, v1)
+		result.Mod(result, curveParams.P)
+	}
+}
+
 // BenchmarkBigIntInverseModP benchmarks calculating the multiplicative inverse
 // of an unsigned 256-bit big-endian integer modulo the field prime with stdlib
 // big integers.
