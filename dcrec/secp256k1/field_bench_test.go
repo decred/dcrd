@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,6 +22,22 @@ func BenchmarkFieldNormalize(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		f.Normalize()
+	}
+}
+
+// BenchmarkBigIntNegateModP benchmarks calculating the additive inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with stdlib big
+// integers.
+func BenchmarkBigIntNegateModP(b *testing.B) {
+	v1Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	v1 := fromHex(v1Hex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result := new(big.Int).Neg(v1)
+		result.Mod(result, curveParams.P)
+
 	}
 }
 
