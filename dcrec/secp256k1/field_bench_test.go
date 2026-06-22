@@ -25,21 +25,6 @@ func BenchmarkFieldNormalize(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
-// 256-bit big-endian integer modulo the field prime with the specialized type.
-func BenchmarkFieldSqrt(b *testing.B) {
-	// The function is constant time so any value is fine.
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(valHex).Normalize()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var result FieldVal
-		_ = result.SquareRootVal(f)
-	}
-}
-
 // BenchmarkBigIntSqrtModP benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
 func BenchmarkBigIntSqrtModP(b *testing.B) {
@@ -53,9 +38,9 @@ func BenchmarkBigIntSqrtModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldInverse calculating the multiplicative inverse of an unsigned
+// BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with the specialized type.
-func BenchmarkFieldInverse(b *testing.B) {
+func BenchmarkFieldSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
 	f := new(FieldVal).SetHex(valHex).Normalize()
@@ -63,7 +48,8 @@ func BenchmarkFieldInverse(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		f.Inverse()
+		var result FieldVal
+		_ = result.SquareRootVal(f)
 	}
 }
 
@@ -81,10 +67,9 @@ func BenchmarkBigIntInverseModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
-// is greater than or equal to the field prime minus the group order with the
-// specialized type.
-func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
+// BenchmarkFieldInverse calculating the multiplicative inverse of an unsigned
+// 256-bit big-endian integer modulo the field prime with the specialized type.
+func BenchmarkFieldInverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
 	f := new(FieldVal).SetHex(valHex).Normalize()
@@ -92,7 +77,7 @@ func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = f.IsGtOrEqPrimeMinusOrder()
+		f.Inverse()
 	}
 }
 
@@ -112,5 +97,20 @@ func BenchmarkBigIntIsGtOrEqPrimeMinusOrder(b *testing.B) {
 		// to a big integer from bytes, so it's a fair comparison to allocate a
 		// new big int here and set all bytes.
 		_ = new(big.Int).SetBytes(v1.Bytes()).Cmp(bigPMinusN) >= 0
+	}
+}
+
+// BenchmarkFieldIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
+// is greater than or equal to the field prime minus the group order with the
+// specialized type.
+func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := new(FieldVal).SetHex(valHex).Normalize()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = f.IsGtOrEqPrimeMinusOrder()
 	}
 }
