@@ -72,6 +72,23 @@ func BenchmarkBigIntAddModP(b *testing.B) {
 	}
 }
 
+// BenchmarkFieldAdd benchmarks adding two unsigned 256-bit big-endian integers
+// modulo the field prime with [FieldVal].
+func BenchmarkFieldAdd(b *testing.B) {
+	// The function is constant time so any values are fine.
+	f1Hex := "d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"
+	f2Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f1 := new(FieldVal).SetHex(f1Hex)
+	f2 := new(FieldVal).SetHex(f2Hex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var sum FieldVal
+		sum.Add2(f1, f2)
+	}
+}
+
 // BenchmarkBigIntSqrtModP benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
 func BenchmarkBigIntSqrtModP(b *testing.B) {
