@@ -41,6 +41,21 @@ func BenchmarkBigIntNegateModP(b *testing.B) {
 	}
 }
 
+// BenchmarkFieldNegate benchmarks calculating the additive inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with [FieldVal].
+func BenchmarkFieldNegate(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := new(FieldVal).SetHex(valHex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result FieldVal
+		_ = result.NegateVal(f, 1)
+	}
+}
+
 // BenchmarkBigIntSqrtModP benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with stdlib big integers.
 func BenchmarkBigIntSqrtModP(b *testing.B) {
