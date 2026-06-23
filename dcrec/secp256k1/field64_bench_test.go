@@ -6,7 +6,8 @@ package secp256k1
 
 import "testing"
 
-// BenchmarkField64Add benchmarks adding two field values.
+// BenchmarkField64Add benchmarks adding two unsigned 256-bit big-endian
+// integers modulo the field prime with [FieldVal64].
 func BenchmarkField64Add(b *testing.B) {
 	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
 	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
@@ -19,7 +20,8 @@ func BenchmarkField64Add(b *testing.B) {
 	}
 }
 
-// BenchmarkField64Mul benchmarks multiplying two field values.
+// BenchmarkField64Mul benchmarks multiplying two unsigned 256-bit big-endian
+// integers modulo the field prime with [FieldVal64].
 func BenchmarkField64Mul(b *testing.B) {
 	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
 	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
@@ -47,7 +49,8 @@ func BenchmarkField64Sqrt(b *testing.B) {
 	}
 }
 
-// BenchmarkField64Square benchmarks squaring a field value.
+// BenchmarkField64Square benchmarks squaring a 256-bit big-endian integer
+// modulo the field prime with [FieldVal64].
 func BenchmarkField64Square(b *testing.B) {
 	a := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
@@ -60,8 +63,8 @@ func BenchmarkField64Square(b *testing.B) {
 }
 
 // BenchmarkField64Inverse benchmarks calculating the multiplicative inverse of
-// an unsigned 256-bit big-endian integer modulo the field prime with the
-// FieldVal64 type.
+// an unsigned 256-bit big-endian integer modulo the field prime with
+// [FieldVal64].
 func BenchmarkField64Inverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
@@ -74,9 +77,9 @@ func BenchmarkField64Inverse(b *testing.B) {
 	}
 }
 
-// BenchmarkField64IsGtOrEqPrimeMinusOrder benchmarks determining whether a value
-// is greater than or equal to the field prime minus the group order with the
-// FieldVal64 type.
+// BenchmarkField64IsGtOrEqPrimeMinusOrder benchmarks determining whether a
+// value is greater than or equal to the field prime minus the group order with
+// [FieldVal64].
 func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
