@@ -6,6 +6,21 @@ package secp256k1
 
 import "testing"
 
+// BenchmarkField64Negate benchmarks calculating the additive inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with [FieldVal64].
+func BenchmarkField64Negate(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal64(valHex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result FieldVal64
+		_ = result.NegateVal(f)
+	}
+}
+
 // BenchmarkField64Add benchmarks adding two unsigned 256-bit big-endian
 // integers modulo the field prime with [FieldVal64].
 func BenchmarkField64Add(b *testing.B) {
