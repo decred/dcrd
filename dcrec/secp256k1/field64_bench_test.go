@@ -4,7 +4,9 @@
 
 package secp256k1
 
-import "testing"
+import (
+	"testing"
+)
 
 // BenchmarkField64Negate benchmarks calculating the additive inverse of an
 // unsigned 256-bit big-endian integer modulo the field prime with [FieldVal64].
@@ -32,6 +34,58 @@ func BenchmarkField64Add(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var sum FieldVal64
 		sum.Add2(a, c)
+	}
+}
+
+// BenchmarkField64MulBy2 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 2 with [FieldVal64.MulBy2].
+func BenchmarkField64MulBy2(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy2()
+	}
+}
+
+// BenchmarkField64MulBy3 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 3 with [FieldVal64.MulBy3].
+func BenchmarkField64MulBy3(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy3()
+	}
+}
+
+// BenchmarkField64MulBy4 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 4 with [FieldVal64.MulBy4].
+func BenchmarkField64MulBy4(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy4()
+	}
+}
+
+// BenchmarkField64MulBy8 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 8 with [FieldVal64.MulBy8].
+func BenchmarkField64MulBy8(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy8()
 	}
 }
 
