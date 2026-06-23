@@ -136,7 +136,7 @@ func BenchmarkBigIntSqrtModP(b *testing.B) {
 }
 
 // BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
-// 256-bit big-endian integer modulo the field prime with the specialized type.
+// 256-bit big-endian integer modulo the field prime with [FieldVal].
 func BenchmarkFieldSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
@@ -194,7 +194,7 @@ func BenchmarkBigIntInverseModP(b *testing.B) {
 }
 
 // BenchmarkFieldInverse calculating the multiplicative inverse of an unsigned
-// 256-bit big-endian integer modulo the field prime with the specialized type.
+// 256-bit big-endian integer modulo the field prime with [FieldVal].
 func BenchmarkFieldInverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
