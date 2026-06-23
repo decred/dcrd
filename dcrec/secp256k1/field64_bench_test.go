@@ -6,6 +6,32 @@ package secp256k1
 
 import "testing"
 
+// BenchmarkField64Add benchmarks adding two field values.
+func BenchmarkField64Add(b *testing.B) {
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var sum FieldVal64
+		sum.Add2(a, c)
+	}
+}
+
+// BenchmarkField64Mul benchmarks multiplying two field values.
+func BenchmarkField64Mul(b *testing.B) {
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var prod FieldVal64
+		prod.Mul2(a, c)
+	}
+}
+
 // BenchmarkField64Sqrt benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with the FieldVal64 type.
 func BenchmarkField64Sqrt(b *testing.B) {
@@ -18,6 +44,18 @@ func BenchmarkField64Sqrt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var result FieldVal64
 		_ = result.SquareRootVal(f)
+	}
+}
+
+// BenchmarkField64Square benchmarks squaring a field value.
+func BenchmarkField64Square(b *testing.B) {
+	a := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var sq FieldVal64
+		sq.SquareVal(a)
 	}
 }
 
@@ -48,43 +86,5 @@ func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = f.IsGtOrEqPrimeMinusOrder()
-	}
-}
-
-// BenchmarkField64Add benchmarks adding two field values.
-func BenchmarkField64Add(b *testing.B) {
-	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var sum FieldVal64
-		sum.Add2(a, c)
-	}
-}
-
-// BenchmarkField64Mul benchmarks multiplying two field values.
-func BenchmarkField64Mul(b *testing.B) {
-	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var prod FieldVal64
-		prod.Mul2(a, c)
-	}
-}
-
-// BenchmarkField64Square benchmarks squaring a field value.
-func BenchmarkField64Square(b *testing.B) {
-	a := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var sq FieldVal64
-		sq.SquareVal(a)
 	}
 }
