@@ -215,6 +215,12 @@ func constantTimeEq(a, b uint32) uint32 {
 	return uint32((uint64(a^b) - 1) >> 63)
 }
 
+// constantTimeEq64 returns 1 if a == b or 0 otherwise in constant time.
+func constantTimeEq64(a, b uint64) uint32 {
+	t := a ^ b
+	return uint32(((t | -t) >> 63) ^ 1)
+}
+
 // constantTimeNotEq returns 1 if a != b or 0 otherwise in constant time.
 func constantTimeNotEq(a, b uint32) uint32 {
 	return ^uint32((uint64(a^b)-1)>>63) & 1
