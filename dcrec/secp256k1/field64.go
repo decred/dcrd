@@ -7,7 +7,6 @@ package secp256k1
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"math/bits"
 )
 
@@ -29,8 +28,48 @@ const (
 	field64Prime3 = 0xFFFFFFFFFFFFFFFF
 )
 
-// SetBytes sets f to the 32-byte big-endian value and returns 1 if the input is
-// >= p.
+// String returns the field value as a human-readable hex string.
+func (f FieldVal64) String() string {
+	return hex.EncodeToString(f.Bytes()[:])
+}
+
+// Zero sets the field value to zero in constant time.  A newly created field
+// value is already set to zero.  This function can be useful to clear an
+// existing field value for reuse.
+func (f *FieldVal64) Zero() {
+	f.n = [4]uint64{}
+}
+
+// Set sets the field value equal to the passed value in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f := new(FieldVal).Set(f2).Add(1) so that f = f2 + 1 where f2 is not
+// modified.
+func (f *FieldVal64) Set(val *FieldVal64) *FieldVal64 {
+	f.n = val.n
+	return f
+}
+
+// SetInt sets the field value to the passed integer in constant time.  This is
+// a convenience function since it is fairly common to perform some arithmetic
+// with small native integers.
+//
+// The field value is returned to support chaining.  This enables syntax such
+// as f := new(FieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
+func (f *FieldVal64) SetInt(v uint16) *FieldVal64 {
+	f.n = [4]uint64{uint64(v), 0, 0, 0}
+	return f
+}
+
+// SetBytes packs the passed 32-byte big-endian value into the internal field
+// value representation in constant time.  SetBytes interprets the provided
+// array as a 256-bit big-endian unsigned integer, packs it into the internal
+// field value representation, and returns either 1 if it is greater than or
+// equal to the field prime (aka it overflowed) or 0 otherwise in constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.
 func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 	f.n[0] = binary.BigEndian.Uint64(b[24:32])
 	f.n[1] = binary.BigEndian.Uint64(b[16:24])
@@ -53,134 +92,142 @@ func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 	return uint32(1 - borrow)
 }
 
-// Bytes returns the 32-byte big-endian encoding.
-func (f *FieldVal64) Bytes() *[32]byte {
-	var b [32]byte
-	f.PutBytes(&b)
-	return &b
+// SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
+// integer (meaning it is truncated to the first 32 bytes), packs it into the
+// internal field value representation, and returns whether or not the resulting
+// truncated 256-bit integer is greater than or equal to the field prime (aka it
+// overflowed) in constant time.
+//
+// Note that since passing a slice with more than 32 bytes is truncated, it is
+// possible that the truncated value is less than the field prime and hence it
+// will not be reported as having overflowed in that case.  It is up to the
+// caller to decide whether it needs to provide numbers of the appropriate size
+// or it if is acceptable to use this function with the described truncation and
+// overflow behavior.
+func (f *FieldVal64) SetByteSlice(b []byte) bool {
+	var b32 [32]byte
+	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	copy(b32[:], b32[:32-len(b)])
+	copy(b32[32-len(b):], b)
+	result := f.SetBytes(&b32)
+	zeroArray32(&b32)
+	return result != 0
 }
 
-// PutBytes writes the value to b in big-endian order.
-func (f *FieldVal64) PutBytes(b *[32]byte) {
+// PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
+// directly into the passed byte slice in constant time.  The target slice must
+// have at least 32 bytes available or it will panic.
+//
+// There is a similar function, PutBytes, which unpacks the field value into a
+// 32-byte array directly.  This version is provided since it can be useful
+// to write directly into part of a larger buffer without needing a separate
+// allocation.
+func (f *FieldVal64) PutBytesUnchecked(b []byte) {
 	binary.BigEndian.PutUint64(b[0:8], f.n[3])
 	binary.BigEndian.PutUint64(b[8:16], f.n[2])
 	binary.BigEndian.PutUint64(b[16:24], f.n[1])
 	binary.BigEndian.PutUint64(b[24:32], f.n[0])
 }
 
-// Normalize fully reduces f modulo p. FieldVal64 values are always kept fully
-// reduced, so this is a no-op kept for API parity with FieldVal.
-func (f *FieldVal64) Normalize() *FieldVal64 {
-	return f
+// PutBytes unpacks the field value to a 32-byte big-endian value using the
+// passed byte array in constant time.
+//
+// There is a similar function, PutBytesUnchecked, which unpacks the field value
+// into a slice that must have at least 32 bytes available.  This version is
+// provided since it can be useful to write directly into an array that is type
+// checked.
+//
+// Alternatively, there is also Bytes, which unpacks the field value into a new
+// array and returns that which can sometimes be more ergonomic in applications
+// that aren't concerned about an additional copy.
+func (f *FieldVal64) PutBytes(b *[32]byte) {
+	f.PutBytesUnchecked(b[:])
 }
 
-// SetInt sets f to a small integer.
-func (f *FieldVal64) SetInt(v uint16) *FieldVal64 {
-	f.n = [4]uint64{uint64(v), 0, 0, 0}
-	return f
+// Bytes unpacks the field value to a 32-byte big-endian value in constant time.
+//
+// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
+// to be passed which can be useful to cut down on the number of allocations by
+// allowing the caller to reuse a buffer or write directly into part of a larger
+// buffer.
+func (f *FieldVal64) Bytes() *[32]byte {
+	var b [32]byte
+	f.PutBytes(&b)
+	return &b
 }
 
-// Set sets f to val.
-func (f *FieldVal64) Set(val *FieldVal64) *FieldVal64 {
-	f.n = val.n
-	return f
+// IsZeroBit returns 1 when the field value is equal to zero or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsZero for the version that returns
+// a bool.
+func (f *FieldVal64) IsZeroBit() uint32 {
+	return constantTimeEq64(f.n[0]|f.n[1]|f.n[2]|f.n[3], 0)
 }
 
-// Equals reports whether two values are equal.
-func (f *FieldVal64) Equals(val *FieldVal64) bool {
-	bits := (f.n[0] ^ val.n[0]) | (f.n[1] ^ val.n[1]) |
-		(f.n[2] ^ val.n[2]) | (f.n[3] ^ val.n[3])
-	return bits == 0
+// IsZero returns whether or not the field value is equal to zero in constant
+// time.
+func (f *FieldVal64) IsZero() bool {
+	return (f.n[0] | f.n[1] | f.n[2] | f.n[3]) == 0
 }
 
-// IsOdd reports whether f is odd.
+// IsOneBit returns 1 when the field value is equal to one or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsOne for the version that returns a
+// bool.
+func (f *FieldVal64) IsOneBit() uint32 {
+	// The value can only be one if the single lowest significant bit is set in
+	// the first word and no other bits are set in any of the other words.
+	// This is a constant time implementation.
+	return constantTimeEq64((f.n[0]^1)|f.n[1]|f.n[2]|f.n[3], 0)
+}
+
+// IsOne returns whether or not the field value is equal to one in constant
+// time.
+func (f *FieldVal64) IsOne() bool {
+	// The value can only be one if the single lowest significant bit is set in
+	// the first word and no other bits are set in any of the other words.
+	// This is a constant time implementation.
+	return ((f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3]) == 0
+}
+
+// IsOddBit returns 1 when the field value is an odd number or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsOdd for the version that returns a
+// bool.
+func (f *FieldVal64) IsOddBit() uint32 {
+	return uint32(f.n[0] & 1)
+}
+
+// IsOdd returns whether or not the field value is an odd number in constant
+// time.
 func (f *FieldVal64) IsOdd() bool {
 	return f.n[0]&1 == 1
 }
 
-// Add2 sets f = a + b (mod p).
-func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
-	var t0, t1, t2, t3, overflow, carry uint64
-
-	// Pass 1: add.
-	t0, carry = bits.Add64(a.n[0], b.n[0], 0)
-	t1, carry = bits.Add64(a.n[1], b.n[1], carry)
-	t2, carry = bits.Add64(a.n[2], b.n[2], carry)
-	t3, overflow = bits.Add64(a.n[3], b.n[3], carry)
-
-	// Pass 2: subtract p. Since p = 2^256 - C, the low 256 bits of t - p are
-	// identical to t + C, i.e. the folded result for a 2^256 overflow.
-	var s0, s1, s2, s3, borrow uint64
-	s0, borrow = bits.Sub64(t0, field64Prime0, 0)
-	s1, borrow = bits.Sub64(t1, field64Prime1, borrow)
-	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
-	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
-
-	// Pass 3: constant-time select. Keep t only when there was no overflow and
-	// t < p (borrow set); otherwise use s (= t - p when t >= p, = t + C folded
-	// when overflow occurred).
-	mask := -((1 - overflow) & borrow)
-	f.n[0] = s0 ^ ((t0 ^ s0) & mask)
-	f.n[1] = s1 ^ ((t1 ^ s1) & mask)
-	f.n[2] = s2 ^ ((t2 ^ s2) & mask)
-	f.n[3] = s3 ^ ((t3 ^ s3) & mask)
-	return f
+// Equals returns whether or not the two field values are the same in constant
+// time.
+func (f *FieldVal64) Equals(val *FieldVal64) bool {
+	// Xor only sets bits when they are different, so the two field values
+	// can only be the same if no bits are set after xoring each word.
+	// This is a constant time implementation.
+	return ((f.n[0] ^ val.n[0]) | (f.n[1] ^ val.n[1]) | (f.n[2] ^ val.n[2]) | (f.n[3] ^ val.n[3])) == 0
 }
 
-// Add sets f = f + val (mod p).
-func (f *FieldVal64) Add(val *FieldVal64) *FieldVal64 {
-	return f.Add2(f, val)
-}
-
-// MulInt sets f = f * val (mod p). val is limited to the small constants used by
-// the curve formulas (up to 8); larger values panic. FieldVal magnitude tracking
-// is irrelevant since FieldVal64 stays fully reduced. Doublings (f.Add(f)) keep
-// the addition count low.
-func (f *FieldVal64) MulInt(val uint8) *FieldVal64 {
-	if val > 8 {
-		panic(fmt.Sprintf("FieldVal64.MulInt: val %d exceeds supported maximum of 8", val))
-	}
-
-	switch val {
-	case 0:
-		f.n = [4]uint64{}
-		return f
-	case 1:
-		return f
-	}
-
-	var orig FieldVal64
-	orig.Set(f)
-	switch val {
-	case 2:
-		f.Add(&orig) // 2
-	case 3:
-		f.Add(&orig).Add(&orig) // 3
-	case 4:
-		f.Add(&orig) // 2
-		f.Add(f)     // 4
-	case 5:
-		f.Add(&orig) // 2
-		f.Add(f)     // 4
-		f.Add(&orig) // 5
-	case 6:
-		f.Add(&orig).Add(&orig) // 3
-		f.Add(f)                // 6
-	case 7:
-		f.Add(&orig).Add(&orig) // 3
-		f.Add(f)                // 6
-		f.Add(&orig)            // 7
-	case 8:
-		f.Add(&orig) // 2
-		f.Add(f)     // 4
-		f.Add(f)     // 8
-	}
-	return f
-}
-
-// NegateVal sets f = -val (mod p). The magnitude parameter exists for API
-// parity with FieldVal and is ignored since FieldVal64 stays fully reduced.
-func (f *FieldVal64) NegateVal(val *FieldVal64, magnitude uint32) *FieldVal64 {
+// NegateVal negates the passed value and stores the result in f in constant
+// time.v
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.NegateVal(f2).AddInt(1) so that f = -f2 + 1.
+func (f *FieldVal64) NegateVal(val *FieldVal64) *FieldVal64 {
 	// Pass 1: subtract val from 0. borrow is set iff val != 0.
 	var t0, t1, t2, t3, borrow uint64
 	t0, borrow = bits.Sub64(0, val.n[0], 0)
@@ -192,8 +239,7 @@ func (f *FieldVal64) NegateVal(val *FieldVal64, magnitude uint32) *FieldVal64 {
 	mask := -borrow
 	maskedPrime0 := field64Prime0 & mask
 
-	// Pass 3: add the masked modulus so (0 - val) + p = p - val (mod 2^256),
-	// while val == 0 stays 0.
+	// Pass 3: add the masked modulus
 	var carry uint64
 	f.n[0], carry = bits.Add64(t0, maskedPrime0, 0)
 	f.n[1], carry = bits.Add64(t1, mask, carry)
@@ -202,291 +248,154 @@ func (f *FieldVal64) NegateVal(val *FieldVal64, magnitude uint32) *FieldVal64 {
 	return f
 }
 
-// Mul2 sets f = a * b (mod p). The 256x256 -> 256 modular multiply is provided
-// by field64Mul, which uses native/hardware-optimized assembly on the supported
-// platforms and falls back to a portable Go implementation elsewhere.
-func (f *FieldVal64) Mul2(a, b *FieldVal64) *FieldVal64 {
-	field64Mul(&f.n, &a.n, &b.n)
-	return f
+// Negate negates the field value in constant time.  The existing field value is
+// modified.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.Negate().AddInt(1) so that f = -f + 1.
+func (f *FieldVal64) Negate() *FieldVal64 {
+	return f.NegateVal(f)
 }
 
-// Mul sets f = f * val (mod p).
-func (f *FieldVal64) Mul(val *FieldVal64) *FieldVal64 {
-	return f.Mul2(f, val)
-}
-
-// SquareVal sets f = val^2 (mod p). The modular square is provided by
-// field64Square, which uses native/hardware-optimized assembly on the supported
-// platforms and falls back to a portable Go implementation elsewhere.
-func (f *FieldVal64) SquareVal(val *FieldVal64) *FieldVal64 {
-	field64Square(&f.n, &val.n)
-	return f
-}
-
-// Square sets f = f^2 (mod p).
-func (f *FieldVal64) Square() *FieldVal64 {
-	return f.SquareVal(f)
-}
-
-// p - n (field prime minus the group order) as little-endian 64-bit limbs.
-const (
-	field64PMinusN0 = 0x402da1722fc9baee
-	field64PMinusN1 = 0x4551231950b75fc4
-	field64PMinusN2 = 0x0000000000000001
-	field64PMinusN3 = 0x0000000000000000
-)
-
-// Negate sets f = -f (mod p). The magnitude parameter exists for API parity with
-// FieldVal and is ignored since FieldVal64 stays fully reduced.
-func (f *FieldVal64) Negate(magnitude uint32) *FieldVal64 {
-	return f.NegateVal(f, magnitude)
-}
-
-// AddInt sets f = f + ui (mod p).
+// AddInt adds the passed integer to the existing field value and stores the
+// result in f in constant time.  This is a convenience function since it is
+// fairly common to perform some arithmetic with small native integers.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.AddInt(1).Add(f2) so that f = f + 1 + f2.
 func (f *FieldVal64) AddInt(ui uint16) *FieldVal64 {
 	var t FieldVal64
 	t.SetInt(ui)
 	return f.Add(&t)
 }
 
-// Zero sets f to zero.
-func (f *FieldVal64) Zero() {
-	f.n = [4]uint64{}
-}
-
-// IsZero reports whether f is zero.
-func (f *FieldVal64) IsZero() bool {
-	return (f.n[0] | f.n[1] | f.n[2] | f.n[3]) == 0
-}
-
-// IsZeroBit returns 1 if f is zero and 0 otherwise in constant time. See IsZero
-// for the bool version.
-func (f *FieldVal64) IsZeroBit() uint32 {
-	// (bits | -bits) >> 63 is 1 iff bits != 0; invert for is-zero.
-	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3]
-	return uint32(((bits | -bits) >> 63) ^ 1)
-}
-
-// IsOne reports whether f is one.
-func (f *FieldVal64) IsOne() bool {
-	return f.n[0] == 1 && (f.n[1]|f.n[2]|f.n[3]) == 0
-}
-
-// IsOneBit returns 1 if f is one and 0 otherwise in constant time. See IsOne for
-// the bool version.
-func (f *FieldVal64) IsOneBit() uint32 {
-	// (bits | -bits) >> 63 is 1 iff bits != 0; invert for is-one.
-	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3]
-	return uint32(((bits | -bits) >> 63) ^ 1)
-}
-
-// String returns the field value as a human-readable hex string.
-func (f FieldVal64) String() string {
-	return hex.EncodeToString(f.Bytes()[:])
-}
-
-// IsOddBit returns 1 if f is odd and 0 otherwise.
-func (f *FieldVal64) IsOddBit() uint32 {
-	return uint32(f.n[0] & 1)
-}
-
-// SetByteSlice interprets b as a big-endian unsigned integer (truncated to the
-// first 32 bytes), stores it modulo p, and returns whether the input overflowed
-// p before reduction.
-func (f *FieldVal64) SetByteSlice(b []byte) bool {
-	var b32 [32]byte
-	if len(b) > 32 {
-		b = b[:32]
-	}
-	copy(b32[32-len(b):], b)
-	return f.SetBytes(&b32) != 0
-}
-
-// PutBytesUnchecked writes the 32-byte big-endian encoding of f into b without
-// bounds checking.
-func (f *FieldVal64) PutBytesUnchecked(b []byte) {
-	binary.BigEndian.PutUint64(b[0:8], f.n[3])
-	binary.BigEndian.PutUint64(b[8:16], f.n[2])
-	binary.BigEndian.PutUint64(b[16:24], f.n[1])
-	binary.BigEndian.PutUint64(b[24:32], f.n[0])
-}
-
-// IsGtOrEqPrimeMinusOrder reports whether f >= p - n in constant time. f must be
-// fully reduced, which FieldVal64 always is.
-func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
-	var borrow uint64
-	_, borrow = bits.Sub64(f.n[0], field64PMinusN0, 0)
-	_, borrow = bits.Sub64(f.n[1], field64PMinusN1, borrow)
-	_, borrow = bits.Sub64(f.n[2], field64PMinusN2, borrow)
-	_, borrow = bits.Sub64(f.n[3], field64PMinusN3, borrow)
-	return borrow == 0
-}
-
-// Inverse sets f = f^(-1) (mod p) via Fermat's little theorem (a^(p-2)).
-func (f *FieldVal64) Inverse() *FieldVal64 {
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
-	a.Set(f)
-	a2.SquareVal(&a).Mul(&a)
-	a3.SquareVal(&a2).Mul(&a)
-	a6.SquareVal(&a3).Square().Square()
-	a6.Mul(&a3)
-	a9.SquareVal(&a6).Square().Square()
-	a9.Mul(&a3)
-	a11.SquareVal(&a9).Square()
-	a11.Mul(&a2)
-	a22.SquareVal(&a11).Square().Square().Square().Square()
-	a22.Square().Square().Square().Square().Square()
-	a22.Square()
-	a22.Mul(&a11)
-	a44.SquareVal(&a22).Square().Square().Square().Square()
-	a44.Square().Square().Square().Square().Square()
-	a44.Square().Square().Square().Square().Square()
-	a44.Square().Square().Square().Square().Square()
-	a44.Square().Square()
-	a44.Mul(&a22)
-	a88.SquareVal(&a44).Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square().Square()
-	a88.Square().Square().Square().Square()
-	a88.Mul(&a44)
-	a176.SquareVal(&a88).Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square().Square().Square()
-	a176.Square().Square().Square()
-	a176.Mul(&a88)
-	a220.SquareVal(&a176).Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square().Square()
-	a220.Square().Square().Square().Square()
-	a220.Mul(&a44)
-	a223.SquareVal(&a220).Square().Square()
-	a223.Mul(&a3)
-
-	f.SquareVal(&a223).Square().Square().Square().Square()
-	f.Square().Square().Square().Square().Square()
-	f.Square().Square().Square().Square().Square()
-	f.Square().Square().Square().Square().Square()
-	f.Square().Square().Square()
-	f.Mul(&a22)
-	f.Square().Square().Square().Square().Square()
-	f.Mul(&a)
-	f.Square().Square().Square()
-	f.Mul(&a2)
-	f.Square().Square()
-	return f.Mul(&a)
-}
-
-// SquareRootVal either calculates the square root of the passed value when it
-// exists or the square root of the negation of the value when it does not exist
-// and stores the result in f in constant time. The return flag is true when the
-// calculated square root is for the passed value itself and false when it is for
-// its negation.
+// Add adds the passed value to the existing field value and stores the result
+// in f in constant time.
 //
-// Since the secp256k1 prime is ≡ 3 (mod 4), the square root is a^((p+1)/4),
-// computed via the same addition chain used by FieldVal26 (254 squarings, 13
-// multiplications).
-func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
-	a.Set(val)
-	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
-	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
-	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
-	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
-	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
-	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
-	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
-	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
-	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
-	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
-	a22.Square()                                              // a22 = a^(2^22 - 2^11)
-	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
-	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
-	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
-	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
-	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
-	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
-	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
-	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
-	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
-	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
-	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
-	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
-	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
-	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
-	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
+// The field value is returned to support chaining.  This enables syntax like:
+// f.Add(f2).AddInt(1) so that f = f + f2 + 1.
+func (f *FieldVal64) Add(val *FieldVal64) *FieldVal64 {
+	return f.Add2(f, val)
+}
 
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
-	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
-	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
-	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
+// Add2 adds the passed two field values together and stores the result in f in
+// constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f3.Add2(f, f2).AddInt(1) so that f3 = f + f2 + 1.
+func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
+	var t0, t1, t2, t3, overflow, carry uint64
 
-	// Verify the result is actually the square root by squaring it and checking
-	// against the original value.
-	var sqr FieldVal64
-	return sqr.SquareVal(f).Equals(val)
+	// Pass 1: add.
+	t0, carry = bits.Add64(a.n[0], b.n[0], 0)
+	t1, carry = bits.Add64(a.n[1], b.n[1], carry)
+	t2, carry = bits.Add64(a.n[2], b.n[2], carry)
+	t3, overflow = bits.Add64(a.n[3], b.n[3], carry)
+
+	// Pass 2: subtract p.
+	var s0, s1, s2, s3, borrow uint64
+	s0, borrow = bits.Sub64(t0, field64Prime0, 0)
+	s1, borrow = bits.Sub64(t1, field64Prime1, borrow)
+	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
+	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
+
+	// Pass 3: constant-time select. Keep t only when there was no overflow and
+	// t < p (borrow set); otherwise use s
+	mask := -((1 - overflow) & borrow)
+	f.n[0] = s0 ^ ((t0 ^ s0) & mask)
+	f.n[1] = s1 ^ ((t1 ^ s1) & mask)
+	f.n[2] = s2 ^ ((t2 ^ s2) & mask)
+	f.n[3] = s3 ^ ((t3 ^ s3) & mask)
+	return f
+}
+
+// MulBy2 multiplies the field value by 2 and stores the result in
+// f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy2().Add(f2) so that f = 2 * f + f2.
+func (f *FieldVal64) MulBy2() *FieldVal64 {
+	return f.Add(f)
+}
+
+// MulBy3 multiplies the field value by 3 and stores the result in
+// f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy3().Add(f2) so that f = 3 * f + f2.
+func (f *FieldVal64) MulBy3() *FieldVal64 {
+	var orig FieldVal64
+	orig.Set(f)
+	return f.MulBy2().Add(&orig)
+}
+
+// MulBy4 multiplies the field value by 4 and stores the result in
+// f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy4().Add(f2) so that f = 4 * f + f2.
+func (f *FieldVal64) MulBy4() *FieldVal64 {
+	return f.MulBy2().MulBy2()
+}
+
+// MulBy8 multiplies the field value by 8 and stores the result in
+// f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy8().Add(f2) so that f = 8 * f + f2.
+func (f *FieldVal64) MulBy8() *FieldVal64 {
+	return f.MulBy4().MulBy2()
+}
+
+// MulInt multiplies the field value by the passed int and stores the result in
+// f in constant time.
+// For the specific small multipliers used in the curve equations, prefer the
+// dedicated MulBy2, MulBy3, MulBy4, and MulBy8 methods.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulInt(2).Add(f2) so that f = 2 * f + f2.
+func (f *FieldVal64) MulInt(val uint8) *FieldVal64 {
+	var t FieldVal64
+	t.SetInt(uint16(val))
+	return f.Mul(&t)
+}
+
+// Mul multiplies the passed value to the existing field value and stores the
+// result in f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.Mul(f2).AddInt(1) so that f = (f * f2) + 1.
+func (f *FieldVal64) Mul(val *FieldVal64) *FieldVal64 {
+	return f.Mul2(f, val)
+}
+
+// Mul2 multiplies the passed two field values together and stores the result in
+// f in constant time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f3.Mul2(f, f2).AddInt(1) so that f3 = (f * f2) + 1.
+func (f *FieldVal64) Mul2(a, b *FieldVal64) *FieldVal64 {
+	field64Mul(&f.n, &a.n, &b.n)
+	return f
+}
+
+// Square squares the field value in constant time.  The existing field value is
+// modified.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.Square().Mul(f2) so that f = f^2 * f2.
+func (f *FieldVal64) Square() *FieldVal64 {
+	return f.SquareVal(f)
+}
+
+// SquareVal squares the passed value and stores the result in f in constant
+// time.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f3.SquareVal(f).Mul(f) so that f3 = f^2 * f = f^3.
+func (f *FieldVal64) SquareVal(val *FieldVal64) *FieldVal64 {
+	field64Square(&f.n, &val.n)
+	return f
 }
 
 // field64Mul512 sets t = x * y as an unreduced 512-bit product via a row-by-row
@@ -494,13 +403,6 @@ func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
 func field64Mul512(t *[8]uint64, x, y *[4]uint64) {
 	a0, a1, a2, a3 := x[0], x[1], x[2], x[3]
 	b0, b1, b2, b3 := y[0], y[1], y[2], y[3]
-
-	// Each row forms the 5-limb partial product a * b[j] in (q0..q4) with a
-	// single carry chain, then accumulates it into the running product with a
-	// second carry chain. Threading every carry through bits.Add64's carry-in
-	// (rather than summing hi + carries by value) lets the compiler emit
-	// efficient add-with-carry chains. The fresh top limb cannot overflow: the
-	// maximum hi + partialCarry + accumulateCarry is < 2^64.
 	var c uint64
 
 	// Row 0: p0..p4 = a * b0.
@@ -676,4 +578,191 @@ func field64Square(r *[4]uint64, a *[4]uint64) {
 	var product [8]uint64
 	field64Square512(&product, a)
 	field64Reduce512(r, &product)
+}
+
+// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
+// than or equal to the field prime minus the secp256k1 group order in constant
+// time.
+func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
+	// p - n (field prime minus the group order) as little-endian 64-bit limbs.
+	const (
+		field64PMinusN0 = 0x402da1722fc9baee
+		field64PMinusN1 = 0x4551231950b75fc4
+		field64PMinusN2 = 0x0000000000000001
+		field64PMinusN3 = 0x0000000000000000
+	)
+
+	var borrow uint64
+	_, borrow = bits.Sub64(f.n[0], field64PMinusN0, 0)
+	_, borrow = bits.Sub64(f.n[1], field64PMinusN1, borrow)
+	_, borrow = bits.Sub64(f.n[2], field64PMinusN2, borrow)
+	_, borrow = bits.Sub64(f.n[3], field64PMinusN3, borrow)
+	return borrow == 0
+}
+
+// SquareRootVal either calculates the square root of the passed value when it
+// exists or the square root of the negation of the value when it does not exist
+// and stores the result in f in constant time.  The return flag is true when
+// the calculated square root is for the passed value itself and false when it
+// is for its negation.
+func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
+	a.Set(val)
+	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
+	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
+	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
+	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
+	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
+	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
+	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
+	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
+	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
+	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
+	a22.Square()                                              // a22 = a^(2^22 - 2^11)
+	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
+	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
+	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
+	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
+	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
+	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
+	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
+	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
+	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
+	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
+	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
+	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
+	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
+	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
+	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
+
+	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
+	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
+	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
+	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
+	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
+	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
+
+	// Verify the result is actually the square root by squaring it and checking
+	// against the original value.
+	var sqr FieldVal64
+	return sqr.SquareVal(f).Equals(val)
+}
+
+// Inverse finds the modular multiplicative inverse of the field value in
+// constant time.  The existing field value is modified.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.Inverse().Mul(f2) so that f = f^-1 * f2.
+func (f *FieldVal64) Inverse() *FieldVal64 {
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
+	a.Set(f)
+	a2.SquareVal(&a).Mul(&a)
+	a3.SquareVal(&a2).Mul(&a)
+	a6.SquareVal(&a3).Square().Square()
+	a6.Mul(&a3)
+	a9.SquareVal(&a6).Square().Square()
+	a9.Mul(&a3)
+	a11.SquareVal(&a9).Square()
+	a11.Mul(&a2)
+	a22.SquareVal(&a11).Square().Square().Square().Square()
+	a22.Square().Square().Square().Square().Square()
+	a22.Square()
+	a22.Mul(&a11)
+	a44.SquareVal(&a22).Square().Square().Square().Square()
+	a44.Square().Square().Square().Square().Square()
+	a44.Square().Square().Square().Square().Square()
+	a44.Square().Square().Square().Square().Square()
+	a44.Square().Square()
+	a44.Mul(&a22)
+	a88.SquareVal(&a44).Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square().Square()
+	a88.Square().Square().Square().Square()
+	a88.Mul(&a44)
+	a176.SquareVal(&a88).Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square().Square().Square()
+	a176.Square().Square().Square()
+	a176.Mul(&a88)
+	a220.SquareVal(&a176).Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square().Square()
+	a220.Square().Square().Square().Square()
+	a220.Mul(&a44)
+	a223.SquareVal(&a220).Square().Square()
+	a223.Mul(&a3)
+
+	f.SquareVal(&a223).Square().Square().Square().Square()
+	f.Square().Square().Square().Square().Square()
+	f.Square().Square().Square().Square().Square()
+	f.Square().Square().Square().Square().Square()
+	f.Square().Square().Square()
+	f.Mul(&a22)
+	f.Square().Square().Square().Square().Square()
+	f.Mul(&a)
+	f.Square().Square().Square()
+	f.Mul(&a2)
+	f.Square().Square()
+	return f.Mul(&a)
 }
