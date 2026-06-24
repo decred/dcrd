@@ -44,3 +44,12 @@ func constantTimeGreaterOrEq(a, b uint32) uint32 {
 func constantTimeMin(a, b uint32) uint32 {
 	return b ^ ((a ^ b) & -constantTimeLess(a, b))
 }
+
+// constantTimeSelect64 returns a if cond == 1 or b if cond == 0 in constant
+// time.
+//
+// WARNING: The behavior is undefined if cond is anything other than 0 or 1.
+func constantTimeSelect64(cond, a, b uint64) uint64 {
+	mask := -cond
+	return b ^ (a^b)&mask
+}
