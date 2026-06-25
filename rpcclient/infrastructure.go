@@ -1295,12 +1295,15 @@ func dial(config *ConnConfig) (*websocket.Conn, error) {
 		dialer.NetDial = proxy.Dial
 	}
 
-	// The RPC server requires basic authorization, so create a custom
-	// request header with the Authorization header set.
-	login := config.User + ":" + config.Pass
-	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
-	requestHeader := make(http.Header)
-	requestHeader.Add("Authorization", auth)
+	var requestHeader http.Header
+	if config.AuthType == AuthTypeBasic {
+		// The RPC server requires basic authorization, so create a custom
+		// request header with the Authorization header set.
+		login := config.User + ":" + config.Pass
+		auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
+		requestHeader = make(http.Header)
+		requestHeader.Add("Authorization", auth)
+	}
 
 	// Dial the connection.
 	url := fmt.Sprintf("%s://%s/%s", scheme, config.Host, config.Endpoint)
