@@ -37,7 +37,6 @@ func BenchmarkBigIntNegateModP(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		result := new(big.Int).Neg(v1)
 		result.Mod(result, curveParams.P)
-
 	}
 }
 
@@ -46,7 +45,7 @@ func BenchmarkBigIntNegateModP(b *testing.B) {
 func BenchmarkFieldNegate(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(valHex)
+	f := hexToFieldVal(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -78,8 +77,8 @@ func BenchmarkFieldAdd(b *testing.B) {
 	// The function is constant time so any values are fine.
 	f1Hex := "d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"
 	f2Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f1 := new(FieldVal).SetHex(f1Hex)
-	f2 := new(FieldVal).SetHex(f2Hex)
+	f1 := hexToFieldVal(f1Hex)
+	f2 := hexToFieldVal(f2Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -111,8 +110,8 @@ func BenchmarkFieldMul(b *testing.B) {
 	// The function is constant time so any values are fine.
 	f1Hex := "d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"
 	f2Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f1 := new(FieldVal).SetHex(f1Hex)
-	f2 := new(FieldVal).SetHex(f2Hex)
+	f1 := hexToFieldVal(f1Hex)
+	f2 := hexToFieldVal(f2Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -140,7 +139,7 @@ func BenchmarkBigIntSqrtModP(b *testing.B) {
 func BenchmarkFieldSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(valHex).Normalize()
+	f := hexToFieldVal(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -169,7 +168,7 @@ func BenchmarkBigIntSquareModP(b *testing.B) {
 func BenchmarkFieldSquare(b *testing.B) {
 	// The function is constant time so any values are fine.
 	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(fHex)
+	f := hexToFieldVal(fHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -198,7 +197,7 @@ func BenchmarkBigIntInverseModP(b *testing.B) {
 func BenchmarkFieldInverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(valHex).Normalize()
+	f := hexToFieldVal(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -232,7 +231,7 @@ func BenchmarkBigIntIsGtOrEqPrimeMinusOrder(b *testing.B) {
 func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal).SetHex(valHex).Normalize()
+	f := hexToFieldVal(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()

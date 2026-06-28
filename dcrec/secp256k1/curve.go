@@ -26,20 +26,39 @@ import (
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3.
 
-// hexToFieldVal converts the passed hex string into a FieldVal and will panic
-// if there is an error.  This is only provided for the hard-coded constants so
-// errors in the source code can be detected. It will only (and must only) be
-// called with hard-coded values.
-func hexToFieldVal(s string) *FieldVal {
+// hexToFieldValInternal converts the passed hex string into a [FieldVal] and
+// will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToFieldValInternal(s string, allowOverflow bool) *FieldVal {
+	if len(s)%2 != 0 {
+		s = "0" + s
+	}
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var f FieldVal
-	if overflow := f.SetByteSlice(b); overflow {
-		panic("hex in source file overflows mod P: " + s)
+	if overflow := f.SetByteSlice(b); overflow && !allowOverflow {
+		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	return &f
+}
+
+// hexToFieldVal converts the passed hex string into a [FieldVal] and will panic
+// if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToFieldVal(s string) *FieldVal {
+	return hexToFieldValInternal(s, false)
 }
 
 // hexToModNScalar converts the passed hex string into a ModNScalar and will
