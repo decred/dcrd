@@ -6,9 +6,6 @@ package secp256k1
 
 import "testing"
 
-// These benchmarks mirror the FieldVal (field_bench_test.go) suite for
-// FieldVal64 so the two implementations can be compared directly.
-
 // BenchmarkField64Sqrt benchmarks calculating the square root of an unsigned
 // 256-bit big-endian integer modulo the field prime with the FieldVal64 type.
 func BenchmarkField64Sqrt(b *testing.B) {

@@ -22,28 +22,36 @@ package secp256k1
 //
 // There are various ways to internally represent each finite field element.
 // For example, the most obvious representation would be to use an array of 4
-// uint64s (64 bits * 4 = 256 bits).  However, that representation suffers from
-// a couple of issues.  First, there is no native Go type large enough to handle
-// the intermediate results while adding or multiplying two 64-bit numbers, and
-// second there is no space left for overflows when performing the intermediate
-// arithmetic between each array element which would lead to expensive carry
-// propagation.
+// uint64s (aka 4x64: 64 bits * 4 = 256 bits).  However, at the time this field
+// implementation was written, Go did not have access to hardware intrinsics, so
+// that representation suffered from a couple of issues.  First, there is no
+// native Go type large enough to handle the intermediate results while adding
+// or multiplying two 64-bit numbers, and second there is no space left for
+// overflows when performing the intermediate arithmetic between each array
+// element which would lead to expensive carry propagation.
 //
-// Given the above, this implementation represents the field elements as
-// 10 uint32s with each word (array entry) treated as base 2^26.  This was
+// While both of those things are still true without intrinsics, modern Go now
+// provides access to intrinsics that permit the hardware to perform both full
+// 128-bit products and addition with carry which entirely mitigates those
+// limitations.  As a result, there is now an alternative [FieldVal64]
+// implementation that uses the aforementioned 4x64 representation with
+// intrinsics.
+//
+// Given those limitations, this implementation represents the field elements as
+// 10 uint32s with each limb (array entry) treated as base 2^26.  This was
 // chosen for the following reasons:
 // 1) Most systems at the current time are 64-bit (or at least have 64-bit
 //    registers available for specialized purposes such as MMX) so the
 //    intermediate results can typically be done using a native register (and
 //    using uint64s to avoid the need for additional half-word arithmetic)
-// 2) In order to allow addition of the internal words without having to
+// 2) In order to allow addition of the internal limbs without having to
 //    propagate the carry, the max normalized value for each register must
 //    be less than the number of bits available in the register
 // 3) Since we're dealing with 32-bit values, 64-bits of overflow is a
 //    reasonable choice for #2
 // 4) Given the need for 256-bits of precision and the properties stated in #1,
 //    #2, and #3, the representation which best accommodates this is 10 uint32s
-//    with base 2^26 (26 bits * 10 = 260 bits, so the final word only needs 22
+//    with base 2^26 (26 bits * 10 = 260 bits, so the final limb only needs 22
 //    bits) which leaves the desired 64 bits (32 * 10 = 320, 320 - 256 = 64) for
 //    overflow
 //
