@@ -378,6 +378,91 @@ func (f *FieldVal64) Mul2(a, b *FieldVal64) *FieldVal64 {
 	return f
 }
 
+// SquareRootVal either calculates the square root of the passed value when it
+// exists or the square root of the negation of the value when it does not exist
+// and stores the result in f in constant time.  The return flag is true when
+// the calculated square root is for the passed value itself and false when it
+// is for its negation.
+func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
+	a.Set(val)
+	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
+	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
+	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
+	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
+	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
+	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
+	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
+	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
+	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
+	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
+	a22.Square()                                              // a22 = a^(2^22 - 2^11)
+	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
+	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
+	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
+	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
+	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
+	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
+	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
+	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
+	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
+	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
+	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
+	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
+	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
+	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
+	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
+
+	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
+	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
+	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
+	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
+	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
+	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
+
+	// Verify the result is actually the square root by squaring it and checking
+	// against the original value.
+	var sqr FieldVal64
+	return sqr.SquareVal(f).Equals(val)
+}
+
 // Square squares the field value in constant time.  The existing field value is
 // modified.
 //
@@ -578,111 +663,6 @@ func field64Square(r *[4]uint64, a *[4]uint64) {
 	field64Reduce512(r, &product)
 }
 
-// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
-// than or equal to the field prime minus the secp256k1 group order in constant
-// time.
-func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
-	// p - n (field prime minus the group order) as little-endian 64-bit limbs.
-	const (
-		field64PMinusN0 = 0x402da1722fc9baee
-		field64PMinusN1 = 0x4551231950b75fc4
-		field64PMinusN2 = 0x0000000000000001
-		field64PMinusN3 = 0x0000000000000000
-	)
-
-	var borrow uint64
-	_, borrow = bits.Sub64(f.n[0], field64PMinusN0, 0)
-	_, borrow = bits.Sub64(f.n[1], field64PMinusN1, borrow)
-	_, borrow = bits.Sub64(f.n[2], field64PMinusN2, borrow)
-	_, borrow = bits.Sub64(f.n[3], field64PMinusN3, borrow)
-	return borrow == 0
-}
-
-// SquareRootVal either calculates the square root of the passed value when it
-// exists or the square root of the negation of the value when it does not exist
-// and stores the result in f in constant time.  The return flag is true when
-// the calculated square root is for the passed value itself and false when it
-// is for its negation.
-func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
-	a.Set(val)
-	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
-	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
-	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
-	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
-	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
-	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
-	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
-	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
-	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
-	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
-	a22.Square()                                              // a22 = a^(2^22 - 2^11)
-	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
-	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
-	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
-	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
-	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
-	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
-	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
-	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
-	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
-	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
-	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
-	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
-	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
-	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
-	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
-	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
-	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
-	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
-	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
-
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
-	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
-	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
-	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
-
-	// Verify the result is actually the square root by squaring it and checking
-	// against the original value.
-	var sqr FieldVal64
-	return sqr.SquareVal(f).Equals(val)
-}
-
 // Inverse finds the modular multiplicative inverse of the field value in
 // constant time.  The existing field value is modified.
 //
@@ -763,4 +743,24 @@ func (f *FieldVal64) Inverse() *FieldVal64 {
 	f.Mul(&a2)
 	f.Square().Square()
 	return f.Mul(&a)
+}
+
+// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
+// than or equal to the field prime minus the secp256k1 group order in constant
+// time.
+func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
+	// p - n (field prime minus the group order) as little-endian 64-bit limbs.
+	const (
+		field64PMinusN0 = 0x402da1722fc9baee
+		field64PMinusN1 = 0x4551231950b75fc4
+		field64PMinusN2 = 0x0000000000000001
+		field64PMinusN3 = 0x0000000000000000
+	)
+
+	var borrow uint64
+	_, borrow = bits.Sub64(f.n[0], field64PMinusN0, 0)
+	_, borrow = bits.Sub64(f.n[1], field64PMinusN1, borrow)
+	_, borrow = bits.Sub64(f.n[2], field64PMinusN2, borrow)
+	_, borrow = bits.Sub64(f.n[3], field64PMinusN3, borrow)
+	return borrow == 0
 }
