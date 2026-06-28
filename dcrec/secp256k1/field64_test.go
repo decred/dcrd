@@ -568,10 +568,6 @@ func TestField64Negate(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "1 -> secp256k1 prime - 1",
 		in:       "1",
 		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -607,7 +603,7 @@ func TestField64Negate(t *testing.T) {
 
 	for _, test := range tests {
 		f := hexToFieldVal64WithOverflow(test.in)
-		expected := hexToFieldVal64WithOverflow(test.expected)
+		expected := hexToFieldVal64(test.expected)
 
 		// Ensure negating another value produces the expected result.
 		result := new(FieldVal64).NegateVal(f)
@@ -1026,10 +1022,6 @@ func TestField64Square(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "secp256k1 prime - 1",
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
 		expected: "1",
@@ -1057,7 +1049,7 @@ func TestField64Square(t *testing.T) {
 
 	for _, test := range tests {
 		f := hexToFieldVal64WithOverflow(test.in)
-		expected := hexToFieldVal64WithOverflow(test.expected)
+		expected := hexToFieldVal64(test.expected)
 
 		// Ensure squaring the value with the result going to another variable
 		// produces the expected result.
@@ -1097,11 +1089,6 @@ func TestField64SquareRoot(t *testing.T) {
 		in:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		valid: true,
 		want:  "0",
-	}, {
-		name:  "secp256k1 prime (as 0 in direct val out)",
-		in:    "0",
-		valid: true,
-		want:  "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 	}, {
 		name:  "secp256k1 prime-1",
 		in:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -1156,7 +1143,7 @@ func TestField64SquareRoot(t *testing.T) {
 
 	for _, test := range tests {
 		input := hexToFieldVal64WithOverflow(test.in)
-		want := hexToFieldVal64WithOverflow(test.want)
+		want := hexToFieldVal64(test.want)
 
 		// Calculate the square root and ensure the validity flag matches the
 		// expected value.
@@ -1237,10 +1224,6 @@ func TestField64Inverse(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "secp256k1 prime - 1",
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
 		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -1268,7 +1251,7 @@ func TestField64Inverse(t *testing.T) {
 
 	for _, test := range tests {
 		f := hexToFieldVal64WithOverflow(test.in)
-		expected := hexToFieldVal64WithOverflow(test.expected)
+		expected := hexToFieldVal64(test.expected)
 		result := f.Inverse()
 		if !result.Equals(expected) {
 			t.Errorf("%s: wrong result\ngot: %x\nwant: %x", test.name,
