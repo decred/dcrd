@@ -261,7 +261,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		hash := hexToBytes(test.hash)
 		nonce := hexToModNScalar(test.nonce)
 		wantSig := hexToBytes(test.expected)
-		wantSigR := hexToFieldVal(test.expected[:64])
+		wantSigR := mustFieldVal(test.expected[:64])
 		wantSigS := hexToModNScalar(test.expected[64:])
 
 		// Ensure the test data is sane by comparing the provided hashed message
@@ -540,7 +540,7 @@ func TestVerifyErrors(t *testing.T) {
 	for _, test := range tests {
 		// Parse test data into types.
 		hash := hexToBytes(test.hash)
-		pubX, pubY := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
+		pubX, pubY := mustFieldVal(test.pubX), mustFieldVal(test.pubY)
 		pubKey := secp256k1.NewPublicKey(pubX, pubY)
 
 		// Create the serialized signature from the bytes and attempt to parse

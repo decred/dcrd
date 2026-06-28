@@ -26,20 +26,39 @@ import (
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3.
 
-// hexToFieldVal converts the passed hex string into a FieldVal and will panic
-// if there is an error.  This is only provided for the hard-coded constants so
-// errors in the source code can be detected. It will only (and must only) be
-// called with hard-coded values.
-func hexToFieldVal(s string) *FieldVal {
+// mustFieldValInternal converts the passed hex string into a [FieldVal] and
+// will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustFieldValInternal(s string, allowOverflow bool) *FieldVal {
+	if len(s)%2 != 0 {
+		s = "0" + s
+	}
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var f FieldVal
-	if overflow := f.SetByteSlice(b); overflow {
-		panic("hex in source file overflows mod P: " + s)
+	if overflow := f.SetByteSlice(b); overflow && !allowOverflow {
+		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	return &f
+}
+
+// mustFieldVal converts the passed hex string into a [FieldVal] and will panic
+// if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustFieldVal(s string) *FieldVal {
+	return mustFieldValInternal(s, false)
 }
 
 // hexToModNScalar converts the passed hex string into a ModNScalar and will
@@ -81,7 +100,7 @@ var (
 	// Additionally, see the scalar multiplication function in this file for
 	// details on how they are used.
 	endoNegLambda = hexToModNScalar("-5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
-	endoBeta      = hexToFieldVal("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
+	endoBeta      = mustFieldVal("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
 	endoNegB1     = hexToModNScalar("e4437ed6010e88286f547fa90abfe4c3")
 	endoNegB2     = hexToModNScalar("-3086d221a7d46bcde86c90e49284eb15")
 	endoZ1        = hexToModNScalar("3086d221a7d46bcde86c90e49284eb153daa8a1471e8ca7f")
@@ -90,7 +109,7 @@ var (
 	// Alternatively, the following parameters are valid as well, however,
 	// benchmarks show them to be about 2% slower in practice.
 	// endoNegLambda = hexToModNScalar("-ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce")
-	// endoBeta      = hexToFieldVal("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40")
+	// endoBeta      = mustFieldVal("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40")
 	// endoNegB1     = hexToModNScalar("3086d221a7d46bcde86c90e49284eb15")
 	// endoNegB2     = hexToModNScalar("-114ca50f7a8e2f3f657c1108d9d44cfd8")
 	// endoZ1        = hexToModNScalar("114ca50f7a8e2f3f657c1108d9d44cfd95fbc92c10fddd145")

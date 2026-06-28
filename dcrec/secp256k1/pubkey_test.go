@@ -216,7 +216,7 @@ func TestParsePubKey(t *testing.T) {
 
 		// Ensure the x and y coordinates match the expected values upon
 		// successful parse.
-		wantX, wantY := hexToFieldVal(test.wantX), hexToFieldVal(test.wantY)
+		wantX, wantY := mustFieldVal(test.wantX), mustFieldVal(test.wantY)
 		if !pubKey.x.Equals(wantX) {
 			t.Errorf("%s: mismatched x coordinate -- got %v, want %v",
 				test.name, pubKey.x, wantX)
@@ -315,7 +315,7 @@ func TestPubKeySerialize(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse the test data.
-		x, y := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
+		x, y := mustFieldVal(test.pubX), mustFieldVal(test.pubY)
 		pubKey := NewPublicKey(x, y)
 
 		// Serialize with the correct method and ensure the result matches the
@@ -339,16 +339,16 @@ func TestPubKeySerialize(t *testing.T) {
 // works as expected.
 func TestPublicKeyIsEqual(t *testing.T) {
 	pubKey1 := &PublicKey{
-		x: *hexToFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
-		y: *hexToFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+		x: *mustFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: *mustFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
 	}
 	pubKey1Copy := &PublicKey{
-		x: *hexToFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
-		y: *hexToFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+		x: *mustFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: *mustFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
 	}
 	pubKey2 := &PublicKey{
-		x: *hexToFieldVal("ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
-		y: *hexToFieldVal("0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032"),
+		x: *mustFieldVal("ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		y: *mustFieldVal("0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032"),
 	}
 
 	if !pubKey1.IsEqual(pubKey1) {
@@ -395,8 +395,8 @@ func TestPublicKeyAsJacobian(t *testing.T) {
 	for _, test := range tests {
 		// Parse the test data.
 		pubKeyBytes := hexToBytes(test.pubKey)
-		wantX := hexToFieldVal(test.wantX)
-		wantY := hexToFieldVal(test.wantY)
+		wantX := mustFieldVal(test.wantX)
+		wantY := mustFieldVal(test.wantY)
 		pubKey, err := ParsePubKey(pubKeyBytes)
 		if err != nil {
 			t.Errorf("%s: failed to parse public key: %v", test.name, err)
@@ -457,7 +457,7 @@ func TestPublicKeyIsOnCurve(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse the test data.
-		x, y := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
+		x, y := mustFieldVal(test.pubX), mustFieldVal(test.pubY)
 		pubKey := NewPublicKey(x, y)
 
 		result := pubKey.IsOnCurve()

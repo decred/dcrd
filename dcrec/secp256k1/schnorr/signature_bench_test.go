@@ -39,11 +39,11 @@ func hexToBytes(s string) []byte {
 	return b
 }
 
-// hexToFieldVal converts the passed hex string into a FieldVal and will panic
-// if there is an error.  This is only provided for the hard-coded constants so
+// mustFieldVal converts the passed hex string into a FieldVal and will panic if
+// there is an error.  This is only provided for the hard-coded constants so
 // errors in the source code can be detected. It will only (and must only) be
 // called with hard-coded values.
-func hexToFieldVal(s string) *secp256k1.FieldVal {
+func mustFieldVal(s string) *secp256k1.FieldVal {
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
@@ -77,8 +77,8 @@ func BenchmarkSigVerify(b *testing.B) {
 	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 	pubKey := secp256k1.NewPublicKey(
-		hexToFieldVal("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		hexToFieldVal("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+		mustFieldVal("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		mustFieldVal("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
 	)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
