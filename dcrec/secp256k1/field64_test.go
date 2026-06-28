@@ -15,20 +15,50 @@ import (
 	"time"
 )
 
-// These tests mirror the FieldVal (field_test.go) suite for FieldVal64.
-// FieldVal64 is always kept fully reduced, so the few FieldVal cases
-// that depend on a denormalized internal representation are adjusted to reflect
-// the reduced value instead.
-
-// SetHex decodes the passed big-endian hex string into the field value. Only the
-// first 32 bytes are used. This is NOT constant time and is only used by tests.
-func (f *FieldVal64) SetHex(hexString string) *FieldVal64 {
-	if len(hexString)%2 != 0 {
-		hexString = "0" + hexString
+// mustFieldVal64Internal converts the passed hex string into a [FieldVal64] and
+// will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustFieldVal64Internal(s string, allowOverflow bool) *FieldVal64 {
+	if len(s)%2 != 0 {
+		s = "0" + s
 	}
-	decoded, _ := hex.DecodeString(hexString)
-	f.SetByteSlice(decoded)
-	return f
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
+	var f FieldVal64
+	if overflow := f.SetByteSlice(b); overflow && !allowOverflow {
+		panic("hex in source file overflows mod N scalar: " + s)
+	}
+	return &f
+}
+
+// mustFieldVal64 converts the passed hex string into a [FieldVal64] and will
+// panic if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustFieldVal64(s string) *FieldVal64 {
+	return mustFieldVal64Internal(s, false)
+}
+
+// mustFieldVal64WithOverflow converts the passed hex string into a [FieldVal64]
+// and will panic if there is an error.  Values that overflow are NOT treated as
+// an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustFieldVal64WithOverflow(s string) *FieldVal64 {
+	return mustFieldVal64Internal(s, true)
 }
 
 // randIntAndFieldVal64 returns a big integer and a field value both created from
@@ -271,7 +301,7 @@ func TestField64Bytes(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
+		f := mustFieldVal64WithOverflow(test.in)
 		expected := hexToBytes(test.expected)
 
 		// Ensure getting the bytes works as expected.
@@ -304,8 +334,7 @@ func TestField64Bytes(t *testing.T) {
 
 // TestField64Zero ensures that zeroing a field value works as expected.
 func TestField64Zero(t *testing.T) {
-	var f FieldVal64
-	f.SetHex("a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5")
+	f := mustFieldVal64("a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5")
 	f.Zero()
 	for idx, limb := range f.n {
 		if limb != 0 {
@@ -393,7 +422,7 @@ func TestField64IsOne(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
+		f := mustFieldVal64WithOverflow(test.in)
 		result := f.IsOne()
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name, result,
@@ -449,7 +478,7 @@ func TestField64IsOdd(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
+		f := mustFieldVal64WithOverflow(test.in)
 		result := f.IsOdd()
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name,
@@ -512,8 +541,8 @@ func TestField64Equals(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in1)
-		f2 := new(FieldVal64).SetHex(test.in2)
+		f := mustFieldVal64WithOverflow(test.in1)
+		f2 := mustFieldVal64WithOverflow(test.in2)
 		result := f.Equals(f2)
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name, result,
@@ -577,8 +606,8 @@ func TestField64Negate(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f := mustFieldVal64WithOverflow(test.in)
+		expected := mustFieldVal64WithOverflow(test.expected)
 
 		// Ensure negating another value produces the expected result.
 		result := new(FieldVal64).NegateVal(f)
@@ -654,8 +683,8 @@ func TestField64AddInt(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in1)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f := mustFieldVal64WithOverflow(test.in1)
+		expected := mustFieldVal64(test.expected)
 		result := f.AddInt(test.in2)
 		if !result.Equals(expected) {
 			t.Errorf("%s: wrong result -- got: %x -- want: %x", test.name,
@@ -736,9 +765,9 @@ func TestField64Add(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f1 := new(FieldVal64).SetHex(test.in1)
-		f2 := new(FieldVal64).SetHex(test.in2)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f1 := mustFieldVal64WithOverflow(test.in1)
+		f2 := mustFieldVal64WithOverflow(test.in2)
+		expected := mustFieldVal64(test.expected)
 
 		// Ensure adding the two values with the result going to another
 		// variable produces the expected result.
@@ -789,7 +818,7 @@ func TestField64MulByX(t *testing.T) {
 		"e3cbe002cc93029190181a906ed41af401c9726546dc19389a06290efdf563f1", // random sampling
 	}
 	for _, in := range testCases {
-		in := new(FieldVal64).SetHex(in)
+		in := mustFieldVal64(in)
 		for _, m := range mulByFuncs {
 			var want FieldVal64
 			want.Set(in).MulInt(m.factor)
@@ -870,8 +899,8 @@ func TestField64MulInt(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in1)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f := mustFieldVal64WithOverflow(test.in1)
+		expected := mustFieldVal64(test.expected)
 		result := f.MulInt(test.in2)
 		if !result.Equals(expected) {
 			t.Errorf("%s: wrong result -- got: %x -- want: %x", test.name,
@@ -957,9 +986,9 @@ func TestField64Mul(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f1 := new(FieldVal64).SetHex(test.in1)
-		f2 := new(FieldVal64).SetHex(test.in2)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f1 := mustFieldVal64WithOverflow(test.in1)
+		f2 := mustFieldVal64WithOverflow(test.in2)
+		expected := mustFieldVal64(test.expected)
 
 		// Ensure multiplying the two values with the result going to another
 		// variable produces the expected result.
@@ -1027,8 +1056,8 @@ func TestField64Square(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f := mustFieldVal64WithOverflow(test.in)
+		expected := mustFieldVal64WithOverflow(test.expected)
 
 		// Ensure squaring the value with the result going to another variable
 		// produces the expected result.
@@ -1126,8 +1155,8 @@ func TestField64SquareRoot(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		input := new(FieldVal64).SetHex(test.in)
-		want := new(FieldVal64).SetHex(test.want)
+		input := mustFieldVal64WithOverflow(test.in)
+		want := mustFieldVal64WithOverflow(test.want)
 
 		// Calculate the square root and ensure the validity flag matches the
 		// expected value.
@@ -1238,8 +1267,8 @@ func TestField64Inverse(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		f := new(FieldVal64).SetHex(test.in)
-		expected := new(FieldVal64).SetHex(test.expected)
+		f := mustFieldVal64WithOverflow(test.in)
+		expected := mustFieldVal64WithOverflow(test.expected)
 		result := f.Inverse()
 		if !result.Equals(expected) {
 			t.Errorf("%s: wrong result\ngot: %x\nwant: %x", test.name,
@@ -1308,7 +1337,7 @@ func TestField64IsGtOrEqPrimeMinusOrder(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		result := new(FieldVal64).SetHex(test.in).IsGtOrEqPrimeMinusOrder()
+		result := mustFieldVal64(test.in).IsGtOrEqPrimeMinusOrder()
 		if result != test.expected {
 			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
 				result, test.expected)
