@@ -61,11 +61,14 @@ func hexToFieldVal(s string) *FieldVal {
 	return hexToFieldValInternal(s, false)
 }
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
-// panic if there is an error.  This is only provided for the hard-coded
-// constants so errors in the source code can be detected. It will only (and
-// must only) be called with hard-coded values.
-func hexToModNScalar(s string) *ModNScalar {
+// hexToModNScalarInternal converts the passed hex string into a [ModNScalar]
+// and will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToModNScalarInternal(s string, allowOverflow bool) *ModNScalar {
 	var isNegative bool
 	if len(s) > 0 && s[0] == '-' {
 		isNegative = true
@@ -78,14 +81,27 @@ func hexToModNScalar(s string) *ModNScalar {
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var scalar ModNScalar
-	if overflow := scalar.SetByteSlice(b); overflow {
+	if overflow := scalar.SetByteSlice(b); overflow && !allowOverflow {
 		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	if isNegative {
 		scalar.Negate()
 	}
 	return &scalar
+}
+
+// hexToModNScalar converts the passed hex string into a [ModNScalar] and will
+// panic if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected.  It will only (and must only) be called with hard-coded
+// values.
+func hexToModNScalar(s string) *ModNScalar {
+	return hexToModNScalarInternal(s, false)
 }
 
 var (
