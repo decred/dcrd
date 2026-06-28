@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
-// Copyright (c) 2013-2024 Dave Collins
+// Copyright (c) 2015-2026 The Decred developers
+// Copyright (c) 2013-2026 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -49,7 +49,7 @@ package secp256k1
 //
 // Since it is so important that the field arithmetic is extremely fast for high
 // performance crypto, this type does not perform any validation where it
-// ordinarily would.  See the documentation for FieldVal for more details.
+// ordinarily would.  See the documentation for [FieldVal] for more details.
 
 import (
 	"encoding/hex"
@@ -234,10 +234,10 @@ func (f *FieldVal) SetInt(ui uint16) *FieldVal {
 }
 
 // SetBytes packs the passed 32-byte big-endian value into the internal field
-// value representation in constant time.  SetBytes interprets the provided
-// array as a 256-bit big-endian unsigned integer, packs it into the internal
-// field value representation, and returns either 1 if it is greater than or
-// equal to the field prime (aka it overflowed) or 0 otherwise in constant time.
+// value representation in constant time.  It interprets the provided array as a
+// 256-bit big-endian unsigned integer, packs it into the internal field value
+// representation, and returns either 1 if it is greater than or equal to the
+// field prime (aka it overflowed) or 0 otherwise in constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
@@ -437,10 +437,10 @@ func (f *FieldVal) Normalize() *FieldVal {
 // directly into the passed byte slice in constant time.  The target slice must
 // have at least 32 bytes available or it will panic.
 //
-// There is a similar function, PutBytes, which unpacks the field value into a
-// 32-byte array directly.  This version is provided since it can be useful
-// to write directly into part of a larger buffer without needing a separate
-// allocation.
+// There is a similar function, [FieldVal.PutBytes], which unpacks the field
+// value into a 32-byte array directly.  This version is provided since it can
+// be useful to write directly into part of a larger buffer without needing a
+// separate allocation.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -487,14 +487,14 @@ func (f *FieldVal) PutBytesUnchecked(b []byte) {
 // PutBytes unpacks the field value to a 32-byte big-endian value using the
 // passed byte array in constant time.
 //
-// There is a similar function, PutBytesUnchecked, which unpacks the field value
-// into a slice that must have at least 32 bytes available.  This version is
-// provided since it can be useful to write directly into an array that is type
-// checked.
+// There is a similar function, [FieldVal.PutBytesUnchecked], which unpacks the
+// field value into a slice that must have at least 32 bytes available.  This
+// version is provided since it can be useful to write directly into an array
+// that is type checked.
 //
-// Alternatively, there is also Bytes, which unpacks the field value into a new
-// array and returns that which can sometimes be more ergonomic in applications
-// that aren't concerned about an additional copy.
+// Alternatively, there is also [FieldVal.Bytes], which unpacks the field value
+// into a new array and returns that which can sometimes be more ergonomic in
+// applications that aren't concerned about an additional copy.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -504,10 +504,10 @@ func (f *FieldVal) PutBytes(b *[32]byte) {
 
 // Bytes unpacks the field value to a 32-byte big-endian value in constant time.
 //
-// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
-// to be passed which can be useful to cut down on the number of allocations by
-// allowing the caller to reuse a buffer or write directly into part of a larger
-// buffer.
+// See [FieldVal.PutBytes] and [FieldVal.PutBytesUnchecked] for variants that
+// allow an array or slice to be passed which can be useful to cut down on the
+// number of allocations by allowing the caller to reuse a buffer or write
+// directly into part of a larger buffer.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -522,8 +522,8 @@ func (f *FieldVal) Bytes() *[32]byte {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsZero for the version that returns
-// a bool.
+// operations require a numeric value.  See [FieldVal.IsZero] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -555,8 +555,8 @@ func (f *FieldVal) IsZero() bool {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsOne for the version that returns a
-// bool.
+// operations require a numeric value.  See [FieldVal.IsOne] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	   - The field value MUST be normalized
@@ -590,8 +590,8 @@ func (f *FieldVal) IsOne() bool {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsOdd for the version that returns a
-// bool.
+// operations require a numeric value.  See [FieldVal.IsOdd] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized

@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
-// Copyright (c) 2013-2024 Dave Collins
+// Copyright (c) 2015-2026 The Decred developers
+// Copyright (c) 2013-2026 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -383,8 +383,8 @@ func TestFieldZero(t *testing.T) {
 	}
 }
 
-// TestFieldIsZero ensures that checking if a field is zero via IsZero and
-// IsZeroBit works as expected.
+// TestFieldIsZero ensures that checking if a field is zero via
+// [FieldVal.IsZero] and [FieldVal.IsZeroBit] works as expected.
 func TestFieldIsZero(t *testing.T) {
 	f := new(FieldVal)
 	if !f.IsZero() {
@@ -420,8 +420,8 @@ func TestFieldIsZero(t *testing.T) {
 	}
 }
 
-// TestFieldIsOne ensures that checking if a field is one via IsOne and IsOneBit
-// works as expected.
+// TestFieldIsOne ensures that checking if a field is one via [FieldVal.IsOne]
+// and [FieldVal.IsOneBit] works as expected.
 func TestFieldIsOne(t *testing.T) {
 	tests := []struct {
 		name      string // test description
@@ -851,8 +851,8 @@ func TestFieldNormalize(t *testing.T) {
 	}
 }
 
-// TestFieldIsOdd ensures that checking if a field value is odd via IsOdd and
-// IsOddBit works as expected.
+// TestFieldIsOdd ensures that checking if a field value is odd via
+// [FieldVal.IsOdd] and [FieldVal.IsOddBit] works as expected.
 func TestFieldIsOdd(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -907,7 +907,7 @@ func TestFieldIsOdd(t *testing.T) {
 }
 
 // TestFieldEquals ensures that checking two field values for equality via
-// Equals works as expected.
+// [FieldVal.Equals] works as expected.
 func TestFieldEquals(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -963,8 +963,8 @@ func TestFieldEquals(t *testing.T) {
 	}
 }
 
-// TestFieldNegate ensures that negating field values via Negate works as
-// expected.
+// TestFieldNegate ensures that negating field values via [FieldVal.Negate]
+// works as expected.
 func TestFieldNegate(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1038,8 +1038,8 @@ func TestFieldNegate(t *testing.T) {
 	}
 }
 
-// TestFieldAddInt ensures that adding an integer to field values via AddInt
-// works as expected.
+// TestFieldAddInt ensures that adding an integer to field values via
+// [FieldVal.AddInt] works as expected.
 func TestFieldAddInt(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1105,8 +1105,8 @@ func TestFieldAddInt(t *testing.T) {
 	}
 }
 
-// TestFieldAdd ensures that adding two field values together via Add and Add2
-// works as expected.
+// TestFieldAdd ensures that adding two field values together via [FieldVal.Add]
+// and [FieldVal.Add2] works as expected.
 func TestFieldAdd(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1202,7 +1202,7 @@ func TestFieldAdd(t *testing.T) {
 }
 
 // TestFieldMulInt ensures that multiplying an integer to field values via
-// MulInt works as expected.
+// [FieldVal.MulInt] works as expected.
 func TestFieldMulInt(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1281,8 +1281,8 @@ func TestFieldMulInt(t *testing.T) {
 	}
 }
 
-// TestFieldMul ensures that multiplying two field values via Mul and Mul2 works
-// as expected.
+// TestFieldMul ensures that multiplying two field values via [FieldVal.Mul] and
+// [FieldVal.Mul2] works as expected.
 func TestFieldMul(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1376,8 +1376,8 @@ func TestFieldMul(t *testing.T) {
 	}
 }
 
-// TestFieldSquare ensures that squaring field values via Square and SqualVal
-// works as expected.
+// TestFieldSquare ensures that squaring field values via [FieldVal.Square] and
+// [FieldVal.SqualVal] works as expected.
 func TestFieldSquare(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -1446,7 +1446,7 @@ func TestFieldSquare(t *testing.T) {
 }
 
 // TestFieldSquareRoot ensures that calculating the square root of field values
-// via SquareRootVal works as expected for edge cases.
+// via [FieldVal.SquareRootVal] works as expected for edge cases.
 func TestFieldSquareRoot(t *testing.T) {
 	tests := []struct {
 		name  string // test description
@@ -1588,8 +1588,8 @@ func TestFieldSquareRootRandom(t *testing.T) {
 	}
 }
 
-// TestFieldInverse ensures that finding the multiplicative inverse via Inverse
-// works as expected.
+// TestFieldInverse ensures that finding the multiplicative inverse via
+// [FieldVal.Inverse] works as expected.
 func TestFieldInverse(t *testing.T) {
 	tests := []struct {
 		name     string // test description
