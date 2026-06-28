@@ -15,7 +15,7 @@ import (
 //     https://www.secg.org/sec2-v2.pdf
 //
 //   [HAC]: Handbook of Applied Cryptography Menezes, van Oorschot, Vanstone.
-//     http://cacr.uwaterloo.ca/hac/
+//     https://cacr.uwaterloo.ca/hac/
 
 // Many elliptic curve operations require working with scalars in a finite field
 // characterized by the order of the group underlying the secp256k1 curve.
