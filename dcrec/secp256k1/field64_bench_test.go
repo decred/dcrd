@@ -14,7 +14,7 @@ import "testing"
 func BenchmarkField64Sqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
+	f := hexToFieldVal64(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -30,7 +30,7 @@ func BenchmarkField64Sqrt(b *testing.B) {
 func BenchmarkField64Inverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
+	f := hexToFieldVal64(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -45,7 +45,7 @@ func BenchmarkField64Inverse(b *testing.B) {
 func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
+	f := hexToFieldVal64(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -56,8 +56,8 @@ func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
 
 // BenchmarkField64Add benchmarks adding two field values.
 func BenchmarkField64Add(b *testing.B) {
-	a := new(FieldVal64).SetHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -69,8 +69,8 @@ func BenchmarkField64Add(b *testing.B) {
 
 // BenchmarkField64Mul benchmarks multiplying two field values.
 func BenchmarkField64Mul(b *testing.B) {
-	a := new(FieldVal64).SetHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -82,7 +82,7 @@ func BenchmarkField64Mul(b *testing.B) {
 
 // BenchmarkField64Square benchmarks squaring a field value.
 func BenchmarkField64Square(b *testing.B) {
-	a := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
