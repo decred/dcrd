@@ -6,7 +6,6 @@ package secp256k1
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -15,21 +14,15 @@ import (
 	"time"
 )
 
-// SetHex interprets the provided hex string as a 256-bit big-endian unsigned
-// integer (meaning it is truncated to the first 32 bytes), reduces it modulo
-// the group order and sets the scalar to the result.
+// mustModNScalarWithOverflow converts the passed hex string into a [ModNScalar]
+// and will panic if there is an error.  Values that overflow are NOT treated as
+// an error.
 //
-// This is NOT constant time.
-//
-// The scalar is returned to support chaining.  This enables syntax like:
-// s := new(ModNScalar).SetHex("0abc").Add(1) so that s = 0x0abc + 1
-func (s *ModNScalar) SetHex(hexString string) *ModNScalar {
-	if len(hexString)%2 != 0 {
-		hexString = "0" + hexString
-	}
-	bytes, _ := hex.DecodeString(hexString)
-	s.SetByteSlice(bytes)
-	return s
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected.  It will only (and must only) be called with hard-coded
+// values.
+func mustModNScalarWithOverflow(s string) *ModNScalar {
+	return mustModNScalarInternal(s, true)
 }
 
 // randModNScalar returns a mod N scalar created from a random value generated
@@ -69,8 +62,8 @@ func randIntAndModNScalar(t *testing.T, rng *rand.Rand) (*big.Int, *ModNScalar) 
 // TestModNScalarZero ensures that zeroing a scalar modulo the group order works
 // as expected.
 func TestModNScalarZero(t *testing.T) {
-	var s ModNScalar
-	s.SetHex("a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5")
+	valHex := "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+	s := mustModNScalar(valHex)
 	s.Zero()
 	for idx, rawInt := range s.n {
 		if rawInt != 0 {
@@ -354,7 +347,7 @@ func TestModNScalarBytes(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		s := new(ModNScalar).SetHex(test.in)
+		s := mustModNScalarWithOverflow(test.in)
 		expected := hexToBytes(test.expected)
 
 		// Ensure getting the bytes works as expected.
@@ -423,7 +416,7 @@ func TestModNScalarIsOdd(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		result := new(ModNScalar).SetHex(test.in).IsOdd()
+		result := mustModNScalarWithOverflow(test.in).IsOdd()
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name,
 				result, test.expected)
@@ -478,8 +471,8 @@ func TestModNScalarEquals(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		s1 := new(ModNScalar).SetHex(test.in1)
-		s2 := new(ModNScalar).SetHex(test.in2)
+		s1 := mustModNScalarWithOverflow(test.in1)
+		s2 := mustModNScalarWithOverflow(test.in2)
 		result := s1.Equals(s2)
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name, result,
@@ -601,9 +594,9 @@ func TestModNScalarAdd(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse test hex.
-		s1 := new(ModNScalar).SetHex(test.in1)
-		s2 := new(ModNScalar).SetHex(test.in2)
-		expected := new(ModNScalar).SetHex(test.expected)
+		s1 := mustModNScalarWithOverflow(test.in1)
+		s2 := mustModNScalarWithOverflow(test.in2)
+		expected := mustModNScalar(test.expected)
 
 		// Ensure the result has the expected value.
 		s1.Add(s2)
@@ -800,9 +793,9 @@ func TestModNScalarMul(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		v1 := new(ModNScalar).SetHex(test.in1)
-		v2 := new(ModNScalar).SetHex(test.in2)
-		expected := new(ModNScalar).SetHex(test.expected)
+		v1 := mustModNScalarWithOverflow(test.in1)
+		v2 := mustModNScalarWithOverflow(test.in2)
+		expected := mustModNScalar(test.expected)
 
 		// Ensure multiplying two other values produces the expected result.
 		result := new(ModNScalar).Mul2(v1, v2)
@@ -884,6 +877,10 @@ func TestModNScalarSquare(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		expected: "0000000000000000000000000000000000000000000000000000000000000001",
 	}, {
+		name:     "group order + 1",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
+		expected: "1",
+	}, {
 		name:     "overflow in word eight",
 		in:       "100000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf",
@@ -926,8 +923,8 @@ func TestModNScalarSquare(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		v := new(ModNScalar).SetHex(test.in)
-		expected := new(ModNScalar).SetHex(test.expected)
+		v := mustModNScalarWithOverflow(test.in)
+		expected := mustModNScalar(test.expected)
 
 		// Ensure squaring another value produces the expected result.
 		result := new(ModNScalar).SquareVal(v)
@@ -1036,8 +1033,8 @@ func TestModNScalarNegate(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		s := new(ModNScalar).SetHex(test.in)
-		expected := new(ModNScalar).SetHex(test.expected)
+		s := mustModNScalarWithOverflow(test.in)
+		expected := mustModNScalar(test.expected)
 
 		// Ensure negating another value produces the expected result.
 		result := new(ModNScalar).NegateVal(s)
@@ -1146,8 +1143,8 @@ func TestModNScalarInverseNonConst(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		s := new(ModNScalar).SetHex(test.in)
-		expected := new(ModNScalar).SetHex(test.expected)
+		s := mustModNScalarWithOverflow(test.in)
+		expected := mustModNScalar(test.expected)
 
 		// Ensure calculating the multiplicative inverse of another value
 		// produces the expected result.
@@ -1250,7 +1247,7 @@ func TestModNScalarIsOverHalfOrder(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		result := new(ModNScalar).SetHex(test.in).IsOverHalfOrder()
+		result := mustModNScalarWithOverflow(test.in).IsOverHalfOrder()
 		if result != test.expected {
 			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
 				result, test.expected)

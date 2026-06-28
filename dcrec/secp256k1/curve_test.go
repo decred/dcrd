@@ -17,7 +17,7 @@ import (
 
 var (
 	// oneModN is simply the number 1 as a mod n scalar.
-	oneModN = hexToModNScalar("1")
+	oneModN = mustModNScalar("1")
 
 	// endoLambda is the positive version of the lambda constant used in the
 	// endomorphism.  It is stored here for convenience and to avoid recomputing
@@ -832,7 +832,7 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 		// Parse test data.
 		want := jacobianPointFromHex(test.x1, test.y1, test.z1)
 		wantAffine := jacobianPointFromHex(test.x2, test.y2, "01")
-		k := hexToModNScalar(test.k)
+		k := mustModNScalar(test.k)
 
 		// Ensure the test data is using points that are actually on the curve
 		// (or the point at infinity).
@@ -945,7 +945,7 @@ func TestSplitK(t *testing.T) {
 	// produced scalars.
 	h := "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0"
 	negOne := new(ModNScalar).NegateVal(oneModN)
-	halfOrder := hexToModNScalar(h)
+	halfOrder := mustModNScalar(h)
 	halfOrderMOne := new(ModNScalar).Add2(halfOrder, negOne)
 	halfOrderPOne := new(ModNScalar).Add2(halfOrder, oneModN)
 	lambdaMOne := new(ModNScalar).Add2(endoLambda, negOne)

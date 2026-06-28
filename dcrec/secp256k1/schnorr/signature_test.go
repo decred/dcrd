@@ -256,13 +256,13 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		privKey := hexToModNScalar(test.key)
+		privKey := mustModNScalar(test.key)
 		msg := hexToBytes(test.msg)
 		hash := hexToBytes(test.hash)
-		nonce := hexToModNScalar(test.nonce)
+		nonce := mustModNScalar(test.nonce)
 		wantSig := hexToBytes(test.expected)
 		wantSigR := mustFieldVal(test.expected[:64])
-		wantSigS := hexToModNScalar(test.expected[64:])
+		wantSigS := mustModNScalar(test.expected[64:])
 
 		// Ensure the test data is sane by comparing the provided hashed message
 		// and nonce, in the case rfc6979 was used, to their calculated values.
@@ -321,7 +321,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		}
 
 		// Ensure the produced signature verifies as well.
-		pubKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key)).PubKey()
+		pubKey := secp256k1.NewPrivateKey(mustModNScalar(test.key)).PubKey()
 		err = schnorrVerify(gotSig, hash, pubKey)
 		if err != nil {
 			t.Errorf("%s: signature failed to verify: %v", test.name, err)

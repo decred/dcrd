@@ -12,11 +12,11 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
+// mustModNScalar converts the passed hex string into a ModNScalar and will
 // panic if there is an error.  This is only provided for the hard-coded
 // constants so errors in the source code can be detected. It will only (and
 // must only) be called with hard-coded values.
-func hexToModNScalar(s string) *secp256k1.ModNScalar {
+func mustModNScalar(s string) *secp256k1.ModNScalar {
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
@@ -57,8 +57,8 @@ func BenchmarkSigVerify(b *testing.B) {
 	// Double sha256 of []byte{0x01, 0x02, 0x03, 0x04}
 	msgHash := hexToBytes("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
 	sig := NewSignature(
-		hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		mustModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		mustModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	)
 
 	if !sig.Verify(msgHash, pubKey) {
@@ -76,7 +76,7 @@ func BenchmarkSigVerify(b *testing.B) {
 // BenchmarkSign benchmarks how long it takes to sign a message.
 func BenchmarkSign(b *testing.B) {
 	// Randomly generated keypair.
-	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	d := mustModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
@@ -96,8 +96,8 @@ func BenchmarkSigSerialize(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	// Signature for double sha256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	sig := NewSignature(
-		hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		mustModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		mustModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	)
 
 	b.ReportAllocs()
@@ -132,7 +132,7 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 // BenchmarkSignCompact benchmarks how long it takes to produce a compact
 // signature for a message.
 func BenchmarkSignCompact(b *testing.B) {
-	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	d := mustModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.

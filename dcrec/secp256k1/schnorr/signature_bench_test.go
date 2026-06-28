@@ -11,11 +11,11 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
+// mustModNScalar converts the passed hex string into a ModNScalar and will
 // panic if there is an error.  This is only provided for the hard-coded
 // constants so errors in the source code can be detected. It will only (and
 // must only) be called with hard-coded values.
-func hexToModNScalar(s string) *secp256k1.ModNScalar {
+func mustModNScalar(s string) *secp256k1.ModNScalar {
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
@@ -58,7 +58,7 @@ func mustFieldVal(s string) *secp256k1.FieldVal {
 // BenchmarkSign benchmarks how long it takes to sign a message.
 func BenchmarkSign(b *testing.B) {
 	// From randomly generated keypair.
-	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	d := mustModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
@@ -74,7 +74,7 @@ func BenchmarkSign(b *testing.B) {
 // BenchmarkSigVerify benchmarks how long it takes to verify Schnorr signatures.
 func BenchmarkSigVerify(b *testing.B) {
 	// From randomly generated keypair.
-	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	d := mustModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 	pubKey := secp256k1.NewPublicKey(
 		mustFieldVal("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
@@ -98,7 +98,7 @@ func BenchmarkSigVerify(b *testing.B) {
 // signatures.
 func BenchmarkSigSerialize(b *testing.B) {
 	// From randomly generated keypair.
-	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	d := mustModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
 	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.

@@ -221,8 +221,8 @@ func TestSignatureSerialize(t *testing.T) {
 		// 0437cd7f8525ceed2324359c2d0ba26006d92d85
 		"valid 1 - r and s most significant bits are zero",
 		&Signature{
-			r: *hexToModNScalar("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
-			s: *hexToModNScalar("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
+			r: *mustModNScalar("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
+			s: *mustModNScalar("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
 		},
 		hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d62" +
 			"4c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc" +
@@ -232,8 +232,8 @@ func TestSignatureSerialize(t *testing.T) {
 		// cb00f8a0573b18faa8c4f467b049f5d202bf1101d9ef2633bc611be70376a4b4
 		"valid 2 - r most significant bit is one",
 		&Signature{
-			r: *hexToModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
-			s: *hexToModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
+			r: *mustModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
+			s: *mustModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
 		},
 		hexToBytes("304502210082235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c" +
 			"30a23b0afbb8d178abcf3022024bf68e256c534ddfaf966bf908deb94430" +
@@ -247,8 +247,8 @@ func TestSignatureSerialize(t *testing.T) {
 		// modified to expect the equally valid low S signature variant.
 		"valid 3 - s most significant bit is one",
 		&Signature{
-			r: *hexToModNScalar("1cadddc2838598fee7dc35a12b340c6bde8b389f7bfd19a1252a17c4b5ed2d71"),
-			s: *hexToModNScalar("c1a251bbecb14b058a8bd77f65de87e51c47e95904f4c0e9d52eddc21c1415ac"),
+			r: *mustModNScalar("1cadddc2838598fee7dc35a12b340c6bde8b389f7bfd19a1252a17c4b5ed2d71"),
+			s: *mustModNScalar("c1a251bbecb14b058a8bd77f65de87e51c47e95904f4c0e9d52eddc21c1415ac"),
 		},
 		hexToBytes("304402201cadddc2838598fee7dc35a12b340c6bde8b389f7bfd1" +
 			"9a1252a17c4b5ed2d7102203e5dae44134eb4fa757428809a2178199e66f" +
@@ -519,11 +519,11 @@ func TestSignAndVerify(t *testing.T) {
 
 	tests := signTests(t)
 	for _, test := range tests {
-		privKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key))
+		privKey := secp256k1.NewPrivateKey(mustModNScalar(test.key))
 		hash := hexToBytes(test.hash)
-		nonce := hexToModNScalar(test.nonce)
-		wantSigR := hexToModNScalar(test.wantSigR)
-		wantSigS := hexToModNScalar(test.wantSigS)
+		nonce := mustModNScalar(test.nonce)
+		wantSigR := mustModNScalar(test.wantSigR)
+		wantSigS := mustModNScalar(test.wantSigS)
 		wantSig := NewSignature(wantSigR, wantSigS).Serialize()
 
 		// Sign the hash of the message with the given private key and nonce.
@@ -685,9 +685,9 @@ func TestSignFailures(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		privKey := hexToModNScalar(test.key)
+		privKey := mustModNScalar(test.key)
 		hash := hexToBytes(test.hash)
-		nonce := hexToModNScalar(test.nonce)
+		nonce := mustModNScalar(test.nonce)
 
 		// Ensure the signing is NOT successful.
 		sig, _, success := sign(privKey, nonce, hash)
@@ -736,10 +736,10 @@ func TestVerifyFailures(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		privKey := hexToModNScalar(test.key)
+		privKey := mustModNScalar(test.key)
 		hash := hexToBytes(test.hash)
-		r := hexToModNScalar(test.r)
-		s := hexToModNScalar(test.s)
+		r := mustModNScalar(test.r)
+		s := mustModNScalar(test.s)
 		sig := NewSignature(r, s)
 
 		// Ensure the verification is NOT successful.
@@ -756,16 +756,16 @@ func TestVerifyFailures(t *testing.T) {
 // works as expected.
 func TestSignatureIsEqual(t *testing.T) {
 	sig1 := &Signature{
-		r: *hexToModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
-		s: *hexToModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
+		r: *mustModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
+		s: *mustModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
 	}
 	sig1Copy := &Signature{
-		r: *hexToModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
-		s: *hexToModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
+		r: *mustModNScalar("82235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
+		s: *mustModNScalar("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
 	}
 	sig2 := &Signature{
-		r: *hexToModNScalar("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
-		s: *hexToModNScalar("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
+		r: *mustModNScalar("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
+		s: *mustModNScalar("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
 	}
 
 	if !sig1.IsEqual(sig1) {
@@ -795,7 +795,7 @@ func TestSignAndRecoverCompact(t *testing.T) {
 		}
 
 		// Parse test data.
-		privKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key))
+		privKey := secp256k1.NewPrivateKey(mustModNScalar(test.key))
 		pubKey := privKey.PubKey()
 		hash := hexToBytes(test.hash)
 		wantSig := hexToBytes("00" + test.wantSigR + test.wantSigS)

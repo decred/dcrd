@@ -61,11 +61,14 @@ func mustFieldVal(s string) *FieldVal {
 	return mustFieldValInternal(s, false)
 }
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
-// panic if there is an error.  This is only provided for the hard-coded
-// constants so errors in the source code can be detected. It will only (and
-// must only) be called with hard-coded values.
-func hexToModNScalar(s string) *ModNScalar {
+// mustModNScalarInternal converts the passed hex string into a [ModNScalar] and
+// will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func mustModNScalarInternal(s string, allowOverflow bool) *ModNScalar {
 	var isNegative bool
 	if len(s) > 0 && s[0] == '-' {
 		isNegative = true
@@ -78,14 +81,27 @@ func hexToModNScalar(s string) *ModNScalar {
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var scalar ModNScalar
-	if overflow := scalar.SetByteSlice(b); overflow {
+	if overflow := scalar.SetByteSlice(b); overflow && !allowOverflow {
 		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	if isNegative {
 		scalar.Negate()
 	}
 	return &scalar
+}
+
+// mustModNScalar converts the passed hex string into a [ModNScalar] and will
+// panic if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected.  It will only (and must only) be called with hard-coded
+// values.
+func mustModNScalar(s string) *ModNScalar {
+	return mustModNScalarInternal(s, false)
 }
 
 var (
@@ -99,21 +115,21 @@ var (
 	//
 	// Additionally, see the scalar multiplication function in this file for
 	// details on how they are used.
-	endoNegLambda = hexToModNScalar("-5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
+	endoNegLambda = mustModNScalar("-5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
 	endoBeta      = mustFieldVal("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
-	endoNegB1     = hexToModNScalar("e4437ed6010e88286f547fa90abfe4c3")
-	endoNegB2     = hexToModNScalar("-3086d221a7d46bcde86c90e49284eb15")
-	endoZ1        = hexToModNScalar("3086d221a7d46bcde86c90e49284eb153daa8a1471e8ca7f")
-	endoZ2        = hexToModNScalar("e4437ed6010e88286f547fa90abfe4c4221208ac9df506c6")
+	endoNegB1     = mustModNScalar("e4437ed6010e88286f547fa90abfe4c3")
+	endoNegB2     = mustModNScalar("-3086d221a7d46bcde86c90e49284eb15")
+	endoZ1        = mustModNScalar("3086d221a7d46bcde86c90e49284eb153daa8a1471e8ca7f")
+	endoZ2        = mustModNScalar("e4437ed6010e88286f547fa90abfe4c4221208ac9df506c6")
 
 	// Alternatively, the following parameters are valid as well, however,
 	// benchmarks show them to be about 2% slower in practice.
-	// endoNegLambda = hexToModNScalar("-ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce")
+	// endoNegLambda = mustModNScalar("-ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce")
 	// endoBeta      = mustFieldVal("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40")
-	// endoNegB1     = hexToModNScalar("3086d221a7d46bcde86c90e49284eb15")
-	// endoNegB2     = hexToModNScalar("-114ca50f7a8e2f3f657c1108d9d44cfd8")
-	// endoZ1        = hexToModNScalar("114ca50f7a8e2f3f657c1108d9d44cfd95fbc92c10fddd145")
-	// endoZ2        = hexToModNScalar("3086d221a7d46bcde86c90e49284eb153daa8a1471e8ca7f")
+	// endoNegB1     = mustModNScalar("3086d221a7d46bcde86c90e49284eb15")
+	// endoNegB2     = mustModNScalar("-114ca50f7a8e2f3f657c1108d9d44cfd8")
+	// endoZ1        = mustModNScalar("114ca50f7a8e2f3f657c1108d9d44cfd95fbc92c10fddd145")
+	// endoZ2        = mustModNScalar("3086d221a7d46bcde86c90e49284eb153daa8a1471e8ca7f")
 )
 
 // JacobianPoint is an element of the group formed by the secp256k1 curve in

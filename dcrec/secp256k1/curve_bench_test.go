@@ -57,7 +57,7 @@ func BenchmarkAddNonConstNotZOne(b *testing.B) {
 // BenchmarkScalarBaseMultNonConst benchmarks multiplying a scalar by the base
 // point of the curve using whichever variant is active.
 func BenchmarkScalarBaseMultNonConst(b *testing.B) {
-	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := mustModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -70,7 +70,7 @@ func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 // BenchmarkScalarBaseMultNonConstFast benchmarks multiplying a scalar by the
 // base point of the curve using the fast variant.
 func BenchmarkScalarBaseMultNonConstFast(b *testing.B) {
-	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := mustModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -83,7 +83,7 @@ func BenchmarkScalarBaseMultNonConstFast(b *testing.B) {
 // BenchmarkScalarBaseMultNonConstSlow benchmarks multiplying a scalar by the
 // base point of the curve using the resource-constrained slow variant.
 func BenchmarkScalarBaseMultNonConstSlow(b *testing.B) {
-	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := mustModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -101,7 +101,7 @@ func BenchmarkSplitK(b *testing.B) {
 	// produced scalars.
 	h := "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0"
 	negOne := new(ModNScalar).NegateVal(oneModN)
-	halfOrder := hexToModNScalar(h)
+	halfOrder := mustModNScalar(h)
 	halfOrderMOne := new(ModNScalar).Add2(halfOrder, negOne)
 	halfOrderPOne := new(ModNScalar).Add2(halfOrder, oneModN)
 	lambdaMOne := new(ModNScalar).Add2(endoLambda, negOne)
@@ -141,7 +141,7 @@ func BenchmarkSplitK(b *testing.B) {
 // BenchmarkScalarMultNonConst benchmarks multiplying a scalar by an arbitrary
 // point on the curve.
 func BenchmarkScalarMultNonConst(b *testing.B) {
-	k := hexToModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	k := mustModNScalar("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 	point := jacobianPointFromHex(
 		"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
 		"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",

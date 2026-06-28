@@ -59,7 +59,7 @@ func TestGeneratePrivateKeyCorners(t *testing.T) {
 	// 2nd invocation: The curve order
 	// 3rd invocation: The curve order + 1
 	// 4th invocation: 1 (32-byte big endian)
-	oneModN := hexToModNScalar("01")
+	oneModN := mustModNScalar("01")
 	var numReads int
 	mockReader := mockPrivateKeyReaderFunc(func(p []byte) (int, error) {
 		numReads++
@@ -152,7 +152,7 @@ func TestPrivKeys(t *testing.T) {
 func TestPrivateKeyZero(t *testing.T) {
 	// Create a new private key and zero the initial key material that is now
 	// copied into the private key.
-	key := new(ModNScalar).SetHex("eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694")
+	key := mustModNScalar("eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694")
 	privKey := NewPrivateKey(key)
 	key.Zero()
 
