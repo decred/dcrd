@@ -1,15 +1,15 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package secp256k1
 
-// ErrorKind identifies a kind of error.  It has full support for errors.Is and
-// errors.As, so the caller can directly check against an error kind when
+// ErrorKind identifies a kind of error.  It has full support for [errors.Is]
+// and [errors.As], so the caller can directly check against an error kind when
 // determining the reason for an error.
 type ErrorKind string
 
-// These constants are used to identify a specific RuleError.
+// These constants are used to identify a specific [Error].
 const (
 	// ErrPubKeyInvalidLen indicates that the length of a serialized public
 	// key is not one of the allowed lengths.
@@ -43,7 +43,7 @@ func (e ErrorKind) Error() string {
 }
 
 // Error identifies an error related to public key cryptography using a
-// sec256k1 curve. It has full support for errors.Is and errors.As, so the
+// sec256k1 curve. It has full support for [errors.Is] and [errors.As], so the
 // caller can  ascertain the specific reason for the error by checking
 // the underlying error.
 type Error struct {
@@ -61,7 +61,7 @@ func (e Error) Unwrap() error {
 	return e.Err
 }
 
-// makeError creates an Error given a set of arguments.
+// makeError creates an [Error] given a set of arguments.
 func makeError(kind ErrorKind, desc string) Error {
 	return Error{Err: kind, Description: desc}
 }

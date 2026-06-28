@@ -10,7 +10,7 @@ import (
 )
 
 // BenchmarkFieldNormalize benchmarks how long it takes the internal field
-// to perform normalization (which includes modular reduction).
+// to perform normalization (which includes modular reduction) with [FieldVal].
 func BenchmarkFieldNormalize(b *testing.B) {
 	// The function is constant time so any value is fine.
 	f := &FieldVal{n: [10]uint32{

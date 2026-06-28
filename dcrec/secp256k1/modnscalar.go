@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -183,8 +183,8 @@ func (s *ModNScalar) Zero() {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsZero for the version that returns
-// a bool.
+// operations require a numeric value.  See [ModNScalar.IsZero] for the version
+// that returns a bool.
 func (s *ModNScalar) IsZeroBit() uint32 {
 	// The scalar can only be zero if no bits are set in any of the words.
 	bits := s.n[0] | s.n[1] | s.n[2] | s.n[3] | s.n[4] | s.n[5] | s.n[6] | s.n[7]
@@ -384,23 +384,24 @@ func (s *ModNScalar) PutBytesUnchecked(b []byte) {
 // PutBytes unpacks the scalar to a 32-byte big-endian value using the passed
 // byte array in constant time.
 //
-// There is a similar function, PutBytesUnchecked, which unpacks the scalar into
-// a slice that must have at least 32 bytes available.  This version is provided
-// since it can be useful to write directly into an array that is type checked.
+// There is a similar function, [ModNScalar.PutBytesUnchecked], which unpacks
+// the scalar into a slice that must have at least 32 bytes available.  This
+// version is provided since it can be useful to write directly into an array
+// that is type checked.
 //
-// Alternatively, there is also Bytes, which unpacks the scalar into a new array
-// and returns that which can sometimes be more ergonomic in applications that
-// aren't concerned about an additional copy.
+// Alternatively, there is also [ModNScalar.Bytes], which unpacks the scalar
+// into a new array and returns that which can sometimes be more ergonomic in
+// applications that aren't concerned about an additional copy.
 func (s *ModNScalar) PutBytes(b *[32]byte) {
 	s.PutBytesUnchecked(b[:])
 }
 
 // Bytes unpacks the scalar to a 32-byte big-endian value in constant time.
 //
-// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
-// to be passed which can be useful to cut down on the number of allocations
-// by allowing the caller to reuse a buffer or write directly into part of a
-// larger buffer.
+// See [ModNScalar.PutBytes] and [ModNScalar.PutBytesUnchecked] for variants
+// that allow an array or slice to be passed which can be useful to cut down on
+// the number of allocations by allowing the caller to reuse a buffer or write
+// directly into part of a larger buffer.
 func (s *ModNScalar) Bytes() [32]byte {
 	var b [32]byte
 	s.PutBytesUnchecked(b[:])

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Copyright 2013-2014 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -1246,7 +1246,7 @@ var jacobianG = func() JacobianPoint {
 	return G
 }()
 
-// scalarBaseMultNonConstSlow computes k*G through ScalarMultNonConst.
+// scalarBaseMultNonConstSlow computes k*G through [ScalarMultNonConst].
 func scalarBaseMultNonConstSlow(k *ModNScalar, result *JacobianPoint) {
 	ScalarMultNonConst(k, &jacobianG, result)
 }
