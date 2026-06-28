@@ -960,10 +960,6 @@ func TestFieldNegate(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "1 -> secp256k1 prime - 1",
 		in:       "1",
 		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -999,7 +995,7 @@ func TestFieldNegate(t *testing.T) {
 
 	for _, test := range tests {
 		f := mustFieldValWithOverflow(test.in).Normalize()
-		expected := mustFieldValWithOverflow(test.expected).Normalize()
+		expected := mustFieldVal(test.expected).Normalize()
 
 		// Ensure negating another value produces the expected result.
 		result := new(FieldVal).NegateVal(f, 1).Normalize()
@@ -1373,10 +1369,6 @@ func TestFieldSquare(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "secp256k1 prime - 1",
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
 		expected: "1",
@@ -1404,7 +1396,7 @@ func TestFieldSquare(t *testing.T) {
 
 	for _, test := range tests {
 		f := mustFieldValWithOverflow(test.in).Normalize()
-		expected := mustFieldValWithOverflow(test.expected).Normalize()
+		expected := mustFieldVal(test.expected).Normalize()
 
 		// Ensure squaring the value with the result going to another variable
 		// produces the expected result.
@@ -1444,11 +1436,6 @@ func TestFieldSquareRoot(t *testing.T) {
 		in:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		valid: true,
 		want:  "0",
-	}, {
-		name:  "secp256k1 prime (as 0 in direct val out)",
-		in:    "0",
-		valid: true,
-		want:  "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 	}, {
 		name:  "secp256k1 prime-1",
 		in:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -1503,7 +1490,7 @@ func TestFieldSquareRoot(t *testing.T) {
 
 	for _, test := range tests {
 		input := mustFieldValWithOverflow(test.in).Normalize()
-		want := mustFieldValWithOverflow(test.want).Normalize()
+		want := mustFieldVal(test.want).Normalize()
 
 		// Calculate the square root and enusre the validity flag matches the
 		// expected value.
@@ -1585,10 +1572,6 @@ func TestFieldInverse(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime (0 in with direct val out)",
-		in:       "0",
-		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-	}, {
 		name:     "secp256k1 prime - 1",
 		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
 		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
@@ -1616,7 +1599,7 @@ func TestFieldInverse(t *testing.T) {
 
 	for _, test := range tests {
 		f := mustFieldValWithOverflow(test.in).Normalize()
-		expected := mustFieldValWithOverflow(test.expected).Normalize()
+		expected := mustFieldVal(test.expected).Normalize()
 		result := f.Inverse().Normalize()
 		if !result.Equals(expected) {
 			t.Errorf("%s: d wrong result\ngot: %v\nwant: %v", test.name, result,
