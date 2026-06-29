@@ -85,6 +85,89 @@ func NewPublicKey(x, y *FieldVal) *PublicKey {
 	return &pubKey
 }
 
+func (p *PublicKey) parse(serialized []byte) error {
+	var x, y FieldVal
+	switch len(serialized) {
+	case PubKeyBytesLenUncompressed:
+		// Reject unsupported public key formats for the given length.
+		format := serialized[0]
+		switch format {
+		case PubKeyFormatUncompressed:
+		case PubKeyFormatHybridEven, PubKeyFormatHybridOdd:
+		default:
+			str := fmt.Sprintf("invalid public key: unsupported format: %x",
+				format)
+			return makeError(ErrPubKeyInvalidFormat, str)
+		}
+
+		// Parse the x and y coordinates while ensuring that they are in the
+		// allowed range.
+		if overflow := x.SetByteSlice(serialized[1:33]); overflow {
+			str := "invalid public key: x >= field prime"
+			return makeError(ErrPubKeyXTooBig, str)
+		}
+		if overflow := y.SetByteSlice(serialized[33:]); overflow {
+			str := "invalid public key: y >= field prime"
+			return makeError(ErrPubKeyYTooBig, str)
+		}
+
+		// Ensure the oddness of the y coordinate matches the specified format
+		// for hybrid public keys.
+		if format == PubKeyFormatHybridEven || format == PubKeyFormatHybridOdd {
+			wantOddY := format == PubKeyFormatHybridOdd
+			if y.IsOdd() != wantOddY {
+				str := fmt.Sprintf("invalid public key: y oddness does not "+
+					"match specified value of %v", wantOddY)
+				return makeError(ErrPubKeyMismatchedOddness, str)
+			}
+		}
+
+		// Reject public keys that are not on the secp256k1 curve.
+		if !isOnCurve(&x, &y) {
+			str := fmt.Sprintf("invalid public key: [%v,%v] not on secp256k1 "+
+				"curve", x, y)
+			return makeError(ErrPubKeyNotOnCurve, str)
+		}
+
+	case PubKeyBytesLenCompressed:
+		// Reject unsupported public key formats for the given length.
+		format := serialized[0]
+		switch format {
+		case PubKeyFormatCompressedEven, PubKeyFormatCompressedOdd:
+		default:
+			str := fmt.Sprintf("invalid public key: unsupported format: %x",
+				format)
+			return makeError(ErrPubKeyInvalidFormat, str)
+		}
+
+		// Parse the x coordinate while ensuring that it is in the allowed
+		// range.
+		if overflow := x.SetByteSlice(serialized[1:33]); overflow {
+			str := "invalid public key: x >= field prime"
+			return makeError(ErrPubKeyXTooBig, str)
+		}
+
+		// Attempt to calculate the y coordinate for the given x coordinate such
+		// that the result pair is a point on the secp256k1 curve and the
+		// solution with desired oddness is chosen.
+		wantOddY := format == PubKeyFormatCompressedOdd
+		if !DecompressY(&x, wantOddY, &y) {
+			str := fmt.Sprintf("invalid public key: x coordinate %v is not on "+
+				"the secp256k1 curve", x)
+			return makeError(ErrPubKeyNotOnCurve, str)
+		}
+
+	default:
+		str := fmt.Sprintf("malformed public key: invalid length: %d",
+			len(serialized))
+		return makeError(ErrPubKeyInvalidLen, str)
+	}
+
+	p.x.Set(&x)
+	p.y.Set(&y)
+	return nil
+}
+
 // ParsePubKey parses a secp256k1 public key encoded according to the format
 // specified by ANSI X9.62-1998, which means it is also compatible with the
 // SEC (Standards for Efficient Cryptography) specification which is a subset of
@@ -106,85 +189,12 @@ func NewPublicKey(x, y *FieldVal) *PublicKey {
 // NOTE: The hybrid format makes little sense in practice an therefore this
 // package will not produce public keys serialized in this format.  However,
 // this function will properly parse them since they exist in the wild.
-func ParsePubKey(serialized []byte) (key *PublicKey, err error) {
-	var x, y FieldVal
-	switch len(serialized) {
-	case PubKeyBytesLenUncompressed:
-		// Reject unsupported public key formats for the given length.
-		format := serialized[0]
-		switch format {
-		case PubKeyFormatUncompressed:
-		case PubKeyFormatHybridEven, PubKeyFormatHybridOdd:
-		default:
-			str := fmt.Sprintf("invalid public key: unsupported format: %x",
-				format)
-			return nil, makeError(ErrPubKeyInvalidFormat, str)
-		}
-
-		// Parse the x and y coordinates while ensuring that they are in the
-		// allowed range.
-		if overflow := x.SetByteSlice(serialized[1:33]); overflow {
-			str := "invalid public key: x >= field prime"
-			return nil, makeError(ErrPubKeyXTooBig, str)
-		}
-		if overflow := y.SetByteSlice(serialized[33:]); overflow {
-			str := "invalid public key: y >= field prime"
-			return nil, makeError(ErrPubKeyYTooBig, str)
-		}
-
-		// Ensure the oddness of the y coordinate matches the specified format
-		// for hybrid public keys.
-		if format == PubKeyFormatHybridEven || format == PubKeyFormatHybridOdd {
-			wantOddY := format == PubKeyFormatHybridOdd
-			if y.IsOdd() != wantOddY {
-				str := fmt.Sprintf("invalid public key: y oddness does not "+
-					"match specified value of %v", wantOddY)
-				return nil, makeError(ErrPubKeyMismatchedOddness, str)
-			}
-		}
-
-		// Reject public keys that are not on the secp256k1 curve.
-		if !isOnCurve(&x, &y) {
-			str := fmt.Sprintf("invalid public key: [%v,%v] not on secp256k1 "+
-				"curve", x, y)
-			return nil, makeError(ErrPubKeyNotOnCurve, str)
-		}
-
-	case PubKeyBytesLenCompressed:
-		// Reject unsupported public key formats for the given length.
-		format := serialized[0]
-		switch format {
-		case PubKeyFormatCompressedEven, PubKeyFormatCompressedOdd:
-		default:
-			str := fmt.Sprintf("invalid public key: unsupported format: %x",
-				format)
-			return nil, makeError(ErrPubKeyInvalidFormat, str)
-		}
-
-		// Parse the x coordinate while ensuring that it is in the allowed
-		// range.
-		if overflow := x.SetByteSlice(serialized[1:33]); overflow {
-			str := "invalid public key: x >= field prime"
-			return nil, makeError(ErrPubKeyXTooBig, str)
-		}
-
-		// Attempt to calculate the y coordinate for the given x coordinate such
-		// that the result pair is a point on the secp256k1 curve and the
-		// solution with desired oddness is chosen.
-		wantOddY := format == PubKeyFormatCompressedOdd
-		if !DecompressY(&x, wantOddY, &y) {
-			str := fmt.Sprintf("invalid public key: x coordinate %v is not on "+
-				"the secp256k1 curve", x)
-			return nil, makeError(ErrPubKeyNotOnCurve, str)
-		}
-
-	default:
-		str := fmt.Sprintf("malformed public key: invalid length: %d",
-			len(serialized))
-		return nil, makeError(ErrPubKeyInvalidLen, str)
+func ParsePubKey(serialized []byte) (*PublicKey, error) {
+	var key PublicKey
+	if err := key.parse(serialized); err != nil {
+		return nil, err
 	}
-
-	return NewPublicKey(&x, &y), nil
+	return &key, nil
 }
 
 // SerializeUncompressed serializes a public key in the 65-byte uncompressed
