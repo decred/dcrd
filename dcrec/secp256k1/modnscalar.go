@@ -7,6 +7,7 @@ package secp256k1
 import (
 	"encoding/hex"
 	"math/big"
+	"sync"
 )
 
 // References:
@@ -1018,6 +1019,29 @@ func (s *ModNScalar) Negate() *ModNScalar {
 	return s.NegateVal(s)
 }
 
+// intPool is used to reduce allocations of [big.Int] limbs while calculating
+// inverse modulo on [ModNScalar].
+type intPool struct {
+	pool sync.Pool
+}
+
+func (i *intPool) put(v *big.Int) {
+	v.SetInt64(0)
+	i.pool.Put(v)
+}
+
+func (i *intPool) get() *big.Int {
+	return i.pool.Get().(*big.Int)
+}
+
+var intP = intPool{
+	pool: sync.Pool{
+		New: func() interface{} {
+			return new(big.Int)
+		},
+	},
+}
+
 // InverseValNonConst finds the modular multiplicative inverse of the passed
 // scalar and stores result in s in *non-constant* time.
 //
@@ -1027,9 +1051,18 @@ func (s *ModNScalar) InverseValNonConst(val *ModNScalar) *ModNScalar {
 	// This is making use of big integers for now.  Ideally it will be replaced
 	// with an implementation that does not depend on big integers.
 	valBytes := val.Bytes()
-	bigVal := new(big.Int).SetBytes(valBytes[:])
+
+	// Reuse [big.Int] to avoid limb allocation.
+	bigVal := intP.get().SetBytes(valBytes[:])
 	bigVal.ModInverse(bigVal, curveParams.N)
-	s.SetByteSlice(bigVal.Bytes())
+	var bigBytes [32]byte
+	bigVal.FillBytes(bigBytes[:])
+	s.SetBytes(&bigBytes)
+
+	// Cleanup.
+	zeroArray32(&bigBytes)
+	intP.put(bigVal)
+
 	return s
 }
 
