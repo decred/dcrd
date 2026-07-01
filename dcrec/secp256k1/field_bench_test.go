@@ -88,6 +88,58 @@ func BenchmarkFieldAdd(b *testing.B) {
 	}
 }
 
+// BenchmarkFieldMulBy2 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 2 with [FieldVal.MulBy2].
+func BenchmarkFieldMulBy2(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy2()
+	}
+}
+
+// BenchmarkFieldMulBy3 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 3 with [FieldVal.MulBy3].
+func BenchmarkFieldMulBy3(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy3()
+	}
+}
+
+// BenchmarkFieldMulBy4 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 4 with [FieldVal.MulBy4].
+func BenchmarkFieldMulBy4(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy4()
+	}
+}
+
+// BenchmarkFieldMulBy8 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 8 with [FieldVal.MulBy8].
+func BenchmarkFieldMulBy8(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy8()
+	}
+}
+
 // BenchmarkFieldMulInt benchmarks multiplying an unsigned 256-bit big-endian
 // integer by small integers with [FieldVal.MulInt].
 func BenchmarkFieldMulInt(b *testing.B) {
