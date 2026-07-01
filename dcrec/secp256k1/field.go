@@ -773,11 +773,81 @@ func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	return f
 }
 
+// MulBy2 multiplies the field value by 2 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy2().Add(f2) so that f = 2 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 2 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 2
+func (f *FieldVal) MulBy2() *FieldVal {
+	return f.MulInt(2)
+}
+
+// MulBy3 multiplies the field value by 3 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy3().Add(f2) so that f = 3 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 3 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 3
+func (f *FieldVal) MulBy3() *FieldVal {
+	return f.MulInt(3)
+}
+
+// MulBy4 multiplies the field value by 4 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy4().Add(f2) so that f = 4 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 4 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 4
+func (f *FieldVal) MulBy4() *FieldVal {
+	return f.MulInt(4)
+}
+
+// MulBy8 multiplies the field value by 8 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy8().Add(f2) so that f = 8 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 8 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 8
+func (f *FieldVal) MulBy8() *FieldVal {
+	return f.MulInt(8)
+}
+
 // MulInt multiplies the field value by the passed int and stores the result in
 // f in constant time.  Note that this function can overflow if multiplying the
 // value by any of the individual words exceeds a max uint32.  Therefore it is
 // important that the caller ensures no overflows will occur before using this
 // function.
+//
+// Callers should prefer using the specialized methods for multiplying by 2, 3,
+// 4, and 8, as they are commonly used in curve equations.
+//
+// See [FieldVal.MulBy2], [FieldVal.MulBy3], [FieldVal.MulBy4], and
+// [FieldVal.MulBy8] for the aforementioned specialized methods.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.MulInt(2).Add(f2) so that f = 2 * f + f2.
