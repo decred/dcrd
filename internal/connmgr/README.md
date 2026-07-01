@@ -28,11 +28,17 @@ The following is a brief overview of the key features:
     address source (`GetNewAddress`)
 - Persistent connections
   - Maintains up to `MaxPersistent` addresses that are automatically retried
-    with exponential backoff on disconnect
+    with exponential backoff and jitter on disconnect
 - Manual connections
   - Supports manual connection establishment via `Connect`
+- Connection limits
+  - Limits total normal (non-persistent) connections to `MaxNormalConns`
+  - Limits per-host connections to `MaxConnsPerHost` with exemptions for
+    whitelisted and loopback addresses
 - Duplicate address prevention
   - Rejects duplicate connections to and from the same address (host:port)
+- Whitelist support
+  - CIDR-based whitelists that allow bypassing certain limits and restrictions
 - Rich managed connections via `Conn`
   - Connection types for differentiated handling
   - Automatic cleanup on connection close

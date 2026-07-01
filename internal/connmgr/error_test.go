@@ -19,6 +19,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrDialNil, "ErrDialNil"},
 		{ErrAlreadyPending, "ErrAlreadyPending"},
 		{ErrAlreadyConnected, "ErrAlreadyConnected"},
+		{ErrMaxNormalConns, "ErrMaxNormalConns"},
 		{ErrMaxPersistent, "ErrMaxPersistent"},
 		{ErrDuplicatePersistent, "ErrDuplicatePersistent"},
 		{ErrNotFound, "ErrNotFound"},
