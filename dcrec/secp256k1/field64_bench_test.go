@@ -4,60 +4,30 @@
 
 package secp256k1
 
-import "testing"
+import (
+	"testing"
+)
 
-// These benchmarks mirror the FieldVal (field_bench_test.go) suite for
-// FieldVal64 so the two implementations can be compared directly.
-
-// BenchmarkField64Sqrt benchmarks calculating the square root of an unsigned
-// 256-bit big-endian integer modulo the field prime with the FieldVal64 type.
-func BenchmarkField64Sqrt(b *testing.B) {
+// BenchmarkField64Negate benchmarks calculating the additive inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with [FieldVal64].
+func BenchmarkField64Negate(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
+	f := hexToFieldVal64(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var result FieldVal64
-		_ = result.SquareRootVal(f)
+		_ = result.NegateVal(f)
 	}
 }
 
-// BenchmarkField64Inverse benchmarks calculating the multiplicative inverse of
-// an unsigned 256-bit big-endian integer modulo the field prime with the
-// FieldVal64 type.
-func BenchmarkField64Inverse(b *testing.B) {
-	// The function is constant time so any value is fine.
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		f.Inverse()
-	}
-}
-
-// BenchmarkField64IsGtOrEqPrimeMinusOrder benchmarks determining whether a value
-// is greater than or equal to the field prime minus the group order with the
-// FieldVal64 type.
-func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
-	// The function is constant time so any value is fine.
-	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(FieldVal64).SetHex(valHex)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = f.IsGtOrEqPrimeMinusOrder()
-	}
-}
-
-// BenchmarkField64Add benchmarks adding two field values.
+// BenchmarkField64Add benchmarks adding two unsigned 256-bit big-endian
+// integers modulo the field prime with [FieldVal64].
 func BenchmarkField64Add(b *testing.B) {
-	a := new(FieldVal64).SetHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -67,10 +37,76 @@ func BenchmarkField64Add(b *testing.B) {
 	}
 }
 
-// BenchmarkField64Mul benchmarks multiplying two field values.
+// BenchmarkField64MulBy2 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 2 with [FieldVal64.MulBy2].
+func BenchmarkField64MulBy2(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy2()
+	}
+}
+
+// BenchmarkField64MulBy3 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 3 with [FieldVal64.MulBy3].
+func BenchmarkField64MulBy3(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy3()
+	}
+}
+
+// BenchmarkField64MulBy4 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 4 with [FieldVal64.MulBy4].
+func BenchmarkField64MulBy4(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy4()
+	}
+}
+
+// BenchmarkField64MulBy8 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 8 with [FieldVal64.MulBy8].
+func BenchmarkField64MulBy8(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulBy8()
+	}
+}
+
+// BenchmarkFieldMulInt benchmarks multiplying an unsigned 256-bit big-endian
+// integer by small integers with [FieldVal64.MulInt].
+func BenchmarkField64MulInt(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulInt(2)
+	}
+}
+
+// BenchmarkField64Mul benchmarks multiplying two unsigned 256-bit big-endian
+// integers modulo the field prime with [FieldVal64].
 func BenchmarkField64Mul(b *testing.B) {
-	a := new(FieldVal64).SetHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
-	c := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	c := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -80,14 +116,60 @@ func BenchmarkField64Mul(b *testing.B) {
 	}
 }
 
-// BenchmarkField64Square benchmarks squaring a field value.
+// BenchmarkField64Sqrt benchmarks calculating the square root of an unsigned
+// 256-bit big-endian integer modulo the field prime with the FieldVal64 type.
+func BenchmarkField64Sqrt(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(valHex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result FieldVal64
+		_ = result.SquareRootVal(f)
+	}
+}
+
+// BenchmarkField64Square benchmarks squaring a 256-bit big-endian integer
+// modulo the field prime with [FieldVal64].
 func BenchmarkField64Square(b *testing.B) {
-	a := new(FieldVal64).SetHex("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
+	a := hexToFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var sq FieldVal64
 		sq.SquareVal(a)
+	}
+}
+
+// BenchmarkField64Inverse benchmarks calculating the multiplicative inverse of
+// an unsigned 256-bit big-endian integer modulo the field prime with
+// [FieldVal64].
+func BenchmarkField64Inverse(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(valHex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.Inverse()
+	}
+}
+
+// BenchmarkField64IsGtOrEqPrimeMinusOrder benchmarks determining whether a
+// value is greater than or equal to the field prime minus the group order with
+// [FieldVal64].
+func BenchmarkField64IsGtOrEqPrimeMinusOrder(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := hexToFieldVal64(valHex)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = f.IsGtOrEqPrimeMinusOrder()
 	}
 }
