@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,9 +16,9 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// This example demonstrates use of GenerateSharedSecret to encrypt a message
-// for a recipient's public key, and subsequently decrypt the message using the
-// recipient's private key.
+// This example demonstrates use of [secp256k1.GenerateSharedSecret] to encrypt
+// a message for a recipient's public key, and subsequently decrypt the message
+// using the recipient's private key.
 func Example_encryptDecryptMessage() {
 	newAEAD := func(key []byte) (cipher.AEAD, error) {
 		block, err := aes.NewCipher(key)

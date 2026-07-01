@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -24,8 +24,8 @@ An overview of the features provided by this package are as follows:
   - Parses uncompressed, compressed, and hybrid public keys
   - Serializes uncompressed and compressed public keys
   - Specialized types for performing optimized and constant time field operations
-  - FieldVal type for working modulo the secp256k1 field prime
-  - ModNScalar type for working modulo the secp256k1 group order
+  - [FieldVal] type for working modulo the secp256k1 field prime
+  - [ModNScalar] type for working modulo the secp256k1 group order
   - Elliptic curve operations in Jacobian projective coordinates
   - Point addition
   - Point doubling
@@ -37,11 +37,11 @@ An overview of the features provided by this package are as follows:
     algorithms
 
 It also provides an implementation of the Go standard library crypto/elliptic
-Curve interface via the S256 function so that it may be used with other packages
-in the standard library such as crypto/tls, crypto/x509, and crypto/ecdsa.
-However, in the case of ECDSA, it is highly recommended to use the ecdsa sub
-package of this package instead since it is optimized specifically for secp256k1
-and is significantly faster as a result.
+Curve interface via the [S256] function so that it may be used with other
+packages in the standard library such as crypto/tls, crypto/x509, and
+crypto/ecdsa.  However, in the case of ECDSA, it is highly recommended to use
+the ecdsa sub package of this package instead since it is optimized specifically
+for secp256k1 and is significantly faster as a result.
 
 Although this package was primarily written for dcrd, it has intentionally been
 designed so it can be used as a standalone package for any projects needing to

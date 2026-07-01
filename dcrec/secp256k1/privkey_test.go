@@ -152,7 +152,7 @@ func TestPrivKeys(t *testing.T) {
 func TestPrivateKeyZero(t *testing.T) {
 	// Create a new private key and zero the initial key material that is now
 	// copied into the private key.
-	key := new(ModNScalar).SetHex("eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694")
+	key := hexToModNScalar("eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694")
 	privKey := NewPrivateKey(key)
 	key.Zero()
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Copyright 2013-2014 The btcsuite developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -26,27 +26,49 @@ import (
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3.
 
-// hexToFieldVal converts the passed hex string into a FieldVal and will panic
-// if there is an error.  This is only provided for the hard-coded constants so
-// errors in the source code can be detected. It will only (and must only) be
-// called with hard-coded values.
-func hexToFieldVal(s string) *FieldVal {
+// hexToFieldValInternal converts the passed hex string into a [FieldVal] and
+// will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToFieldValInternal(s string, allowOverflow bool) *FieldVal {
+	if len(s)%2 != 0 {
+		s = "0" + s
+	}
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var f FieldVal
-	if overflow := f.SetByteSlice(b); overflow {
-		panic("hex in source file overflows mod P: " + s)
+	if overflow := f.SetByteSlice(b); overflow && !allowOverflow {
+		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	return &f
 }
 
-// hexToModNScalar converts the passed hex string into a ModNScalar and will
-// panic if there is an error.  This is only provided for the hard-coded
-// constants so errors in the source code can be detected. It will only (and
-// must only) be called with hard-coded values.
-func hexToModNScalar(s string) *ModNScalar {
+// hexToFieldVal converts the passed hex string into a [FieldVal] and will panic
+// if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToFieldVal(s string) *FieldVal {
+	return hexToFieldValInternal(s, false)
+}
+
+// hexToModNScalarInternal converts the passed hex string into a [ModNScalar]
+// and will panic if there is an error.  Values that overflow are treated as an
+// error unless the allow overflow flag is set.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected. It will only (and must only) be called with hard-coded
+// values.
+func hexToModNScalarInternal(s string, allowOverflow bool) *ModNScalar {
 	var isNegative bool
 	if len(s) > 0 && s[0] == '-' {
 		isNegative = true
@@ -59,14 +81,27 @@ func hexToModNScalar(s string) *ModNScalar {
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
+	if len(b) > 32 {
+		panic("hex in source file overflows uint256: " + s)
+	}
 	var scalar ModNScalar
-	if overflow := scalar.SetByteSlice(b); overflow {
+	if overflow := scalar.SetByteSlice(b); overflow && !allowOverflow {
 		panic("hex in source file overflows mod N scalar: " + s)
 	}
 	if isNegative {
 		scalar.Negate()
 	}
 	return &scalar
+}
+
+// hexToModNScalar converts the passed hex string into a [ModNScalar] and will
+// panic if there is an error.  Values that overflow are treated as an error.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected.  It will only (and must only) be called with hard-coded
+// values.
+func hexToModNScalar(s string) *ModNScalar {
+	return hexToModNScalarInternal(s, false)
 }
 
 var (
@@ -1246,7 +1281,7 @@ var jacobianG = func() JacobianPoint {
 	return G
 }()
 
-// scalarBaseMultNonConstSlow computes k*G through ScalarMultNonConst.
+// scalarBaseMultNonConstSlow computes k*G through [ScalarMultNonConst].
 func scalarBaseMultNonConstSlow(k *ModNScalar, result *JacobianPoint) {
 	ScalarMultNonConst(k, &jacobianG, result)
 }
