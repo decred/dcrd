@@ -84,11 +84,10 @@ func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 	s2, borrow = bits.Sub64(f.n[2], field64Prime2, borrow)
 	s3, borrow = bits.Sub64(f.n[3], field64Prime3, borrow)
 
-	mask := -(1 - borrow)
-	f.n[0] ^= (s0 ^ f.n[0]) & mask
-	f.n[1] ^= (s1 ^ f.n[1]) & mask
-	f.n[2] ^= (s2 ^ f.n[2]) & mask
-	f.n[3] ^= (s3 ^ f.n[3]) & mask
+	f.n[0] = constantTimeSelect64(borrow, f.n[0], s0)
+	f.n[1] = constantTimeSelect64(borrow, f.n[1], s1)
+	f.n[2] = constantTimeSelect64(borrow, f.n[2], s2)
+	f.n[3] = constantTimeSelect64(borrow, f.n[3], s3)
 	return uint32(1 - borrow)
 }
 
@@ -301,11 +300,11 @@ func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
 
 	// Pass 3: constant-time select. Keep t only when there was no overflow and
 	// t < p (borrow set); otherwise use s
-	mask := -((1 - overflow) & borrow)
-	f.n[0] = s0 ^ ((t0 ^ s0) & mask)
-	f.n[1] = s1 ^ ((t1 ^ s1) & mask)
-	f.n[2] = s2 ^ ((t2 ^ s2) & mask)
-	f.n[3] = s3 ^ ((t3 ^ s3) & mask)
+	cond := (1 - overflow) & borrow
+	f.n[0] = constantTimeSelect64(cond, t0, s0)
+	f.n[1] = constantTimeSelect64(cond, t1, s1)
+	f.n[2] = constantTimeSelect64(cond, t2, s2)
+	f.n[3] = constantTimeSelect64(cond, t3, s3)
 	return f
 }
 
@@ -553,17 +552,16 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	// subtract of p fully reduces it.
 	t4 = carry
 
-	var s0, s1, s2, s3, mask, borrow uint64
+	var s0, s1, s2, s3, borrow uint64
 	s0, borrow = bits.Sub64(t0, field64Prime0, 0)
 	s1, borrow = bits.Sub64(t1, field64Prime1, borrow)
 	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
 	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
 	_, borrow = bits.Sub64(t4, 0, borrow)
-	mask = -borrow
-	r[0] = s0 ^ ((t0 ^ s0) & mask)
-	r[1] = s1 ^ ((t1 ^ s1) & mask)
-	r[2] = s2 ^ ((t2 ^ s2) & mask)
-	r[3] = s3 ^ ((t3 ^ s3) & mask)
+	r[0] = constantTimeSelect64(borrow, t0, s0)
+	r[1] = constantTimeSelect64(borrow, t1, s1)
+	r[2] = constantTimeSelect64(borrow, t2, s2)
+	r[3] = constantTimeSelect64(borrow, t3, s3)
 }
 
 // field64Mul sets r = a * b (mod p).

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -74,10 +74,10 @@ type PublicKey struct {
 // NewPublicKey instantiates a new public key with the given x and y
 // coordinates.
 //
-// It should be noted that, unlike ParsePubKey, since this accepts arbitrary x
+// It should be noted that, unlike [ParsePubKey], since this accepts arbitrary x
 // and y coordinates, it allows creation of public keys that are not valid
-// points on the secp256k1 curve.  The IsOnCurve method of the returned instance
-// can be used to determine validity.
+// points on the secp256k1 curve.  The [PublicKey.IsOnCurve] method of the
+// returned instance can be used to determine validity.
 func NewPublicKey(x, y *FieldVal) *PublicKey {
 	var pubKey PublicKey
 	pubKey.x.Set(x)

@@ -35,14 +35,16 @@ func BenchmarkAddNonConst(b *testing.B) {
 // function with Z values other than one so the optimizations associated with
 // Z=1 aren't used.
 func BenchmarkAddNonConstNotZOne(b *testing.B) {
-	x1 := new(FieldVal).SetHex("d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718")
-	y1 := new(FieldVal).SetHex("5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190")
-	z1 := new(FieldVal).SetHex("2")
-	x2 := new(FieldVal).SetHex("91abba6a34b7481d922a4bd6a04899d5a686f6cf6da4e66a0cb427fb25c04bd4")
-	y2 := new(FieldVal).SetHex("03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1")
-	z2 := new(FieldVal).SetHex("3")
-	p1 := MakeJacobianPoint(x1, y1, z1)
-	p2 := MakeJacobianPoint(x2, y2, z2)
+	p1 := jacobianPointFromHex(
+		"d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718",
+		"5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190",
+		"2",
+	)
+	p2 := jacobianPointFromHex(
+		"91abba6a34b7481d922a4bd6a04899d5a686f6cf6da4e66a0cb427fb25c04bd4",
+		"03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1",
+		"3",
+	)
 
 	b.ReportAllocs()
 	b.ResetTimer()
