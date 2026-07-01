@@ -67,7 +67,7 @@ func BenchmarkBigIntAddModP(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		result := new(big.Int).Add(v1, v2)
-		result.Mod(result, curveParams.N)
+		result.Mod(result, curveParams.P)
 	}
 }
 
