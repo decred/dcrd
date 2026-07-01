@@ -286,9 +286,9 @@ var secp256k1 = &KoblitzCurve{
 	},
 }
 
-// S256 returns an elliptic.Curve which implements secp256k1.
+// S256 returns an [elliptic.Curve] which implements secp256k1.
 //
-// Deprecated: The standard library elliptic.Curve interface is now deprecated
+// Deprecated: The standard library [elliptic.Curve] interface is now deprecated
 // and callers should interact with the safer, and much faster, specialized
 // methods instead.
 func S256() *KoblitzCurve {

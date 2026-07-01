@@ -1,6 +1,6 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
-// Copyright (c) 2013-2024 Dave Collins
+// Copyright (c) 2015-2026 The Decred developers
+// Copyright (c) 2013-2026 Dave Collins
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,34 +22,42 @@ package secp256k1
 //
 // There are various ways to internally represent each finite field element.
 // For example, the most obvious representation would be to use an array of 4
-// uint64s (64 bits * 4 = 256 bits).  However, that representation suffers from
-// a couple of issues.  First, there is no native Go type large enough to handle
-// the intermediate results while adding or multiplying two 64-bit numbers, and
-// second there is no space left for overflows when performing the intermediate
-// arithmetic between each array element which would lead to expensive carry
-// propagation.
+// uint64s (aka 4x64: 64 bits * 4 = 256 bits).  However, at the time this field
+// implementation was written, Go did not have access to hardware intrinsics, so
+// that representation suffered from a couple of issues.  First, there is no
+// native Go type large enough to handle the intermediate results while adding
+// or multiplying two 64-bit numbers, and second there is no space left for
+// overflows when performing the intermediate arithmetic between each array
+// element which would lead to expensive carry propagation.
 //
-// Given the above, this implementation represents the field elements as
-// 10 uint32s with each word (array entry) treated as base 2^26.  This was
+// While both of those things are still true without intrinsics, modern Go now
+// provides access to intrinsics that permit the hardware to perform both full
+// 128-bit products and addition with carry which entirely mitigates those
+// limitations.  As a result, there is now an alternative [FieldVal64]
+// implementation that uses the aforementioned 4x64 representation with
+// intrinsics.
+//
+// Given those limitations, this implementation represents the field elements as
+// 10 uint32s with each limb (array entry) treated as base 2^26.  This was
 // chosen for the following reasons:
 // 1) Most systems at the current time are 64-bit (or at least have 64-bit
 //    registers available for specialized purposes such as MMX) so the
 //    intermediate results can typically be done using a native register (and
 //    using uint64s to avoid the need for additional half-word arithmetic)
-// 2) In order to allow addition of the internal words without having to
+// 2) In order to allow addition of the internal limbs without having to
 //    propagate the carry, the max normalized value for each register must
 //    be less than the number of bits available in the register
 // 3) Since we're dealing with 32-bit values, 64-bits of overflow is a
 //    reasonable choice for #2
 // 4) Given the need for 256-bits of precision and the properties stated in #1,
 //    #2, and #3, the representation which best accommodates this is 10 uint32s
-//    with base 2^26 (26 bits * 10 = 260 bits, so the final word only needs 22
+//    with base 2^26 (26 bits * 10 = 260 bits, so the final limb only needs 22
 //    bits) which leaves the desired 64 bits (32 * 10 = 320, 320 - 256 = 64) for
 //    overflow
 //
 // Since it is so important that the field arithmetic is extremely fast for high
 // performance crypto, this type does not perform any validation where it
-// ordinarily would.  See the documentation for FieldVal for more details.
+// ordinarily would.  See the documentation for [FieldVal] for more details.
 
 import (
 	"encoding/hex"
@@ -234,10 +242,10 @@ func (f *FieldVal) SetInt(ui uint16) *FieldVal {
 }
 
 // SetBytes packs the passed 32-byte big-endian value into the internal field
-// value representation in constant time.  SetBytes interprets the provided
-// array as a 256-bit big-endian unsigned integer, packs it into the internal
-// field value representation, and returns either 1 if it is greater than or
-// equal to the field prime (aka it overflowed) or 0 otherwise in constant time.
+// value representation in constant time.  It interprets the provided array as a
+// 256-bit big-endian unsigned integer, packs it into the internal field value
+// representation, and returns either 1 if it is greater than or equal to the
+// field prime (aka it overflowed) or 0 otherwise in constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
@@ -437,10 +445,10 @@ func (f *FieldVal) Normalize() *FieldVal {
 // directly into the passed byte slice in constant time.  The target slice must
 // have at least 32 bytes available or it will panic.
 //
-// There is a similar function, PutBytes, which unpacks the field value into a
-// 32-byte array directly.  This version is provided since it can be useful
-// to write directly into part of a larger buffer without needing a separate
-// allocation.
+// There is a similar function, [FieldVal.PutBytes], which unpacks the field
+// value into a 32-byte array directly.  This version is provided since it can
+// be useful to write directly into part of a larger buffer without needing a
+// separate allocation.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -487,14 +495,14 @@ func (f *FieldVal) PutBytesUnchecked(b []byte) {
 // PutBytes unpacks the field value to a 32-byte big-endian value using the
 // passed byte array in constant time.
 //
-// There is a similar function, PutBytesUnchecked, which unpacks the field value
-// into a slice that must have at least 32 bytes available.  This version is
-// provided since it can be useful to write directly into an array that is type
-// checked.
+// There is a similar function, [FieldVal.PutBytesUnchecked], which unpacks the
+// field value into a slice that must have at least 32 bytes available.  This
+// version is provided since it can be useful to write directly into an array
+// that is type checked.
 //
-// Alternatively, there is also Bytes, which unpacks the field value into a new
-// array and returns that which can sometimes be more ergonomic in applications
-// that aren't concerned about an additional copy.
+// Alternatively, there is also [FieldVal.Bytes], which unpacks the field value
+// into a new array and returns that which can sometimes be more ergonomic in
+// applications that aren't concerned about an additional copy.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -504,10 +512,10 @@ func (f *FieldVal) PutBytes(b *[32]byte) {
 
 // Bytes unpacks the field value to a 32-byte big-endian value in constant time.
 //
-// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
-// to be passed which can be useful to cut down on the number of allocations by
-// allowing the caller to reuse a buffer or write directly into part of a larger
-// buffer.
+// See [FieldVal.PutBytes] and [FieldVal.PutBytesUnchecked] for variants that
+// allow an array or slice to be passed which can be useful to cut down on the
+// number of allocations by allowing the caller to reuse a buffer or write
+// directly into part of a larger buffer.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -522,8 +530,8 @@ func (f *FieldVal) Bytes() *[32]byte {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsZero for the version that returns
-// a bool.
+// operations require a numeric value.  See [FieldVal.IsZero] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -555,8 +563,8 @@ func (f *FieldVal) IsZero() bool {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsOne for the version that returns a
-// bool.
+// operations require a numeric value.  See [FieldVal.IsOne] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	   - The field value MUST be normalized
@@ -590,8 +598,8 @@ func (f *FieldVal) IsOne() bool {
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsOdd for the version that returns a
-// bool.
+// operations require a numeric value.  See [FieldVal.IsOdd] for the version
+// that returns a bool.
 //
 //	Preconditions:
 //	  - The field value MUST be normalized
@@ -765,11 +773,81 @@ func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	return f
 }
 
+// MulBy2 multiplies the field value by 2 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy2().Add(f2) so that f = 2 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 2 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 2
+func (f *FieldVal) MulBy2() *FieldVal {
+	return f.MulInt(2)
+}
+
+// MulBy3 multiplies the field value by 3 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy3().Add(f2) so that f = 3 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 3 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 3
+func (f *FieldVal) MulBy3() *FieldVal {
+	return f.MulInt(3)
+}
+
+// MulBy4 multiplies the field value by 4 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy4().Add(f2) so that f = 4 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 4 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 4
+func (f *FieldVal) MulBy4() *FieldVal {
+	return f.MulInt(4)
+}
+
+// MulBy8 multiplies the field value by 4 and stores the result in f in constant
+// time.  Note that this function can overflow if multiplying the value by any
+// of the individual words exceeds a max uint32.  Therefore it is important that
+// the caller ensures no overflows will occur before using this function.
+//
+// The field value is returned to support chaining.  This enables syntax like:
+// f.MulBy8().Add(f2) so that f = 8 * f + f2.
+//
+//	Preconditions:
+//	  - The field value magnitude multiplied by 8 val MUST be a max of 32
+//	Output Normalized: No
+//	Output Max Magnitude: Existing field magnitude times 8
+func (f *FieldVal) MulBy8() *FieldVal {
+	return f.MulInt(8)
+}
+
 // MulInt multiplies the field value by the passed int and stores the result in
 // f in constant time.  Note that this function can overflow if multiplying the
 // value by any of the individual words exceeds a max uint32.  Therefore it is
 // important that the caller ensures no overflows will occur before using this
 // function.
+//
+// Callers should prefer using the specialized methods for multiplying by 2, 3,
+// 4, and 8, as they are commonly used in curve equations.
+//
+// See [FieldVal.MulBy2], [FieldVal.MulBy3], [FieldVal.MulBy4], and
+// [FieldVal.MulBy8] for the aforementioned specialized methods.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.MulInt(2).Add(f2) so that f = 2 * f + f2.

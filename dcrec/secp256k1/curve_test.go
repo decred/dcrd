@@ -93,11 +93,15 @@ func randJacobian(t *testing.T, rng *rand.Rand) *JacobianPoint {
 // jacobianPointFromHex decodes the passed big-endian hex strings into a
 // Jacobian point with its internal fields set to the resulting values.  Only
 // the first 32-bytes are used.
+//
+// This is only provided for the hard-coded constants so errors in the source
+// code can be detected.  It will only (and must only) be called with hard-coded
+// values.
 func jacobianPointFromHex(x, y, z string) JacobianPoint {
 	var p JacobianPoint
-	p.X.SetHex(x)
-	p.Y.SetHex(y)
-	p.Z.SetHex(z)
+	p.X = *hexToFieldVal(x)
+	p.Y = *hexToFieldVal(y)
+	p.Z = *hexToFieldVal(z)
 	return p
 }
 
@@ -1170,7 +1174,7 @@ func TestDecompressY(t *testing.T) {
 		// Decompress the test odd y coordinate for the given test x coordinate
 		// and ensure the returned validity flag matches the expected result.
 		var oddY FieldVal
-		fx := new(FieldVal).SetHex(test.x)
+		fx := hexToFieldValWithOverflow(test.x)
 		valid := DecompressY(fx, true, &oddY)
 		if valid != test.valid {
 			t.Errorf("%s: unexpected valid flag -- got: %v, want: %v",
@@ -1194,7 +1198,7 @@ func TestDecompressY(t *testing.T) {
 		}
 
 		// Ensure the decompressed odd Y coordinate is the expected value.
-		wantOddY := new(FieldVal).SetHex(test.wantOddY)
+		wantOddY := hexToFieldVal(test.wantOddY)
 		if !wantOddY.Equals(&oddY) {
 			t.Errorf("%s: mismatched odd y\ngot: %v, want: %v", test.name,
 				oddY, wantOddY)
@@ -1202,7 +1206,7 @@ func TestDecompressY(t *testing.T) {
 		}
 
 		// Ensure the decompressed even Y coordinate is the expected value.
-		wantEvenY := new(FieldVal).SetHex(test.wantEvenY)
+		wantEvenY := hexToFieldVal(test.wantEvenY)
 		if !wantEvenY.Equals(&evenY) {
 			t.Errorf("%s: mismatched even y\ngot: %v, want: %v", test.name,
 				evenY, wantEvenY)
