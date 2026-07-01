@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,10 @@ const (
 	// the retry logic uses a backoff mechanism which increases the interval
 	// base times the number of retries that have been done.
 	defaultMaxRetryDuration = time.Minute * 5
+
+	// defaultMaxNormalConns is the default maximum number of normal inbound,
+	// outbound, and pending connections to permit.
+	defaultMaxNormalConns = 125
 
 	// defaultTargetOutbound is the default number of outbound connections to
 	// maintain.
@@ -232,11 +237,25 @@ type Config struct {
 	// connections in that case.
 	OnAccept func(*Conn)
 
+	// MaxNormalConns is the maximum number of normal inbound, outbound, and
+	// pending connections to permit.  Defaults to 125.
+	//
+	// Persistent connections do not count against this limit.  They have their
+	// own maximum defined by [MaxPersistent].
+	//
+	// Whitelisted connections and some connections with special permissions are
+	// also exempt.  As a result, the total number of connections may exceed
+	// this value.
+	MaxNormalConns uint32
+
 	// TargetOutbound is the number of outbound network connections to maintain
 	// automatically.  Defaults to 8.
 	//
 	// Persistent connections do not count against this value.  They have their
 	// own maximum limit defined by [MaxPersistent].
+	//
+	// This will be forced to the smaller of the specified value (or its default
+	// value when unspecified) and [Config.MaxNormalConns].
 	TargetOutbound uint32
 
 	// RetryDuration is the duration to wait before retrying connection
@@ -260,6 +279,10 @@ type Config struct {
 	// DialTimeout specifies the amount of time to wait for a connection to
 	// complete before giving up.
 	DialTimeout time.Duration
+
+	// Whitelists specifies CIDR address prefixes to whitelist.  Whitelisted
+	// addresses are exempt from banning and certain connection limits.
+	Whitelists []netip.Prefix
 }
 
 // ConnManager provides a manager to handle network connections.
@@ -285,10 +308,16 @@ type ConnManager struct {
 	// It is a buffered channel with size [MaxPersistent].
 	runPersistentChan chan *persistentEntry
 
-	// outboundSem limits the number of active outbound connections.  It does
-	// not apply to persistent connections which are separately limited to
-	// [MaxPersistent].
-	activeOutboundsSem semaphore
+	// These semaphores are used to enforce max limits on the number of
+	// connections of different kinds.  They do not apply to persistent
+	// connections which are separately limited to [MaxPersistent].
+	//
+	// totalNormalConnsSem limits the total overall number of normal inbound,
+	// outbound, and pending connections.
+	//
+	// outboundSem limits the number of active outbound connections.
+	totalNormalConnsSem semaphore
+	activeOutboundsSem  semaphore
 
 	// The fields below this point are all protected by the connection mutex.
 	connMtx sync.Mutex
@@ -315,6 +344,22 @@ type ConnManager struct {
 	// (host:port).  It is kept in sync with the persistent, pending, and active
 	// maps and is primarily used to efficiently reject duplicate connections.
 	connIDByAddr map[string]uint64
+}
+
+// IsWhitelisted returns whether the IP address is included in the whitelisted
+// networks and IPs.
+func (cm *ConnManager) IsWhitelisted(addr *addrmgr.NetAddress) bool {
+	if len(cm.cfg.Whitelists) == 0 {
+		return false
+	}
+
+	ip, _ := netip.AddrFromSlice(addr.IP)
+	for _, prefix := range cm.cfg.Whitelists {
+		if prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkShutdown returns [ErrShutdown] when the connection manager quit channel
@@ -524,6 +569,8 @@ func (cm *ConnManager) rejectDuplicateAddr(addr *addrmgr.NetAddress) error {
 //     to the address
 //   - [ErrAlreadyConnected] when there is already an established connection to
 //     the address
+//   - [ErrMaxNormalConns] when there are already the maximum allowed number of
+//     normal connections (inbound, outbound, and pending)
 //   - [ErrShutdown] when the connection manager is shutting down
 //   - [context.Canceled] or [context.DeadlineExceeded] depending on the
 //     provided context or when the dialer fails to establish a connection
@@ -673,9 +720,13 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 // the connection manager.
 //
 // Attempts to dial addresses that already have an established, pending, or
-// persistent connection will return an error as described below.
+// persistent connection or would exceed max allowed limits will return an error
+// as described below.
 //
-// The connection will have type [ConnTypeManual].
+// The connection will have type [ConnTypeManual] and the following connection
+// limits are enforced:
+//
+//   - Total normal connections ([Config.MaxNormalConns])
 //
 // Note that the context parameter to this function and the lifecycle context
 // may be independent.
@@ -689,6 +740,8 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 //     to the address
 //   - [ErrAlreadyConnected] when there is already an established connection to
 //     the address
+//   - [ErrMaxNormalConns] when there are already the maximum allowed number of
+//     normal connections (inbound, outbound, and pending)
 //   - [ErrShutdown] when the connection manager is shutting down
 //   - [context.Canceled] or [context.DeadlineExceeded] depending on the
 //     provided context or when the dialer fails to establish a connection
@@ -696,7 +749,21 @@ func (cm *ConnManager) dial(ctx context.Context, addr net.Addr, connType Connect
 //
 // This function is safe for concurrent access.
 func (cm *ConnManager) Connect(ctx context.Context, addr net.Addr) (*Conn, error) {
-	conn, err := cm.dial(ctx, addr, ConnTypeManual, nil, nil)
+	acquired, err := cm.totalNormalConnsSem.TryAcquire(ctx)
+	if err != nil {
+		if sErr := cm.checkShutdown(); sErr != nil {
+			return nil, sErr
+		}
+		return nil, err
+	}
+	if !acquired {
+		maxAllowed := cm.cfg.MaxNormalConns
+		str := fmt.Sprintf("a maximum of %d %s is allowed", maxAllowed,
+			pickNoun(maxAllowed, "connection", "connections"))
+		return nil, MakeError(ErrMaxNormalConns, str)
+	}
+	onClose := cm.totalNormalConnsSem.Release
+	conn, err := cm.dial(ctx, addr, ConnTypeManual, onClose, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -826,6 +893,18 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 	defer log.Tracef("Listener handler done for %s", listener.Addr())
 
 	for ctx.Err() == nil {
+		// The following is intentionally implementing active connection
+		// shedding by accepting connections and then immediately disconnecting
+		// them after the [net.Listener.Accept] call if any policies are
+		// violated.
+		//
+		// Reversing it and blocking until a permit is available and only then
+		// calling Accept would cause the connections to build up in the kernel.
+		// Then, since the kernel will still create the 3-way handshake, clients
+		// would connect and hang until their own timeouts are hit, and,
+		// eventually, the entire service could appear entirely down if the SYN
+		// queue were to fill.  It also would not allow implementing better
+		// additional policies.
 		netConn, err := listener.Accept()
 		if err != nil {
 			// Only log the error if not forcibly shutting down.
@@ -860,7 +939,29 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 		}
 		cm.connMtx.Unlock()
 
-		go func(netConn net.Conn) {
+		// Require a permit to allow the inbound connection unless the address
+		// has special permissions (e.g. whitelisted).
+		//
+		// Attempt to acquire a permit via a non-blocking call and immediately
+		// disconnect if unsuccessful so that all blocking happens on
+		// [net.Listener.Accept] for the reasons described above.
+		requirePermit := !cm.IsWhitelisted(rAddr)
+		if requirePermit {
+			acquired, err := cm.totalNormalConnsSem.TryAcquire(ctx)
+			if err != nil {
+				netConn.Close()
+				continue
+			}
+			if !acquired {
+				maxAllowed := cm.cfg.MaxNormalConns
+				log.Debugf("Dropped connection from %v: a maximum of %d %s is "+
+					"allowed", rAddr, maxAllowed, pickNoun(maxAllowed,
+					"connection", "connections"))
+				netConn.Close()
+				continue
+			}
+		}
+		go func(netConn net.Conn, requirePermit bool) {
 			// Create a new connection instance with the next globally unique
 			// connection ID, add an entry to the map that tracks all active
 			// connections, and invoke the configured accept callback with it.
@@ -876,6 +977,9 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 				cm.connMtx.Unlock()
 				log.Debugf("Disconnected from %v (id: %d, type: %v)", rAddr, id,
 					connType)
+				if requirePermit {
+					cm.totalNormalConnsSem.Release()
+				}
 			}
 			conn = newConn(cm, netConn, id, connType, rAddr, onClose)
 			cm.connMtx.Lock()
@@ -884,7 +988,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 			log.Debugf("Accepted connection from %v (id: %d, type: %v)", rAddr,
 				id, connType)
 			cm.cfg.OnAccept(conn)
-		}(netConn)
+		}(netConn, requirePermit)
 	}
 }
 
@@ -1126,16 +1230,28 @@ func (cm *ConnManager) targetOutboundHandler(ctx context.Context) {
 			return
 		}
 
+		// Wait for a permit to make another overall connection.  This limits
+		// the total number of normal connections while the previous limits the
+		// total number of automatic outbound connections.
+		if !cm.totalNormalConnsSem.Acquire(ctx) {
+			cm.activeOutboundsSem.Release()
+			return
+		}
+
 		addr, err := cm.cfg.GetNewAddress()
 		if err != nil {
 			failedAttempts.Add(1)
 			log.Debugf("Failed to get address for outbound connection: %v", err)
+			cm.totalNormalConnsSem.Release()
 			cm.activeOutboundsSem.Release()
 			continue
 		}
 
 		go func(addr net.Addr) {
-			onClose := cm.activeOutboundsSem.Release
+			onClose := func() {
+				cm.totalNormalConnsSem.Release()
+				cm.activeOutboundsSem.Release()
+			}
 			conn, err := cm.dial(ctx, addr, ConnTypeOutbound, onClose, nil)
 			if err != nil {
 				failedAttempts.Add(1)
@@ -1231,23 +1347,28 @@ func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil {
 		return nil, MakeError(ErrDialNil, "dial cannot be nil")
 	}
-	// Default to sane values
+	// Default to sane values.
 	if cfg.RetryDuration <= 0 {
 		cfg.RetryDuration = defaultRetryDuration
+	}
+	if cfg.MaxNormalConns == 0 {
+		cfg.MaxNormalConns = defaultMaxNormalConns
 	}
 	if cfg.TargetOutbound == 0 {
 		cfg.TargetOutbound = defaultTargetOutbound
 	}
+	cfg.TargetOutbound = min(cfg.TargetOutbound, cfg.MaxNormalConns)
 	cm := ConnManager{
-		cfg:                *cfg, // Copy so caller can't mutate
-		quit:               make(chan struct{}),
-		maxRetryDuration:   defaultMaxRetryDuration,
-		runPersistentChan:  make(chan *persistentEntry, MaxPersistent),
-		activeOutboundsSem: makeSemaphore(cfg.TargetOutbound),
-		persistent:         make(map[uint64]*persistentEntry, MaxPersistent),
-		pending:            make(map[uint64]*pendingConnInfo),
-		active:             make(map[uint64]*Conn, cfg.TargetOutbound),
-		connIDByAddr:       make(map[string]uint64),
+		cfg:                 *cfg, // Copy so caller can't mutate
+		quit:                make(chan struct{}),
+		maxRetryDuration:    defaultMaxRetryDuration,
+		runPersistentChan:   make(chan *persistentEntry, MaxPersistent),
+		totalNormalConnsSem: makeSemaphore(cfg.MaxNormalConns),
+		activeOutboundsSem:  makeSemaphore(cfg.TargetOutbound),
+		persistent:          make(map[uint64]*persistentEntry, MaxPersistent),
+		pending:             make(map[uint64]*pendingConnInfo),
+		active:              make(map[uint64]*Conn, cfg.TargetOutbound),
+		connIDByAddr:        make(map[string]uint64),
 	}
 	return &cm, nil
 }
