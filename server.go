@@ -513,6 +513,7 @@ func newServerPeer(s *server, conn *connmgr.Conn, remoteAddr *addrmgr.NetAddress
 		conn:           conn,
 		remoteAddr:     remoteAddr,
 		persistent:     s.connManager.IsPersistent(conn.ID()),
+		isWhitelisted:  s.connManager.IsWhitelisted(remoteAddr),
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
@@ -2289,7 +2290,6 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn *connmgr.Conn) {
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
 			remoteNetAddr, err)
@@ -2323,7 +2323,6 @@ func (s *server) outboundPeerConnected(ctx context.Context, conn *connmgr.Conn) 
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewOutboundPeer(newPeerConfig(sp), conn.RemoteAddr(), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for outbound peer %s: %v",
 			conn.RemoteAddr(), err)
@@ -2619,20 +2618,6 @@ func (s *server) considerReportedAddr(from *serverPeer, addr *wire.NetAddress) {
 	s.considerReportedAddrOutbound(from, addr)
 }
 
-// connectionsWithIP returns the number of connections with the given IP.
-//
-// This function MUST be called with the embedded mutex locked (for reads).
-func (ps *peerState) connectionsWithIP(ip net.IP) int {
-	var total int
-	ps.forAllPeers(func(sp *serverPeer) {
-		if ip.Equal(sp.remoteAddr.IP) {
-			total++
-		}
-
-	})
-	return total
-}
-
 // handleAddPeer deals with adding new peers and includes logic such as
 // categorizing the type of peer, limiting the maximum allowed number of peers,
 // and local external address resolution.
@@ -2690,30 +2675,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	state := &s.peerState
 	defer state.Unlock()
 	state.Lock()
-
-	// Limit max number of connections from a single IP.  However, allow
-	// whitelisted inbound peers and localhost connections regardless.
-	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := net.IP(sp.remoteAddr.IP)
-	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
-		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
-
-		srvrLog.Infof("Max connections with %s reached [%d] - disconnecting "+
-			"peer", sp, cfg.MaxSameIP)
-		sp.Disconnect()
-		return false
-	}
-
-	// Limit max number of total peers.  However, allow whitelisted inbound
-	// peers regardless.
-	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
-		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
-			cfg.MaxPeers, sp)
-		sp.Disconnect()
-		// TODO: how to handle permanent peers here?
-		// they should be rescheduled.
-		return false
-	}
 
 	// Add the new peer.
 	if sp.Inbound() {
@@ -4359,14 +4320,17 @@ func newServer(ctx context.Context, profiler *profileServer,
 		OnAccept: func(conn *connmgr.Conn) {
 			s.inboundPeerConnected(ctx, conn)
 		},
-		RetryDuration:  connectionRetryInterval,
-		TargetOutbound: s.targetOutbound,
-		Dial:           s.attemptDcrdDial,
-		DialTimeout:    cfg.DialTimeout,
+		RetryDuration:   connectionRetryInterval,
+		MaxNormalConns:  uint32(cfg.MaxPeers),
+		MaxConnsPerHost: uint32(cfg.MaxSameIP),
+		TargetOutbound:  s.targetOutbound,
+		Dial:            s.attemptDcrdDial,
+		DialTimeout:     cfg.DialTimeout,
 		OnConnection: func(conn *connmgr.Conn) {
 			s.outboundPeerConnected(ctx, conn)
 		},
 		GetNewAddress: newAddressFunc,
+		Whitelists:    cfg.whitelists,
 	})
 	if err != nil {
 		return nil, err
@@ -4630,20 +4594,4 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 	}
 
 	return nil
-}
-
-// isWhitelisted returns whether the IP address is included in the whitelisted
-// networks and IPs.
-func isWhitelisted(addr *addrmgr.NetAddress) bool {
-	if len(cfg.whitelists) == 0 {
-		return false
-	}
-
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	for _, prefix := range cfg.whitelists {
-		if prefix.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
