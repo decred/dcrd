@@ -1178,6 +1178,73 @@ func TestFieldAdd(t *testing.T) {
 	}
 }
 
+// TestFieldMulByX ensures [FieldVal.MulBy2], [FieldVal.MulBy3],
+// [FieldVal.MulBy4], and [FieldVal.MulBy8] produce the same results as the
+// equivalent [FieldVal.MulInt].
+func TestFieldMulByX(t *testing.T) {
+	mulByFuncs := []struct {
+		factor uint8
+		fn     func(*FieldVal) *FieldVal
+	}{
+		{2, (*FieldVal).MulBy2},
+		{3, (*FieldVal).MulBy3},
+		{4, (*FieldVal).MulBy4},
+		{8, (*FieldVal).MulBy8},
+	}
+
+	tests := []struct {
+		name string // test description
+		in   string // hex encoded value
+	}{{
+		name: "zero",
+		in:   "0",
+	}, {
+		name: "one",
+		in:   "1",
+	}, {
+		name: "two",
+		in:   "2",
+	}, {
+		name: "secp256k1 prime-1",
+		in:   "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
+	}, {
+		name: "secp256k1 prime / 2",
+		in:   "7fffffffffffffffffffffffffffffffffffffffffffffffffffffff7ffffe17",
+	}, {
+		name: "secp256k1 prime / 3",
+		in:   "55555555555555555555555555555555555555555555555555555554fffffeba",
+	}, {
+		name: "secp256k1 prime / 4",
+		in:   "3fffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffff0b",
+	}, {
+		name: "secp256k1 prime / 8",
+		in:   "1fffffffffffffffffffffffffffffffffffffffffffffffffffffffdfffff85",
+	}, {
+		name: "random sampling #1",
+		in:   "e8655154d386119205b642e6cf03b2e7d03ff59301d98bfebcf350a778014efa",
+	}, {
+		name: "random sampling #2",
+		in:   "bb38f58fddc9bf462d4b9ba6503c142be374ecd423525c590ab8de77a6265676",
+	}, {
+		name: "random sampling #3",
+		in:   "bdacc1032b224a43e0dd6ac5452037d9cdfbc3a8041e0ce8eee9d42516a1e3b1",
+	}, {
+		name: "random sampling #4",
+		in:   "e3cbe002cc93029190181a906ed41af401c9726546dc19389a06290efdf563f1",
+	}}
+	for _, test := range tests {
+		in := mustFieldVal(test.in)
+		for _, m := range mulByFuncs {
+			want := new(FieldVal).Set(in).MulInt(m.factor)
+			got := m.fn(new(FieldVal).Set(in))
+			if !got.Equals(want) {
+				t.Errorf("%q: MulBy%d: wrong result -- got: %v, want: %v",
+					test.name, m.factor, got, want)
+			}
+		}
+	}
+}
+
 // TestFieldMulInt ensures that multiplying an integer to field values via
 // [FieldVal.MulInt] works as expected.
 func TestFieldMulInt(t *testing.T) {
