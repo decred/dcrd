@@ -88,6 +88,19 @@ func BenchmarkFieldAdd(b *testing.B) {
 	}
 }
 
+// BenchmarkFieldMulInt benchmarks multiplying an unsigned 256-bit big-endian
+// integer by small integers with [FieldVal.MulInt].
+func BenchmarkFieldMulInt(b *testing.B) {
+	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := mustFieldVal(fHex)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		f.MulInt(2)
+	}
+}
+
 // BenchmarkBigIntMulModP benchmarks multiplying two unsigned 256-bit big-endian
 // integers modulo the field prime with stdlib big integers.
 func BenchmarkBigIntMulModP(b *testing.B) {
