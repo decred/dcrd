@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -260,6 +261,10 @@ type Config struct {
 	// DialTimeout specifies the amount of time to wait for a connection to
 	// complete before giving up.
 	DialTimeout time.Duration
+
+	// Whitelists specifies CIDR address prefixes to whitelist.  Whitelisted
+	// addresses are exempt from banning and certain connection limits.
+	Whitelists []netip.Prefix
 }
 
 // ConnManager provides a manager to handle network connections.
@@ -315,6 +320,22 @@ type ConnManager struct {
 	// (host:port).  It is kept in sync with the persistent, pending, and active
 	// maps and is primarily used to efficiently reject duplicate connections.
 	connIDByAddr map[string]uint64
+}
+
+// IsWhitelisted returns whether the IP address is included in the whitelisted
+// networks and IPs.
+func (cm *ConnManager) IsWhitelisted(addr *addrmgr.NetAddress) bool {
+	if len(cm.cfg.Whitelists) == 0 {
+		return false
+	}
+
+	ip, _ := netip.AddrFromSlice(addr.IP)
+	for _, prefix := range cm.cfg.Whitelists {
+		if prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkShutdown returns [ErrShutdown] when the connection manager quit channel
