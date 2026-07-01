@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"reflect"
@@ -45,68 +44,32 @@ func mustParseAddrPort(addr string) *net.TCPAddr {
 	}
 }
 
-// runConnMgrAsync invokes the Run method on the passed connection manager in a
-// separate goroutine and returns a cancelable context and wait group the caller
-// can use to shutdown the connection manager and wait for clean shutdown.
-func runConnMgrAsync(ctx context.Context, cmgr *ConnManager) (context.Context, context.CancelFunc, *sync.WaitGroup) {
-	ctx, cancel := context.WithCancel(ctx)
+// runConnMgrAsync invokes [ConnManager.Run] on the passed connection manager in
+// a separate goroutine and returns a cancelable context and wait group the
+// caller can use to shutdown the connection manager and wait for clean
+// shutdown.
+//
+// It also registers a test cleanup func that waits for shutdown and asserts the
+// internal state of the connection manager is empty as expected.
+func runConnMgrAsync(t *testing.T, cm *ConnManager) (context.Context, context.CancelFunc, *sync.WaitGroup) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		cmgr.Run(ctx)
+		cm.Run(ctx)
 		wg.Done()
 	}()
+	t.Cleanup(func() {
+		t.Helper()
+
+		cancel()
+		wg.Wait()
+		assertConnManagerCleanShutdown(t, cm)
+	})
+
 	return ctx, cancel, &wg
-}
-
-// mockAddr mocks a network address.
-type mockAddr struct {
-	net, address string
-}
-
-func (m mockAddr) Network() string { return m.net }
-func (m mockAddr) String() string  { return m.address }
-
-// mockConn mocks a network connection by implementing the net.Conn interface.
-type mockConn struct {
-	io.Reader
-	io.Writer
-	io.Closer
-
-	// local network, address for the connection.
-	lnet, laddr string
-
-	// remote network, address for the connection.
-	rAddr net.Addr
-}
-
-// LocalAddr returns the local address for the connection.
-func (c mockConn) LocalAddr() net.Addr {
-	return &mockAddr{c.lnet, c.laddr}
-}
-
-// RemoteAddr returns the remote address for the connection.
-func (c mockConn) RemoteAddr() net.Addr {
-	return &mockAddr{c.rAddr.Network(), c.rAddr.String()}
-}
-
-// Close handles closing the connection.
-func (c mockConn) Close() error {
-	return nil
-}
-
-func (c mockConn) SetDeadline(t time.Time) error      { return nil }
-func (c mockConn) SetReadDeadline(t time.Time) error  { return nil }
-func (c mockConn) SetWriteDeadline(t time.Time) error { return nil }
-
-// mockDialer mocks the net.Dial interface by returning a mock connection to
-// the given address.
-func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
-	r, w := io.Pipe()
-	c := &mockConn{rAddr: &mockAddr{network, addr}}
-	c.Reader = r
-	c.Writer = w
-	return c, ctx.Err()
 }
 
 // newTestConnManager returns a new connection manager with the provided
@@ -115,12 +78,12 @@ func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 func newTestConnManager(t *testing.T, cfg *Config) *ConnManager {
 	t.Helper()
 
-	cmgr, err := New(cfg)
+	cm, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New: unexpected error: %v", err)
 	}
-	cmgr.maxRetryDuration = defaultTestMaxRetryDuration
-	return cmgr
+	cm.maxRetryDuration = defaultTestMaxRetryDuration
+	return cm
 }
 
 // assertConnManagerInternalState ensures the internal state of the passed
@@ -144,14 +107,21 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 	// Assert the pending and active maps are mutually exclusive for both conn
 	// IDs and addrs.
 	//
-	// Also build a map of addrs to conn IDs in the pending, active, and
-	// persistent maps for the checks below.
+	// Also build maps of the following data in the pending, active, and
+	// persistent maps:
+	//
+	//   - addrs to conn IDs
+	//   - the per host counts
 	connIDByAddr := make(map[string]uint64)
+	perHostCounts := make(map[string]uint32)
 	for id, info := range cm.pending {
 		if _, ok := cm.active[id]; ok {
 			t.Fatalf("conn ID %d is both pending and active", id)
 		}
 		connIDByAddr[info.addr.String()] = id
+		if _, ok := cm.persistent[id]; !ok {
+			perHostCounts[addrHostKey(info.addr)]++
+		}
 	}
 	for id, conn := range cm.active {
 		if _, ok := cm.pending[id]; ok {
@@ -162,6 +132,9 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 			t.Fatalf("addr %s is both pending and active", addrStr)
 		}
 		connIDByAddr[addrStr] = id
+		if _, ok := cm.persistent[id]; !ok {
+			perHostCounts[addrHostKey(&conn.remoteAddr)]++
+		}
 	}
 	for id, entry := range cm.persistent {
 		// Assert the conn ID of established/pending persistent conns matches.
@@ -170,6 +143,7 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 			t.Fatalf("conn ID for addr %s mismatch: %d != %d", addrStr,
 				existingID, id)
 		}
+		perHostCounts[addrHostKey(entry.addr)]++
 		connIDByAddr[addrStr] = id
 	}
 
@@ -178,6 +152,13 @@ func assertConnManagerInternalState(t *testing.T, cm *ConnManager) {
 	if !reflect.DeepEqual(cm.connIDByAddr, connIDByAddr) {
 		t.Fatalf("mismatched conn ID by addr maps\ngot: %v\nwant %v",
 			cm.connIDByAddr, connIDByAddr)
+	}
+
+	// Assert the per host counts match the values obtained from manually
+	// tallying them.
+	if !reflect.DeepEqual(cm.perHostCounts, perHostCounts) {
+		t.Fatalf("mismatched per host count maps\ngot: %v\nwant %v",
+			cm.perHostCounts, perHostCounts)
 	}
 }
 
@@ -203,6 +184,10 @@ func assertConnManagerCleanShutdown(t *testing.T, cm *ConnManager) {
 		t.Fatalf("conn ID by addr map not empty: %d entries",
 			len(cm.connIDByAddr))
 	}
+	if len(cm.perHostCounts) != 0 {
+		t.Fatalf("per host counts map not empty: %d entries",
+			len(cm.perHostCounts))
+	}
 }
 
 // TestNewConfig tests that new ConnManager config is validated as expected.
@@ -217,6 +202,93 @@ func TestNewConfig(t *testing.T) {
 	newTestConnManager(t, &Config{
 		Dial: mockDialer,
 	})
+}
+
+// TestIsWhitelisted ensures [ConnManager.IsWhitelisted] works as expected.
+func TestIsWhitelisted(t *testing.T) {
+	type perManagerTest struct {
+		addr        string // address to test against whitelist
+		whitelisted bool   // expected whitelisted result
+	}
+
+	tests := []struct {
+		name            string           // test description
+		prefixes        []netip.Prefix   // CIDR prefixes to whitelist
+		perManagerTests []perManagerTest // tests to run against the prefixes
+	}{{
+		name:     "no whitelisted entries",
+		prefixes: nil,
+		perManagerTests: []perManagerTest{
+			{"1.2.3.4:18555", false},
+			{"127.0.0.1:18555", false},
+		},
+	}, {
+		name: "single /32 IPv4 entry",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("1.2.3.4/32"),
+		},
+		perManagerTests: []perManagerTest{
+			{"1.2.3.4:18555", true},
+			{"1.2.3.4:9108", true},
+			{"[::1.2.3.4]:18555", false}, // IPv4 in IPv6
+			{"1.2.3.5:18555", false},
+		},
+	}, {
+		name: "single /128 IPv6 entry",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("::1.2.3.4/128"),
+		},
+		perManagerTests: []perManagerTest{
+			{"[::1.2.3.4]:18555", true},
+			{"[::1.2.3.4]:9108", true},
+			{"1.2.3.4:18555", false}, // IPv4 doesn't match IPv4 in IPv6
+			{"[::1.2.3.5]:9108", false},
+		},
+	}, {
+		name: "mixed IPv4 and IPv6 with different prefix lengths",
+		prefixes: []netip.Prefix{
+			netip.MustParsePrefix("12.13.14.0/24"),
+			netip.MustParsePrefix("20.21.22.23/8"),
+			netip.MustParsePrefix("fe80::/64"),
+		},
+		perManagerTests: []perManagerTest{
+			{"12.13.14.1:18555", true},
+			{"12.13.14.255:18555", true},
+			{"12.13.15.0:18555", false},
+			{"20.0.0.0:18555", true},
+			{"20.0.0.0:9108", true},
+			{"20.255.255.255:18555", true},
+			{"20.255.255.255:9108", true},
+			{"21.0.0.0:18555", false},
+			{"[fe80::1]:18555", true},
+			{"[fe80::1]:9108", true},
+			{"[fe80::ffff:ffff:ffff:ffff]:18555", true},
+			{"[fe80::ffff:ffff:ffff:ffff]:1234", true},
+			{"[fe80::1:ffff:ffff:ffff:ffff]:18555", false},
+		},
+	}}
+
+	for _, test := range tests {
+		// Parse the whitelist entries for the test.
+		cm := newTestConnManager(t, &Config{
+			Dial:       mockDialer,
+			Whitelists: test.prefixes,
+		})
+
+		for _, pmTest := range test.perManagerTests {
+			mAddr := mockAddr{"tcp", pmTest.addr}
+			addr, err := stdlibNetAddrToAddrMgrNetAddr(mAddr)
+			if err != nil {
+				t.Fatalf("%q-%q: failed to parse address: %v", test.name,
+					pmTest.addr, err)
+			}
+			if got := cm.IsWhitelisted(addr); got != pmTest.whitelisted {
+				t.Errorf("%q-%q: mismatched result -- got %v, want %v",
+					test.name, pmTest.addr, got, pmTest.whitelisted)
+				continue
+			}
+		}
+	}
 }
 
 // assertConnID ensures the provided connection has the given ID.
@@ -334,27 +406,22 @@ func TestConnectMode(t *testing.T) {
 	t.Parallel()
 
 	connected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		TargetOutbound: 2,
 		Dial:           mockDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 
 	// Ensure that only a single connection is received.
 	assertConnReceived(t, connected, 0, ConnTypeManual)
 	assertNoConnReceived(t, connected)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestDisconnect ensures that [ConnManager.Disconnect] properly disconnects
@@ -387,7 +454,7 @@ func TestDisconnect(t *testing.T) {
 		}
 		return conn, err
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial: pendingDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -396,14 +463,14 @@ func TestDisconnect(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Attempt a connection to a localhost IP.
 	notifyDialed.Store(true)
 	waitForPending.Store(true)
 	notifyCanceled.Store(true)
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 
 	// Wait for the connection manager to attempt to dial and ensure the
 	// connection is marked as pending while the dialer is blocked.
@@ -412,15 +479,15 @@ func TestDisconnect(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Disconnect the connection attempt while it's still pending.
-	connID, _ := pendingAddrConnID(cmgr, addr)
-	if err := cmgr.Disconnect(connID); err != nil {
+	connID, _ := pendingAddrConnID(cm, addr)
+	if err := cm.Disconnect(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Allow the dialer to proceed with the disconnected connection attempt and
 	// then wait for the dialer to signal the context associated with the dial
@@ -435,37 +502,37 @@ func TestDisconnect(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for cancel")
 	}
-	if _, ok := pendingAddrConnID(cmgr, addr); ok {
+	if _, ok := pendingAddrConnID(cm, addr); ok {
 		t.Fatalf("connection %s is still pending", addr)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Start a connection attempt and wait for it to be established.
 	notifyDialed.Store(false)
 	waitForPending.Store(false)
 	notifyCanceled.Store(false)
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 	conn := assertConnReceived(t, connected, 0, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Disconnect the established connection and wait for the disconnect
 	// notification to ensure it is disconnected as intended.
 	connID = conn.ID()
-	if err := cmgr.Disconnect(connID); err != nil {
+	if err := cm.Disconnect(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Add a persistent connection back to the same address.
 	notifyDialed.Store(true)
 	waitForPending.Store(true)
 	notifyCanceled.Store(true)
-	connID, err := cmgr.AddPersistent(addr)
+	connID, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the connection manager to attempt to dial and ensure the
 	// connection is marked as pending while the dialer is blocked.
@@ -474,14 +541,14 @@ func TestDisconnect(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Disconnect the persistent connection attempt while it's still pending.
-	if err := cmgr.Disconnect(connID); err != nil {
+	if err := cm.Disconnect(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Allow the dialer to proceed with the disconnected persistent connection
 	// attempt and then wait for the dialer to signal the context associated
@@ -503,20 +570,15 @@ func TestDisconnect(t *testing.T) {
 
 	// Wait for the retry to be established.
 	assertConnReceived(t, connected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Disconnect the established persistent connection and wait for the
 	// disconnect notification to ensure it is disconnected as intended.
-	if err := cmgr.Disconnect(connID); err != nil {
+	if err := cm.Disconnect(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestRemove ensures that [ConnManager.Remove] properly removes pending and
@@ -550,7 +612,7 @@ func TestRemove(t *testing.T) {
 		}
 		return conn, err
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial: pendingDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -559,10 +621,10 @@ func TestRemove(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Ensure removing an ID that doesn't exist returns the expected error.
-	if err := cmgr.Remove(^uint64(0)); !errors.Is(err, ErrNotFound) {
+	if err := cm.Remove(^uint64(0)); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("mismatched remove error: got %v, want %v", err, ErrNotFound)
 	}
 
@@ -571,7 +633,7 @@ func TestRemove(t *testing.T) {
 	waitForPending.Store(true)
 	notifyCanceled.Store(true)
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 
 	// Wait for the connection manager to attempt to dial and ensure the
 	// connection is marked as pending while the dialer is blocked.
@@ -580,12 +642,12 @@ func TestRemove(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the connection attempt while it's still pending.
-	connID, _ := pendingAddrConnID(cmgr, addr)
-	if err := cmgr.Remove(connID); err != nil {
+	connID, _ := pendingAddrConnID(cm, addr)
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected remove err: %v", err)
 	}
 
@@ -602,37 +664,37 @@ func TestRemove(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for cancel")
 	}
-	if _, ok := pendingAddrConnID(cmgr, addr); ok {
+	if _, ok := pendingAddrConnID(cm, addr); ok {
 		t.Fatalf("connection %s is still pending", addr)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Start a connection attempt and wait for it to be established.
 	notifyDialed.Store(false)
 	waitForPending.Store(false)
 	notifyCanceled.Store(false)
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 	conn := assertConnReceived(t, connected, 0, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the established connection and wait for the disconnect
 	// notification to ensure it is disconnected as intended.
 	connID = conn.ID()
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Add a persistent connection back to the same address.
 	notifyDialed.Store(true)
 	waitForPending.Store(true)
 	notifyCanceled.Store(true)
-	connID, err := cmgr.AddPersistent(addr)
+	connID, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the connection manager to attempt to dial and ensure the
 	// connection is marked as pending while the dialer is blocked.
@@ -641,13 +703,13 @@ func TestRemove(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
+	assertPendingAddr(t, cm, addr)
 
 	// Remove the persistent connection attempt while it's still pending.
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Allow the dialer to proceed with the removed persistent connection
 	// attempt and then wait for the dialer to signal the context associated
@@ -666,34 +728,29 @@ func TestRemove(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("timeout waiting for cancel")
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Add a persistent connection back to the same address and wait for it to
 	// be established.
 	notifyDialed.Store(false)
 	waitForPending.Store(false)
 	notifyCanceled.Store(false)
-	connID, err = cmgr.AddPersistent(addr)
+	connID, err = cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
 	conn2 := assertConnReceived(t, connected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the established persistent connection and wait for the disconnect
 	// notification to ensure it is disconnected as intended.  Also, ensure the
 	// persistent connection entry is removed.
 	connID = conn2.ID()
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected disconnect err: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestTargetOutbound tests the target number of outbound connections
@@ -705,7 +762,7 @@ func TestTargetOutbound(t *testing.T) {
 	const targetOutbound = 10
 	var nextAddr atomic.Uint32
 	connected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		Dial:           mockDialer,
 		GetNewAddress: func() (net.Addr, error) {
@@ -716,7 +773,7 @@ func TestTargetOutbound(t *testing.T) {
 			connected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	// Ensure only the expected number of target outbound conns are established
 	// and no more.
@@ -724,12 +781,7 @@ func TestTargetOutbound(t *testing.T) {
 		assertConnReceived(t, connected, 0, ConnTypeOutbound)
 	}
 	assertNoConnReceived(t, connected)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestDoubleClose ensures closing a connection multiple times is a noop after
@@ -738,7 +790,7 @@ func TestDoubleClose(t *testing.T) {
 	t.Parallel()
 
 	connected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		TargetOutbound: 1,
 		Dial:           mockDialer,
 		GetNewAddress: func() (net.Addr, error) {
@@ -748,18 +800,20 @@ func TestDoubleClose(t *testing.T) {
 			connected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	// Wait for the connection to be established.
 	conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Override the close func to cleanly detect closes.
 	var numClosed uint32
 	origOnClose := conn.onClose
 	conn.onClose = func() {
 		numClosed++
-		origOnClose()
+		if numClosed == 1 {
+			origOnClose()
+		}
 	}
 
 	// Close the connection multiple times and make sure it only happens once.
@@ -769,12 +823,7 @@ func TestDoubleClose(t *testing.T) {
 	if numClosed != 1 {
 		t.Fatal("connection closed more than once")
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestRetryPersistent tests that persistent connections are retried.
@@ -783,7 +832,7 @@ func TestRetryPersistent(t *testing.T) {
 
 	connected := make(chan *Conn)
 	disconnected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		RetryDuration:  time.Millisecond,
 		TargetOutbound: 1,
 		Dial:           mockDialer,
@@ -794,14 +843,14 @@ func TestRetryPersistent(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	connID, err := cmgr.AddPersistent(addr)
+	connID, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
-	if !cmgr.IsPersistent(connID) {
+	if !cm.IsPersistent(connID) {
 		t.Fatal("IsPersistent did not reported true for persistent conn")
 	}
 
@@ -811,21 +860,16 @@ func TestRetryPersistent(t *testing.T) {
 	conn.Close()
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
 	assertConnReceived(t, connected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the persistent connection, wait for it to disconnect, and ensure
 	// it is actually removed.
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("failed to remove persistent connection: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertRemovedPersistent(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertRemovedPersistent(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestMaxPersistent ensures [ConnManager.AddPersistent] limits the maximum
@@ -836,7 +880,7 @@ func TestMaxPersistent(t *testing.T) {
 
 	connected := make(chan *Conn)
 	disconnected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial: mockDialer,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
@@ -845,7 +889,7 @@ func TestMaxPersistent(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	var numAddrs uint32
 	nextAddr := func() net.Addr {
@@ -859,7 +903,7 @@ func TestMaxPersistent(t *testing.T) {
 	addrs := make([]net.Addr, 0, MaxPersistent)
 	for range MaxPersistent {
 		addr := nextAddr()
-		connID, err := cmgr.AddPersistent(addr)
+		connID, err := cm.AddPersistent(addr)
 		if err != nil {
 			t.Fatalf("failed to add persistent connection %v: %v", addr, err)
 		}
@@ -868,50 +912,45 @@ func TestMaxPersistent(t *testing.T) {
 
 		// Wait for the connection.
 		assertConnReceived(t, connected, connID, ConnTypeManual)
-		assertConnManagerInternalState(t, cmgr)
+		assertConnManagerInternalState(t, cm)
 	}
 
 	// Attempting to add more than the max allowed number of persistent conns
 	// should be rejected.
-	_, err := cmgr.AddPersistent(nextAddr())
+	_, err := cm.AddPersistent(nextAddr())
 	if !errors.Is(err, ErrMaxPersistent) {
 		t.Fatalf("did not reject > max persistent, err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Ensure disconnecting the persistent conn does not incorrectly decrement
 	// the count.
 	connID, addr := connIDs[0], addrs[0]
-	if err := cmgr.Disconnect(connID); err != nil {
+	if err := cm.Disconnect(connID); err != nil {
 		t.Fatalf("failed to disconnect persistent conn %v: %v", addr, err)
 	}
-	_, err = cmgr.AddPersistent(nextAddr())
+	_, err = cm.AddPersistent(nextAddr())
 	if !errors.Is(err, ErrMaxPersistent) {
 		t.Fatalf("did not reject max persistent after dc, err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the first persistent connection, wait for it to disconnect, and
 	// ensure it is actually removed.
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("failed to remove persistent conn %v: %v", addr, err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertRemovedPersistent(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertRemovedPersistent(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// A new persistent conn should now be allowed.
 	addr = nextAddr()
-	_, err = cmgr.AddPersistent(addr)
+	_, err = cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection %v: %v", addr, err)
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestMaxRetryDuration tests the maximum retry duration.
@@ -939,7 +978,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	}
 
 	connected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		RetryDuration:  time.Millisecond,
 		TargetOutbound: 1,
 		Dial:           timedDialer,
@@ -947,9 +986,9 @@ func TestMaxRetryDuration(t *testing.T) {
 			connected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
-	connID, err := cmgr.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
+	connID, err := cm.AddPersistent(mustParseAddrPort("127.0.0.1:18555"))
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
@@ -963,12 +1002,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	})
 	const timeout = connTestReceiveTimeout + networkUpTimeout
 	assertConnReceivedTimeout(t, connected, timeout, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestNetworkFailure tests that the connection manager handles a network
@@ -991,7 +1025,7 @@ func TestNetworkFailure(t *testing.T) {
 		return nil, errors.New("network down")
 	}
 	var nextAddr atomic.Uint32
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		TargetOutbound: targetOutbound,
 		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
@@ -1004,7 +1038,7 @@ func TestNetworkFailure(t *testing.T) {
 				conn.RemoteAddr())
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	_, shutdown, wg := runConnMgrAsync(t, cm)
 
 	// Shutdown the connection manager after the max failed attempts is reached
 	// and an additional retry duration has passed and then wait for the
@@ -1028,8 +1062,6 @@ func TestNetworkFailure(t *testing.T) {
 		t.Fatalf("unexpected number of dials - got %v, want <= %v", gotDials,
 			wantMaxDials)
 	}
-
-	assertConnManagerCleanShutdown(t, cmgr)
 }
 
 // TestMultipleFailedConns ensures that the connection manager remains
@@ -1053,22 +1085,22 @@ func TestMultipleFailedConns(t *testing.T) {
 		}
 		return nil, errors.New("network down")
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		RetryDuration: maxRetryDuration,
 		Dial:          errDialer,
 	})
-	cmgr.maxRetryDuration = maxRetryDuration
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	cm.maxRetryDuration = maxRetryDuration
+	runConnMgrAsync(t, cm)
 
 	// Establish several connection requests to localhost IPs.
 	for i := range targetFailed {
 		addr := mustParseAddrPort(fmt.Sprintf("127.0.0.%d:18555", i+1))
-		_, err := cmgr.AddPersistent(addr)
+		_, err := cm.AddPersistent(addr)
 		if err != nil {
 			t.Fatalf("unexpected add err: %v", err)
 		}
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the target number of dials and ensure they happen simultaneously
 	// by checking it happens before the retry timeout.
@@ -1077,14 +1109,14 @@ func TestMultipleFailedConns(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 		t.Fatal("did not reach target number of dials before timeout")
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Ensure that the connection manager still responds to requests while the
 	// failed connections are still retrying.
 	disconnected := make(chan struct{})
 	go func() {
 		const badID = ^uint64(0)
-		cmgr.Disconnect(badID)
+		cm.Disconnect(badID)
 		close(disconnected)
 	}()
 	select {
@@ -1092,12 +1124,7 @@ func TestMultipleFailedConns(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 		t.Fatal("timeout servicing connmgr requests")
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestShutdownFailedConns tests that failed connections are ignored after
@@ -1112,20 +1139,20 @@ func TestShutdownFailedConns(t *testing.T) {
 		closeOnce.Do(func() { close(dialed) })
 		return nil, errors.New("network down")
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		RetryDuration: retryTimeout,
 		Dial:          waitDialer,
 	})
-	cmgr.maxRetryDuration = retryTimeout
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	cm.maxRetryDuration = retryTimeout
+	runConnMgrAsync(t, cm)
 
 	// Add a persistent connection.
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	_, err := cmgr.AddPersistent(addr)
+	_, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Shutdown the connection manager during the retry timeout after a failed
 	// dial attempt.
@@ -1135,11 +1162,6 @@ func TestShutdownFailedConns(t *testing.T) {
 		t.Fatal("timeout waiting for dial")
 	}
 	time.Sleep(connTestNonReceiveTimeout)
-	shutdown()
-
-	// Ensure clean shutdown of connection manager.
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
 }
 
 // TestRemovePendingConnection ensures that removing a pending outbound
@@ -1157,15 +1179,15 @@ func TestRemovePendingConnection(t *testing.T) {
 		close(canceled)
 		return nil, errors.New("error")
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Establish a connection request to a localhost IP.
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
-	assertConnManagerInternalState(t, cmgr)
+	go cm.Connect(ctx, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the connection manager to attempt to dial and ensure the
 	// connection is marked as pending while the dialer is blocked.
@@ -1174,15 +1196,15 @@ func TestRemovePendingConnection(t *testing.T) {
 	case <-time.After(time.Millisecond * 20):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Cancel the connection attempt while it's still pending.
-	connID, _ := pendingAddrConnID(cmgr, addr)
-	if err := cmgr.Remove(connID); err != nil {
+	connID, _ := pendingAddrConnID(cm, addr)
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected remove err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the dialer to signal the context associated with the dial was
 	// canceled and ensure the internal pending state is removed.
@@ -1191,15 +1213,10 @@ func TestRemovePendingConnection(t *testing.T) {
 	case <-time.After(time.Millisecond * 20):
 		t.Fatal("timeout waiting for cancel")
 	}
-	if _, ok := pendingAddrConnID(cmgr, addr); ok {
+	if _, ok := pendingAddrConnID(cm, addr); ok {
 		t.Fatalf("connection %s is still pending", addr)
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestCancelIgnoreDelayedConnection tests that a canceled pending persistent
@@ -1231,22 +1248,22 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	}
 
 	connected := make(chan *Conn)
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial:          failingDialer,
 		RetryDuration: retryTimeout,
 		OnConnection: func(conn *Conn) {
 			connected <- conn
 		},
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	// Establish a persistent connection to a localhost IP.
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	connID, err := cmgr.AddPersistent(addr)
+	connID, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Wait for the retry and ensure the connection is pending.
 	select {
@@ -1254,12 +1271,12 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 		t.Fatalf("did not get retry before timeout")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the connection and then immediately allow the next connection to
 	// succeed.
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("unexpected remove err: %v", err)
 	}
 	close(connect)
@@ -1269,12 +1286,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	// timeout window to ensure the connection manager's backoff is allowed to
 	// properly elapse.
 	assertNoConnReceivedTimeout(t, connected, 5*retryTimeout)
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestDialTimeout ensure [Config.Timeout] works as intended by creating a
@@ -1286,41 +1298,41 @@ func TestDialTimeout(t *testing.T) {
 	// Create a connection manager instance with a dialer that blocks for three
 	// times the configured dial timeout before connecting.
 	const dialTimeout = time.Millisecond * 20
-	cancelled := make(chan struct{})
 	timeoutDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		select {
 		case <-time.After(dialTimeout * 3):
 		case <-ctx.Done():
-			close(cancelled)
 			return nil, ctx.Err()
 		}
 
 		return mockDialer(ctx, network, addr)
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial:        timeoutDialer,
 		DialTimeout: dialTimeout,
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
-	// Establish a connection to a localhost IP.
-	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
-	assertConnManagerInternalState(t, cmgr)
+	connectErr := make(chan error, 1)
+	go func() {
+		addr := mustParseAddrPort("127.0.0.1:18555")
+		_, err := cm.Connect(ctx, addr)
+		connectErr <- err
+	}()
+	assertConnManagerInternalState(t, cm)
 
-	// Wait to receive the signal that the dialer context was cancelled, which
-	// means the dial timeout was hit.
+	// Wait for the error from connect and ensure it is the expected deadline
+	// exceeded (aka dial timeout) error.
 	select {
-	case <-cancelled:
+	case err := <-connectErr:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("unexpected connect err: got %v, want %v", err,
+				context.Canceled)
+		}
 	case <-time.After(dialTimeout * 10):
 		t.Fatal("timeout waiting for dial cancellation")
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestConnectContext ensures the [ConnManager.Connect] method works as intended
@@ -1336,10 +1348,10 @@ func TestConnectContext(t *testing.T) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Dial: indefiniteDialer,
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Establish a connection request to a localhost IP with a separate context
 	// that can be canceled.
@@ -1347,7 +1359,7 @@ func TestConnectContext(t *testing.T) {
 	connectCtx, cancelConnect := context.WithCancel(ctx)
 	connectErr := make(chan error, 1)
 	go func() {
-		_, err := cmgr.Connect(connectCtx, addr)
+		_, err := cm.Connect(connectCtx, addr)
 		connectErr <- err
 	}()
 
@@ -1359,8 +1371,8 @@ func TestConnectContext(t *testing.T) {
 	case <-time.After(time.Millisecond * 20):
 		t.Fatal("timeout waiting for dial")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Cancel the connection context, wait for the error from connect, and
 	// ensure it is the expected error.
@@ -1374,68 +1386,7 @@ func TestConnectContext(t *testing.T) {
 	case <-time.After(10 * time.Millisecond):
 		t.Fatal("timeout waiting for dial cancellation")
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
-}
-
-// mockListener implements the net.Listener interface and is used to test
-// code that deals with net.Listeners without having to actually make any real
-// connections.
-type mockListener struct {
-	localAddr   string
-	provideConn chan net.Conn
-}
-
-// Accept returns a mock connection when it receives a signal via the Connect
-// function.
-//
-// This is part of the net.Listener interface.
-func (m *mockListener) Accept() (net.Conn, error) {
-	for conn := range m.provideConn {
-		return conn, nil
-	}
-	return nil, errors.New("network connection closed")
-}
-
-// Close closes the mock listener which will cause any blocked Accept
-// operations to be unblocked and return errors.
-//
-// This is part of the net.Listener interface.
-func (m *mockListener) Close() error {
-	close(m.provideConn)
-	return nil
-}
-
-// Addr returns the address the mock listener was configured with.
-//
-// This is part of the net.Listener interface.
-func (m *mockListener) Addr() net.Addr {
-	return &mockAddr{"tcp", m.localAddr}
-}
-
-// Connect fakes a connection to the mock listener from the provided remote
-// address.  It will cause the Accept function to return a mock connection
-// configured with the provided remote address and the local address for the
-// mock listener.
-func (m *mockListener) Connect(addr net.Addr) {
-	m.provideConn <- &mockConn{
-		laddr: m.localAddr,
-		lnet:  "tcp",
-		rAddr: addr,
-	}
-}
-
-// newMockListener returns a new mock listener for the provided local address
-// and port.  No ports are actually opened.
-func newMockListener(localAddr string) *mockListener {
-	return &mockListener{
-		localAddr:   localAddr,
-		provideConn: make(chan net.Conn),
-	}
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestListeners ensures providing listeners to the connection manager along
@@ -1449,14 +1400,14 @@ func TestListeners(t *testing.T) {
 	listener1 := newMockListener("127.0.0.1:9108")
 	listener2 := newMockListener("127.0.0.1:9208")
 	listeners := []net.Listener{listener1, listener2}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Listeners: listeners,
 		OnAccept: func(conn *Conn) {
 			receivedConns <- conn
 		},
 		Dial: mockDialer,
 	})
-	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	runConnMgrAsync(t, cm)
 
 	// Fake a couple of mock connections to each of the listeners.
 	go func() {
@@ -1472,12 +1423,7 @@ func TestListeners(t *testing.T) {
 	for range expectedNumConns {
 		assertConnReceived(t, receivedConns, 0, ConnTypeInbound)
 	}
-	assertConnManagerInternalState(t, cmgr)
-
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 }
 
 // TestRejectDuplicateConns ensures duplicate addresses are rejected.  This
@@ -1502,7 +1448,7 @@ func TestRejectDuplicateConns(t *testing.T) {
 		<-pending
 		return mockDialer(ctx, network, addr)
 	}
-	cmgr := newTestConnManager(t, &Config{
+	cm := newTestConnManager(t, &Config{
 		Listeners: []net.Listener{listener},
 		OnAccept: func(conn *Conn) {
 			inboundConns <- conn
@@ -1515,111 +1461,402 @@ func TestRejectDuplicateConns(t *testing.T) {
 			disconnected <- conn
 		},
 	})
-	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+	ctx, _, _ := runConnMgrAsync(t, cm)
 
 	// Dial a manual connection and wait for it to become pending.
 	addr := mustParseAddrPort("127.0.0.1:18555")
-	go cmgr.Connect(ctx, addr)
+	go cm.Connect(ctx, addr)
 	select {
 	case <-dialed:
 	case <-time.After(time.Millisecond * 5):
 		t.Fatal("did not receive pending dial before timeout")
 	}
-	assertPendingAddr(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertPendingAddr(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Duplicate connect to the pending address should be rejected.
-	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyPending) {
+	if _, err := cm.Connect(ctx, addr); !errors.Is(err, ErrAlreadyPending) {
 		t.Fatalf("did not reject duplicate pending connection, err: %v", err)
 	}
 
 	// Inbound attempts from the pending outbound address should be rejected.
 	go listener.Connect(addr)
 	assertNoConnReceived(t, inboundConns)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Allow the pending connection to complete.
 	close(pending)
 	conn := assertConnReceived(t, connected, 0, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Duplicate connect to the established address should be rejected.
-	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
+	if _, err := cm.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
 		t.Fatalf("did not reject duplicate active connection, err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Inbound attempts from the established outbound address should be
 	// rejected.
 	go listener.Connect(addr)
 	assertNoConnReceived(t, inboundConns)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Close the connection and wait for the disconnect.
 	conn.Close()
 	assertConnReceived(t, disconnected, conn.ID(), ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Add a persistent connection back to the same address and wait for it to
 	// connect since there are no longer any connections to the address.
-	connID, err := cmgr.AddPersistent(addr)
+	connID, err := cm.AddPersistent(addr)
 	if err != nil {
 		t.Fatalf("failed to add persistent connection: %v", err)
 	}
 	assertConnReceived(t, connected, connID, ConnTypeManual)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Duplicate persistent connection attempts should be rejected.
-	_, err = cmgr.AddPersistent(addr)
+	_, err = cm.AddPersistent(addr)
 	if !errors.Is(err, ErrDuplicatePersistent) {
 		t.Fatalf("did not reject duplicate persistent connection, err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Manual connection attempts to persistent connection should be rejected.
-	_, err = cmgr.Connect(ctx, addr)
+	_, err = cm.Connect(ctx, addr)
 	if !errors.Is(err, ErrDuplicatePersistent) {
 		t.Fatalf("did not reject manual connection to persistent, err: %v", err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Inbound atempts from the persistent address should be rejected.
 	go listener.Connect(addr)
 	assertNoConnReceived(t, inboundConns)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Remove the persistent connection, wait for it to disconnect, and ensure
 	// it is actually removed.
-	if err := cmgr.Remove(connID); err != nil {
+	if err := cm.Remove(connID); err != nil {
 		t.Fatalf("failed to remove persistent connection: %v", err)
 	}
 	assertConnReceived(t, disconnected, connID, ConnTypeManual)
-	assertRemovedPersistent(t, cmgr, addr)
-	assertConnManagerInternalState(t, cmgr)
+	assertRemovedPersistent(t, cm, addr)
+	assertConnManagerInternalState(t, cm)
 
 	// Inbound connections from the same address should now succeed.
 	go listener.Connect(addr)
 	assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Manual connection attempts to the inbound address should be rejected.
-	if _, err := cmgr.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
+	if _, err := cm.Connect(ctx, addr); !errors.Is(err, ErrAlreadyConnected) {
 		t.Fatalf("did not reject outbound for existing inbound conn, err: %v",
 			err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
 
 	// Attempts to add a persistent connection to an existing inbound should be
 	// rejected.
-	_, err = cmgr.AddPersistent(addr)
+	_, err = cm.AddPersistent(addr)
 	if !errors.Is(err, ErrAlreadyConnected) {
 		t.Fatalf("did not reject persistent conn for existing inbound conn: %v",
 			err)
 	}
-	assertConnManagerInternalState(t, cmgr)
+	assertConnManagerInternalState(t, cm)
+}
 
-	// Ensure clean shutdown of connection manager.
-	shutdown()
-	wg.Wait()
-	assertConnManagerCleanShutdown(t, cmgr)
+// TestMaxNormalConns ensures the connection manager limits the total number of
+// normal connections to [Config.MaxNormalConns] including automatic outbound,
+// manual outbound, and inbound connections.  It also ensures that it is not
+// applied to persistent connections.
+func TestMaxNormalConns(t *testing.T) {
+	t.Parallel()
+
+	// nextAddr is a convenience func to return a new unique address with every
+	// invocation.
+	var numAddrs atomic.Uint32
+	nextAddr := func() net.Addr {
+		addrStr := fmt.Sprintf("10.0.0.%d:18555", numAddrs.Add(1))
+		return mustParseAddrPort(addrStr)
+	}
+
+	// Constants for the number of various normal connection types to test
+	// overall max normal connection limits.
+	const (
+		targetOutbound = 3
+		targetManual   = 4
+		targetInbound  = 5
+		maxNormalConns = targetOutbound + targetManual + targetInbound
+	)
+	connected := make(chan *Conn)
+	disconnected := make(chan *Conn)
+	inboundConns := make(chan *Conn)
+	listener := newMockListener("127.0.0.1:9108")
+	var pauseTargetOutbound atomic.Bool
+	var totalPausedAddrs atomic.Uint32
+	hitMaxFailedAttempts := make(chan struct{})
+	cm := newTestConnManager(t, &Config{
+		Listeners:      []net.Listener{listener},
+		MaxNormalConns: maxNormalConns,
+		TargetOutbound: targetOutbound,
+		RetryDuration:  50 * time.Millisecond,
+		Dial:           mockDialer,
+		OnAccept: func(conn *Conn) {
+			inboundConns <- conn
+		},
+		GetNewAddress: func() (net.Addr, error) {
+			if pauseTargetOutbound.Load() {
+				total := totalPausedAddrs.Add(1)
+				if total == maxFailedAttempts {
+					hitMaxFailedAttempts <- struct{}{}
+				}
+				return nil, errors.New("network down")
+			}
+			return nextAddr(), nil
+		},
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	cm.maxRetryDuration = cm.cfg.RetryDuration
+	ctx, _, _ := runConnMgrAsync(t, cm)
+
+	// Wait for the expected number of target outbound conns to be established.
+	outbounds := make([]*Conn, 0, targetOutbound)
+	for len(outbounds) < targetOutbound {
+		conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+		outbounds = append(outbounds, conn)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Establish target number of inbounds to the listener and wait for them to
+	// be established.
+	go func() {
+		for range targetInbound {
+			listener.Connect(nextAddr())
+		}
+	}()
+	inbounds := make([]*Conn, 0, targetInbound)
+	for len(inbounds) < targetInbound {
+		conn := assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
+		inbounds = append(inbounds, conn)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Establish target number of manual connections and wait for them to be
+	// established.
+	go func() {
+		for range targetManual {
+			go cm.Connect(ctx, nextAddr())
+		}
+	}()
+	manualConns := make([]*Conn, 0, targetManual+1)
+	for len(manualConns) < targetManual {
+		conn := assertConnReceived(t, connected, 0, ConnTypeManual)
+		manualConns = append(manualConns, conn)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure manual connections that would exceed the max allowed normal
+	// connections are rejected.
+	_, err := cm.Connect(ctx, nextAddr())
+	if !errors.Is(err, ErrMaxNormalConns) {
+		t.Fatalf("did not reject manual connection at max allowed, err: %v", err)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure inbound connections that would exceed the max allowed normal
+	// connections are rejected.
+	go listener.Connect(nextAddr())
+	assertNoConnReceived(t, inboundConns)
+	assertConnManagerInternalState(t, cm)
+
+	// Pause the target outbound dials and remove one of the target outbound
+	// connections to make room for another manual connection.  Then wait for
+	// the max failures to be hit so attempts are paused for a retry timeout.
+	pauseTargetOutbound.Store(true)
+	outboundConn := outbounds[0]
+	outboundConn.Close()
+	assertConnReceived(t, disconnected, outboundConn.ID(), ConnTypeOutbound)
+	select {
+	case <-hitMaxFailedAttempts:
+		time.Sleep(connTestReceiveTimeout)
+	case <-time.After(maxFailedAttempts * connTestReceiveTimeout):
+		t.Fatal("did not reach max failed attempts before timeout")
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Establish another manual connection to take the place of the target
+	// outbound connection that was just closed and wait for it to be
+	// established.
+	go cm.Connect(ctx, nextAddr())
+	assertConnReceived(t, connected, 0, ConnTypeManual)
+	assertConnManagerInternalState(t, cm)
+
+	// Unpause the target outbound dials and ensure no additional automatic
+	// outbound connections are made despite being under the target outbound due
+	// to max total conns.
+	pauseTargetOutbound.Store(false)
+	assertNoConnReceivedTimeout(t, connected, connTestNonReceiveTimeout+
+		cm.cfg.RetryDuration)
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure persistent connections are not subject to the max total normal
+	// connections by adding one and waiting for it to be established.
+	connID, err := cm.AddPersistent(nextAddr())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cm)
+}
+
+// TestMaxConnsPerHost ensures the connection manager limits the total number of
+// connections with the same host to [Config.MaxConnsPerHost] including
+// automatic outbound, manual outbound, inbound, and persistent connections.  It
+// also tests whitelisted addresses are exempt.
+func TestMaxConnsPerHost(t *testing.T) {
+	t.Parallel()
+
+	// nextSameHost is a convenience func to return a new address to the same IP
+	// with a different port on every invocation.
+	var nextPort atomic.Uint32
+	nextSameHost := func() net.Addr {
+		addrStr := fmt.Sprintf("10.10.0.1:%d", nextPort.Add(1)+1024)
+		return mustParseAddrPort(addrStr)
+	}
+
+	// nextSameHostWhitelisted is a convenience func to return a new address to
+	// the same whitelisted IP with a different port on every invocation.
+	allowedIP := netip.MustParseAddr("10.20.0.1")
+	nextSameWhitelistedHost := func() net.Addr {
+		addrStr := fmt.Sprintf("%s:%d", allowedIP, nextPort.Add(1)+1024)
+		return mustParseAddrPort(addrStr)
+	}
+
+	const maxConnsPerHost = 3
+	connected := make(chan *Conn, 1)
+	disconnected := make(chan *Conn, 1)
+	inboundConns := make(chan *Conn)
+	listener := newMockListener("127.0.0.1:9108")
+	var pauseTargetOutbound atomic.Bool
+	var totalPausedAddrs atomic.Uint32
+	hitMaxFailedAttempts := make(chan struct{})
+	cm := newTestConnManager(t, &Config{
+		Listeners:       []net.Listener{listener},
+		MaxNormalConns:  30, // High enough to not interfere with per-host tests.
+		MaxConnsPerHost: maxConnsPerHost,
+		TargetOutbound:  maxConnsPerHost,
+		RetryDuration:   50 * time.Millisecond,
+		Dial:            mockDialer,
+		Whitelists:      []netip.Prefix{netip.PrefixFrom(allowedIP, 32)},
+		OnAccept: func(conn *Conn) {
+			inboundConns <- conn
+		},
+		GetNewAddress: func() (net.Addr, error) {
+			if pauseTargetOutbound.Load() {
+				total := totalPausedAddrs.Add(1)
+				if total == maxFailedAttempts {
+					close(hitMaxFailedAttempts)
+				}
+				return nil, errors.New("network down")
+			}
+			return nextSameHost(), nil
+		},
+		OnConnection: func(conn *Conn) {
+			connected <- conn
+		},
+		OnDisconnection: func(conn *Conn) {
+			disconnected <- conn
+		},
+	})
+	cm.maxRetryDuration = cm.cfg.RetryDuration
+	ctx, _, _ := runConnMgrAsync(t, cm)
+
+	// Wait for the maximum allowed non-whitelisted per-host automatic outbound
+	// conns.
+	outboundConns := make([]*Conn, 0, maxConnsPerHost)
+	for len(outboundConns) < maxConnsPerHost {
+		conn := assertConnReceived(t, connected, 0, ConnTypeOutbound)
+		outboundConns = append(outboundConns, conn)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure non-whitelisted manual connections that would exceed the max
+	// allowed per-host connections are rejected.
+	_, err := cm.Connect(ctx, nextSameHost())
+	if !errors.Is(err, ErrMaxConnsPerHost) {
+		t.Fatalf("did not reject manual connection at per-host limit, err: %v",
+			err)
+	}
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure non-whitelisted inbound connections that would exceed the max
+	// allowed per-host connections are rejected.
+	go listener.Connect(nextSameHost())
+	assertNoConnReceived(t, inboundConns)
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure whitelisted manual connections are allowed to exceed the per-host
+	// limit.
+	for range maxConnsPerHost + 1 {
+		go cm.Connect(ctx, nextSameWhitelistedHost())
+		assertConnReceived(t, connected, 0, ConnTypeManual)
+	}
+
+	// Ensure whitelisted inbound connections are allowed to exceed the per-host
+	// limit.
+	go listener.Connect(nextSameWhitelistedHost())
+	assertConnReceived(t, inboundConns, 0, ConnTypeInbound)
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure whitelisted persistent connections are allowed to exceed the
+	// per-host limit.
+	connID, err := cm.AddPersistent(nextSameWhitelistedHost())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertConnReceived(t, connected, connID, ConnTypeManual)
+	assertConnManagerInternalState(t, cm)
+
+	// Pause the target outbound dials and remove one of the target outbound
+	// connections to make room for another manual connection with the same
+	// host.  Then wait for the max failures to be hit so attempts are paused
+	// for a retry timeout.
+	pauseTargetOutbound.Store(true)
+	outboundConn := outboundConns[0]
+	outboundConn.Close()
+	assertConnReceived(t, disconnected, outboundConn.ID(), ConnTypeOutbound)
+	select {
+	case <-hitMaxFailedAttempts:
+		time.Sleep(connTestReceiveTimeout)
+	case <-time.After(maxFailedAttempts * connTestReceiveTimeout):
+		t.Fatal("did not reach max failed attempts before timeout")
+	}
+
+	// Ensure a new non-whitelisted manual connection to the same host now
+	// succeeds.
+	go cm.Connect(ctx, nextSameHost())
+	assertConnReceived(t, connected, 0, ConnTypeManual)
+	assertConnManagerInternalState(t, cm)
+
+	// Unpause the target outbound dials and ensure no additional automatic
+	// outbound connections to the same host are made despite being under the
+	// target outbound.
+	noConnWaitTimeout := connTestReceiveTimeout + cm.cfg.RetryDuration
+	pauseTargetOutbound.Store(false)
+	assertNoConnReceivedTimeout(t, connected, noConnWaitTimeout)
+	assertConnManagerInternalState(t, cm)
+
+	// Ensure persistent connections are also subject to the max per-host
+	// connections by adding one and confirming it is NOT established.
+	_, err = cm.AddPersistent(nextSameHost())
+	if err != nil {
+		t.Fatalf("failed to add persistent connection: %v", err)
+	}
+	assertNoConnReceivedTimeout(t, connected, noConnWaitTimeout)
+	assertConnManagerInternalState(t, cm)
 }
