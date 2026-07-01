@@ -13,7 +13,7 @@ logic.
 
 It handles all general connection lifecycle concerns such as accepting inbound
 connections, automatically maintaining a set number of outbound connections,
-maintaining persistent connections, and limiting max connections.
+maintaining persistent connections, enforcing limits, and preventing duplicates.
 
 The design has a strong emphasis on reliability, readability, and efficiency under high connection load while also aiming to provide an ergonomic API.
 
@@ -26,13 +26,25 @@ The following is a brief overview of the key features:
 - Automatic outbound maintenance
   - Maintains up to `TargetOutbound` normal outbound connections via a provided
     address source (`GetNewAddress`)
+  - Strongly prefers connections to different network segments
+  - Incorporates intelligent address selection
+    - Skips addresses in already-connected outbound groups
+    - Skips recently attempted addresses unless no suitable addresses are found
+      after enough retries
+    - Prefers default peer-to-peer port addresses (configurable via `DefaultPort`)
 - Persistent connections
   - Maintains up to `MaxPersistent` addresses that are automatically retried
-    with exponential backoff on disconnect
+    with exponential backoff and jitter on disconnect
 - Manual connections
   - Supports manual connection establishment via `Connect`
+- Connection limits
+  - Limits total normal (non-persistent) connections to `MaxNormalConns`
+  - Limits per-host connections to `MaxConnsPerHost` with exemptions for
+    whitelisted and loopback addresses
 - Duplicate address prevention
   - Rejects duplicate connections to and from the same address (host:port)
+- Whitelist support
+  - CIDR-based whitelists that allow bypassing certain limits and restrictions
 - Rich managed connections via `Conn`
   - Connection types for differentiated handling
   - Automatic cleanup on connection close
