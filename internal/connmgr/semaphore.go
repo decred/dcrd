@@ -27,6 +27,27 @@ func (s semaphore) Acquire(ctx context.Context) bool {
 	return true
 }
 
+// TryAcquire attempts to acquire the semaphore without blocking when there are
+// no resources immediately available.
+//
+// It returns true with a nil error on success.  It returns false with a nil
+// error when the semaphore is at capacity and no permit is available.
+//
+// Finally, it returns false with the error associated with the context
+// immediately when the context is already canceled or timed out at the time of
+// the call.  It does not attempt to acquire the semaphore in that case.
+func (s semaphore) TryAcquire(ctx context.Context) (bool, error) {
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	select {
+	case s <- struct{}{}:
+		return true, nil
+	default:
+	}
+	return false, nil
+}
+
 // Release release the semaphore.
 func (s semaphore) Release() {
 	select {

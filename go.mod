@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/dchest/siphash v1.2.3
 	github.com/decred/base58 v1.0.6
 	github.com/decred/dcrd/addrmgr/v4 v4.0.0
 	github.com/decred/dcrd/bech32 v1.1.4
@@ -49,7 +50,6 @@ require (
 	decred.org/cspp/v2 v2.4.0 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/companyzero/sntrup4591761 v0.0.0-20220309191932-9e0f3af2f07a // indirect
-	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
