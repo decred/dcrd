@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -522,10 +522,6 @@ var helpDescsEnUS = map[string]string{
 	"getmixmessageresult-type":    "Command type of the message",
 	"getmixmessageresult-message": "Serialized message in hex encoding",
 
-	// GetMixPairRequests help.
-	"getmixpairrequests--synopsis": "Returns current set of mixing pair request messages from mixpool.",
-	"getmixpairrequests--result0":  "JSON array of hex-encoded mixing pair request messages.",
-
 	// GetNetworkHashPSCmd help.
 	"getnetworkhashps--synopsis": "Returns the estimated network hashes per second for the block heights provided by the parameters.",
 	"getnetworkhashps-blocks":    "The number of blocks or -1 for the default number of blocks",
@@ -993,7 +989,6 @@ var rpcResultTypes = map[types.Method][]any{
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
 	"getmixmessage":         {(*types.GetMixMessageResult)(nil)},
-	"getmixpairrequests":    {(*[]string)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
 	"getnetworkinfo":        {(*[]types.GetNetworkInfoResult)(nil)},

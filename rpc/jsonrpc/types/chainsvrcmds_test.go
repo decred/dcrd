@@ -465,17 +465,6 @@ func TestChainSvrCmds(t *testing.T) {
 			unmarshalled: &GetMixMessageCmd{Hash: "123"},
 		},
 		{
-			name: "getmixpairrequests",
-			newCmd: func() (interface{}, error) {
-				return dcrjson.NewCmd(Method("getmixpairrequests"))
-			},
-			staticCmd: func() interface{} {
-				return NewGetMixPairRequestsCmd()
-			},
-			marshalled:   `{"jsonrpc":"1.0","method":"getmixpairrequests","params":[],"id":1}`,
-			unmarshalled: &GetMixPairRequestsCmd{},
-		},
-		{
 			name: "getnetworkinfo",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("getnetworkinfo"))
