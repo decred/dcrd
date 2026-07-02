@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2016-2024 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -452,6 +452,17 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"getmininginfo","params":[],"id":1}`,
 			unmarshalled: &GetMiningInfoCmd{},
+		},
+		{
+			name: "getmixmessage",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("getmixmessage"), "123")
+			},
+			staticCmd: func() interface{} {
+				return NewGetMixMessageCmd("123")
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"getmixmessage","params":["123"],"id":1}`,
+			unmarshalled: &GetMixMessageCmd{Hash: "123"},
 		},
 		{
 			name: "getmixpairrequests",
