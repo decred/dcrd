@@ -1177,6 +1177,24 @@ func (mp *testTxMempooler) TSpendHashes() []chainhash.Hash {
 	return mp.tspendHashes
 }
 
+// testMixPooler provides a mock mixpool by implementing the MixPooler
+// interface.
+type testMixPooler struct {
+	mixPRs     []*wire.MsgMixPairReq
+	message    mixing.Message
+	messageErr error
+}
+
+// MixPRs returns a mocked slice of MixPR messages.
+func (mp *testMixPooler) MixPRs() []*wire.MsgMixPairReq {
+	return mp.mixPRs
+}
+
+// Message returns a mocked message searched for by its hash.
+func (mp *testMixPooler) Message(query *chainhash.Hash) (mixing.Message, error) {
+	return mp.message, mp.messageErr
+}
+
 // testNtfnManager provides a mock notification manager by implementing the
 // NtfnManager interface.
 type testNtfnManager struct {
@@ -1440,6 +1458,7 @@ type rpcTest struct {
 	mockLogManager        *testLogManager
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
+	mockMixPooler         *testMixPooler
 	mockHelpCacher        *testHelpCacher
 	result                any
 	wantErr               bool
@@ -1846,6 +1865,14 @@ func defaultMockTxMempooler() *testTxMempooler {
 	}
 }
 
+// defaultMockMixPooler provides a default mock mixpooler to be used throughout
+// the tests. Tests can override these defaults by calling defaultMockMixPooler,
+// updating fields as necessary on the returned *testMixPooler, and then setting
+// rpcTest.mockMixPooler as that *testMixPooler.
+func defaultMockMixPooler() *testMixPooler {
+	return &testMixPooler{}
+}
+
 // defaultMockConfig provides a default Config that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
@@ -1863,6 +1890,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		ConnMgr:         defaultMockConnManager(),
 		CPUMiner:        defaultMockCPUMiner(),
 		TxMempooler:     defaultMockTxMempooler(),
+		MixPooler:       defaultMockMixPooler(),
 		Clock:           &testClock{},
 		LogManager:      defaultMockLogManager(),
 		FiltererV2:      defaultMockFiltererV2(),
@@ -4600,6 +4628,58 @@ func TestHandleGetMiningInfo(t *testing.T) {
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleGetMixMessage(t *testing.T) {
+	t.Parallel()
+
+	prMsg := &wire.MsgMixPairReq{
+		MixAmount:    1000000,
+		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+		TxVersion:    1,
+		MessageCount: 1,
+		InputValue:   1000000,
+	}
+
+	var buf strings.Builder
+	if err := prMsg.BtcEncode(hex.NewEncoder(&buf), wire.MixVersion); err != nil {
+		panic(err)
+	}
+	prMsgHex := buf.String()
+
+	msgHash := "0000000000000000000000000000000000000000000000000000000000000000"
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetMixMessage: ok",
+		handler: handleGetMixMessage,
+		cmd:     &types.GetMixMessageCmd{Hash: msgHash},
+		mockMixPooler: func() *testMixPooler {
+			mp := defaultMockMixPooler()
+			mp.message = prMsg
+			return mp
+		}(),
+		result: &types.GetMixMessageResult{
+			Type:    wire.CmdMixPairReq,
+			Message: prMsgHex,
+		},
+	}, {
+		name:    "handleGetMixMessage: invalid hash",
+		handler: handleGetMixMessage,
+		cmd:     &types.GetMixMessageCmd{Hash: "not a hash"},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetMixMessage: message not found",
+		handler: handleGetMixMessage,
+		cmd:     &types.GetMixMessageCmd{Hash: msgHash},
+		mockMixPooler: func() *testMixPooler {
+			mp := defaultMockMixPooler()
+			mp.messageErr = errors.New("message not found")
+			return mp
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoMixMsgInfo,
 	}})
 }
 
@@ -8248,6 +8328,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockTxMempooler != nil {
 				rpcserverConfig.TxMempooler = test.mockTxMempooler
+			}
+			if test.mockMixPooler != nil {
+				rpcserverConfig.MixPooler = test.mockMixPooler
 			}
 			if test.mockHelpCacher != nil {
 				helpCacher = test.mockHelpCacher
