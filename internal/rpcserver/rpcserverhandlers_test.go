@@ -31,6 +31,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrjson/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -7012,6 +7013,65 @@ func TestHandleVerifyMessage(t *testing.T) {
 	}})
 }
 
+func TestHandleSendRawMixMessage(t *testing.T) {
+	t.Parallel()
+
+	prMsg := &wire.MsgMixPairReq{
+		MixAmount:    1000000,
+		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+		TxVersion:    1,
+		MessageCount: 1,
+		InputValue:   1000000,
+	}
+
+	var buf strings.Builder
+	if err := prMsg.BtcEncode(hex.NewEncoder(&buf), wire.MixVersion); err != nil {
+		panic(err)
+	}
+	prMsgHex := buf.String()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleSendRawMixMessage: ok",
+		handler: handleSendRawMixMessage,
+		cmd: &types.SendRawMixMessageCmd{
+			Command: wire.CmdMixPairReq,
+			Message: prMsgHex,
+		},
+	}, {
+		name:    "handleSendRawMixMessage: unrecognized command",
+		handler: handleSendRawMixMessage,
+		cmd: &types.SendRawMixMessageCmd{
+			Command: "bogus",
+			Message: prMsgHex,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleSendRawMixMessage: undecodable message",
+		handler: handleSendRawMixMessage,
+		cmd: &types.SendRawMixMessageCmd{
+			Command: wire.CmdMixPairReq,
+			Message: "invalid hex",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDeserialization,
+	}, {
+		name:    "handleSendRawMixMessage: message rejected by mixpool",
+		handler: handleSendRawMixMessage,
+		cmd: &types.SendRawMixMessageCmd{
+			Command: wire.CmdMixPairReq,
+			Message: prMsgHex,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncMgr := defaultMockSyncManager()
+			syncMgr.acceptMixErr = errors.New("rejected")
+			return syncMgr
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}})
+}
+
 func TestHandleSendRawTransaction(t *testing.T) {
 	t.Parallel()
 
@@ -8338,10 +8398,11 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 
 			ctx := context.Background()
 			testServer := &Server{
-				cfg:        *rpcserverConfig,
-				ntfnMgr:    new(testNtfnManager),
-				workState:  workState,
-				helpCacher: helpCacher,
+				cfg:            *rpcserverConfig,
+				ntfnMgr:        new(testNtfnManager),
+				workState:      workState,
+				helpCacher:     helpCacher,
+				blake256Hasher: blake256.New(),
 			}
 			result, err := test.handler(ctx, testServer, test.cmd)
 			if test.wantErr {
