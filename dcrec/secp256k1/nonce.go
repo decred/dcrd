@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -79,7 +79,7 @@ func (h *hmacsha256) ResetKey(key []byte) {
 	h.initKey(key)
 }
 
-// Resets the HMAC-SHA256 to its initial state using the current key.
+// Reset resets the HMAC-SHA256 to its initial state using the current key.
 func (h *hmacsha256) Reset() {
 	h.inner.Reset()
 	h.inner.Write(h.ipad[:])
