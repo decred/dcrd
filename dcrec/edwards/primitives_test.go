@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -45,6 +45,8 @@ func testConversionVectors() []ConversionVector {
 //   - FieldElementToBigInt
 //   - EncodedBytesToFieldElement
 func TestConversion(t *testing.T) {
+	t.Parallel()
+
 	encodedNumToStrIdx := 0
 	encodedNumToStrSet := []string{
 		"20196841024736227335511321252453997055107605473446826399550527392484145048463",
@@ -229,6 +231,8 @@ func testPointConversionVectors() []ConversionVector {
 //   - extendedToBigAffine
 //   - EncodedBytesToBigIntPoint
 func TestPointConversion(t *testing.T) {
+	t.Parallel()
+
 	decodedPointsIdx := 0
 	decodedPointsSet := []string{
 		"36342386295235510298682738805067969701306540594271578388800019131093341795154,12122921476001995645148951048614280991245620197289177635264906062452356396947",

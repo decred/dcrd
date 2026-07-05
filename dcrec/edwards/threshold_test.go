@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,8 @@ import (
 )
 
 func TestSchnorrThreshold(t *testing.T) {
+	t.Parallel()
+
 	tRand := rand.New(rand.NewSource(543212345))
 	maxSignatories := 10
 	numTests := 5

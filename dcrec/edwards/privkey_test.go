@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,8 @@ import (
 )
 
 func TestPrivKeySign(t *testing.T) {
+	t.Parallel()
+
 	message := []byte("the quick brown fox jumps over the lazy dog")
 
 	privkey, err := GeneratePrivateKey()
