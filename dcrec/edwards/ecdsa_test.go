@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -204,8 +205,6 @@ func randPrivScalarKeyList(i int) []*PrivateKey {
 func TestNonStandardSignatures(t *testing.T) {
 	t.Parallel()
 
-	tRand := rand.New(rand.NewSource(54321))
-
 	msg := []byte{
 		0xbe, 0x13, 0xae, 0xf4,
 		0xe8, 0xa2, 0x00, 0xb6,
@@ -218,94 +217,112 @@ func TestNonStandardSignatures(t *testing.T) {
 	}
 
 	pks := randPrivScalarKeyList(50)
-	for _, pk := range pks {
-		r, s, err := Sign(pk, msg)
-		if err != nil {
-			t.Fatalf("unexpected error %s", err)
-		}
+	var wg sync.WaitGroup
+	for i, pk := range pks {
+		wg.Add(1)
+		go func(i int, pk *PrivateKey) {
+			defer wg.Done()
 
-		pubX, pubY := pk.Public()
-		pub := NewPublicKey(pubX, pubY)
-		ok := Verify(pub, msg, r, s)
-		if !ok {
-			t.Fatalf("expected %v, got %v", true, ok)
-		}
-
-		// Test serializing/deserializing.
-		privKeyDupTest, _, err := PrivKeyFromScalar(
-			copyBytes(pk.ecPk.D.Bytes())[:])
-
-		if err != nil {
-			t.Fatalf("unexpected error %s", err)
-		}
-
-		cmp := privKeyDupTest.GetD().Cmp(pk.GetD()) == 0
-		if !cmp {
-			t.Fatalf("expected %v, got %v", true, cmp)
-		}
-
-		privKeyDupTest2, _, err := PrivKeyFromScalar(pk.Serialize())
-		if err != nil {
-			t.Fatalf("unexpected error %s", err)
-		}
-
-		cmp = privKeyDupTest2.GetD().Cmp(pk.GetD()) == 0
-		if !cmp {
-			t.Fatalf("expected %v, got %v", true, cmp)
-		}
-
-		// Screw up a random bit in the signature and
-		// make sure it still fails.
-		sig := NewSignature(r, s)
-		sigBad := sig.Serialize()
-		pos := tRand.Intn(63)
-		bitPos := tRand.Intn(7)
-		sigBad[pos] ^= 1 << uint8(bitPos)
-
-		bSig, err := ParseSignature(sigBad)
-		if err != nil {
-			// Signature failed to parse, continue.
-			continue
-		}
-		ok = Verify(pub, msg, bSig.GetR(), bSig.GetS())
-		if ok {
-			t.Fatalf("expected %v, got %v", false, ok)
-		}
-
-		// Screw up a random bit in the pubkey and
-		// make sure it still fails.
-		pkBad := pub.Serialize()
-		pos = tRand.Intn(31)
-		if pos == 0 {
-			// 0th bit in first byte doesn't matter
-			bitPos = tRand.Intn(6) + 1
-		} else {
-			bitPos = tRand.Intn(7)
-		}
-		pkBad[pos] ^= 1 << uint8(bitPos)
-		bPub, err := ParsePubKey(pkBad)
-		if err == nil && bPub != nil {
-			ok = Verify(bPub, msg, r, s)
-			if ok {
-				t.Fatalf("expected %v, got %v", false, ok)
+			tRand := rand.New(rand.NewSource(54321))
+			r, s, err := Sign(pk, msg)
+			if err != nil {
+				t.Errorf("unexpected error %s", err)
+				return
 			}
-		}
 
-		// Append an extra byte and make sure the parse fails.
-		pkBad2 := append(pub.Serialize(), 0x01)
-		_, err = ParsePubKey(pkBad2)
-		if err == nil {
-			t.Fatal("expected err, got nil")
-		}
+			pubX, pubY := pk.Public()
+			pub := NewPublicKey(pubX, pubY)
+			ok := Verify(pub, msg, r, s)
+			if !ok {
+				t.Errorf("expected %v, got %v", true, ok)
+				return
+			}
 
-		// Remove a random byte and make sure the parse fails.
-		pkBad3 := pub.Serialize()
-		pkBad3 = append(pkBad3[:pos], pkBad3[pos+1:]...)
-		_, err = ParsePubKey(pkBad3)
-		if err == nil {
-			t.Fatal("expected err, got nil")
-		}
+			// Test serializing/deserializing.
+			privKeyDupTest, _, err := PrivKeyFromScalar(
+				copyBytes(pk.ecPk.D.Bytes())[:])
+
+			if err != nil {
+				t.Errorf("unexpected error %s", err)
+				return
+			}
+
+			cmp := privKeyDupTest.GetD().Cmp(pk.GetD()) == 0
+			if !cmp {
+				t.Errorf("expected %v, got %v", true, cmp)
+				return
+			}
+
+			privKeyDupTest2, _, err := PrivKeyFromScalar(pk.Serialize())
+			if err != nil {
+				t.Errorf("unexpected error %s", err)
+				return
+			}
+
+			cmp = privKeyDupTest2.GetD().Cmp(pk.GetD()) == 0
+			if !cmp {
+				t.Errorf("expected %v, got %v", true, cmp)
+				return
+			}
+
+			// Screw up a random bit in the signature and
+			// make sure it still fails.
+			sig := NewSignature(r, s)
+			sigBad := sig.Serialize()
+			pos := tRand.Intn(63)
+			bitPos := tRand.Intn(7)
+			sigBad[pos] ^= 1 << uint8(bitPos)
+
+			bSig, err := ParseSignature(sigBad)
+			if err != nil {
+				// Signature failed to parse, nothing more to check.
+				return
+			}
+			ok = Verify(pub, msg, bSig.GetR(), bSig.GetS())
+			if ok {
+				t.Errorf("expected %v, got %v", false, ok)
+				return
+			}
+
+			// Screw up a random bit in the pubkey and
+			// make sure it still fails.
+			pkBad := pub.Serialize()
+			pos = tRand.Intn(31)
+			if pos == 0 {
+				// 0th bit in first byte doesn't matter
+				bitPos = tRand.Intn(6) + 1
+			} else {
+				bitPos = tRand.Intn(7)
+			}
+			pkBad[pos] ^= 1 << uint8(bitPos)
+			bPub, err := ParsePubKey(pkBad)
+			if err == nil && bPub != nil {
+				ok = Verify(bPub, msg, r, s)
+				if ok {
+					t.Errorf("expected %v, got %v", false, ok)
+					return
+				}
+			}
+
+			// Append an extra byte and make sure the parse fails.
+			pkBad2 := append(pub.Serialize(), 0x01)
+			_, err = ParsePubKey(pkBad2)
+			if err == nil {
+				t.Errorf("expected err, got nil")
+				return
+			}
+
+			// Remove a random byte and make sure the parse fails.
+			pkBad3 := pub.Serialize()
+			pkBad3 = append(pkBad3[:pos], pkBad3[pos+1:]...)
+			_, err = ParsePubKey(pkBad3)
+			if err == nil {
+				t.Errorf("expected err, got nil")
+				return
+			}
+		}(i, pk)
 	}
+	wg.Wait()
 }
 
 func randPrivKeyList(i int) []*PrivateKey {
