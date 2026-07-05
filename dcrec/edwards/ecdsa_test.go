@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,6 +19,8 @@ import (
 )
 
 func TestGolden(t *testing.T) {
+	t.Parallel()
+
 	// sign.input.gz is a selection of test cases from
 	// https://ed25519.cr.yp.to/python/sign.input
 	testDataZ, err := os.Open("testdata/sign.input.gz")
@@ -200,6 +202,8 @@ func randPrivScalarKeyList(i int) []*PrivateKey {
 }
 
 func TestNonStandardSignatures(t *testing.T) {
+	t.Parallel()
+
 	tRand := rand.New(rand.NewSource(54321))
 
 	msg := []byte{
