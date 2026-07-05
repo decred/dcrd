@@ -186,15 +186,9 @@ func TestCipheringErrors(t *testing.T) {
 		{bytes.Repeat([]byte{0x07}, 15)},
 	}
 	for i, test := range tests2 {
-		_, err = TstRemovePKCSPadding(test.in)
+		_, err = removePKCSPadding(test.in)
 		if err == nil {
 			t.Errorf("removePKCSPadding #%d did not get error", i)
 		}
 	}
-}
-
-// TstRemovePKCSPadding makes the internal removePKCSPadding function available
-// to the test package.
-func TstRemovePKCSPadding(src []byte) ([]byte, error) {
-	return removePKCSPadding(src)
 }
