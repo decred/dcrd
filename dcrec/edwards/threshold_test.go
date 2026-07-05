@@ -77,7 +77,7 @@ func TestSchnorrThreshold(t *testing.T) {
 				}
 
 				if err != nil {
-					t.Errorf("unexpected error %s, ", err)
+					t.Errorf("unexpected error %s", err)
 					return
 				}
 
@@ -99,7 +99,7 @@ func TestSchnorrThreshold(t *testing.T) {
 					allPksSum.Serialize(), privNoncesToUse[j].Serialize(),
 					publicNonceSum.Serialize())
 				if err != nil {
-					t.Errorf("unexpected error %s, ", err)
+					t.Errorf("unexpected error %s", err)
 					return
 				}
 
@@ -110,7 +110,7 @@ func TestSchnorrThreshold(t *testing.T) {
 			// Combine signatures.
 			combinedSignature, err := schnorrCombinePartialSigs(partialSignatures)
 			if err != nil {
-				t.Errorf("unexpected error %s, ", err)
+				t.Errorf("unexpected error %s", err)
 				return
 			}
 
@@ -132,13 +132,13 @@ func TestSchnorrThreshold(t *testing.T) {
 			combinedPrivkey, _, err := PrivKeyFromScalar(
 				copyBytes(combinedPrivkeysD.Bytes())[:])
 			if err != nil {
-				t.Errorf("unexpected error %s, ", err)
+				t.Errorf("unexpected error %s", err)
 				return
 			}
 			combinedNonce, _, err := PrivKeyFromScalar(
 				copyBytes(combinedNonceD.Bytes())[:])
 			if err != nil {
-				t.Errorf("unexpected error %s, ", err)
+				t.Errorf("unexpected error %s", err)
 				return
 			}
 			cSigR, cSigS, err := SignFromScalar(combinedPrivkey,
@@ -151,7 +151,7 @@ func TestSchnorrThreshold(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Errorf("unexpected error %s, ", err)
+				t.Errorf("unexpected error %s", err)
 				return
 			}
 
