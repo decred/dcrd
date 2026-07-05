@@ -150,7 +150,7 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 					// tests.
 					return nil
 				},
-				MaxSize: 100 * 1024 * 1024, // 100 MiB
+				MaxSize: 100 * 1024, // 100 KiB
 			}),
 		})
 
