@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,35 +6,32 @@ package mining
 
 import (
 	"testing"
-	"time"
+	"testing/synctest"
 )
 
 // TestWaitGroup ensures the API for the local waitGroup implementation behaves
 // correctly.
 func TestWaitGroup(t *testing.T) {
-	// goWait is a helper that calls wg.Wait() on a gorutine and closes the
+	// goWait is a helper that calls wg.Wait() on a goroutine and closes the
 	// returned chan once Wait() returns.
 	goWait := func(wg *waitGroup) chan struct{} {
 		c := make(chan struct{})
-		started := make(chan struct{})
 		go func() {
-			close(started)
 			wg.Wait()
 			close(c)
 		}()
-
-		// Allow Wait() to be called.
-		<-started
 		return c
 	}
 
-	// waitReturned returns true if the passed channel created by goWait is
-	// closed before a timeout.
+	// waitReturned returns true if the passed channel is closed. It calls
+	// synctest.Wait() before checking the status of the channel to ensure the
+	// tests are not subject to race conditions.
 	waitReturned := func(c chan struct{}) bool {
+		synctest.Wait()
 		select {
 		case <-c:
 			return true
-		case <-time.After(time.Second):
+		default:
 			return false
 		}
 	}
@@ -93,10 +90,8 @@ func TestWaitGroup(t *testing.T) {
 
 			// No chan should be signalled yet.
 			for i := 0; i < nb; i++ {
-				select {
-				case <-chans[i]:
+				if waitReturned(chans[i]) {
 					t.Fatalf("unexpected Wait() return")
-				default:
 				}
 			}
 
@@ -151,6 +146,6 @@ func TestWaitGroup(t *testing.T) {
 	}}
 
 	for _, tc := range tests {
-		t.Run(tc.name, tc.test)
+		synctest.Test(t, tc.test)
 	}
 }
