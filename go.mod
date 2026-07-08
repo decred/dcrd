@@ -29,6 +29,7 @@ require (
 	github.com/decred/dcrd/peer/v4 v4.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.4.0
 	github.com/decred/dcrd/rpcclient/v8 v8.1.0
+	github.com/decred/dcrd/rpcclient/v9 v9.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.2
 	github.com/decred/dcrd/wire v1.7.5
 	github.com/decred/dcrtest/dcrdtest v1.0.1-0.20240404170936-a2529e936df1
@@ -85,7 +86,7 @@ replace (
 	github.com/decred/dcrd/mixing => ./mixing
 	github.com/decred/dcrd/peer/v4 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
-	github.com/decred/dcrd/rpcclient/v8 => ./rpcclient
+	github.com/decred/dcrd/rpcclient/v9 => ./rpcclient
 	github.com/decred/dcrd/txscript/v4 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )
