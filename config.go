@@ -30,7 +30,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v5"
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/go-socks/socks"

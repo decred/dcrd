@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/decred/dcrd/rpc/jsonrpc/types/v4"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v5"
 )
 
 // TestAuth_UserPass_AdminAndLimited validates the user/pass authentication when
