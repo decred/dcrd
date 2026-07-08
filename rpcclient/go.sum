@@ -31,8 +31,6 @@ github.com/decred/dcrd/dcrutil/v4 v4.0.3 h1:uUgSBB4ZFHeKQFrdUgKv3PvVJ3YpBpFeXMgX
 github.com/decred/dcrd/dcrutil/v4 v4.0.3/go.mod h1:X59K97qkCrzlp8q6QcLsfxW3mrrDWROQMGM1la46jCY=
 github.com/decred/dcrd/gcs/v4 v4.1.1 h1:3ELoII8uwIxXFGq6ETB29AjW7Lmr3McQOYsSD3dvUz0=
 github.com/decred/dcrd/gcs/v4 v4.1.1/go.mod h1:5q1EnYp1CzJw057/XfRB6UGkos24fpu2r2ZLuwE7YdE=
-github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0 h1:l0DnCcILTNrpy8APF3FLN312ChpkQaAuW30aC/RgBaw=
-github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0/go.mod h1:j+kkRPXPJB5S9VFOsx8SQLcU7PTFkPKRc1aCHN4ENzA=
 github.com/decred/dcrd/txscript/v4 v4.1.2 h1:1EP7ZmBDl2LBeAMTEygxY8rVNN3+lkGqrsb4u64x+II=
 github.com/decred/dcrd/txscript/v4 v4.1.2/go.mod h1:r5/8qfCnl6TFrE369gggUayVIryM1oC7BLoRfa27Ckw=
 github.com/decred/dcrd/wire v1.7.1 h1:kDuHBiY1Qv9rBxYKgC2RgyPy7IOA2WRf00jqHwpr16I=

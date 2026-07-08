@@ -27,7 +27,7 @@ require (
 	github.com/decred/dcrd/math/uint256 v1.0.2
 	github.com/decred/dcrd/mixing v0.6.0
 	github.com/decred/dcrd/peer/v4 v4.0.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.4.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v5 v5.0.0
 	github.com/decred/dcrd/rpcclient/v8 v8.1.0
 	github.com/decred/dcrd/rpcclient/v9 v9.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.2
@@ -53,6 +53,7 @@ require (
 	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.1.3 // indirect
+	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
@@ -85,7 +86,7 @@ replace (
 	github.com/decred/dcrd/math/uint256 => ./math/uint256
 	github.com/decred/dcrd/mixing => ./mixing
 	github.com/decred/dcrd/peer/v4 => ./peer
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 => ./rpc/jsonrpc/types
+	github.com/decred/dcrd/rpc/jsonrpc/types/v5 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v9 => ./rpcclient
 	github.com/decred/dcrd/txscript/v4 => ./txscript
 	github.com/decred/dcrd/wire => ./wire

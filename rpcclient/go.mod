@@ -7,13 +7,15 @@ require (
 	github.com/decred/dcrd/dcrjson/v4 v4.2.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.3
 	github.com/decred/dcrd/gcs/v4 v4.1.1
-	github.com/decred/dcrd/rpc/jsonrpc/types/v4 v4.3.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v5 v5.0.0
 	github.com/decred/dcrd/txscript/v4 v4.1.2
 	github.com/decred/dcrd/wire v1.7.1
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.5.1
 )
+
+replace github.com/decred/dcrd/rpc/jsonrpc/types/v5 => ../rpc/jsonrpc/types
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
