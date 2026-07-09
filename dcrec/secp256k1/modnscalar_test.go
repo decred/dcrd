@@ -979,6 +979,26 @@ func TestModNScalarSquareRandom(t *testing.T) {
 	}
 }
 
+// checkModNScalarNegateProps checks algebraic properties of scalar negation.
+func checkModNScalarNegateProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	negation := new(ModNScalar).NegateVal(val)
+
+	// Ensure involution produces the original value.  That is -(-x) == x.
+	involution := new(ModNScalar).Set(negation).Negate()
+	if !involution.Equals(val) {
+		t.Errorf("mismatched involution -- got: %v, want: %v", involution,
+			val)
+	}
+
+	// Ensure x + (-x) == 0.
+	sum := new(ModNScalar).Add2(val, negation)
+	if !sum.IsZero() {
+		t.Errorf("x + (-x) != 0 -- got: %v, want: 0", sum)
+	}
+}
+
 // TestModNScalarNegate ensures that negating scalars works as expected for edge
 // cases.
 func TestModNScalarNegate(t *testing.T) {
@@ -1051,6 +1071,9 @@ func TestModNScalarNegate(t *testing.T) {
 				result2, expected)
 			continue
 		}
+
+		// Ensure algebraic properties with negation hold.
+		checkModNScalarNegateProps(t, s)
 	}
 }
 
@@ -1086,6 +1109,9 @@ func TestModNScalarNegateRandom(t *testing.T) {
 				"big int result: %x\nscalar result %v", bigIntVal, modNVal,
 				bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with negation hold.
+		assertModNScalarNegateProperties(t, modNVal)
 	}
 }
 
