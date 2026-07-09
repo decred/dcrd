@@ -16,8 +16,8 @@ structures and functions for working with public and private secp256k1 keys.
 
 In addition, subpackages are provided to produce, verify, parse, and serialize
 ECDSA signatures and EC-Schnorr-DCRv0 (a custom Schnorr-based signature scheme
-specific to Decred) signatures.  See the README.md files in the relevant sub
-packages for more details about those aspects.
+specific to Decred) signatures.  See the README.md files in the relevant
+subpackages for more details about those aspects.
 
 ## Features
 
@@ -94,6 +94,21 @@ secp256k1 elliptic curve cryptography.
 ## References
 
 The secp256k1 domain parameters are specified in [SEC 2: Recommended Elliptic Curve Domain Parameters](https://www.secg.org/sec2-v2.pdf).
+
+## Caveats
+
+Constant time implementations are designed to eliminate data dependent timing
+variation at the algorithmic level.  This property depends on the Go compiler
+continuing to compile the relevant operations into constant-time machine
+instructions.
+
+This package also consistently uses temporary stack allocated buffers which it
+attempts to clear in order to reduce the likelihood of sensitive data lingering
+in memory, but Go does not guarantee such writes are never optimized away.
+
+Significant effort has been made to ensure correctness including careful review
+of the generated assembly, but it is impossible to guarantee exact behavior of
+future versions of the Go compiler.
 
 ## secp256k1 use in Decred
 
