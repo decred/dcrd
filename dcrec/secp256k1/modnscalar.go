@@ -5,8 +5,10 @@
 package secp256k1
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"math/big"
+	"math/bits"
 	"sync"
 )
 
@@ -18,81 +20,76 @@ import (
 //     https://cacr.uwaterloo.ca/hac/
 
 // Many elliptic curve operations require working with scalars in a finite field
-// characterized by the order of the group underlying the secp256k1 curve.
-// Given this precision is larger than the biggest available native type,
-// obviously some form of bignum math is needed.  This code implements
-// specialized fixed-precision field arithmetic rather than relying on an
-// arbitrary-precision arithmetic package such as math/big for dealing with the
-// math modulo the group order since the size is known.  As a result, rather
-// large performance gains are achieved by taking advantage of many
-// optimizations not available to arbitrary-precision arithmetic and generic
-// modular arithmetic algorithms.
+// defined by the order of the group underlying the secp256k1 curve.  Since the
+// group order exceeds the width of the largest available native type, some form
+// of multi-precision arithmetic is required.  This code implements specialized
+// fixed-precision field arithmetic rather than relying on an
+// arbitrary-precision arithmetic package such as math/big for performing
+// arithmetic modulo the fixed group order.  As a result, significant
+// performance gains are achieved by taking advantage of many optimizations not
+// available to arbitrary-precision arithmetic and generic modular arithmetic
+// algorithms.
 //
-// There are various ways to internally represent each element.  For example,
-// the most obvious representation would be to use an array of 4 uint64s (64
-// bits * 4 = 256 bits).  However, that representation suffers from the fact
-// that there is no native Go type large enough to handle the intermediate
-// results while adding or multiplying two 64-bit numbers.
+// There are various ways to internally represent each element with their own
+// pros and cons.  Some common representations are:
 //
-// Given the above, this implementation represents the field elements as 8
-// uint32s with each word (array entry) treated as base 2^32.  This was chosen
-// because most systems at the current time are 64-bit (or at least have 64-bit
-// registers available for specialized purposes such as MMX) so the intermediate
-// results can typically be done using a native register (and using uint64s to
-// avoid the need for additional half-word arithmetic)
-
+//   - 8 uint32s with base 2^32 limbs (aka 8x32: 32 bits * 8 = 256 bits)
+//   - 10 uint32s with base 2^26 limbs (aka 10x26: 26 bits * 10 = 260 bits)
+//   - 4 uint64s with base 2^64 limbs (aka 4x64: 64 bits * 4 = 256 bits)
+//   - 5 uint64s with base 2^52 limbs (aka 5x52: 52 bits * 5 = 260 bits)
+//
+// The primary tradeoff is complexity versus performance and the optimal choice
+// also largely depends on the available hardware capabilities.
+//
+// For example, 5x52 and 10x26 allow performing several operations in a row
+// before carry propagation or modular reduction becomes necessary since there
+// are additional bits available in each limb, but that comes at the cost of
+// manual magnitude tracking, multiple non-canonical representations of each
+// number, and periodic normalization to propagate the accumulated carries and
+// perform the modular reduction all at once.
+//
+// Conversely, 8x32 and 4x64 involve less complexity, are simpler to use, have
+// fewer limbs to manage, and only have a single canonical representation for
+// each number, but that comes at the cost of requiring carry propagation and
+// modular reduction for every operation and larger intermediate results.
+//
+// The requirement for larger intermediate results is particularly notable for
+// uint64s because there is no native Go type large enough to handle the 128-bit
+// intermediate results while adding and multiplying the 64-bit limbs.
+//
+// This implementation historically used 8x32 for that reason, coupled with the
+// fact that Go did not reliably make use of hardware-supported wide arithmetic,
+// to ensure all intermediate results fit cleanly into uint64s.
+//
+// However, most systems are now 64-bit and almost all have instructions capable
+// of handling the 128-bit intermediate results without the need for additional
+// half-word arithmetic.  Further, modern versions of Go automatically use those
+// instructions on hardware that supports it.
+//
+// Given the above, this implementation represents the field elements as 4
+// uint64s with each limb (array entry) treated as base 2^64 (aka 4x64) and
+// keeps the value reduced at all times.
 const (
-	// These fields provide convenient access to each of the words of the
+	// These fields provide convenient access to each of the limbs of the
 	// secp256k1 curve group order N to improve code readability.
 	//
 	// The group order of the curve per [SECG] is:
-	// 0xffffffff ffffffff ffffffff fffffffe baaedce6 af48a03b bfd25e8c d0364141
-	//
-	// nolint: dupword
-	orderWordZero  uint32 = 0xd0364141
-	orderWordOne   uint32 = 0xbfd25e8c
-	orderWordTwo   uint32 = 0xaf48a03b
-	orderWordThree uint32 = 0xbaaedce6
-	orderWordFour  uint32 = 0xfffffffe
-	orderWordFive  uint32 = 0xffffffff
-	orderWordSix   uint32 = 0xffffffff
-	orderWordSeven uint32 = 0xffffffff
+	// 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+	orderLimb0 uint64 = 0xbfd25e8cd0364141
+	orderLimb1 uint64 = 0xbaaedce6af48a03b
+	orderLimb2 uint64 = 0xfffffffffffffffe
+	orderLimb3 uint64 = 0xffffffffffffffff
 
-	// These fields provide convenient access to each of the words of the two's
+	// These fields provide convenient access to each of the limbs of the two's
 	// complement of the secp256k1 curve group order N to improve code
 	// readability.
 	//
 	// The two's complement of the group order is:
 	// 0x00000000 00000000 00000000 00000001 45512319 50b75fc4 402da173 2fc9bebf
-	orderComplementWordZero  uint32 = (^orderWordZero) + 1
-	orderComplementWordOne   uint32 = ^orderWordOne
-	orderComplementWordTwo   uint32 = ^orderWordTwo
-	orderComplementWordThree uint32 = ^orderWordThree
-	// orderComplementWordFour  uint32 = ^orderWordFour  // unused
-	// orderComplementWordFive  uint32 = ^orderWordFive  // unused
-	// orderComplementWordSix   uint32 = ^orderWordSix   // unused
-	// orderComplementWordSeven uint32 = ^orderWordSeven // unused
-
-	// These fields provide convenient access to each of the words of the
-	// secp256k1 curve group order N / 2 to improve code readability and avoid
-	// the need to recalculate them.
-	//
-	// The half order of the secp256k1 curve group is:
-	// 0x7fffffff ffffffff ffffffff ffffffff 5d576e73 57a4501d dfe92f46 681b20a0
-	//
-	// nolint: dupword
-	halfOrderWordZero  uint32 = 0x681b20a0
-	halfOrderWordOne   uint32 = 0xdfe92f46
-	halfOrderWordTwo   uint32 = 0x57a4501d
-	halfOrderWordThree uint32 = 0x5d576e73
-	halfOrderWordFour  uint32 = 0xffffffff
-	halfOrderWordFive  uint32 = 0xffffffff
-	halfOrderWordSix   uint32 = 0xffffffff
-	halfOrderWordSeven uint32 = 0x7fffffff
-
-	// uint32Mask is simply a mask with all bits set for a uint32 and is used to
-	// improve the readability of the code.
-	uint32Mask = 0xffffffff
+	orderComplementLimb0 uint64 = (^orderLimb0) + 1
+	orderComplementLimb1 uint64 = ^orderLimb1
+	orderComplementLimb2 uint64 = ^orderLimb2
+	// orderComplementLimb3 uint64 = ^orderLimb3 // unused
 )
 
 var (
@@ -112,39 +109,37 @@ var (
 // around if absolutely needed.  For example, subtraction can be performed by
 // adding the negation.
 //
-// Should it be absolutely necessary, conversion to the standard library
-// math/big.Int can be accomplished by using the Bytes method, slicing the
-// resulting fixed-size array, and feeding it to big.Int.SetBytes.  However,
-// that should typically be avoided when possible as conversion to big.Ints
-// requires allocations, is not constant time, and is slower when working modulo
-// the group order.
+// Should it be absolutely necessary, conversion to a standard library [big.Int]
+// can be accomplished by using [ModNScalar.Bytes], slicing the resulting
+// fixed-size array, and feeding it to [big.Int.SetBytes].  However, that should
+// typically be avoided when possible as conversion to a [big.Int] requires
+// allocations, is not constant time, and is slower when working modulo the
+// group order.
 type ModNScalar struct {
-	// The scalar is represented as 8 32-bit integers in base 2^32.
+	// The scalar is represented as 4 64-bit integers in base 2^64.
 	//
 	// The following depicts the internal representation:
-	// 	 ---------------------------------------------------------
-	// 	|       n[7]     |      n[6]      | ... |      n[0]      |
-	// 	| 32 bits        | 32 bits        | ... | 32 bits        |
-	// 	| Mult: 2^(32*7) | Mult: 2^(32*6) | ... | Mult: 2^(32*0) |
-	// 	 ---------------------------------------------------------
+	// 	 --------------------------------------------------------------------
+	// 	|       n[3]     |      n[2]      |      n[1]      |      n[0]      |
+	// 	| 64 bits        | 64 bits        | 64 bits        | 64 bits        |
+	// 	| Mult: 2^(64*3) | Mult: 2^(64*2) | Mult: 2^(64*1) | Mult: 2^(64*0) |
+	// 	 --------------------------------------------------------------------
 	//
-	// For example, consider the number 2^87 + 2^42 + 1.  It would be
+	// For example, consider the number 2^135 + 2^87 + 1.  It would be
 	// represented as:
 	// 	n[0] = 1
-	// 	n[1] = 2^10
-	// 	n[2] = 2^23
-	// 	n[3..7] = 0
+	// 	n[1] = 2^23
+	// 	n[2] = 2^7
+	// 	n[3] = 0
 	//
-	// The full 256-bit value is then calculated by looping i from 7..0 and
-	// doing sum(n[i] * 2^(32i)) like so:
-	// 	n[7] * 2^(32*7) = 0    * 2^224 = 0
-	// 	n[6] * 2^(32*6) = 0    * 2^192 = 0
-	// 	...
-	// 	n[2] * 2^(32*2) = 2^23 * 2^64  = 2^87
-	// 	n[1] * 2^(32*1) = 2^10 * 2^32  = 2^42
-	// 	n[0] * 2^(32*0) = 1    * 2^0   = 1
-	// 	Sum: 0 + 0 + ... + 2^87 + 2^42 + 1 = 2^87 + 2^42 + 1
-	n [8]uint32
+	// The full 256-bit value is then calculated by looping i from 3..0 and
+	// doing sum(n[i] * 2^(64i)) like so:
+	// 	n[3] * 2^(64*3) = 0    * 2^192 = 0
+	// 	n[2] * 2^(64*2) = 2^7  * 2^128  = 2^135
+	// 	n[1] * 2^(64*1) = 2^23 * 2^64  = 2^87
+	// 	n[0] * 2^(64*0) = 1    * 2^0   = 1
+	// 	Sum: 0 + 2^135 + 2^87 + 1 = 2^135 + 2^87 + 1
+	n [4]uint64
 }
 
 // String returns the scalar as a human-readable hex string.
@@ -169,14 +164,7 @@ func (s *ModNScalar) Set(val *ModNScalar) *ModNScalar {
 // already set to zero.  This function can be useful to clear an existing scalar
 // for reuse.
 func (s *ModNScalar) Zero() {
-	s.n[0] = 0
-	s.n[1] = 0
-	s.n[2] = 0
-	s.n[3] = 0
-	s.n[4] = 0
-	s.n[5] = 0
-	s.n[6] = 0
-	s.n[7] = 0
+	s.n = [4]uint64{}
 }
 
 // IsZeroBit returns 1 when the scalar is equal to zero or 0 otherwise in
@@ -187,16 +175,13 @@ func (s *ModNScalar) Zero() {
 // operations require a numeric value.  See [ModNScalar.IsZero] for the version
 // that returns a bool.
 func (s *ModNScalar) IsZeroBit() uint32 {
-	// The scalar can only be zero if no bits are set in any of the words.
-	bits := s.n[0] | s.n[1] | s.n[2] | s.n[3] | s.n[4] | s.n[5] | s.n[6] | s.n[7]
-	return constantTimeEq(bits, 0)
+	return constantTimeEq64(s.n[0]|s.n[1]|s.n[2]|s.n[3], 0)
 }
 
 // IsZero returns whether or not the scalar is equal to zero in constant time.
 func (s *ModNScalar) IsZero() bool {
 	// The scalar can only be zero if no bits are set in any of the words.
-	bits := s.n[0] | s.n[1] | s.n[2] | s.n[3] | s.n[4] | s.n[5] | s.n[6] | s.n[7]
-	return bits == 0
+	return (s.n[0] | s.n[1] | s.n[2] | s.n[3]) == 0
 }
 
 // SetInt sets the scalar to the passed integer in constant time.  This is a
@@ -206,77 +191,8 @@ func (s *ModNScalar) IsZero() bool {
 // The scalar is returned to support chaining.  This enables syntax like:
 // s := new(ModNScalar).SetInt(2).Mul(s2) so that s = 2 * s2.
 func (s *ModNScalar) SetInt(ui uint32) *ModNScalar {
-	s.Zero()
-	s.n[0] = ui
+	s.n = [4]uint64{uint64(ui), 0, 0, 0}
 	return s
-}
-
-// overflows determines if the current scalar is greater than or equal to the
-// group order in constant time and returns 1 if it is or 0 otherwise.
-func (s *ModNScalar) overflows() uint32 {
-	// The intuition here is that the scalar is greater than the group order if
-	// one of the higher individual words is greater than corresponding word of
-	// the group order and all higher words in the scalar are equal to their
-	// corresponding word of the group order.  Since this type is modulo the
-	// group order, being equal is also an overflow back to 0.
-	//
-	// Note that the words 5, 6, and 7 are all the max uint32 value, so there is
-	// no need to test if those individual words of the scalar exceeds them,
-	// hence, only equality is checked for them.
-	highWordsEqual := constantTimeEq(s.n[7], orderWordSeven)
-	highWordsEqual &= constantTimeEq(s.n[6], orderWordSix)
-	highWordsEqual &= constantTimeEq(s.n[5], orderWordFive)
-	overflow := highWordsEqual & constantTimeGreater(s.n[4], orderWordFour)
-	highWordsEqual &= constantTimeEq(s.n[4], orderWordFour)
-	overflow |= highWordsEqual & constantTimeGreater(s.n[3], orderWordThree)
-	highWordsEqual &= constantTimeEq(s.n[3], orderWordThree)
-	overflow |= highWordsEqual & constantTimeGreater(s.n[2], orderWordTwo)
-	highWordsEqual &= constantTimeEq(s.n[2], orderWordTwo)
-	overflow |= highWordsEqual & constantTimeGreater(s.n[1], orderWordOne)
-	highWordsEqual &= constantTimeEq(s.n[1], orderWordOne)
-	overflow |= highWordsEqual & constantTimeGreaterOrEq(s.n[0], orderWordZero)
-
-	return overflow
-}
-
-// reduce256 reduces the current scalar modulo the group order in accordance
-// with the overflows parameter in constant time.  The overflows parameter
-// specifies whether or not the scalar is known to be greater than the group
-// order and MUST either be 1 in the case it is or 0 in the case it is not for a
-// correct result.
-func (s *ModNScalar) reduce256(overflows uint32) {
-	// Notice that since s < 2^256 < 2N (where N is the group order), the max
-	// possible number of reductions required is one.  Therefore, in the case a
-	// reduction is needed, it can be performed with a single subtraction of N.
-	// Also, recall that subtraction is equivalent to addition by the two's
-	// complement while ignoring the carry.
-	//
-	// When s >= N, the overflows parameter will be 1.  Conversely, it will be 0
-	// when s < N.  Thus multiplying by the overflows parameter will either
-	// result in 0 or the multiplicand itself.
-	//
-	// Combining the above along with the fact that s + 0 = s, the following is
-	// a constant time implementation that works by either adding 0 or the two's
-	// complement of N as needed.
-	//
-	// The final result will be in the range 0 <= s < N as expected.
-	overflows64 := uint64(overflows)
-	c := uint64(s.n[0]) + overflows64*uint64(orderComplementWordZero)
-	s.n[0] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[1]) + overflows64*uint64(orderComplementWordOne)
-	s.n[1] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[2]) + overflows64*uint64(orderComplementWordTwo)
-	s.n[2] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[3]) + overflows64*uint64(orderComplementWordThree)
-	s.n[3] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[4]) + overflows64 // * 1
-	s.n[4] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[5]) // + overflows64 * 0
-	s.n[5] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[6]) // + overflows64 * 0
-	s.n[6] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(s.n[7]) // + overflows64 * 0
-	s.n[7] = uint32(c & uint32Mask)
 }
 
 // SetBytes interprets the provided array as a 256-bit big-endian unsigned
@@ -288,23 +204,41 @@ func (s *ModNScalar) reduce256(overflows uint32) {
 // from a bool to numeric value in constant time and many constant-time
 // operations require a numeric value.
 func (s *ModNScalar) SetBytes(b *[32]byte) uint32 {
-	// Pack the 256 total bits across the 8 uint32 words.  This could be done
+	// Pack the 256 total bits across the 4 uint64 words.  This could be done
 	// with a for loop, but benchmarks show this unrolled version is about 2
 	// times faster than the variant that uses a loop.
-	s.n[0] = uint32(b[31]) | uint32(b[30])<<8 | uint32(b[29])<<16 | uint32(b[28])<<24
-	s.n[1] = uint32(b[27]) | uint32(b[26])<<8 | uint32(b[25])<<16 | uint32(b[24])<<24
-	s.n[2] = uint32(b[23]) | uint32(b[22])<<8 | uint32(b[21])<<16 | uint32(b[20])<<24
-	s.n[3] = uint32(b[19]) | uint32(b[18])<<8 | uint32(b[17])<<16 | uint32(b[16])<<24
-	s.n[4] = uint32(b[15]) | uint32(b[14])<<8 | uint32(b[13])<<16 | uint32(b[12])<<24
-	s.n[5] = uint32(b[11]) | uint32(b[10])<<8 | uint32(b[9])<<16 | uint32(b[8])<<24
-	s.n[6] = uint32(b[7]) | uint32(b[6])<<8 | uint32(b[5])<<16 | uint32(b[4])<<24
-	s.n[7] = uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24
+	s.n[0] = binary.BigEndian.Uint64(b[24:32])
+	s.n[1] = binary.BigEndian.Uint64(b[16:24])
+	s.n[2] = binary.BigEndian.Uint64(b[8:16])
+	s.n[3] = binary.BigEndian.Uint64(b[0:8])
 
-	// The value might be >= N, so reduce it as required and return whether or
-	// not it was reduced.
-	needsReduce := s.overflows()
-	s.reduce256(needsReduce)
-	return needsReduce
+	// Since s < 2^256 < 2N (where N is the secp256k1 group order), the max
+	// possible number of reductions required is one.  Therefore, in the case a
+	// reduction is needed, it can be performed with a single subtraction of N.
+	//
+	// Since N must only conditionally be subtracted when s ≥ N, the following
+	// handles it in constant time by always calculating t = s - N and selecting
+	// the correct case via a constant time select.
+
+	// Subtract N with borrow propagation.  borrow is set iff s < N.
+	//
+	// In other words, the input overflowed (≥ N) when s - N does NOT borrow.
+	//
+	// t = s - N
+	var t0, t1, t2, t3, borrow uint64
+	t0, borrow = bits.Sub64(s.n[0], orderLimb0, 0)
+	t1, borrow = bits.Sub64(s.n[1], orderLimb1, borrow)
+	t2, borrow = bits.Sub64(s.n[2], orderLimb2, borrow)
+	t3, borrow = bits.Sub64(s.n[3], orderLimb3, borrow)
+
+	// Constant-time select.
+	//
+	// Set s = s when s < N (aka borrow is set).  Otherwise s = t = s - N.
+	s.n[0] = constantTimeSelect64(borrow, s.n[0], t0)
+	s.n[1] = constantTimeSelect64(borrow, s.n[1], t1)
+	s.n[2] = constantTimeSelect64(borrow, s.n[2], t2)
+	s.n[3] = constantTimeSelect64(borrow, s.n[3], t3)
+	return uint32(1 - borrow)
 }
 
 // zeroArray32 zeroes the provided 32-byte buffer.
@@ -324,6 +258,8 @@ func zeroArray32(b *[32]byte) {
 // size or it is acceptable to use this function with the described truncation
 // and overflow behavior.
 func (s *ModNScalar) SetByteSlice(b []byte) bool {
+	// Always copy a total of 32 bytes regardless of the input length to avoid
+	// introducing data-dependent timing.
 	var b32 [32]byte
 	b = b[:constantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
@@ -337,49 +273,21 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 // into the passed byte slice in constant time.  The target slice must have at
 // least 32 bytes available or it will panic.
 //
-// There is a similar function, PutBytes, which unpacks the scalar into a
-// 32-byte array directly.  This version is provided since it can be useful to
-// write directly into part of a larger buffer without needing a separate
-// allocation.
+// There is a similar function, [ModNScalar.PutBytes], which unpacks the scalar
+// into a 32-byte array directly.  This version is provided since it can be
+// useful to write directly into part of a larger buffer without needing a
+// separate allocation.
 //
 // Preconditions:
 //   - The target slice MUST have at least 32 bytes available
 func (s *ModNScalar) PutBytesUnchecked(b []byte) {
-	// Unpack the 256 total bits from the 8 uint32 words.  This could be done
-	// with a for loop, but benchmarks show this unrolled version is about 2
+	// Unpack the 256 total bits from the 4 uint64 words.  This could be done
+	// with a for loop, but benchmarks show this unrolled version is about 3
 	// times faster than the variant which uses a loop.
-	b[31] = byte(s.n[0])
-	b[30] = byte(s.n[0] >> 8)
-	b[29] = byte(s.n[0] >> 16)
-	b[28] = byte(s.n[0] >> 24)
-	b[27] = byte(s.n[1])
-	b[26] = byte(s.n[1] >> 8)
-	b[25] = byte(s.n[1] >> 16)
-	b[24] = byte(s.n[1] >> 24)
-	b[23] = byte(s.n[2])
-	b[22] = byte(s.n[2] >> 8)
-	b[21] = byte(s.n[2] >> 16)
-	b[20] = byte(s.n[2] >> 24)
-	b[19] = byte(s.n[3])
-	b[18] = byte(s.n[3] >> 8)
-	b[17] = byte(s.n[3] >> 16)
-	b[16] = byte(s.n[3] >> 24)
-	b[15] = byte(s.n[4])
-	b[14] = byte(s.n[4] >> 8)
-	b[13] = byte(s.n[4] >> 16)
-	b[12] = byte(s.n[4] >> 24)
-	b[11] = byte(s.n[5])
-	b[10] = byte(s.n[5] >> 8)
-	b[9] = byte(s.n[5] >> 16)
-	b[8] = byte(s.n[5] >> 24)
-	b[7] = byte(s.n[6])
-	b[6] = byte(s.n[6] >> 8)
-	b[5] = byte(s.n[6] >> 16)
-	b[4] = byte(s.n[6] >> 24)
-	b[3] = byte(s.n[7])
-	b[2] = byte(s.n[7] >> 8)
-	b[1] = byte(s.n[7] >> 16)
-	b[0] = byte(s.n[7] >> 24)
+	binary.BigEndian.PutUint64(b[0:8], s.n[3])
+	binary.BigEndian.PutUint64(b[8:16], s.n[2])
+	binary.BigEndian.PutUint64(b[16:24], s.n[1])
+	binary.BigEndian.PutUint64(b[24:32], s.n[0])
 }
 
 // PutBytes unpacks the scalar to a 32-byte big-endian value using the passed
@@ -419,11 +327,8 @@ func (s *ModNScalar) IsOdd() bool {
 func (s *ModNScalar) Equals(val *ModNScalar) bool {
 	// Xor only sets bits when they are different, so the two scalars can only
 	// be the same if no bits are set after xoring each word.
-	bits := (s.n[0] ^ val.n[0]) | (s.n[1] ^ val.n[1]) | (s.n[2] ^ val.n[2]) |
-		(s.n[3] ^ val.n[3]) | (s.n[4] ^ val.n[4]) | (s.n[5] ^ val.n[5]) |
-		(s.n[6] ^ val.n[6]) | (s.n[7] ^ val.n[7])
-
-	return bits == 0
+	return ((s.n[0] ^ val.n[0]) | (s.n[1] ^ val.n[1]) | (s.n[2] ^ val.n[2]) |
+		(s.n[3] ^ val.n[3])) == 0
 }
 
 // Add2 adds the passed two scalars together modulo the group order in constant
@@ -431,27 +336,42 @@ func (s *ModNScalar) Equals(val *ModNScalar) bool {
 //
 // The scalar is returned to support chaining.  This enables syntax like:
 // s3.Add2(s, s2).AddInt(1) so that s3 = s + s2 + 1.
-func (s *ModNScalar) Add2(val1, val2 *ModNScalar) *ModNScalar {
-	c := uint64(val1.n[0]) + uint64(val2.n[0])
-	s.n[0] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[1]) + uint64(val2.n[1])
-	s.n[1] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[2]) + uint64(val2.n[2])
-	s.n[2] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[3]) + uint64(val2.n[3])
-	s.n[3] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[4]) + uint64(val2.n[4])
-	s.n[4] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[5]) + uint64(val2.n[5])
-	s.n[5] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[6]) + uint64(val2.n[6])
-	s.n[6] = uint32(c & uint32Mask)
-	c = (c >> 32) + uint64(val1.n[7]) + uint64(val2.n[7])
-	s.n[7] = uint32(c & uint32Mask)
+func (s *ModNScalar) Add2(a, b *ModNScalar) *ModNScalar {
+	// Since both values are already in the range 0 ≤ val < N (where N is the
+	// secp256k1 group order), the maximum possible result is < 2N - 1.  So a
+	// maximum of one subtraction of N is required in the worst case.
+	//
+	// Since N must only conditionally be subtracted when a+b ≥ N, the following
+	// handles it in constant time by calculating both t = a+b and u = a+b - N
+	// and selecting the correct case via a constant time select.
 
-	// The result is now 256 bits, but it might still be >= N, so use the
-	// existing normal reduce method for 256-bit values.
-	s.reduce256(uint32(c>>32) + s.overflows())
+	// Add with carry propagation.  overflow is set iff t = a+b ≥ 2^256.
+	//
+	// t = a + b
+	var t0, t1, t2, t3, overflow, carry uint64
+	t0, carry = bits.Add64(a.n[0], b.n[0], 0)
+	t1, carry = bits.Add64(a.n[1], b.n[1], carry)
+	t2, carry = bits.Add64(a.n[2], b.n[2], carry)
+	t3, overflow = bits.Add64(a.n[3], b.n[3], carry)
+
+	// Subtract N with borrow propagation.  borrow is set iff t = a+b < N.
+	//
+	// u = t - N = a+b - N
+	var u0, u1, u2, u3, borrow uint64
+	u0, borrow = bits.Sub64(t0, orderLimb0, 0)
+	u1, borrow = bits.Sub64(t1, orderLimb1, borrow)
+	u2, borrow = bits.Sub64(t2, orderLimb2, borrow)
+	u3, borrow = bits.Sub64(t3, orderLimb3, borrow)
+
+	// Constant-time select.
+	//
+	// Set s = t = a+b only when there was no overflow and t < N (borrow set).
+	// Otherwise s = u = a+b - N.
+	cond := (1 - overflow) & borrow
+	s.n[0] = constantTimeSelect64(cond, t0, u0)
+	s.n[1] = constantTimeSelect64(cond, t1, u1)
+	s.n[2] = constantTimeSelect64(cond, t2, u2)
+	s.n[3] = constantTimeSelect64(cond, t3, u3)
 	return s
 }
 
@@ -464,315 +384,359 @@ func (s *ModNScalar) Add(val *ModNScalar) *ModNScalar {
 	return s.Add2(s, val)
 }
 
-// accumulator96 provides a 96-bit accumulator for use in the intermediate
-// calculations requiring more than 64-bits.
-type accumulator96 struct {
-	n [3]uint32
-}
-
-// Add adds the passed unsigned 64-bit value to the accumulator.
-func (a *accumulator96) Add(v uint64) {
-	low := uint32(v & uint32Mask)
-	hi := uint32(v >> 32)
-	a.n[0] += low
-	hi += constantTimeLess(a.n[0], low) // Carry if overflow in n[0].
-	a.n[1] += hi
-	a.n[2] += constantTimeLess(a.n[1], hi) // Carry if overflow in n[1].
-}
-
-// Rsh32 right shifts the accumulator by 32 bits.
-func (a *accumulator96) Rsh32() {
-	a.n[0] = a.n[1]
-	a.n[1] = a.n[2]
-	a.n[2] = 0
-}
-
-// reduce385 reduces the 385-bit intermediate result in the passed terms modulo
-// the group order in constant time and stores the result in s.
-func (s *ModNScalar) reduce385(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12 uint64) {
-	// At this point, the intermediate result in the passed terms has been
-	// reduced to fit within 385 bits, so reduce it again using the same method
-	// described in reduce512.  As before, the intermediate result will end up
-	// being reduced by another 127 bits to 258 bits, thus 9 32-bit terms are
-	// needed for this iteration.  The reduced terms are assigned back to t0
-	// through t8.
+// scalar64Reduce512 reduces a 512-bit little-endian limb array modulo the group
+// order in constant time and stores the result in r.
+func scalar64Reduce512(r *[4]uint64, x *[8]uint64) {
+	// The overall strategy employed here is:
+	// 1) Start with the full unreduced 512-bit product of the two scalars.
+	// 2) Reduce the result modulo the group order via Crandall reduction
+	//    (described below).
+	// 3) Repeat step 2 noting that each iteration reduces the required number
+	//    of bits by 127 because the two's complement of N has 127 leading zero
+	//    bits.
+	// 4) Once reduced to less than a max of 2N, perform the final reduction
+	//    with a constant-time conditional subtraction.
 	//
-	// Note that several of the intermediate calculations require adding 64-bit
-	// products together which would overflow a uint64, so a 96-bit accumulator
-	// is used instead until the value is reduced enough to use native uint64s.
-
-	// Terms for 2^(32*0).
-	var acc accumulator96
-	acc.n[0] = uint32(t0) // == acc.Add(t0) because acc is guaranteed to be 0.
-	acc.Add(t8 * uint64(orderComplementWordZero))
-	t0 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*1).
-	acc.Add(t1)
-	acc.Add(t8 * uint64(orderComplementWordOne))
-	acc.Add(t9 * uint64(orderComplementWordZero))
-	t1 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*2).
-	acc.Add(t2)
-	acc.Add(t8 * uint64(orderComplementWordTwo))
-	acc.Add(t9 * uint64(orderComplementWordOne))
-	acc.Add(t10 * uint64(orderComplementWordZero))
-	t2 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*3).
-	acc.Add(t3)
-	acc.Add(t8 * uint64(orderComplementWordThree))
-	acc.Add(t9 * uint64(orderComplementWordTwo))
-	acc.Add(t10 * uint64(orderComplementWordOne))
-	acc.Add(t11 * uint64(orderComplementWordZero))
-	t3 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*4).
-	acc.Add(t4)
-	acc.Add(t8) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t9 * uint64(orderComplementWordThree))
-	acc.Add(t10 * uint64(orderComplementWordTwo))
-	acc.Add(t11 * uint64(orderComplementWordOne))
-	acc.Add(t12 * uint64(orderComplementWordZero))
-	t4 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*5).
-	acc.Add(t5)
-	// acc.Add(t8 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t9) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t10 * uint64(orderComplementWordThree))
-	acc.Add(t11 * uint64(orderComplementWordTwo))
-	acc.Add(t12 * uint64(orderComplementWordOne))
-	t5 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*6).
-	acc.Add(t6)
-	// acc.Add(t8 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t9 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t10) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t11 * uint64(orderComplementWordThree))
-	acc.Add(t12 * uint64(orderComplementWordTwo))
-	t6 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*7).
-	acc.Add(t7)
-	// acc.Add(t8 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t9 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t10 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t11) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t12 * uint64(orderComplementWordThree))
-	t7 = uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*8).
-	// acc.Add(t9 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t10 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t11 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t12) // * uint64(orderComplementWordFour) // * 1
-	t8 = uint64(acc.n[0])
-	// acc.Rsh32() // No need since not used after this.  Guaranteed to be 0.
-
-	// NOTE: All of the remaining multiplications for this iteration result in 0
-	// as they all involve multiplying by combinations of the fifth, sixth, and
-	// seventh words of the two's complement of N, which are 0, so skip them.
-
-	// At this point, the result is reduced to fit within 258 bits, so reduce it
-	// again using a slightly modified version of the same method.  The maximum
-	// value in t8 is 2 at this point and therefore multiplying it by each word
-	// of the two's complement of N and adding it to a 32-bit term will result
-	// in a maximum requirement of 33 bits, so it is safe to use native uint64s
-	// here for the intermediate term carry propagation.
-	//
-	// Also, since the maximum value in t8 is 2, this ends up reducing by
-	// another 2 bits to 256 bits.
-	c := t0 + t8*uint64(orderComplementWordZero)
-	s.n[0] = uint32(c & uint32Mask)
-	c = (c >> 32) + t1 + t8*uint64(orderComplementWordOne)
-	s.n[1] = uint32(c & uint32Mask)
-	c = (c >> 32) + t2 + t8*uint64(orderComplementWordTwo)
-	s.n[2] = uint32(c & uint32Mask)
-	c = (c >> 32) + t3 + t8*uint64(orderComplementWordThree)
-	s.n[3] = uint32(c & uint32Mask)
-	c = (c >> 32) + t4 + t8 // * uint64(orderComplementWordFour) == * 1
-	s.n[4] = uint32(c & uint32Mask)
-	c = (c >> 32) + t5 // + t8*uint64(orderComplementWordFive) == 0
-	s.n[5] = uint32(c & uint32Mask)
-	c = (c >> 32) + t6 // + t8*uint64(orderComplementWordSix) == 0
-	s.n[6] = uint32(c & uint32Mask)
-	c = (c >> 32) + t7 // + t8*uint64(orderComplementWordSeven) == 0
-	s.n[7] = uint32(c & uint32Mask)
-
-	// The result is now 256 bits, but it might still be >= N, so use the
-	// existing normal reduce method for 256-bit values.
-	s.reduce256(uint32(c>>32) + s.overflows())
-}
-
-// reduce512 reduces the 512-bit intermediate result in the passed terms modulo
-// the group order down to 385 bits in constant time and stores the result in s.
-func (s *ModNScalar) reduce512(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15 uint64) {
-	// At this point, the intermediate result in the passed terms is grouped
-	// into the respective bases.
+	// Technically the max possible input value here will be (N-1)^2, since the
+	// only time it is called is with the product of two scalars that are always
+	// mod N.  Nevertheless, it is safer to treat it as the product of two max
+	// size 256-bit values, (2^256-1)^2 = 2^512 - 2^257 + 1, to ensure
+	// correctness if that were to ever change.
 	//
 	// Per [HAC] section 14.3.4: Reduction method of moduli of special form,
-	// when the modulus is of the special form m = b^t - c, where log_2(c) < t,
-	// highly efficient reduction can be achieved per the provided algorithm.
+	// when the modulus is of the special form m = b^t - c, highly efficient
+	// reduction can be achieved.  While [HAC] only presents the algorithm and
+	// does not call it out by name or provide the mathematical justification,
+	// the underlying technique is known as Crandall reduction and is often
+	// presented as 2^k - c.  It is easy to see they are equivalent by setting
+	// b = 2 and t = k.
 	//
-	// The secp256k1 group order fits this criteria since it is:
-	//   2^256 - 432420386565659656852420866394968145599
+	// The secp256k1 group order is 2^256 - 0x14551231950b75fc4402da1732fc9bebf,
+	// so it fits this criteria where:
+	//   k = 256
+	//   c = 432420386565659656852420866394968145599
 	//
-	// Technically the max possible value here is (N-1)^2 since the two scalars
-	// being multiplied are always mod N.  Nevertheless, it is safer to consider
-	// it to be (2^256-1)^2 = 2^512 - 2^257 + 1 since it is the product of two
-	// 256-bit values.
+	// Crandall reduction works by taking advantage of the fact that if a prime
+	// is of the form 2^k - c, then 2^k - c ≡ 0 (mod p), so 2^k ≡ c (mod p).  In
+	// other words, every multiple of 2^k is equivalent to adding c when working
+	// modulo p.
 	//
-	// The algorithm is to reduce the result modulo the prime by subtracting
-	// multiples of the group order N.  However, in order simplify carry
-	// propagation, this adds with the two's complement of N to achieve the same
-	// result.
+	// Since the 512-bit value to reduce is tightly packed into uint64s, the
+	// upper 4 limbs are all multiples of 2^256.  Therefore, reducing modulo the
+	// group order is equivalent to multiplying those upper limbs by c and
+	// adding the result to the corresponding lower 4 limbs while propagating
+	// the carries.
 	//
-	// Since the two's complement of N has 127 leading zero bits, this will end
-	// up reducing the intermediate result from 512 bits to 385 bits, resulting
-	// in 13 32-bit terms.  The reduced terms are assigned back to t0 through
-	// t12.
+	// For the specific case of the secp256k1 group order, a max of 4 reductions
+	// are required because c is 129 bits and so the first round will reduce
+	// from 512 bits to a max of 385 bits, the second round will reduce to a max
+	// of 258 bits, and the third round will reduce to within 2N.  Then, a
+	// conditional subtraction of N handles the final reduction.
 	//
-	// Note that several of the intermediate calculations require adding 64-bit
-	// products together which would overflow a uint64, so a 96-bit accumulator
-	// is used instead.
+	// The reduction is slightly complicated by the fact c needs 3 uint64 limbs
+	// to represent it, so multiplying the upper limbs by c requires multiplying
+	// each one by all 3 limbs of c and carefully managing the columns and
+	// carries.  The uppermost limb of c = 1, so multiplication by that limb is
+	// avoided in the code below.
 
-	// Terms for 2^(32*0).
-	var acc accumulator96
-	acc.n[0] = uint32(t0) // == acc.Add(t0) because acc is guaranteed to be 0.
-	acc.Add(t8 * uint64(orderComplementWordZero))
-	t0 = uint64(acc.n[0])
-	acc.Rsh32()
+	var t0, t1, t2, t3, t4, t5, t6, l0, h0, l1, h1, l2, carry uint64
 
-	// Terms for 2^(32*1).
-	acc.Add(t1)
-	acc.Add(t8 * uint64(orderComplementWordOne))
-	acc.Add(t9 * uint64(orderComplementWordZero))
-	t1 = uint64(acc.n[0])
-	acc.Rsh32()
+	// -------------------------------------------------------------------------
+	// First reduction.
+	//
+	// The code in this section is equivalent to the following if uint512 and
+	// larger numbers and shifts were supported directly:
+	//
+	// t0 = uint64(x%(1<<256) + (x>>256)*c)
+	// t1 = uint64((x%(1<<256) + (x>>256)*c) >> 64)
+	// t2 = uint64((x%(1<<256) + (x>>256)*c) >> 128)
+	// t3 = uint64((x%(1<<256) + (x>>256)*c) >> 192)
+	// t4 = uint64((x%(1<<256) + (x>>256)*c) >> 256)
+	// t5 = uint64((x%(1<<256) + (x>>256)*c) >> 320)
+	// t6 = uint64((x%(1<<256) + (x>>256)*c) >> 384)
+	//
+	// To visualize the logic, multiply the 3 limbs of c by the upper limbs via
+	// the standard pencil-and-paper method:
+	//
+	//   2^576 2^512 2^448 2^384 2^320 2^256 (place values)
+	//   -----------------------------------
+	//                  x7    x6    x5    x4
+	//                        c2    c1    c0 *
+	//   -----------------------------------
+	//                      x4c2  x4c1  x4c0
+	//                x5c2  x5c1  x5c0       +
+	//          x6c2  x6c1  x6c0             +
+	//    x7c2  x7c1  x7c0                   +
+	//   -----------------------------------
+	//    x7c2  ....  ....  ....  ....  x4c0
+	//
+	// Then add them to the associated lower limbs per the reduction identity:
+	//
+	//   2^384 2^320 2^256 2^192 2^128  2^64   2^0 (place values)
+	//   -----------------------------------------
+	//                        x3    x2    x1    x0
+	//                            x4c2  x4c1  x4c0 +
+	//                      x5c2  x5c1  x5c0       +
+	//                x6c2  x6c1  x6c0             +
+	//          x7c2  x7c1  x7c0                   +
+	//   -----------------------------------------
+	//      t6    t5    t4    t3    t2    t1    t0
+	//
+	// Where t6 ≤ 1 for the potential carry.
+	//
+	// Thus 0 ≤ t < 2^385 after the 1st reduction.
+	// -------------------------------------------------------------------------
 
-	// Terms for 2^(32*2).
-	acc.Add(t2)
-	acc.Add(t8 * uint64(orderComplementWordTwo))
-	acc.Add(t9 * uint64(orderComplementWordOne))
-	acc.Add(t10 * uint64(orderComplementWordZero))
-	t2 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute x4*c with result in t0..t2 with carries propagated and the final
+	// carry in t3.
+	h0, t0 = bits.Mul64(x[4], orderComplementLimb0)
+	h1, t1 = bits.Mul64(x[4], orderComplementLimb1)
+	t1, carry = bits.Add64(t1, h0, 0)
+	t2, carry = bits.Add64(x[4], h1, carry)
+	t3 = carry
 
-	// Terms for 2^(32*3).
-	acc.Add(t3)
-	acc.Add(t8 * uint64(orderComplementWordThree))
-	acc.Add(t9 * uint64(orderComplementWordTwo))
-	acc.Add(t10 * uint64(orderComplementWordOne))
-	acc.Add(t11 * uint64(orderComplementWordZero))
-	t3 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute x5*c with result added to t1..t3 with carries propagated and the
+	// final carry in t4.
+	//
+	// Note that since h1 is the upper 64 bits of the product of a uint64 with
+	// c1 (limb 1 of c) and c1 < 2^63 - 1:
+	//   h1 ≤ floor((2^64-1)(2^63-1) / 2^64) = 2^63 - 2
+	//
+	// Then, because current t3 ≤ 1 and carry ≤ 1, a loose bound for the first
+	// t3 below is:
+	//   t3 ≤ h1 + 2 = 2^63 < 2^64
+	//
+	// Therefore, it is safe to discard the carry.
+	h0, l0 = bits.Mul64(x[5], orderComplementLimb0)
+	h1, l1 = bits.Mul64(x[5], orderComplementLimb1)
+	t1, carry = bits.Add64(t1, l0, 0)
+	t2, carry = bits.Add64(t2, h0, carry)
+	t3, _ = bits.Add64(t3, h1, carry)
+	t2, carry = bits.Add64(t2, l1, 0)
+	t3, carry = bits.Add64(t3, x[5], carry)
+	t4 = carry
 
-	// Terms for 2^(32*4).
-	acc.Add(t4)
-	acc.Add(t8) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t9 * uint64(orderComplementWordThree))
-	acc.Add(t10 * uint64(orderComplementWordTwo))
-	acc.Add(t11 * uint64(orderComplementWordOne))
-	acc.Add(t12 * uint64(orderComplementWordZero))
-	t4 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute x6*c with result added to t2..t4 with carries propagated and the
+	// final carry in t5.
+	//
+	// It is safe to discard the carry on the first t4 for the same reason as
+	// above.
+	h0, l0 = bits.Mul64(x[6], orderComplementLimb0)
+	h1, l1 = bits.Mul64(x[6], orderComplementLimb1)
+	t2, carry = bits.Add64(t2, l0, 0)
+	t3, carry = bits.Add64(t3, h0, carry)
+	t4, _ = bits.Add64(t4, h1, carry)
+	t3, carry = bits.Add64(t3, l1, 0)
+	t4, carry = bits.Add64(t4, x[6], carry)
+	t5 = carry
 
-	// Terms for 2^(32*5).
-	acc.Add(t5)
-	// acc.Add(t8 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t9) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t10 * uint64(orderComplementWordThree))
-	acc.Add(t11 * uint64(orderComplementWordTwo))
-	acc.Add(t12 * uint64(orderComplementWordOne))
-	acc.Add(t13 * uint64(orderComplementWordZero))
-	t5 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute x7*c with result added to t3..t5 with carries propagated and the
+	// final carry in t6.
+	//
+	// It is safe to discard the carry on the first t5 for the same reason as
+	// above.
+	h0, l0 = bits.Mul64(x[7], orderComplementLimb0)
+	h1, l1 = bits.Mul64(x[7], orderComplementLimb1)
+	t3, carry = bits.Add64(t3, l0, 0)
+	t4, carry = bits.Add64(t4, h0, carry)
+	t5, _ = bits.Add64(t5, h1, carry)
+	t4, carry = bits.Add64(t4, l1, 0)
+	t5, carry = bits.Add64(t5, x[7], carry)
+	t6 = carry
 
-	// Terms for 2^(32*6).
-	acc.Add(t6)
-	// acc.Add(t8 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t9 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t10) // * uint64(orderComplementWordFour)) // * 1
-	acc.Add(t11 * uint64(orderComplementWordThree))
-	acc.Add(t12 * uint64(orderComplementWordTwo))
-	acc.Add(t13 * uint64(orderComplementWordOne))
-	acc.Add(t14 * uint64(orderComplementWordZero))
-	t6 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Add result to lower limbs and propagate carries.
+	//
+	// It is safe to discard the carry on t6 since the resulting t6 ≤ 1 as
+	// previously described.
+	t0, carry = bits.Add64(t0, x[0], 0)
+	t1, carry = bits.Add64(t1, x[1], carry)
+	t2, carry = bits.Add64(t2, x[2], carry)
+	t3, carry = bits.Add64(t3, x[3], carry)
+	t4, carry = bits.Add64(t4, 0, carry)
+	t5, carry = bits.Add64(t5, 0, carry)
+	t6, _ = bits.Add64(t6, 0, carry)
 
-	// Terms for 2^(32*7).
-	acc.Add(t7)
-	// acc.Add(t8 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t9 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t10 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t11) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t12 * uint64(orderComplementWordThree))
-	acc.Add(t13 * uint64(orderComplementWordTwo))
-	acc.Add(t14 * uint64(orderComplementWordOne))
-	acc.Add(t15 * uint64(orderComplementWordZero))
-	t7 = uint64(acc.n[0])
-	acc.Rsh32()
+	// -------------------------------------------------------------------------
+	// Second reduction.
+	//
+	// The value now fits in 385 bits, so reduce it again.  Only t4, t5, and t6
+	// need to be considered since the higher limb, t7, is ≥ 448 bits and thus
+	// guaranteed to be 0.  Further, as previously noted, t6 ≤ 1.
+	//
+	// The code in this section is equivalent to following if uint512 and larger
+	// numbers and shifts were supported:
+	//
+	// t0 = uint64(t%2^256 + (t>>256)*c)
+	// t1 = uint64((t%2^256 + (t>>256)*c) >> 64)
+	// t2 = uint64((t%2^256 + (t>>256)*c) >> 128)
+	// t3 = uint64((t%2^256 + (t>>256)*c) >> 192)
+	// t4 = uint64((t%2^256 + (t>>256)*c) >> 256)
+	//
+	// To visualize the logic, multiply the 3 limbs of c by the new upper limbs
+	// via the standard pencil-and-paper method:
+	//
+	//   2^512 2^448 2^384 2^320 2^256 (place values)
+	//   -----------------------------
+	//                  t6    t5    t4
+	//                  c2    c1    c0 *
+	//   -----------------------------
+	//                t4c2  t4c1  t4c0
+	//          t5c2  t5c1  t5c0       +
+	//    t6c2  t6c1  t6c0             +
+	//    ----------------------------
+	//    t6c2  ....  ....  ....  t4c0
+	//
+	// Then add them to the associated lower limbs per the reduction identity
+	// noting that the code reuses t for the sums:
+	//
+	//   2^256 2^192 2^128  2^64   2^0 (place values)
+	//   -----------------------------
+	//            t3    t2    t1    t0
+	//                t4c2  t4c1  t4c0 +
+	//          t5c2  t5c1  t5c0       +
+	//    t6c2  t6c1  t6c0             +
+	//   -----------------------------
+	//      t4    t3    t2    t1    t0
+	//
+	// With a loose bound for t4 ≤ 3.
+	//
+	// Proof:
+	//
+	// Known: c2=1, t6 ≤ 1, t3 ≤ 2^64-1, t5 ≤ 2^64-1, and c1 ≤ 2^63-1.
+	//
+	// Let s = t3 + t5c2 + t6c1.  Then:
+	//   s ≤ 2^64-1 + (2^64-1)*1 + 1*(2^63-1) = 2^65 + 2^63 - 3
+	//
+	// So, the loose bound on the carry in to t4 is carryIn ≤ floor(s/2^64) = 2.
+	//
+	// Finally, t4 ≤ t6*c2 + carryIn ≤ 1*1 + 2 ≤ 3.
+	//
+	// Thus 0 ≤ t < 2^258 after the 2nd reduction.
+	// -------------------------------------------------------------------------
 
-	// Terms for 2^(32*8).
-	// acc.Add(t9 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t10 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t11 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t12) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t13 * uint64(orderComplementWordThree))
-	acc.Add(t14 * uint64(orderComplementWordTwo))
-	acc.Add(t15 * uint64(orderComplementWordOne))
-	t8 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute t4*c with result added to t0..t2 with carries propagated and the
+	// final carry in t4.
+	//
+	// It is safe to discard the carry on the final t4 given the carries ≤ 1.
+	h0, l0 = bits.Mul64(t4, orderComplementLimb0)
+	h1, l1 = bits.Mul64(t4, orderComplementLimb1)
+	l2 = t4 // h2, l2 = bits.Mul64(t4, orderComplementLimb2) => h2=0, l2=t4
+	t0, carry = bits.Add64(t0, l0, 0)
+	t1, carry = bits.Add64(t1, h0, carry)
+	t2, carry = bits.Add64(t2, h1, carry)
+	t3, carry = bits.Add64(t3, 0, carry)
+	t4 = carry
+	t1, carry = bits.Add64(t1, l1, 0)
+	t2, carry = bits.Add64(t2, l2, carry)
+	t3, carry = bits.Add64(t3, 0, carry)
+	t4, _ = bits.Add64(t4, 0, carry)
 
-	// Terms for 2^(32*9).
-	// acc.Add(t10 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t11 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t12 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t13) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t14 * uint64(orderComplementWordThree))
-	acc.Add(t15 * uint64(orderComplementWordTwo))
-	t9 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute t5*c with result added to t1..t3 with carries propagated.
+	//
+	// It is safe to discard the carry on the final t4 given the carries ≤ 1.
+	h0, l0 = bits.Mul64(t5, orderComplementLimb0)
+	h1, l1 = bits.Mul64(t5, orderComplementLimb1)
+	// h2, l2 = bits.Mul64(t5, orderComplementLimb2) => h2=0, l2=t5
+	t1, carry = bits.Add64(t1, l0, 0)
+	t2, carry = bits.Add64(t2, h0, carry)
+	t3, carry = bits.Add64(t3, h1, carry)
+	t4, _ = bits.Add64(t4, 0, carry)
+	t2, carry = bits.Add64(t2, l1, 0)
+	t3, carry = bits.Add64(t3, t5, carry)
+	t4, _ = bits.Add64(t4, 0, carry)
 
-	// Terms for 2^(32*10).
-	// acc.Add(t11 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t12 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t13 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t14) // * uint64(orderComplementWordFour) // * 1
-	acc.Add(t15 * uint64(orderComplementWordThree))
-	t10 = uint64(acc.n[0])
-	acc.Rsh32()
+	// Compute t6*c with result added to t2..t4 with carries propagated.
+	//
+	// Note that since t6 ≤ 1, the product can't overflow a uint64, so it is
+	// safe to use normal 64-bit multiplication.
+	//
+	// It is safe to discard the carry on t4 since the resulting t4 ≤ 3 as
+	// previously described.
+	t2, carry = bits.Add64(t2, t6*orderComplementLimb0, 0)
+	t3, carry = bits.Add64(t3, t6*orderComplementLimb1, carry)
+	t4, _ = bits.Add64(t4, t6, carry)
 
-	// Terms for 2^(32*11).
-	// acc.Add(t12 * uint64(orderComplementWordSeven)) // 0
-	// acc.Add(t13 * uint64(orderComplementWordSix)) // 0
-	// acc.Add(t14 * uint64(orderComplementWordFive)) // 0
-	acc.Add(t15) // * uint64(orderComplementWordFour) // * 1
-	t11 = uint64(acc.n[0])
-	acc.Rsh32()
+	// -------------------------------------------------------------------------
+	// Third reduction.
+	//
+	// The value now fits in 258 bits, so reduce it again.  Only t4 needs to be
+	// considered since the higher limbs are ≥ 320 bits and thus guaranteed to
+	// be 0.
+	//
+	// The code in this section is equivalent to following if uint512 and larger
+	// numbers and shifts were supported:
+	//
+	// t0 = uint64(t%2^256 + (t>>256)*c)
+	// t1 = uint64((t%2^256 + (t>>256)*c) >> 64)
+	// t2 = uint64((t%2^256 + (t>>256)*c) >> 128)
+	// t3 = uint64((t%2^256 + (t>>256)*c) >> 192)
+	// t4 = uint64((t%2^256 + (t>>256)*c) >> 256)
+	//
+	// To visualize the logic, multiply the 3 limbs of c by the new upper limb
+	// via the standard pencil-and-paper method:
+	//
+	//   2^512 2^448 2^384 2^320 2^256 (place values)
+	//   -----------------------------
+	//                              t4
+	//                  c2    c1    c0 *
+	//   -----------------------------
+	//                t4c2  t4c1  t4c0
+	//
+	// Then add them to the associated lower limbs noting that the code reuses t
+	// for the sums:
+	//
+	//   2^256 2^192 2^128  2^64   2^0 (place values)
+	//   -----------------------------
+	//            t3    t2    t1    t0
+	//                t4c2  t4c1  t4c0 +
+	//   -----------------------------
+	//      t4    t3    t2    t1    t0
+	//
+	// Where t4 ≤ 1 for the carry.
+	// -------------------------------------------------------------------------
 
-	// NOTE: All of the remaining multiplications for this iteration result in 0
-	// as they all involve multiplying by combinations of the fifth, sixth, and
-	// seventh words of the two's complement of N, which are 0, so skip them.
+	// Compute t4*c with result added to t0..t2 with carries propagated and the
+	// final carry in t4.
+	//
+	// Note that since current t4 ≤ 3, these bounds for the product hold:
+	//   t4*c0 < 2^64
+	//   t4*c1 < 2^64
+	//
+	// So, uint64 overflow is impossible and therefore it is safe to use normal
+	// 64-bit multiplication.
+	t0, carry = bits.Add64(t0, t4*orderComplementLimb0, 0)
+	t1, carry = bits.Add64(t1, t4*orderComplementLimb1, carry)
+	t2, carry = bits.Add64(t2, t4, carry)
+	t3, carry = bits.Add64(t3, 0, carry)
+	t4 = carry
 
-	// Terms for 2^(32*12).
-	t12 = uint64(acc.n[0])
-	// acc.Rsh32() // No need since not used after this.  Guaranteed to be 0.
+	// -------------------------------------------------------------------------
+	// Final reduction.
+	//
+	// The value is now in the range 0 ≤ t < 2N, so one 5-limb conditional
+	// subtract of N guarantees it is fully reduced.
+	// -------------------------------------------------------------------------
 
-	// At this point, the result is reduced to fit within 385 bits, so reduce it
-	// again using the same method accordingly.
-	s.reduce385(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12)
+	// Subtract N with borrow propagation.  borrow is set iff t < N.
+	//
+	// In other words, the value overflowed (≥ N) when t - N does NOT borrow.
+	//
+	// s = t - N
+	var s0, s1, s2, s3, borrow uint64
+	s0, borrow = bits.Sub64(t0, orderLimb0, 0)
+	s1, borrow = bits.Sub64(t1, orderLimb1, borrow)
+	s2, borrow = bits.Sub64(t2, orderLimb2, borrow)
+	s3, borrow = bits.Sub64(t3, orderLimb3, borrow)
+	_, borrow = bits.Sub64(t4, 0, borrow)
+
+	// Constant-time select.
+	//
+	// Set r = t only when t < N (borrow set).
+	// Otherwise r = s = t - N.
+	r[0] = constantTimeSelect64(borrow, t0, s0)
+	r[1] = constantTimeSelect64(borrow, t1, s1)
+	r[2] = constantTimeSelect64(borrow, t2, s2)
+	r[3] = constantTimeSelect64(borrow, t3, s3)
 }
 
 // Mul2 multiplies the passed two scalars together modulo the group order in
@@ -780,159 +744,10 @@ func (s *ModNScalar) reduce512(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11,
 //
 // The scalar is returned to support chaining.  This enables syntax like:
 // s3.Mul2(s, s2).AddInt(1) so that s3 = (s * s2) + 1.
-func (s *ModNScalar) Mul2(val, val2 *ModNScalar) *ModNScalar {
-	// This could be done with for loops and an array to store the intermediate
-	// terms, but this unrolled version is significantly faster.
-
-	// The overall strategy employed here is:
-	// 1) Calculate the 512-bit product of the two scalars using the standard
-	//    pencil-and-paper method.
-	// 2) Reduce the result modulo the prime by effectively subtracting
-	//    multiples of the group order N (actually performed by adding multiples
-	//    of the two's complement of N to avoid implementing subtraction).
-	// 3) Repeat step 2 noting that each iteration reduces the required number
-	//    of bits by 127 because the two's complement of N has 127 leading zero
-	//    bits.
-	// 4) Once reduced to 256 bits, call the existing reduce method to perform
-	//    a final reduction as needed.
-	//
-	// Note that several of the intermediate calculations require adding 64-bit
-	// products together which would overflow a uint64, so a 96-bit accumulator
-	// is used instead.
-
-	// Terms for 2^(32*0).
-	var acc accumulator96
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[0]))
-	t0 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*1).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[0]))
-	t1 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*2).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[0]))
-	t2 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*3).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[0]))
-	t3 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*4).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[0]))
-	t4 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*5).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[0]))
-	t5 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*6).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[0]))
-	t6 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*7).
-	acc.Add(uint64(val.n[0]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[1]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[0]))
-	t7 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*8).
-	acc.Add(uint64(val.n[1]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[2]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[1]))
-	t8 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*9).
-	acc.Add(uint64(val.n[2]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[3]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[2]))
-	t9 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*10).
-	acc.Add(uint64(val.n[3]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[4]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[3]))
-	t10 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*11).
-	acc.Add(uint64(val.n[4]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[5]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[4]))
-	t11 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*12).
-	acc.Add(uint64(val.n[5]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[6]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[5]))
-	t12 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*13).
-	acc.Add(uint64(val.n[6]) * uint64(val2.n[7]))
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[6]))
-	t13 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// Terms for 2^(32*14).
-	acc.Add(uint64(val.n[7]) * uint64(val2.n[7]))
-	t14 := uint64(acc.n[0])
-	acc.Rsh32()
-
-	// What's left is for 2^(32*15).
-	t15 := uint64(acc.n[0])
-	// acc.Rsh32() // No need since not used after this.  Guaranteed to be 0.
-
-	// At this point, all of the terms are grouped into their respective base
-	// and occupy up to 512 bits.  Reduce the result accordingly.
-	s.reduce512(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
-		t15)
+func (s *ModNScalar) Mul2(a, b *ModNScalar) *ModNScalar {
+	var product [8]uint64
+	field64Mul512(&product, &a.n, &b.n)
+	scalar64Reduce512(&s.n, &product)
 	return s
 }
 
@@ -951,15 +766,10 @@ func (s *ModNScalar) Mul(val *ModNScalar) *ModNScalar {
 // The scalar is returned to support chaining.  This enables syntax like:
 // s3.SquareVal(s).Mul(s) so that s3 = s^2 * s = s^3.
 func (s *ModNScalar) SquareVal(val *ModNScalar) *ModNScalar {
-	// This could technically be optimized slightly to take advantage of the
-	// fact that many of the intermediate calculations in squaring are just
-	// doubling, however, benchmarking has shown that due to the need to use a
-	// 96-bit accumulator, any savings are essentially offset by that and
-	// consequently there is no real difference in performance over just
-	// multiplying the value by itself to justify the extra code for now.  This
-	// can be revisited in the future if it becomes a bottleneck in practice.
-
-	return s.Mul2(val, val)
+	var product [8]uint64
+	field64Square512(&product, &val.n)
+	scalar64Reduce512(&s.n, &product)
+	return s
 }
 
 // Square squares the scalar modulo the group order in constant time.  The
@@ -982,32 +792,38 @@ func (s *ModNScalar) NegateVal(val *ModNScalar) *ModNScalar {
 	// minus the value.  This implies that the result will always be in the
 	// desired range with the sole exception of 0 because N - 0 = N itself.
 	//
-	// Therefore, in order to avoid the need to reduce the result for every
-	// other case in order to achieve constant time, this creates a mask that is
-	// all 0s in the case of the scalar being negated is 0 and all 1s otherwise
-	// and bitwise ands that mask with each word.
+	// The following handles that case in constant time by creating a mask that
+	// is all 0s in the case the scalar being negated is 0 and all 1s otherwise
+	// and then bitwise ands that mask with each limb.
 	//
-	// Finally, to simplify the carry propagation, this adds the two's
-	// complement of the scalar to N in order to achieve the same result.
-	bits := val.n[0] | val.n[1] | val.n[2] | val.n[3] | val.n[4] | val.n[5] |
-		val.n[6] | val.n[7]
-	mask := uint64(uint32Mask * constantTimeNotEq(bits, 0))
-	c := uint64(orderWordZero) + (uint64(^val.n[0]) + 1)
-	s.n[0] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordOne) + uint64(^val.n[1])
-	s.n[1] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordTwo) + uint64(^val.n[2])
-	s.n[2] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordThree) + uint64(^val.n[3])
-	s.n[3] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordFour) + uint64(^val.n[4])
-	s.n[4] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordFive) + uint64(^val.n[5])
-	s.n[5] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordSix) + uint64(^val.n[6])
-	s.n[6] = uint32(c & mask)
-	c = (c >> 32) + uint64(orderWordSeven) + uint64(^val.n[7])
-	s.n[7] = uint32(c & mask)
+	// This approach was chosen over subtracting from 0 and then conditionally
+	// adding N because it's over twice as fast on 32-bit hardware while only
+	// being about 3-4% slower on 64-bit hardware.
+	//
+	// Determine mask first to allow aliasing.
+	mask := -uint64(constantTimeNotEq64(val.n[0]|val.n[1]|val.n[2]|val.n[3], 0))
+
+	// Unconditionally subtract the scalar from the group order.
+	//
+	// To simplify the carry propagation, this adds the two's complement of the
+	// scalar to N in order to achieve the same result.
+	//
+	// s = N - val
+	var c uint64
+	s.n[0], c = bits.Add64(orderLimb0, ^val.n[0], 1)
+	s.n[1], c = bits.Add64(orderLimb1, ^val.n[1], c)
+	s.n[2], c = bits.Add64(orderLimb2, ^val.n[2], c)
+	s.n[3], _ = bits.Add64(orderLimb3, ^val.n[3], c)
+
+	// Either keep the result when val != 0 or clear it when val == 0.  The
+	// result is either:
+	//
+	// val == 0: s = 0
+	// val != 0: s = N - val
+	s.n[0] &= mask
+	s.n[1] &= mask
+	s.n[2] &= mask
+	s.n[3] &= mask
 	return s
 }
 
@@ -1079,26 +895,42 @@ func (s *ModNScalar) InverseNonConst() *ModNScalar {
 // IsOverHalfOrder returns whether or not the scalar exceeds the group order
 // divided by 2 in constant time.
 func (s *ModNScalar) IsOverHalfOrder() bool {
-	// The intuition here is that the scalar is greater than half of the group
-	// order if one of the higher individual words is greater than the
-	// corresponding word of the half group order and all higher words in the
-	// scalar are equal to their corresponding word of the half group order.
+	// These fields provide convenient access to each of the limbs of the
+	// secp256k1 curve group order N / 2 to improve code readability and avoid
+	// the need to recalculate them.
 	//
-	// Note that the words 4, 5, and 6 are all the max uint32 value, so there is
-	// no need to test if those individual words of the scalar exceeds them,
-	// hence, only equality is checked for them.
-	result := constantTimeGreater(s.n[7], halfOrderWordSeven)
-	highWordsEqual := constantTimeEq(s.n[7], halfOrderWordSeven)
-	highWordsEqual &= constantTimeEq(s.n[6], halfOrderWordSix)
-	highWordsEqual &= constantTimeEq(s.n[5], halfOrderWordFive)
-	highWordsEqual &= constantTimeEq(s.n[4], halfOrderWordFour)
-	result |= highWordsEqual & constantTimeGreater(s.n[3], halfOrderWordThree)
-	highWordsEqual &= constantTimeEq(s.n[3], halfOrderWordThree)
-	result |= highWordsEqual & constantTimeGreater(s.n[2], halfOrderWordTwo)
-	highWordsEqual &= constantTimeEq(s.n[2], halfOrderWordTwo)
-	result |= highWordsEqual & constantTimeGreater(s.n[1], halfOrderWordOne)
-	highWordsEqual &= constantTimeEq(s.n[1], halfOrderWordOne)
-	result |= highWordsEqual & constantTimeGreater(s.n[0], halfOrderWordZero)
+	// The half order of the secp256k1 curve group is:
+	// 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0
+	//
+	// Converting that to field representation (base 2^64) is:
+	//
+	// n[0] = 0xdfe92f46681b20a0
+	// n[1] = 0x5d576e7357a4501d
+	// n[2] = 0xffffffffffffffff
+	// n[3] = 0x7fffffffffffffff
+	//
+	// This can be verified with the following test code:
+	//   halfOrder := new(big.Int).Div(curveParams.N, big.NewInt(2))
+	//   var s ModNScalar
+	//   s.SetByteSlice(halfOrder.Bytes())
+	//   t.Logf("%x", s.n)
+	const (
+		halfOrderLimb0 uint64 = 0xdfe92f46681b20a0
+		halfOrderLimb1 uint64 = 0x5d576e7357a4501d
+		halfOrderLimb2 uint64 = 0xffffffffffffffff
+		halfOrderLimb3 uint64 = 0x7fffffffffffffff
+	)
 
-	return result != 0
+	// The goal is to return true when the scalar is greater than half of the
+	// group order.  That is, return true when s > N/2, which is trivially
+	// rearranged to s - (N/2 + 1) ≥ 0.
+	//
+	// In other words, the condition is met iff subtracting (N/2 + 1) from s is
+	// non-negative (aka there was no borrow).
+	var borrow uint64
+	_, borrow = bits.Sub64(s.n[0], halfOrderLimb0+1, borrow)
+	_, borrow = bits.Sub64(s.n[1], halfOrderLimb1, borrow)
+	_, borrow = bits.Sub64(s.n[2], halfOrderLimb2, borrow)
+	_, borrow = bits.Sub64(s.n[3], halfOrderLimb3, borrow)
+	return borrow == 0
 }
