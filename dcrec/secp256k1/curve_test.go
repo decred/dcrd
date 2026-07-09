@@ -877,28 +877,16 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 // modNBitLen returns the minimum number of bits required to represent the mod n
 // scalar.  The result is 0 when the value is 0.
 func modNBitLen(s *ModNScalar) uint16 {
-	if w := s.n[7]; w > 0 {
-		return uint16(bits.Len32(w)) + 224
-	}
-	if w := s.n[6]; w > 0 {
-		return uint16(bits.Len32(w)) + 192
-	}
-	if w := s.n[5]; w > 0 {
-		return uint16(bits.Len32(w)) + 160
-	}
-	if w := s.n[4]; w > 0 {
-		return uint16(bits.Len32(w)) + 128
-	}
 	if w := s.n[3]; w > 0 {
-		return uint16(bits.Len32(w)) + 96
+		return uint16(bits.Len64(w)) + 192
 	}
 	if w := s.n[2]; w > 0 {
-		return uint16(bits.Len32(w)) + 64
+		return uint16(bits.Len64(w)) + 128
 	}
 	if w := s.n[1]; w > 0 {
-		return uint16(bits.Len32(w)) + 32
+		return uint16(bits.Len64(w)) + 64
 	}
-	return uint16(bits.Len32(s.n[0]))
+	return uint16(bits.Len64(s.n[0]))
 }
 
 // checkLambdaDecomposition returns an error if the provided decomposed scalars
