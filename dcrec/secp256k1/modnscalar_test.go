@@ -1111,7 +1111,33 @@ func TestModNScalarNegateRandom(t *testing.T) {
 		}
 
 		// Ensure algebraic properties with negation hold.
-		assertModNScalarNegateProperties(t, modNVal)
+		checkModNScalarNegateProps(t, modNVal)
+	}
+}
+
+// checkModNScalarInverseProps checks algebraic properties of the
+// multiplicative modular inverse of scalars.
+func checkModNScalarInverseProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	// Exception for 0 which does not have a modular multiplicative inverse.
+	if val.IsZero() {
+		return
+	}
+
+	inverse := new(ModNScalar).InverseValNonConst(val)
+
+	// Ensure x * x^-1 ≡ 1 (mod N).
+	product := new(ModNScalar).Mul2(val, inverse)
+	one := new(ModNScalar).SetInt(1)
+	if !product.Equals(one) {
+		t.Errorf("x * x^-1 != 1 (mod N) -- got: %v, want: %v", product, one)
+	}
+
+	// Ensure (x^-1)^-1 == x.
+	doubleInv := new(ModNScalar).InverseValNonConst(inverse)
+	if !doubleInv.Equals(val) {
+		t.Errorf("(x^-1)^-1 != x (mod N) -- got: %v, want: %v", doubleInv, val)
 	}
 }
 
@@ -1189,6 +1215,9 @@ func TestModNScalarInverseNonConst(t *testing.T) {
 				result2, expected)
 			continue
 		}
+
+		// Ensure algebraic properties with inverses hold.
+		checkModNScalarInverseProps(t, s)
 	}
 }
 
@@ -1224,6 +1253,9 @@ func TestModNScalarInverseNonConstRandom(t *testing.T) {
 				"big int result: %x\nscalar result %v", bigIntVal, modNVal,
 				bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with inverses hold.
+		checkModNScalarInverseProps(t, modNVal)
 	}
 }
 
