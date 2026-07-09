@@ -387,6 +387,10 @@ func (s *ModNScalar) Add(val *ModNScalar) *ModNScalar {
 // scalar64Reduce512 reduces a 512-bit little-endian limb array modulo the group
 // order in constant time and stores the result in r.
 func scalar64Reduce512(r *[4]uint64, x *[8]uint64) {
+	// This algorithm has been formally verified, including its intermediate
+	// bounds, carry assumptions, and functional correctness.  The verification
+	// artifacts are available in internal/proofs.
+
 	// The overall strategy employed here is:
 	// 1) Start with the full unreduced 512-bit product of the two scalars.
 	// 2) Reduce the result modulo the group order via Crandall reduction
