@@ -1259,6 +1259,27 @@ func TestModNScalarInverseNonConstRandom(t *testing.T) {
 	}
 }
 
+// checkModNScalarHalfOrderProps checks algebraic properties of the half order
+// comparison.
+func checkModNScalarHalfOrderProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	// Exception for 0 which is the only scalar where negation does not produce
+	// a distinct value.
+	if val.IsZero() {
+		return
+	}
+
+	// Ensure negating a scalar flips whether it is over half order.
+	//
+	// x > N/2 implies N-x < N/2 and vice versa.
+	negation := new(ModNScalar).NegateVal(val)
+	if val.IsOverHalfOrder() == negation.IsOverHalfOrder() {
+		t.Errorf("negation did not flip half order -- val: %v, negation: %v",
+			val, negation)
+	}
+}
+
 // TestModNScalarIsOverHalfOrder ensures that scalars report whether or not they
 // exceeed the half order works as expected for edge cases.
 func TestModNScalarIsOverHalfOrder(t *testing.T) {
@@ -1305,12 +1326,16 @@ func TestModNScalarIsOverHalfOrder(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		result := mustModNScalarWithOverflow(test.in).IsOverHalfOrder()
+		s := mustModNScalarWithOverflow(test.in)
+		result := s.IsOverHalfOrder()
 		if result != test.expected {
 			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
 				result, test.expected)
 			continue
 		}
+
+		// Ensure algebraic properties with the half order hold.
+		checkModNScalarHalfOrderProps(t, s)
 	}
 }
 
@@ -1344,5 +1369,8 @@ func TestModNScalarIsOverHalfOrderRandom(t *testing.T) {
 				"in: %v\nbig int result: %v\nscalar result %v", bigIntVal,
 				modNVal, bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with the half order hold.
+		checkModNScalarHalfOrderProps(t, modNVal)
 	}
 }
