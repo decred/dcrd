@@ -929,20 +929,6 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	r[3] = constantTimeSelect64(borrow, t3, s3)
 }
 
-// field64Mul sets r = a * b (mod p).
-func field64Mul(r *[4]uint64, a, b *[4]uint64) {
-	var product [8]uint64
-	field64Mul512(&product, a, b)
-	field64Reduce512(r, &product)
-}
-
-// field64Square sets r = a^2 (mod p).
-func field64Square(r *[4]uint64, a *[4]uint64) {
-	var product [8]uint64
-	field64Square512(&product, a)
-	field64Reduce512(r, &product)
-}
-
 // Inverse finds the modular multiplicative inverse of the field value in
 // constant time.  The existing field value is modified.
 //
