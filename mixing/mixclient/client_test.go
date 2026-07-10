@@ -36,6 +36,10 @@ func requireCsppsolver(t *testing.T) {
 var (
 	testStartingHeight uint32 = 100
 	testStartingBlock         = chainhash.Hash{100}
+
+	// Zero jitter so tests can run as fast as possible.
+	msgJitter  = time.Duration(0)
+	peerJitter = time.Duration(0)
 )
 
 const (
@@ -44,7 +48,7 @@ const (
 )
 
 func newTestClient(w *testWallet, logger slog.Logger) *Client {
-	c := NewClient(w)
+	c := NewClient(w, msgJitter)
 	c.testWaiting = make(chan struct{})
 	c.testTickC = make(chan time.Time)
 	c.SetLogger(logger)
@@ -231,7 +235,7 @@ func TestHonest(t *testing.T) {
 	for i := range peers {
 		p := peers[i]
 		g.Go(func() error {
-			return c.Dicemix(ctx, p.cj)
+			return c.Dicemix(ctx, p.cj, peerJitter)
 		})
 	}
 
@@ -346,7 +350,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	for _, p := range peers[:len(peers)/2] {
 		p := p
 		g.Go(func() error {
-			err := c.Dicemix(ctx, p.cj)
+			err := c.Dicemix(ctx, p.cj, peerJitter)
 			var e *testPeerBlamedError
 			if errors.As(err, &e) {
 				blameErrC <- e
@@ -359,7 +363,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	for _, p := range peers[len(peers)/2:] {
 		p := p
 		g.Go(func() error {
-			err := c2.Dicemix(ctx, p.cj)
+			err := c2.Dicemix(ctx, p.cj, peerJitter)
 			var e *testPeerBlamedError
 			if errors.As(err, &e) {
 				blameErrC <- e
