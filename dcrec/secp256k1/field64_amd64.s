@@ -62,40 +62,30 @@
 TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 	MOVQ  a+8(FP), SI
 	MOVQ  b+16(FP), DI
-	MOVOU 0(DI), X0
-	MOVOU 16(DI), X1
 	XORQ  BX, BX
 
 	// Row 0: p0..p4 = a0*b.
 	MOVQ   0(SI), DX
-	MOVQ   X0, AX
-	PEXTRQ $1, X0, R13
-	MOVQ   X1, R14
-	PEXTRQ $1, X1, R15
-	MULXQ  AX, R8, CX
-	MULXQ  R13, R9, DI
+	MULXQ  0(DI), R8, CX
+	MULXQ  8(DI), R9, R15
 	ADCXQ  CX, R9
-	MULXQ  R14, R10, CX
-	ADCXQ  DI, R10
-	MULXQ  R15, R11, R12
+	MULXQ  16(DI), R10, CX
+	ADCXQ  R15, R10
+	MULXQ  24(DI), R11, R12
 	ADCXQ  CX, R11
 	ADCXQ  BX, R12
 
 	// Row 1: p1..p4 += a1*b; new top p5 in R13.
 	MOVQ   8(SI), DX
-	MOVQ   X0, R13
-	PEXTRQ $1, X0, R14
-	PEXTRQ $1, X1, R15
-	MULXQ  R13, AX, CX
+	MULXQ  0(DI), AX, CX
 	ADOXQ  AX, R9
-	MOVQ   X1, R13
-	MULXQ  R14, AX, DI
+	MULXQ  8(DI), AX, R15
 	ADCXQ  CX, AX
 	ADOXQ  AX, R10
-	MULXQ  R13, AX, CX
-	ADCXQ  DI, AX
+	MULXQ  16(DI), AX, CX
+	ADCXQ  R15, AX
 	ADOXQ  AX, R11
-	MULXQ  R15, AX, R13
+	MULXQ  24(DI), AX, R13
 	ADCXQ  CX, AX
 	ADOXQ  AX, R12
 	ADCXQ  BX, R13
@@ -103,19 +93,15 @@ TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 
 	// Row 2: p2..p5 += a2*b; new top p6 in R14.
 	MOVQ   16(SI), DX
-	MOVQ   X0, R14
-	PEXTRQ $1, X0, R15
-	MULXQ  R14, AX, CX
+	MULXQ  0(DI), AX, CX
 	ADOXQ  AX, R10
-	MOVQ   X1, R14
-	MULXQ  R15, AX, DI
+	MULXQ  8(DI), AX, R15
 	ADCXQ  CX, AX
 	ADOXQ  AX, R11
-	PEXTRQ $1, X1, R15
-	MULXQ  R14, AX, CX
-	ADCXQ  DI, AX
+	MULXQ  16(DI), AX, CX
+	ADCXQ  R15, AX
 	ADOXQ  AX, R12
-	MULXQ  R15, AX, R14
+	MULXQ  24(DI), AX, R14
 	ADCXQ  CX, AX
 	ADOXQ  AX, R13
 	ADCXQ  BX, R14
@@ -123,19 +109,15 @@ TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 
 	// Row 3: p3..p6 += a3*b; new top p7 in R15.
 	MOVQ   24(SI), DX
-	MOVQ   X0, AX
-	PEXTRQ $1, X0, R15
-	MOVQ   X1, SI
-	MULXQ  AX, AX, CX
+	MULXQ  0(DI), AX, CX
 	ADOXQ  AX, R11
-	MULXQ  R15, AX, DI
+	MULXQ  8(DI), AX, R15
 	ADCXQ  CX, AX
 	ADOXQ  AX, R12
-	PEXTRQ $1, X1, R15
-	MULXQ  SI, AX, CX
-	ADCXQ  DI, AX
+	MULXQ  16(DI), AX, CX
+	ADCXQ  R15, AX
 	ADOXQ  AX, R13
-	MULXQ  R15, AX, R15
+	MULXQ  24(DI), AX, R15
 	ADCXQ  CX, AX
 	ADOXQ  AX, R14
 	ADCXQ  BX, R15
@@ -146,18 +128,16 @@ TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 
 // func field64SquareADX(r *[4]uint64, a *[4]uint64)
 TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
-	MOVQ   a+8(FP), SI
-	MOVOU  0(SI), X0
-	MOVOU  16(SI), X1
+	MOVQ   a+8(FP), AX
+	MOVQ   0(AX), DX   // a0
+	MOVQ   8(AX), SI   // a1
+	MOVQ   16(AX), R8  // a2
+	MOVQ   24(AX), DI  // a3
 	XORQ   R13, R13
 	XORQ   R15, R15
 	XORQ   CX, CX
 
-	// Off-diagonal upper-triangle products into p1..p6 (a1->SI, a3->DI reused).
-	MOVQ   X0, DX
-	PEXTRQ $1, X1, DI
-	MOVQ   X1, R8
-	PEXTRQ $1, X0, SI
+	// Off-diagonal upper-triangle products into p1..p6
 	MULXQ  SI, R9, R10
 	MULXQ  R8, BX, R11
 	MULXQ  DI, AX, R12
@@ -179,7 +159,7 @@ TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
 	ADDQ   BX, R13
 	ADCXQ  CX, R14
 
-	// Double p1..p6, capturing the top carry into p7.
+	// Double p1..p6, capturing the top carry into p7
 	ADDQ   R9, R9
 	ADCXQ  R10, R10
 	ADCXQ  R11, R11
@@ -189,14 +169,15 @@ TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
 	ADCXQ  R15, R15
 
 	// Add the diagonal squares a[i]^2 at columns 0,2,4,6.
-	MOVQ   X0, DX
+	MOVQ   a+8(FP), CX
+	MOVQ   0(CX), DX
 	MULXQ  DX, R8, BX
 	ADDQ   BX, R9
 	MOVQ   SI, DX
 	MULXQ  DX, BX, AX
 	ADCXQ  BX, R10
 	ADCXQ  AX, R11
-	MOVQ   X1, DX
+	MOVQ   16(CX), DX
 	MULXQ  DX, BX, AX
 	ADCXQ  BX, R12
 	ADCXQ  AX, R13

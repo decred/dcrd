@@ -6,7 +6,7 @@
 
 package secp256k1
 
-// field64UseADX reports whether the CPU supports both BMI2 (MULX) and ADX (ADCX/ADOX)
+// field64UseADX reports whether the CPU supports both BMI2 (MULX) and ADX (ADCX/ADOX).
 var field64UseADX = func() bool {
 	const (
 		eaxMax  = 0
@@ -38,26 +38,25 @@ func field64SquareADX(r *[4]uint64, a *[4]uint64)
 //go:noescape
 func field64CPUID(eaxIn, ecxIn uint32) (eax, ebx, ecx, edx uint32)
 
-var (
-	field64Mul    = pickField64Mul()
-	field64Square = pickField64Square()
-)
-
-func pickField64Mul() func(r *[4]uint64, a, b *[4]uint64) {
+// field64Mul sets r = a * b (mod p)
+func field64Mul(r *[4]uint64, a, b *[4]uint64) {
 	if field64UseADX {
-		return field64MulADX
+		field64MulADX(r, a, b)
+		return
 	}
-	return field64MulGeneric
+	field64MulGeneric(r, a, b)
 }
 
-func pickField64Square() func(r *[4]uint64, a *[4]uint64) {
+// field64Square sets r = a^2 (mod p)
+func field64Square(r *[4]uint64, a *[4]uint64) {
 	if field64UseADX {
-		return field64SquareADX
+		field64SquareADX(r, a)
+		return
 	}
-	return field64SquareGeneric
+	field64SquareGeneric(r, a)
 }
 
-// field64MulGeneric sets r = a * b (mod p).
+// field64MulGeneric sets r = a * b (mod p)
 func field64MulGeneric(r *[4]uint64, a, b *[4]uint64) {
 	var product [8]uint64
 	field64Mul512(&product, a, b)
