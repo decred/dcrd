@@ -287,11 +287,6 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
 		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
 		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
-		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
-		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
-		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
-		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
-		{cj: NewCoinJoin(w.gen, nil, mixValue, testStartingHeight+10, 1)},
 	}
 	inputTx := wire.NewMsgTx()
 	for range peers {

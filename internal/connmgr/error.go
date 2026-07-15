@@ -22,9 +22,21 @@ const (
 	// already has an established connection.
 	ErrAlreadyConnected = ErrorKind("ErrAlreadyConnected")
 
+	// ErrMaxNormalConns indicates a connection attempt (inbound or outbound)
+	// would exceed the maximum allowed number of normal connections.
+	ErrMaxNormalConns = ErrorKind("ErrMaxNormalConns")
+
+	// ErrMaxConnsPerHost indicates a connection attempt (inbound or outbound)
+	// would exceed the maximum allowed number of connections per host.
+	ErrMaxConnsPerHost = ErrorKind("ErrMaxConnsPerHost")
+
 	// ErrMaxPersistent indicates an attempt to add more than the maximum
 	// allowed number of persistent connections.
 	ErrMaxPersistent = ErrorKind("ErrMaxPersistent")
+
+	// ErrMaxPersistentPerHost indicates an attempt to add more than the maximum
+	// allowed number of persistent connections with the same host address.
+	ErrMaxPersistentPerHost = ErrorKind("ErrMaxPersistentPerHost")
 
 	// ErrDuplicatePersistent indicates an attempt to add a persistent
 	// connection to an address that already exists.

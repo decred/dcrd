@@ -56,7 +56,7 @@ func randIntAndFieldVal(t *testing.T, rng *rand.Rand) (*big.Int, *FieldVal) {
 
 	// Create and return both a big integer and a field value.
 	bigIntVal := new(big.Int).SetBytes(buf[:])
-	bigIntVal.Mod(bigIntVal, curveParams.N)
+	bigIntVal.Mod(bigIntVal, curveParams.P)
 	var fv FieldVal
 	fv.SetBytes(&buf)
 	return bigIntVal, &fv

@@ -72,7 +72,7 @@ func randIntAndFieldVal64(t *testing.T, rng *rand.Rand) (*big.Int, *FieldVal64) 
 	}
 
 	bigIntVal := new(big.Int).SetBytes(buf[:])
-	bigIntVal.Mod(bigIntVal, curveParams.N)
+	bigIntVal.Mod(bigIntVal, curveParams.P)
 	var fv FieldVal64
 	fv.SetBytes(&buf)
 	return bigIntVal, &fv

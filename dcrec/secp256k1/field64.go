@@ -651,6 +651,10 @@ func (f *FieldVal64) SquareVal(val *FieldVal64) *FieldVal64 {
 // field64Mul512 sets t = x * y as an unreduced 512-bit product via a row-by-row
 // schoolbook multiply.
 func field64Mul512(t *[8]uint64, x, y *[4]uint64) {
+	// The intermediate bounds and carry assumptions used by this algorithm have
+	// been formally verified.  The verification artifacts are available in
+	// internal/proofs.
+
 	a0, a1, a2, a3 := x[0], x[1], x[2], x[3]
 	b0, b1, b2, b3 := y[0], y[1], y[2], y[3]
 
@@ -760,6 +764,10 @@ func field64Mul512(t *[8]uint64, x, y *[4]uint64) {
 
 // field64Square512 sets t = a^2 as an unreduced 512-bit product.
 func field64Square512(t *[8]uint64, a *[4]uint64) {
+	// The intermediate bounds and carry assumptions used by this algorithm have
+	// been formally verified.  The verification artifacts are available in
+	// internal/proofs.
+
 	a0, a1, a2, a3 := a[0], a[1], a[2], a[3]
 
 	var c uint64
@@ -845,6 +853,10 @@ func field64Square512(t *[8]uint64, a *[4]uint64) {
 // field64Reduce512 reduces a 512-bit little-endian limb array modulo p in
 // constant time and stores the result in r.
 func field64Reduce512(r *[4]uint64, x *[8]uint64) {
+	// The intermediate bounds and carry assumptions used by this algorithm have
+	// been formally verified.  The verification artifacts are available in
+	// internal/proofs.
+
 	// Per [HAC] section 14.3.4: Reduction method of moduli of special form,
 	// when the modulus is of the special form m = b^t - c, highly efficient
 	// reduction can be achieved.  While [HAC] only presents the algorithm and

@@ -239,19 +239,16 @@ type peerState struct {
 	outboundPeers   map[int32]*serverPeer
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
-	outboundGroups  map[string]int
 }
 
 // makePeerState returns a peer state instance that is used to maintain the
-// state of inbound, persistent, and outbound peers as well as banned peers and
-// outbound groups.
+// state of inbound, persistent, and outbound peers as well as banned peers.
 func makePeerState() peerState {
 	return peerState{
 		inboundPeers:    make(map[int32]*serverPeer),
 		persistentPeers: make(map[int32]*serverPeer),
 		outboundPeers:   make(map[int32]*serverPeer),
 		banned:          make(map[string]time.Time),
-		outboundGroups:  make(map[string]int),
 	}
 }
 
@@ -513,6 +510,7 @@ func newServerPeer(s *server, conn *connmgr.Conn, remoteAddr *addrmgr.NetAddress
 		conn:           conn,
 		remoteAddr:     remoteAddr,
 		persistent:     s.connManager.IsPersistent(conn.ID()),
+		isWhitelisted:  s.connManager.IsWhitelisted(remoteAddr),
 		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
 		getDataQueue:   make(chan []*wire.InvVect, maxConcurrentGetDataReqs),
@@ -2289,7 +2287,6 @@ func (s *server) inboundPeerConnected(ctx context.Context, conn *connmgr.Conn) {
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewInboundPeer(newPeerConfig(sp), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for inbound peer %s: %v",
 			remoteNetAddr, err)
@@ -2323,7 +2320,6 @@ func (s *server) outboundPeerConnected(ctx context.Context, conn *connmgr.Conn) 
 
 	sp := newServerPeer(s, conn, remoteNetAddr)
 	sp.Peer = peer.NewOutboundPeer(newPeerConfig(sp), conn.RemoteAddr(), conn)
-	sp.isWhitelisted = isWhitelisted(remoteNetAddr)
 	if err := sp.Handshake(ctx, sp.OnVersion); err != nil {
 		srvrLog.Debugf("Failed handshake for outbound peer %s: %v",
 			conn.RemoteAddr(), err)
@@ -2619,20 +2615,6 @@ func (s *server) considerReportedAddr(from *serverPeer, addr *wire.NetAddress) {
 	s.considerReportedAddrOutbound(from, addr)
 }
 
-// connectionsWithIP returns the number of connections with the given IP.
-//
-// This function MUST be called with the embedded mutex locked (for reads).
-func (ps *peerState) connectionsWithIP(ip net.IP) int {
-	var total int
-	ps.forAllPeers(func(sp *serverPeer) {
-		if ip.Equal(sp.remoteAddr.IP) {
-			total++
-		}
-
-	})
-	return total
-}
-
 // handleAddPeer deals with adding new peers and includes logic such as
 // categorizing the type of peer, limiting the maximum allowed number of peers,
 // and local external address resolution.
@@ -2691,30 +2673,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	defer state.Unlock()
 	state.Lock()
 
-	// Limit max number of connections from a single IP.  However, allow
-	// whitelisted inbound peers and localhost connections regardless.
-	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := net.IP(sp.remoteAddr.IP)
-	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
-		state.connectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
-
-		srvrLog.Infof("Max connections with %s reached [%d] - disconnecting "+
-			"peer", sp, cfg.MaxSameIP)
-		sp.Disconnect()
-		return false
-	}
-
-	// Limit max number of total peers.  However, allow whitelisted inbound
-	// peers regardless.
-	if state.count()+1 > cfg.MaxPeers && !isInboundWhitelisted {
-		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
-			cfg.MaxPeers, sp)
-		sp.Disconnect()
-		// TODO: how to handle permanent peers here?
-		// they should be rescheduled.
-		return false
-	}
-
 	// Add the new peer.
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
@@ -2722,7 +2680,6 @@ func (s *server) handleAddPeer(sp *serverPeer) bool {
 	}
 
 	// The peer is an outbound peer at this point.
-	state.outboundGroups[sp.remoteAddr.GroupKey()]++
 	if sp.persistent {
 		state.persistentPeers[sp.ID()] = sp
 	} else {
@@ -2763,9 +2720,6 @@ func (s *server) DonePeer(sp *serverPeer) {
 		list = state.outboundPeers
 	}
 	if _, ok := list[sp.ID()]; ok {
-		if !sp.Inbound() {
-			state.outboundGroups[sp.remoteAddr.GroupKey()]--
-		}
 		delete(list, sp.ID())
 		srvrLog.Debugf("Removed peer %s", sp)
 		return
@@ -2856,15 +2810,6 @@ func (s *server) ConnectedCount() int32 {
 		}
 	})
 	return numConnected
-}
-
-// OutboundGroupCount returns the number of peers connected to the given
-// outbound group key.
-func (s *server) OutboundGroupCount(key string) int {
-	s.peerState.Lock()
-	count := s.peerState.outboundGroups[key]
-	s.peerState.Unlock()
-	return count
 }
 
 // AddBytesSent adds the passed number of bytes to the total bytes sent counter
@@ -3950,6 +3895,12 @@ func newServer(ctx context.Context, profiler *profileServer,
 	listenAddrs []string, db database.DB, utxoDb *leveldb.DB,
 	chainParams *chaincfg.Params, dataDir string) (*server, error) {
 
+	defaultP2PPort, err := strconv.ParseUint(chainParams.DefaultPort, 10, 16)
+	if err != nil {
+		err = fmt.Errorf("invalid default p2p port in chain params: %w", err)
+		return nil, err
+	}
+
 	amgr := addrmgr.New(cfg.DataDir)
 	services := defaultServices
 
@@ -4297,7 +4248,7 @@ func newServer(ctx context.Context, profiler *profileServer,
 	// to specified peers and actively avoid advertising and connecting to
 	// discovered peers in order to prevent it from becoming a public test
 	// network.
-	var newAddressFunc func() (net.Addr, error)
+	var newAddressFunc func() (*addrmgr.NetAddress, time.Time, error)
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
 		filter := func(addrType addrmgr.NetAddressType) bool {
 			switch addrType {
@@ -4309,44 +4260,12 @@ func newServer(ctx context.Context, profiler *profileServer,
 			}
 			return false
 		}
-		newAddressFunc = func() (net.Addr, error) {
-			for tries := 0; tries < 100; tries++ {
-				addr := s.addrManager.GetAddress(filter)
-				if addr == nil {
-					break
-				}
-
-				// Address will not be invalid, local or unroutable
-				// because addrmanager rejects those on addition.
-				// Just check that we don't already have an address
-				// in the same group so that we are not connecting
-				// to the same network segment at the expense of
-				// others.
-				netAddr := addr.NetAddress()
-				if s.OutboundGroupCount(netAddr.GroupKey()) != 0 {
-					continue
-				}
-
-				// Skip recently attempted nodes until we have
-				// tried 30 times.
-				if tries < 30 {
-					lastAttempt := addr.LastAttempt()
-					if !lastAttempt.IsZero() &&
-						time.Since(lastAttempt) < 10*time.Minute {
-						continue
-					}
-				}
-
-				// allow nondefault ports after 50 failed tries.
-				if fmt.Sprintf("%d", netAddr.Port) !=
-					s.chainParams.DefaultPort && tries < 50 {
-					continue
-				}
-
-				return addrStringToNetAddr(netAddr.Key())
+		newAddressFunc = func() (*addrmgr.NetAddress, time.Time, error) {
+			addr := s.addrManager.GetAddress(filter)
+			if addr == nil {
+				return nil, time.Time{}, errors.New("no valid connect address")
 			}
-
-			return nil, errors.New("no valid connect address")
+			return addr.NetAddress(), addr.LastAttempt(), nil
 		}
 	}
 
@@ -4359,14 +4278,18 @@ func newServer(ctx context.Context, profiler *profileServer,
 		OnAccept: func(conn *connmgr.Conn) {
 			s.inboundPeerConnected(ctx, conn)
 		},
-		RetryDuration:  connectionRetryInterval,
-		TargetOutbound: s.targetOutbound,
-		Dial:           s.attemptDcrdDial,
-		DialTimeout:    cfg.DialTimeout,
+		DefaultPort:     uint16(defaultP2PPort),
+		RetryDuration:   connectionRetryInterval,
+		MaxNormalConns:  uint32(cfg.MaxPeers),
+		MaxConnsPerHost: uint32(cfg.MaxSameIP),
+		TargetOutbound:  s.targetOutbound,
+		Dial:            s.attemptDcrdDial,
+		DialTimeout:     cfg.DialTimeout,
 		OnConnection: func(conn *connmgr.Conn) {
 			s.outboundPeerConnected(ctx, conn)
 		},
 		GetNewAddress: newAddressFunc,
+		Whitelists:    cfg.whitelists,
 	})
 	if err != nil {
 		return nil, err
@@ -4630,20 +4553,4 @@ func addLocalAddress(addrMgr *addrmgr.AddrManager, addr string, services wire.Se
 	}
 
 	return nil
-}
-
-// isWhitelisted returns whether the IP address is included in the whitelisted
-// networks and IPs.
-func isWhitelisted(addr *addrmgr.NetAddress) bool {
-	if len(cfg.whitelists) == 0 {
-		return false
-	}
-
-	ip, _ := netip.AddrFromSlice(addr.IP)
-	for _, prefix := range cfg.whitelists {
-		if prefix.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
