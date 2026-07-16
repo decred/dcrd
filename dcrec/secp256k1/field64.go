@@ -166,6 +166,9 @@ func (f *FieldVal64) SetByteSlice(b []byte) bool {
 	return result != 0
 }
 
+// Normalize is a no-op.  It is provided to keep API parity with [FieldVal].
+func (f *FieldVal64) Normalize() {}
+
 // PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
 // directly into the passed byte slice in constant time.  The target slice must
 // have at least 32 bytes available or it will panic.
@@ -279,11 +282,11 @@ func (f *FieldVal64) Equals(val *FieldVal64) bool {
 }
 
 // NegateVal negates the passed value and stores the result in f in constant
-// time.
+// time.  The ignored parameter exists to keep API parity with [FieldVal].
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.NegateVal(f2).AddInt(1) so that f = -f2 + 1.
-func (f *FieldVal64) NegateVal(val *FieldVal64) *FieldVal64 {
+func (f *FieldVal64) NegateVal(val *FieldVal64, _ uint32) *FieldVal64 {
 	// Since the value is already in the range 0 ≤ val < p, where p is the
 	// secp256k1 prime, negation modulo p is just p - val.  This implies that
 	// the result will always be in the desired range with the sole exception of
@@ -322,12 +325,12 @@ func (f *FieldVal64) NegateVal(val *FieldVal64) *FieldVal64 {
 }
 
 // Negate negates the field value in constant time.  The existing field value is
-// modified.
+// modified.  The ignored parameter exists to keep API parity with [FieldVal].
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.Negate().AddInt(1) so that f = -f + 1.
-func (f *FieldVal64) Negate() *FieldVal64 {
-	return f.NegateVal(f)
+func (f *FieldVal64) Negate(_ uint32) *FieldVal64 {
+	return f.NegateVal(f, 0)
 }
 
 // AddInt adds the passed integer to the existing field value and stores the

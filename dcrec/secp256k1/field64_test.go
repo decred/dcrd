@@ -606,7 +606,7 @@ func TestField64Negate(t *testing.T) {
 		expected := mustFieldVal64(test.expected)
 
 		// Ensure negating another value produces the expected result.
-		result := new(FieldVal64).NegateVal(f)
+		result := new(FieldVal64).NegateVal(f, 0)
 		if !result.Equals(expected) {
 			t.Errorf("%s: unexpected result -- got: %x, want: %x", test.name,
 				result.Bytes(), expected.Bytes())
@@ -614,7 +614,7 @@ func TestField64Negate(t *testing.T) {
 		}
 
 		// Ensure self negating also produces the expected result.
-		result2 := f.Negate()
+		result2 := f.Negate(0)
 		if !result2.Equals(expected) {
 			t.Errorf("%s: unexpected result -- got: %x, want: %x", test.name,
 				result2.Bytes(), expected.Bytes())

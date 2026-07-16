@@ -19,7 +19,7 @@ func BenchmarkField64Negate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var result FieldVal64
-		_ = result.NegateVal(f)
+		_ = result.NegateVal(f, 0)
 	}
 }
 
