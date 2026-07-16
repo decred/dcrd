@@ -1150,15 +1150,6 @@ func (g *chaingenHarness) ReconsiderBlockAndExpectTip(blockName string, wantErr 
 	g.ExpectTip(tipName)
 }
 
-// minUint32 is a helper function to return the minimum of two uint32s.
-// This avoids a math import and the need to cast to floats.
-func minUint32(a, b uint32) uint32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // generateToHeight generates enough blocks in the generator associated with the
 // harness to reach the provided height assuming the blocks up to and including
 // the provided from height have already been generated.  It also purchases the
@@ -1211,7 +1202,7 @@ func (g *chaingenHarness) generateToHeight(fromHeight, toHeight uint32, buyTicke
 	//
 	//   genesis -> bfb -> bm2 -> bm3 -> ... -> bm#
 	alreadyAsserted := tipHeight >= coinbaseMaturity+1
-	targetHeight := minUint32(coinbaseMaturity+1, toHeight)
+	targetHeight := min(coinbaseMaturity+1, toHeight)
 	for ; tipHeight < targetHeight; tipHeight++ {
 		blockName := fmt.Sprintf("bm%d", tipHeight-intermediateHeight)
 		g.NextBlock(blockName, nil, nil)
@@ -1232,7 +1223,7 @@ func (g *chaingenHarness) generateToHeight(fromHeight, toHeight uint32, buyTicke
 	//   ... -> bm# ... -> bse18 -> bse19 -> ... -> bse#
 	var ticketsPurchased uint32
 	alreadyAsserted = tipHeight >= stakeEnabledHeight
-	targetHeight = minUint32(stakeEnabledHeight, toHeight)
+	targetHeight = min(stakeEnabledHeight, toHeight)
 	for ; tipHeight < targetHeight; tipHeight++ {
 		var ticketOuts []chaingen.SpendableOut
 		if buyTicketsPerBlock > 0 {
@@ -1259,7 +1250,7 @@ func (g *chaingenHarness) generateToHeight(fromHeight, toHeight uint32, buyTicke
 		var ticketOuts []chaingen.SpendableOut
 		// Only purchase tickets until the target ticket pool size is reached.
 		ticketsNeeded := targetPoolSize - ticketsPurchased
-		ticketsNeeded = minUint32(ticketsNeeded, buyTicketsPerBlock)
+		ticketsNeeded = min(ticketsNeeded, buyTicketsPerBlock)
 		if ticketsNeeded > 0 {
 			outs := g.OldestCoinbaseOuts()
 			ticketOuts = outs[1 : ticketsNeeded+1]

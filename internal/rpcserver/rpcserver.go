@@ -4001,30 +4001,12 @@ func handleGetWorkRequest(ctx context.Context, s *Server) (any, error) {
 	return reply, nil
 }
 
-// minInt is a helper function to return the minimum of two ints.  This avoids
-// the need to cast to floats.
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// maxInt is a helper function to return the maximum of two ints.  This avoids
-// the need to cast to floats.
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // handleGetWorkSubmission is a helper for handleGetWork which deals with
 // the calling submitting work to be verified and processed.
 func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (any, error) {
 	// Ensure the provided data is sane.
-	minDataLen := minInt(getworkDataLenBlake256, getworkDataLenBlake3)
-	maxDataLen := maxInt(getworkDataLenBlake256, getworkDataLenBlake3)
+	minDataLen := min(getworkDataLenBlake256, getworkDataLenBlake3)
+	maxDataLen := max(getworkDataLenBlake256, getworkDataLenBlake3)
 	paddedHexDataLen := len(hexData) + len(hexData)%2
 	if paddedHexDataLen < minDataLen*2 || paddedHexDataLen > maxDataLen*2 {
 		if minDataLen == maxDataLen {
@@ -4613,8 +4595,8 @@ func handleSubmitBlock(_ context.Context, s *Server, cmd any) (any, error) {
 	return nil, nil
 }
 
-// min gets the minimum amount from a slice of amounts.
-func min(s []dcrutil.Amount) dcrutil.Amount {
+// minAmount gets the minimum amount from a slice of amounts.
+func minAmount(s []dcrutil.Amount) dcrutil.Amount {
 	if len(s) == 0 {
 		return 0
 	}
@@ -4630,7 +4612,7 @@ func min(s []dcrutil.Amount) dcrutil.Amount {
 }
 
 // max gets the maximum amount from a slice of amounts.
-func max(s []dcrutil.Amount) dcrutil.Amount {
+func maxAmount(s []dcrutil.Amount) dcrutil.Amount {
 	max := dcrutil.Amount(0)
 	for i := range s {
 		if s[i] > max {
@@ -4708,8 +4690,8 @@ func feeInfoForMempool(s *Server, txType stake.TxType) *types.FeeInfoMempool {
 
 	return &types.FeeInfoMempool{
 		Number: uint32(len(ticketFees)),
-		Min:    min(ticketFees).ToCoin(),
-		Max:    max(ticketFees).ToCoin(),
+		Min:    minAmount(ticketFees).ToCoin(),
+		Max:    maxAmount(ticketFees).ToCoin(),
 		Mean:   mean(ticketFees).ToCoin(),
 		Median: median(ticketFees).ToCoin(),
 		StdDev: stdDev(ticketFees).ToCoin(),
@@ -4776,8 +4758,8 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 	return &types.FeeInfoBlock{
 		Height: uint32(height),
 		Number: uint32(txNum),
-		Min:    min(txFees).ToCoin(),
-		Max:    max(txFees).ToCoin(),
+		Min:    minAmount(txFees).ToCoin(),
+		Max:    maxAmount(txFees).ToCoin(),
 		Mean:   mean(txFees).ToCoin(),
 		Median: median(txFees).ToCoin(),
 		StdDev: stdDev(txFees).ToCoin(),
@@ -4823,8 +4805,8 @@ func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxTyp
 		StartHeight: uint32(start),
 		EndHeight:   uint32(end),
 		Number:      uint32(len(txFees)),
-		Min:         min(txFees).ToCoin(),
-		Max:         max(txFees).ToCoin(),
+		Min:         minAmount(txFees).ToCoin(),
+		Max:         maxAmount(txFees).ToCoin(),
 		Mean:        mean(txFees).ToCoin(),
 		Median:      median(txFees).ToCoin(),
 		StdDev:      stdDev(txFees).ToCoin(),
