@@ -5,49 +5,95 @@ secp256k1
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v4)
 
-Package secp256k1 implements optimized secp256k1 elliptic curve operations.
+Package secp256k1 provides an optimized pure-Go implementation of secp256k1
+elliptic curve cryptography.
 
-This package provides an optimized pure Go implementation of elliptic curve
-cryptography operations over the secp256k1 curve as well as data structures and
-functions for working with public and private secp256k1 keys.  See
-https://www.secg.org/sec2-v2.pdf for details on the standard.
+It is designed for correctness, performance, security, and high assurance
+through specialized secp256k1 arithmetic, constant-time engineering, formal
+verification of critical arithmetic routines, differential testing, and multiple
+complementary testing techniques.  It requires no cgo and provides data
+structures and functions for working with public and private secp256k1 keys.
 
-In addition, sub packages are provided to produce, verify, parse, and serialize
+In addition, subpackages are provided to produce, verify, parse, and serialize
 ECDSA signatures and EC-Schnorr-DCRv0 (a custom Schnorr-based signature scheme
 specific to Decred) signatures.  See the README.md files in the relevant sub
 packages for more details about those aspects.
 
-An overview of the features provided by this package are as follows:
+## Features
 
-- Private key generation, serialization, and parsing
-- Public key generation, serialization and parsing per ANSI X9.62-1998
+- Pure Go implementation with no cgo dependency
+- Private key generation, parsing, and serialization
+- Public key generation, parsing, and serialization per ANSI X9.62-1998
   - Parses uncompressed, compressed, and hybrid public keys
   - Serializes uncompressed and compressed public keys
-- Specialized types for performing optimized and constant time field operations
-  - `FieldVal` type for working modulo the secp256k1 field prime
-  - `ModNScalar` type for working modulo the secp256k1 group order
-- Elliptic curve operations in Jacobian projective coordinates
+- Point decompression from a given x coordinate
+- RFC6979 deterministic nonce generation with support for extra data and
+  version information to prevent nonce reuse across signing algorithms
+- Optimized elliptic curve operations in Jacobian projective coordinates
   - Point addition
   - Point doubling
   - Scalar multiplication with an arbitrary point
   - Scalar multiplication with the base point (group generator)
-- Point decompression from a given x coordinate
-- Nonce generation via RFC6979 with support for extra data and version
-  information that can be used to prevent nonce reuse between signing algorithms
+- Specialized arithmetic optimized specifically for secp256k1
+  - `FieldVal` for arithmetic modulo the secp256k1 field prime
+  - `ModNScalar` for arithmetic modulo the secp256k1 group order
 
-It also provides an implementation of the Go standard library `crypto/elliptic`
-`Curve` interface via the `S256` function so that it may be used with other
-packages in the standard library such as `crypto/tls`, `crypto/x509`, and
-`crypto/ecdsa`.  However, in the case of ECDSA, it is highly recommended to use
-the `ecdsa` sub package of this package instead since it is optimized
-specifically for secp256k1 and is significantly faster as a result.
+> NOTE: The `S256()` function and the associated `crypto/elliptic.Curve` methods
+> (`Add`, `Double`, etc.) on `KoblitzCurve` are **deprecated**.
+>
+> Use the `ecdsa` subpackage.  The generic `crypto/elliptic` interface is
+> significantly slower for secp256k1 and has been **deprecated** by the Go
+> authors.
 
-Although this package was primarily written for dcrd, it has intentionally been
-designed so it can be used as a standalone package for any projects needing to
-use optimized secp256k1 elliptic curve cryptography.
+## Assurance
 
-Finally, a comprehensive suite of tests is provided to provide a high level of
-quality assurance.
+This package emphasizes correctness and implementation assurance through
+multiple complementary validation techniques.
+
+Key implementation characteristics include:
+
+- Continuous production use since 2013 across the Decred and Bitcoin ecosystems
+- Specialized secp256k1 arithmetic rather than generic elliptic curve
+  implementations
+- Constant-time field and scalar arithmetic for secret-dependent operations
+- Formal verification of critical arithmetic operations using the Z3 theorem
+  prover
+- Differential testing against other secp256k1 implementations, including
+  Bitcoin Core's libsecp256k1
+- Deterministic test vectors
+- Property-based testing
+- Coverage-guided fuzz testing
+- Manual review of security-critical implementation details
+
+The formal verification artifacts establish correctness properties of critical
+optimized arithmetic implementations, including multi-precision multiplication,
+intermediate value bounds, carry handling, and modular reduction.  They are
+available in the [internal/proofs](internal/proofs) directory.
+
+Secret-dependent arithmetic is implemented using constant-time algorithms and
+generated machine code is inspected during validation to help confirm that
+compiler optimizations preserve the intended constant-time properties.
+
+No single technique is sufficient to establish confidence in cryptographic
+software.  Formal verification, differential validation, constant-time
+engineering, testing, and manual review provide complementary sources of
+implementation assurance.
+
+## Testing and Verification
+
+In addition to extensive unit testing, this package employs multiple validation
+techniques appropriate for cryptographic software, including deterministic test
+vectors, property-based testing, differential testing against independent
+implementations, coverage-guided fuzz testing, and formal verification of
+security-critical arithmetic routines.
+
+Although this package was originally developed for dcrd, it has intentionally
+been designed as a standalone module for any projects needing to use optimized
+secp256k1 elliptic curve cryptography.
+
+## References
+
+The secp256k1 domain parameters are specified in [SEC 2: Recommended Elliptic Curve Domain Parameters](https://www.secg.org/sec2-v2.pdf).
 
 ## secp256k1 use in Decred
 
