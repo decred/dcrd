@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,15 +40,6 @@ type Policy struct {
 	//
 	// This function must be safe for concurrent access.
 	StandardVerifyFlags func() (txscript.ScriptFlags, error)
-}
-
-// minInt is a helper function to return the minimum of two ints.  This avoids
-// a math import and the need to cast to floats.
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // calcInputValueAge is a helper function used to calculate the input age of
@@ -113,7 +104,7 @@ func CalcPriority(tx *wire.MsgTx, prioInputs PriorityInputser, nextBlockHeight i
 	overhead := 0
 	for _, txIn := range tx.TxIn {
 		// Max inputs + size can't possibly overflow here.
-		overhead += 58 + minInt(110, len(txIn.SignatureScript))
+		overhead += 58 + min(110, len(txIn.SignatureScript))
 	}
 
 	serializedTxSize := tx.SerializeSize()
