@@ -2343,7 +2343,7 @@ func newPeerBase(cfgOrig *Config, conn net.Conn, inbound bool) *Peer {
 	}
 
 	p := Peer{
-		blake256Hasher: blake256.New(),
+		blake256Hasher: blake256.NewHasher256(),
 		conn:           conn,
 		inbound:        inbound,
 		knownInventory: lru.NewSetWithDefaultTTL[wire.InvVect](
