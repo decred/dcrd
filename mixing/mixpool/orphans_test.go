@@ -47,7 +47,7 @@ func TestOrphans(t *testing.T) {
 	}
 	id := *(*[33]byte)(pub.SerializeCompressed())
 
-	h := blake256.New()
+	h := blake256.NewHasher256()
 
 	pr := &wire.MsgMixPairReq{
 		Identity: id,

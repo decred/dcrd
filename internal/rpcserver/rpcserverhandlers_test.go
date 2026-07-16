@@ -8402,7 +8402,7 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				ntfnMgr:        new(testNtfnManager),
 				workState:      workState,
 				helpCacher:     helpCacher,
-				blake256Hasher: blake256.New(),
+				blake256Hasher: blake256.NewHasher256(),
 			}
 			result, err := test.handler(ctx, testServer, test.cmd)
 			if test.wantErr {

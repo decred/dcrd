@@ -6247,7 +6247,7 @@ func New(config *Config) (*Server, error) {
 		workState:              newWorkState(),
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
-		blake256Hasher:         blake256.New(),
+		blake256Hasher:         blake256.NewHasher256(),
 	}
 	key := make([]byte, 32)
 	rand.Read(key)

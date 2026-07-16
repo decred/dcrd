@@ -215,7 +215,7 @@ func TestAccept(t *testing.T) {
 	}
 	identity := *(*[33]byte)(identityPub.SerializeCompressed())
 
-	h := blake256.New()
+	h := blake256.NewHasher256()
 
 	var (
 		expires      uint32 = 1010
