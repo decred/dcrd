@@ -565,6 +565,15 @@ func NewGetMixMessageCmd(hash string) *GetMixMessageCmd {
 	}
 }
 
+// GetMixpoolInfoCmd defines the getmixpoolinfo JSON-RPC command.
+type GetMixpoolInfoCmd struct{}
+
+// NewGetMixpoolInfoCmd returns a new instance which can be used to issue a
+// getmixpoolinfo JSON-RPC command.
+func NewGetMixpoolInfoCmd() *GetMixpoolInfoCmd {
+	return &GetMixpoolInfoCmd{}
+}
+
 // GetNetworkInfoCmd defines the getnetworkinfo JSON-RPC command.
 type GetNetworkInfoCmd struct{}
 
@@ -1175,6 +1184,7 @@ func init() {
 	dcrjson.MustRegister(Method("getmempoolinfo"), (*GetMempoolInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmininginfo"), (*GetMiningInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getmixmessage"), (*GetMixMessageCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getmixpoolinfo"), (*GetMixpoolInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnetworkinfo"), (*GetNetworkInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnettotals"), (*GetNetTotalsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getnetworkhashps"), (*GetNetworkHashPSCmd)(nil), flags)

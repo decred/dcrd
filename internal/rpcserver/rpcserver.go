@@ -210,6 +210,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getmempoolinfo":        handleGetMempoolInfo,
 	"getmininginfo":         handleGetMiningInfo,
 	"getmixmessage":         handleGetMixMessage,
+	"getmixpoolinfo":        handleGetMixpoolInfo,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
 	"getnetworkinfo":        handleGetNetworkInfo,
@@ -379,6 +380,7 @@ var rpcLimited = map[string]struct{}{
 	"getheaders":           {},
 	"getinfo":              {},
 	"getmixmessage":        {},
+	"getmixpoolinfo":       {},
 	"getnettotals":         {},
 	"getnetworkhashps":     {},
 	"getnetworkinfo":       {},
@@ -2660,6 +2662,70 @@ func handleGetMixMessage(_ context.Context, s *Server, cmd any) (any, error) {
 	result := types.GetMixMessageResult{
 		Type:    msg.Command(),
 		Message: buf.String(),
+	}
+	return &result, nil
+}
+
+// handleGetMixpoolInfo implements the getmixpoolinfo command, returning the
+// timing of the next mix epoch and the pending pair requests grouped by pairing
+// description.
+func handleGetMixpoolInfo(_ context.Context, s *Server, _ any) (any, error) {
+	mp := s.cfg.MixPooler
+	prs := mp.MixPRs()
+
+	// Use a map to group PRs by their pairing description. This is converted to
+	// a slice for JSON marshalling later.
+	groups := make(map[string]*types.Pairing)
+	for _, pr := range prs {
+		pairing, err := pr.Pairing()
+		if err != nil {
+			return nil, rpcInternalErr(err, "Failed to generate PR pairing")
+		}
+
+		key := string(pairing)
+		group, ok := groups[key]
+		if !ok {
+			group = &types.Pairing{
+				MixAmount:    dcrutil.Amount(pr.MixAmount).ToCoin(),
+				ScriptClass:  pr.ScriptClass,
+				TxVersion:    pr.TxVersion,
+				LockTime:     pr.LockTime,
+				PairingFlags: pr.PairingFlags,
+				PairRequests: make([]types.PairRequest, 0, minInt(len(prs), mixing.MaxPeers)),
+			}
+			groups[key] = group
+		}
+
+		// Get string representation of the UTXOs in this PR ("hash:idx:tree").
+		utxos := make([]string, len(pr.UTXOs))
+		for i := range pr.UTXOs {
+			op := pr.UTXOs[i].OutPoint
+			utxos[i] = fmt.Sprintf("%s:%d:%d", op.Hash, op.Index, op.Tree)
+		}
+
+		group.PairRequests = append(group.PairRequests, types.PairRequest{
+			Hash:         pr.Hash().String(),
+			Identity:     hex.EncodeToString(pr.Identity[:]),
+			MessageCount: pr.MessageCount,
+			InputValue:   dcrutil.Amount(pr.InputValue).ToCoin(),
+			UTXOs:        utxos,
+			Expiry:       pr.Expiry,
+		})
+	}
+
+	// Convert map to slice for JSON marshalling.
+	pairings := make([]types.Pairing, 0, len(groups))
+	for _, group := range groups {
+		pairings = append(pairings, *group)
+	}
+
+	epoch := mp.Epoch()
+	nextEpoch := s.cfg.Clock.Now().Truncate(epoch).Add(epoch)
+
+	result := types.GetMixpoolInfoResult{
+		Epoch:     int64(epoch.Seconds()),
+		NextEpoch: nextEpoch.Unix(),
+		Pairings:  pairings,
 	}
 	return &result, nil
 }

@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -238,6 +238,35 @@ type GetMiningInfoResult struct {
 type GetMixMessageResult struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+}
+
+// GetMixpoolInfoResult models the data from the getmixpoolinfo command.
+type GetMixpoolInfoResult struct {
+	Epoch     int64     `json:"epoch"`
+	NextEpoch int64     `json:"nextepoch"`
+	Pairings  []Pairing `json:"pairings"`
+}
+
+// Pairing models a group of pair requests which share the same mix parameters
+// (i.e. MixAmount, ScriptClass, TxVersion, LockTime, and PairingFlags) and are
+// thus compatible to mix together.
+type Pairing struct {
+	MixAmount    float64       `json:"mixamount"`
+	ScriptClass  string        `json:"scriptclass"`
+	TxVersion    uint16        `json:"txversion"`
+	LockTime     uint32        `json:"locktime"`
+	PairingFlags uint8         `json:"pairingflags"`
+	PairRequests []PairRequest `json:"pairrequests"`
+}
+
+// PairRequest models a single pair request.
+type PairRequest struct {
+	Hash         string   `json:"hash"`
+	Identity     string   `json:"identity"`
+	MessageCount uint32   `json:"messagecount"`
+	InputValue   float64  `json:"inputvalue"`
+	UTXOs        []string `json:"utxos"`
+	Expiry       uint32   `json:"expiry"`
 }
 
 // LocalAddressesResult models the localaddresses data from the getnetworkinfo

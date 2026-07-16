@@ -522,6 +522,31 @@ var helpDescsEnUS = map[string]string{
 	"getmixmessageresult-type":    "Command type of the message",
 	"getmixmessageresult-message": "Serialized message in hex encoding",
 
+	// GetMixpoolInfo help.
+	"getmixpoolinfo--synopsis": "Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.",
+	"getmixpoolinfo--result0":  "JSON object describing current mixpool state.",
+
+	// GetMixpoolInfoResult help.
+	"getmixpoolinforesult-epoch":     "Duration between mix epochs, in seconds",
+	"getmixpoolinforesult-nextepoch": "Unix timestamp of the next mix epoch",
+	"getmixpoolinforesult-pairings":  "Pending pair requests grouped by mixing compatibility",
+
+	// Pairing help.
+	"pairing-mixamount":    "Amount of each mixed output, in DCR",
+	"pairing-scriptclass":  "Script class of the mixed outputs",
+	"pairing-txversion":    "Transaction version of the mix transaction",
+	"pairing-locktime":     "Lock time of the mix transaction",
+	"pairing-pairingflags": "Pairing flags",
+	"pairing-pairrequests": "The pair requests matching these mixing parameters",
+
+	// PairRequest help.
+	"pairrequest-hash":         "Hash of the pair request message",
+	"pairrequest-identity":     "Participant ephemeral public key identity as a hex string",
+	"pairrequest-messagecount": "Number of mixed outputs, each of value mixamount, the pair request is creating",
+	"pairrequest-inputvalue":   "Total value of inputs contributed by the pair request, in DCR",
+	"pairrequest-utxos":        "Unspent transaction outputs contributed by the pair request, each as a \"hash:index:tree\" string",
+	"pairrequest-expiry":       "Block height at which the pair request expires",
+
 	// GetNetworkHashPSCmd help.
 	"getnetworkhashps--synopsis": "Returns the estimated network hashes per second for the block heights provided by the parameters.",
 	"getnetworkhashps-blocks":    "The number of blocks or -1 for the default number of blocks",
@@ -989,6 +1014,7 @@ var rpcResultTypes = map[types.Method][]any{
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
 	"getmixmessage":         {(*types.GetMixMessageResult)(nil)},
+	"getmixpoolinfo":        {(*types.GetMixpoolInfoResult)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
 	"getnetworkinfo":        {(*[]types.GetNetworkInfoResult)(nil)},

@@ -1184,6 +1184,7 @@ type testMixPooler struct {
 	mixPRs     []*wire.MsgMixPairReq
 	message    mixing.Message
 	messageErr error
+	epoch      time.Duration
 }
 
 // MixPRs returns a mocked slice of MixPR messages.
@@ -1194,6 +1195,11 @@ func (mp *testMixPooler) MixPRs() []*wire.MsgMixPairReq {
 // Message returns a mocked message searched for by its hash.
 func (mp *testMixPooler) Message(query *chainhash.Hash) (mixing.Message, error) {
 	return mp.message, mp.messageErr
+}
+
+// Epoch returns a mocked duration between mix epochs.
+func (mp *testMixPooler) Epoch() time.Duration {
+	return mp.epoch
 }
 
 // testNtfnManager provides a mock notification manager by implementing the
@@ -4602,6 +4608,103 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 		result: &types.GetMempoolInfoResult{
 			Size:  2,
 			Bytes: 627,
+		},
+	}})
+}
+
+func TestHandleGetMixpoolInfo(t *testing.T) {
+	t.Parallel()
+
+	epoch := 10 * time.Minute
+	now := time.Unix(1700000000, 0)
+
+	// Construct two UTXOs for use in the pair requests and the string
+	// representation of them expected to be returned by the RPC.
+	utxo1 := wire.OutPoint{Hash: chainhash.Hash{0x01}, Index: 2, Tree: 0}
+	utxo1Str := "0000000000000000000000000000000000000000000000000000000000000001:2:0"
+	utxo2 := wire.OutPoint{Hash: chainhash.Hash{0x02}, Index: 3, Tree: 1}
+	utxo2Str := "0000000000000000000000000000000000000000000000000000000000000002:3:1"
+
+	// Construct two pair requests each contributing a distinct UTXO, and
+	// sharing the same pairing description so they are grouped together.
+	pr1 := &wire.MsgMixPairReq{
+		Identity:     [33]byte{0x02, 0xaa},
+		Expiry:       100,
+		MixAmount:    1000000,
+		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+		TxVersion:    1,
+		MessageCount: 2,
+		InputValue:   2500000,
+		UTXOs:        []wire.MixPairReqUTXO{{OutPoint: utxo1}},
+		PairingFlags: 2,
+	}
+	pr2 := &wire.MsgMixPairReq{
+		Identity:     [33]byte{0x03, 0xbb},
+		Expiry:       200,
+		MixAmount:    1000000,
+		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+		TxVersion:    1,
+		MessageCount: 1,
+		InputValue:   1500000,
+		UTXOs:        []wire.MixPairReqUTXO{{OutPoint: utxo2}},
+		PairingFlags: 2,
+	}
+
+	hasher := blake256.NewHasher256()
+	pr1.WriteHash(hasher)
+	pr2.WriteHash(hasher)
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:      "handleGetMixpoolInfo: no pending pair requests",
+		handler:   handleGetMixpoolInfo,
+		cmd:       &types.GetMixpoolInfoCmd{},
+		mockClock: &testClock{now: now},
+		mockMixPooler: func() *testMixPooler {
+			mp := defaultMockMixPooler()
+			mp.epoch = epoch
+			return mp
+		}(),
+		result: &types.GetMixpoolInfoResult{
+			Epoch:     600, // 10 minutes
+			NextEpoch: 1700000400,
+			Pairings:  []types.Pairing{},
+		},
+	}, {
+		name:      "handleGetMixpoolInfo: pending pair requests grouped by pairing",
+		handler:   handleGetMixpoolInfo,
+		cmd:       &types.GetMixpoolInfoCmd{},
+		mockClock: &testClock{now: now},
+		mockMixPooler: func() *testMixPooler {
+			mp := defaultMockMixPooler()
+			mp.epoch = epoch
+			mp.mixPRs = []*wire.MsgMixPairReq{pr1, pr2}
+			return mp
+		}(),
+		result: &types.GetMixpoolInfoResult{
+			Epoch:     600, // 10 minutes
+			NextEpoch: 1700000400,
+			Pairings: []types.Pairing{{
+				MixAmount:    0.01,
+				ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+				TxVersion:    1,
+				LockTime:     0,
+				PairingFlags: 2,
+				PairRequests: []types.PairRequest{{
+					Hash:         pr1.Hash().String(),
+					Identity:     hex.EncodeToString(pr1.Identity[:]),
+					MessageCount: 2,
+					InputValue:   0.025,
+					UTXOs:        []string{utxo1Str},
+					Expiry:       100,
+				}, {
+					Hash:         pr2.Hash().String(),
+					Identity:     hex.EncodeToString(pr2.Identity[:]),
+					MessageCount: 1,
+					InputValue:   0.015,
+					UTXOs:        []string{utxo2Str},
+					Expiry:       200,
+				}},
+			}},
 		},
 	}})
 }
