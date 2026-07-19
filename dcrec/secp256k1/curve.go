@@ -943,6 +943,234 @@ func splitK(k *ModNScalar) (ModNScalar, ModNScalar) {
 	return k1, k2
 }
 
+// wNAFWidth is the window width of the NAF representation used in scalar
+// multiplication.
+//
+// It is important to note that this constant primarily exists to improve code
+// readability, to parameterize parts of the scalar multiplication
+// implementation, and to allow tests to assert invariants.
+//
+// However, the overall implementation is intentionally not fully parameterized
+// based on this constant because it is carefully optimized for this specific
+// window width and those optimizations involve taking advantage of known bounds
+// that an arbitrary window size would violate.
+//
+// Choosing a new window size involves a variety of tradeoffs that must be
+// carefully analyzed.  For example, recoding costs, precomputation costs, and
+// average density.
+const wNAFWidth = 5
+
+// wnaf5RecodeCodes maps the low five bits of an integer to the encoded
+// representative of the width-5 wNAF digit that should be emitted.
+//
+// These values are not the signed digits themselves.  Rather, each is an
+// encoded representative that serves directly as an index into precomputed
+// tables.  See [wnafScalar] for the encoding details.
+//
+// For each odd residue, the represented signed digit is the unique value in
+// {±1, ±3, ±5, ±7, ±9, ±11, ±13, ±15} that is congruent to the residue modulo
+// 32:
+//
+//	residue ≡ digit (mod 32)
+//
+// Thus, subtracting the represented signed digit always produces an integer
+// that is divisible by 32.  This allows the optimized recoding algorithm to
+// skip five one-bit iterations of the canonical algorithm at once.
+//
+// Even residues always map to zero because they are already divisible by two
+// and therefore correspond only to implicit zero digits.
+//
+// The corresponding arithmetic adjustment for each encoded representative is
+// provided by [wnaf5RecodeAdjustments].
+var wnaf5RecodeCodes = [32]uint8{
+	0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8,
+	0, 16, 0, 15, 0, 14, 0, 13, 0, 12, 0, 11, 0, 10, 0, 9,
+}
+
+// wnaf5RecodeAdjustments maps the low five bits of an integer to the signed
+// adjustment that must be added to the working integer before shifting during
+// the width-5 wNAF recoding algorithm.
+//
+// While [wnaf5RecodeCodes] produces the encoded representative that is stored
+// in the resulting wNAF encoding, this table provides the corresponding
+// arithmetic adjustment.  The represented signed digit d satisfies:
+//
+//	residue ≡ d (mod 32)
+//
+// and the recoding algorithm updates the working integer via:
+//
+//	n = (n - d) / 2
+//
+// Rather than subtracting d directly, this table stores -d encoded as an
+// unsigned 64-bit two's complement value.  Negative adjustments therefore
+// appear as values such as:
+//
+//	-1 -> ^uint64(0)
+//	-3 -> ^uint64(2)
+//	-5 -> ^uint64(4)
+//	-7 -> ^uint64(6)
+//	-9 -> ^uint64(8)
+//	-11 -> ^uint64(10)
+//	-13 -> ^uint64(12)
+//	-15 -> ^uint64(14)
+//
+// The adjustment is sign-extended across the upper limbs during the multiword
+// addition which allows the hot loop to remain branch free.
+var wnaf5RecodeAdjustments = [32]uint64{
+	0, ^uint64(0), 0, ^uint64(2), 0, ^uint64(4), 0, ^uint64(6),
+	0, ^uint64(8), 0, ^uint64(10), 0, ^uint64(12), 0, ^uint64(14),
+	0, 15, 0, 13, 0, 11, 0, 9, 0, 7, 0, 5, 0, 3, 0, 1,
+}
+
+// wnafScalar represents a non-negative integer less than 2^129 encoded in
+// width-5 windowed non-adjacent form (wNAF).
+//
+// wNAF is a signed-digit representation where the valid digits are 0, ±1, ±3,
+// ±5, ±7, ±9, ±11, ±13, and ±15.
+//
+// Each entry corresponds to one bit position and encodes the signed digit.
+//
+// The encoding from code to digit is:
+// 0 -> 0
+// 1 -> +1
+// 2 -> +3
+// 3 -> +5
+// 4 -> +7
+// 5 -> +9
+// 6 -> +11
+// 7 -> +13
+// 8 -> +15
+// 9 -> -1
+// 10 -> -3
+// 11 -> -5
+// 12 -> -7
+// 13 -> -9
+// 14 -> -11
+// 15 -> -13
+// 16 -> -15
+//
+// The encoding is intentionally not using a more compact form so that it serves
+// directly as an index into precomputed tables which allows simplification of
+// hot paths.
+//
+// Formally, letting c denote the stored code value, the decoded signed digit
+// d(c) is given by the piecewise function:
+//
+//	       {0,      where c = 0
+//	d(c) = {2c - 1, where 0 < c ≤ 8
+//	       {17 - 2c, where 8 < c ≤ 16
+//
+// The array contains one extra entry because a recoding may produce a carry
+// into an additional most-significant digit.
+type wnafScalar struct {
+	codes [130]uint8
+	bits  uint8
+}
+
+// wnaf takes a non-negative integer less than 2^129 and returns its width-5
+// windowed non-adjacent form (wNAF) which is a unique signed-digit
+// representation such that non-zero digits are separated by at least 4 zeroes.
+// See [wnafScalar] for details on how the representation is encoded and how to
+// interpret it.
+//
+// Width-5 wNAF is useful because, on average, only about one in every six
+// digits is non-zero.
+//
+// This property is particularly beneficial for optimizing elliptic curve point
+// multiplication because it greatly reduces the number of point additions at
+// the cost of precomputing a few odd multiples of the point and, in the worst
+// case, one additional point doubling due to a carry introduced by the
+// recoding.  This is an excellent tradeoff because subtraction of points has
+// the same computational complexity as addition of points and point doubling is
+// faster than both.
+func wnaf(k *ModNScalar) wnafScalar {
+	const (
+		// This is intentionally not using the package constant [wNAFWidth] for
+		// the window size for the reasons stated by its documentation.
+		//
+		// In particular, this implementation is carefully optimized for this
+		// specific width and involves assumptions that an arbitrary window size
+		// might violate.
+		//
+		// Using a separate constant helps make it clear that updating the
+		// window size here requires extra care to assert correctness.
+		windowSize = 5
+		windowMask = (1 << windowSize) - 1
+	)
+
+	// The arithmetic for wNAF recoding is performed over the ordinary integers,
+	// not modulo the curve order.  Moreover, this method is required to be
+	// called with the scalar's balanced integer representative, which is known
+	// to fit within 129 bits.
+	//
+	// Consequently, the scalar is first converted to a uint192 with three
+	// 64-bit limbs where the top limb is at most 1.
+	t0, t1, t2 := k.n[0], k.n[1], k.n[2]
+
+	// This implementation is based on the standard width-w NAF recoding
+	// algorithm presented as Algorithm 3.35 in [GECC].  However, it has been
+	// modified to skip runs of zero digits instead of processing one bit at a
+	// time.
+	//
+	// The optimizations exploit the fact that runs of zero digits are implicit
+	// in the output representation.
+	//
+	// Also, note that the last non-zero bit is initialized to the maximum value
+	// so that adding 1 at the end to account for the exclusive endpoint wraps
+	// around to 0 when no digits are emitted.
+	var result wnafScalar
+	var c uint64
+	var bit uint8
+	var lastNonZeroBit = ^uint8(0)
+	for t0|t1|t2 != 0 {
+		// The next five iterations of the canonical bit-by-bit algorithm would
+		// emit only zero when the low window is zero, so skip directly to the
+		// next window boundary in that case.
+		if residue := uint8(t0 & windowMask); residue != 0 {
+			// Skip the zero digits that the canonical bit-by-bit algorithm
+			// would emit before reaching the next odd value.
+			//
+			// Since 0 < residue < 32, shift is guaranteed to satisfy the
+			// following bounds:
+			//
+			//   0 ≤ shift < 5
+			shift := uint8(bits.TrailingZeros8(residue))
+			t0 = t0>>shift | t1<<(64-shift)
+			t1 = t1>>shift | t2<<(64-shift)
+			t2 >>= shift
+			bit += shift
+
+			residue = uint8(t0 & windowMask)
+			result.codes[bit] = wnaf5RecodeCodes[residue]
+			lastNonZeroBit = bit
+
+			// The selected digit is congruent to the low five bits modulo 32.
+			// Therefore, adding the stored adjustment (which represents the
+			// negation of that digit) makes the value divisible by 32.
+			//
+			// Negative adjustments are stored in two's complement.  Sign
+			// extending the value across the upper limbs allows the multiword
+			// addition to operate without branches.
+			adjustment := wnaf5RecodeAdjustments[residue]
+			signExtended := uint64(int64(adjustment) >> 63)
+			t0, c = bits.Add64(t0, adjustment, 0)
+			t1, c = bits.Add64(t1, signExtended, c)
+			t2, _ = bits.Add64(t2, signExtended, c)
+		}
+
+		// Divide by 32 to prepare for the next window.
+		//
+		// The adjustment above guarantees the current value is divisible by 32.
+		t0 = t0>>windowSize | t1<<(64-windowSize)
+		t1 = t1>>windowSize | t2<<(64-windowSize)
+		t2 >>= windowSize
+		bit += windowSize
+	}
+
+	result.bits = lastNonZeroBit + 1
+	return result
+}
+
 // nafScalar represents a positive integer up to a maximum value of 2^256 - 1
 // encoded in non-adjacent form.
 //
