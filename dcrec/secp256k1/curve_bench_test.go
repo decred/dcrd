@@ -229,6 +229,18 @@ func BenchmarkNAF(b *testing.B) {
 	}
 }
 
+// BenchmarkWNAF benchmarks conversion of a non-negative integer into its
+// width-w windowed non-adjacent form representation, where w is [wNAFWidth].
+func BenchmarkWNAF(b *testing.B) {
+	k := mustModNScalar("8447e288d34b360bc885cb8ce7c00575")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wnaf(k)
+	}
+}
+
 // BenchmarkJacobianPointEquivalency benchmarks determining if two Jacobian
 // points represent the same affine point.
 func BenchmarkJacobianPointEquivalency(b *testing.B) {
