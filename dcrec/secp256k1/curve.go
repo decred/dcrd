@@ -1307,6 +1307,111 @@ func naf(k []byte) nafScalar {
 	return result
 }
 
+// wNAFPrecompTableSize is the size of the wNAF precomputed point table.
+const wNAFPrecompTableSize = 1 << (wNAFWidth - 1)
+
+// wNAFPrecompTable houses the precomputed odd point multiples used during wNAF
+// scalar multiplication.
+//
+// The first half of the table (starting at index 1) contains the positive odd
+// multiples:
+//
+//	P, 3P, 5P, ...
+//
+// While the second half of the table contains the corresponding negatives:
+//
+//	-P, -3P, -5P, ...
+//
+// Entry 0 is intentionally left unused so the encoded wNAF digit can be used
+// directly as an array index.
+type wNAFPrecompTable [wNAFPrecompTableSize + 1]JacobianPoint
+
+// wNAFNegateStart returns the index of the half of a precomputed table whose
+// points must be negated in order to match the sign adjustment made to the
+// corresponding scalar.
+//
+// When the scalar has been negated, the first half is negated so it represents
+// the negative odd multiples while the second half remains positive.
+// Otherwise, the opposite arrangement is used.
+func wNAFNegateStart(isScalarNegated bool) int {
+	if isScalarNegated {
+		return 1
+	}
+	return wNAFPrecompTableSize/2 + 1
+}
+
+// buildOddPrecomputeTables constructs the odd multiple tables for both P and
+// φ(P) and arranges the positive and negative representatives so they can be
+// indexed directly by encoded wNAF digits.
+func buildOddPrecomputeTables(p *JacobianPoint, pTable, phiTable *wNAFPrecompTable, k1Neg, k2Neg bool) {
+	// oddMultiplesPerHalf is the total number of odd multiples in each half of
+	// the table.
+	const oddMultiplesPerHalf = wNAFPrecompTableSize / 2
+
+	// Build the positive odd multiples of P.
+	//
+	// Width-w wNAF only ever emits odd signed digits, so only odd multiples of
+	// the point need to be precomputed.
+	//
+	// Both positive and negative entries are ultimately needed.  The second
+	// half is initially a copy of the positive half and the appropriate half is
+	// negated below depending on the sign of k1.
+	//
+	// The negation is deferred until after the φ(P) table is built because that
+	// table is constructed by applying φ to the corresponding positive odd
+	// multiples of P.
+	var twoP JacobianPoint
+	pTable[1].Set(p)
+	DoubleNonConst(&pTable[1], &twoP)
+	for i := 1; i < oddMultiplesPerHalf; i++ {
+		AddNonConst(&twoP, &pTable[i], &pTable[i+1])
+	}
+	copy(pTable[oddMultiplesPerHalf+1:], pTable[1:oddMultiplesPerHalf+1])
+
+	// Build the corresponding odd multiples of φ(P).
+	//
+	// As above, both positive and negative entries are ultimately needed.  The
+	// sign of this table is chosen independently from the P table because it
+	// depends only on the sign of k2.
+	//
+	// Note that φ is a group homomorphism, so:
+	//
+	//   φ(n*P) = n*φ(P)
+	//
+	// This allows the second table to be obtained by applying φ to each entry
+	// of the first table instead of computing each odd multiple independently.
+	//
+	// NOTE: φ(x,y) = (βx,y).  The Jacobian z coordinates are the same, so this
+	// math goes through.
+	for i := 1; i <= oddMultiplesPerHalf; i++ {
+		phiTable[i].Set(&pTable[i])
+		phiTable[i].X.Mul(endoBeta)
+	}
+	copy(phiTable[oddMultiplesPerHalf+1:], phiTable[1:oddMultiplesPerHalf+1])
+
+	// Negate whichever half of the table corresponds to the sign adjustment
+	// that was applied to k1.
+	//
+	// This maintains the invariant:
+	//
+	//   k1*P = -k1*-P
+	negateStart := wNAFNegateStart(k1Neg)
+	for i := negateStart; i < negateStart+oddMultiplesPerHalf; i++ {
+		pTable[i].Y.Negate(1).Normalize()
+	}
+
+	// Apply the same transformation independently to the φ(P) table based on
+	// the sign adjustment that was applied to k2.
+	//
+	// Similarly, this maintains the invariant:
+	//
+	//   k2*φ(P) = -k2*-φ(P)
+	negateStart = wNAFNegateStart(k2Neg)
+	for i := negateStart; i < negateStart+oddMultiplesPerHalf; i++ {
+		phiTable[i].Y.Negate(1).Normalize()
+	}
+}
+
 // ScalarMultNonConst multiplies k*P where k is a scalar modulo the curve order
 // and P is a point in Jacobian projective coordinates and stores the result in
 // the provided Jacobian point.
@@ -1354,25 +1459,6 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// See section 3.5 in [GECC] for a more rigorous treatment.
 	// -------------------------------------------------------------------------
 
-	// Per above, the main equation here to remember is:
-	//   k*P = k1*P + k2*φ(P)
-	//
-	// p1 below is P in the equation while p2 is φ(P) in the equation.
-	//
-	// NOTE: φ(x,y) = (β*x,y).  The Jacobian z coordinates are the same, so this
-	// math goes through.
-	//
-	// Also, calculate -p1 and -p2 for use in the NAF optimization.
-	p1, p1Neg := new(JacobianPoint), new(JacobianPoint)
-	p1.Set(point)
-	p1Neg.Set(p1)
-	p1Neg.Y.Negate(1).Normalize()
-	p2, p2Neg := new(JacobianPoint), new(JacobianPoint)
-	p2.Set(p1)
-	p2.X.Mul(endoBeta).Normalize()
-	p2Neg.Set(p2)
-	p2Neg.Y.Negate(1).Normalize()
-
 	// Decompose k into k1 and k2 such that k = k1 + k2*λ (mod n) where k1 and
 	// k2 are around half the bit length of k in order to halve the number of EC
 	// operations.
@@ -1384,94 +1470,91 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// which means that when they would otherwise be a small negative magnitude
 	// they will instead be a large positive magnitude.  Since the goal is for
 	// the scalars to have a small magnitude to achieve a performance boost, use
-	// their negation when they are greater than the half order of the group and
-	// flip the positive and negative values of the corresponding point that
-	// will be multiplied by to compensate.
+	// their negation when they are greater than the half order of the group.
+	//
+	// In order to compensate, the positive and negative values of the
+	// corresponding points that will be multiplied by are flipped later.
 	//
 	// In other words, transform the calc when k1 is over the half order to:
 	//   k1*P = -k1*-P
 	//
 	// Similarly, transform the calc when k2 is over the half order to:
 	//   k2*φ(P) = -k2*-φ(P)
+	var k1Neg, k2Neg bool
 	k1, k2 := splitK(k)
 	if k1.IsOverHalfOrder() {
 		k1.Negate()
-		p1, p1Neg = p1Neg, p1
+		k1Neg = true
 	}
 	if k2.IsOverHalfOrder() {
 		k2.Negate()
-		p2, p2Neg = p2Neg, p2
+		k2Neg = true
 	}
 
-	// Convert k1 and k2 into their NAF representations since NAF has a lot more
-	// zeros overall on average which minimizes the number of required point
-	// additions in exchange for a mix of fewer point additions and subtractions
-	// at the cost of one additional point doubling.
+	// Per above, the main equation here to remember is:
+	//   k*P = k1*P + k2*φ(P)
+	//
+	// The simultaneous multiplication therefore needs two sets of precomputed
+	// odd multiples:
+	//
+	//   P, 3P, 5P, ...
+	//
+	// and:
+	//
+	//   φ(P), 3φ(P), 5φ(P), ...
+	var pPrecomps, phiPrecomps wNAFPrecompTable
+	buildOddPrecomputeTables(point, &pPrecomps, &phiPrecomps, k1Neg, k2Neg)
+
+	// Convert k1 and k2 into their windowed NAF representations since they have
+	// a lot more zeroes overall on average which greatly reduces the number of
+	// point additions at the cost of precomputing a few odd multiples of the
+	// point and, in the worst case, one additional point doubling due to a
+	// carry introduced by the recoding.
 	//
 	// This is an excellent tradeoff because subtraction of points has the same
 	// computational complexity as addition of points and point doubling is
 	// faster than both.
 	//
 	// Concretely, on average, 1/2 of all bits will be non-zero with the normal
-	// binary representation whereas only 1/3rd of the bits will be non-zero
-	// with NAF.
-	//
-	// The Pos version of the bytes contain the +1s and the Neg versions contain
-	// the -1s.
-	k1Bytes, k2Bytes := k1.Bytes(), k2.Bytes()
-	k1NAF, k2NAF := naf(k1Bytes[:]), naf(k2Bytes[:])
-	k1PosNAF, k1NegNAF := k1NAF.Pos(), k1NAF.Neg()
-	k2PosNAF, k2NegNAF := k2NAF.Pos(), k2NAF.Neg()
-	k1Len, k2Len := len(k1PosNAF), len(k2PosNAF)
+	// binary representation whereas only 1/6 of the bits will be non-zero with
+	// width-5 wNAF.
+	k1NAF, k2NAF := wnaf(&k1), wnaf(&k2)
 
-	// Add left-to-right using the NAF optimization.  See algorithm 3.77 from
-	// [GECC].
+	// Add left-to-right using the endomorphism and wNAF optimizations.  See
+	// algorithms 3.36 and 3.77 from [GECC].
 	//
 	// Point Q = ∞ (point at infinity).
+	//
+	// Like ordinary binary scalar multiplication, the accumulator is doubled
+	// once per processed bit position.  However, instead of each bit
+	// contributing either 0 or 1 copies of the point, each non-zero wNAF digit
+	// contributes a precomputed odd multiple while the preceding doublings
+	// supply the required power-of-two scaling.
+	//
+	//    ±P, ±3P, ±5P, ...
+	//
+	// Since non-zero digits are sparse and separated by several zero digits,
+	// relatively few point additions are required compared to the ordinary
+	// binary representation.
 	var q JacobianPoint
-	m := k1Len
-	if m < k2Len {
-		m = k2Len
+	maxBits := k1NAF.bits
+	if maxBits < k2NAF.bits {
+		maxBits = k2NAF.bits
 	}
-	for i := 0; i < m; i++ {
-		// Since k1 and k2 are potentially different lengths and the calculation
-		// is being done left to right, pad the front of the shorter one with
-		// 0s.
-		var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
-		if i >= m-k1Len {
-			k1BytePos, k1ByteNeg = k1PosNAF[i-(m-k1Len)], k1NegNAF[i-(m-k1Len)]
-		}
-		if i >= m-k2Len {
-			k2BytePos, k2ByteNeg = k2PosNAF[i-(m-k2Len)], k2NegNAF[i-(m-k2Len)]
+	for bit := maxBits; bit > 0; bit-- {
+		// Q = 2 * Q
+		DoubleNonConst(&q, &q)
+
+		// The encoded wNAF digit of k1 serves directly as an index into the
+		// precomputed odd multiples of P.
+		if code := k1NAF.codes[bit-1]; code != 0 {
+			AddNonConst(&q, &pPrecomps[code], &q)
 		}
 
-		for mask := uint8(1 << 7); mask > 0; mask >>= 1 {
-			// Q = 2 * Q
-			DoubleNonConst(&q, &q)
-
-			// Add or subtract the first point based on the signed digit of the
-			// NAF representation of k1 at this bit position.
-			//
-			// +1: Q = Q + p1
-			// -1: Q = Q - p1
-			//  0: Q = Q (no change)
-			if k1BytePos&mask == mask {
-				AddNonConst(&q, p1, &q)
-			} else if k1ByteNeg&mask == mask {
-				AddNonConst(&q, p1Neg, &q)
-			}
-
-			// Add or subtract the second point based on the signed digit of the
-			// NAF representation of k2 at this bit position.
-			//
-			// +1: Q = Q + p2
-			// -1: Q = Q - p2
-			//  0: Q = Q (no change)
-			if k2BytePos&mask == mask {
-				AddNonConst(&q, p2, &q)
-			} else if k2ByteNeg&mask == mask {
-				AddNonConst(&q, p2Neg, &q)
-			}
+		// Likewise, the encoded wNAF digit of k2 serves directly as an index
+		// into the precomputed odd multiples of φ(P).
+		if code := k2NAF.codes[bit-1]; code != 0 {
+			AddNonConst(&q, &phiPrecomps[code], &q)
 		}
 	}
 
