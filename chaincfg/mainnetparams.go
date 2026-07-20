@@ -605,6 +605,7 @@ func MainNetParams() *Params {
 			"mainnet-seed-1.decred.org",
 			"mainnet-seed-2.decred.org",
 			"mainnet-seed.jholdstock.uk",
+			"dcr-seed.jz.bz",
 		},
 	}
 }
