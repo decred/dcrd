@@ -30,7 +30,12 @@ def add64(x, y, cin):
     Return (sum, carry) exactly like bits.Add64.
 
     x,y : 64-bit bitvectors
-    cin : 0/1 as a 64-bit bitvector
+    cin : 0 or 1 as a 64-bit bitvector
+
+    Note:
+        Although cin is a 64-bit bitvector, it should semantically represent a
+        single carry bit (0 or 1).  Z3 handles arbitrary values correctly
+        (extracting only bit 0), but callers should maintain this invariant.
     """
     assert x.size() == 64
     assert y.size() == 64
@@ -45,7 +50,12 @@ def sub64(x, y, bin):
     Return (difference, borrow) exactly like bits.Sub64.
 
     x,y : 64-bit bitvectors
-    bin : 0/1 as a 64-bit bitvector
+    bin : 0 or 1 as a 64-bit bitvector
+
+    Note:
+        Although bin is a 64-bit bitvector, it should semantically represent a
+        single borrow bit (0 or 1).  Z3 handles arbitrary values correctly
+        (extracting only bit 0), but callers should maintain this invariant.
     """
     assert x.size() == 64
     assert y.size() == 64
@@ -57,14 +67,34 @@ def sub64(x, y, bin):
     return lo, borrow
 
 def check(s, reason):
-    check_result = s.check()
-    print(f"{reason}: {check_result}")
+    """Fail unless the proof succeeds."""
+    result = s.check()
+    if result != unsat:
+        m = s.model() if result == sat else None
+        details = ""
+        if m is not None:
+            details = "\n  " + ", ".join(
+                f"{d.name()}=0x{m[d].as_long():016x}" for d in m.decls()
+            )
+        raise AssertionError(f"{reason}: {result}{details}")
+    print(f"{reason}: {result}")
 
-    if check_result == sat:
-        m = s.model()
+def prove(proposition, reason, assumptions=()):
+    """
+    Prove the proposition is valid by showing its negation is unsatisfiable.
 
-        for v in [x0,x1,x2,x3,x4,x5,x6,x7]:
-            if m[v] != None:
-                print(f"{v} = 0x{m[v].as_long():016x}")
-            else:
-                print(f"{v} = {m[v]}")
+    The assumptions encode additional assumptions proven elsewhere.
+    """
+    s = Solver()
+    for a in assumptions:
+        s.add(a)
+    s.add(Not(proposition))
+    check(s, reason)
+
+def prove_no_discarded_carries(discards, label="discarded carry"):
+    """
+    Prove every carry in discards is always zero.  This is to say, discarding it
+    never loses information.
+    """
+    for idx, discarded in enumerate(discards):
+        prove(discarded == ZERO, f"{label} {idx} != 0")

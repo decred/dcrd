@@ -92,24 +92,18 @@ r3 = If(borrow == ONE, t3, s3)
 # -------
 
 # Discarded carries are never set.
-for idx, discarded in enumerate(discards):
-    s = Solver()
-    s.add(discarded != ZERO)
-    check(s, f"discarded carry {idx} != 0")
+prove_no_discarded_carries(discards)
 
 # Top limb never exceeds the field complement after first reduction.
-s = Solver()
-s.add(UGT(t4_saved, field64PrimeComplement))
-check(s, "top limb after 1st reduction > complement")
+#
+# Since the complement is 33 bits, this proves the value does not exceed
+# 256 + 33 = 289 bits after the first reduction.
+prove(ULE(t4_saved, field64PrimeComplement), "top limb after 1st reduction > complement")
 
 # Value after second reduction is less than twice the prime (t < 2p).
-s = Solver()
 t = Concat(t4, t3, t2, t1, t0)
-s.add(UGE(t, twicePrime))
-check(s, "value after 2nd reduction >= 2p")
+prove(ULT(t, twicePrime), "value after 2nd reduction >= 2p")
 
 # Fully reduced result is less than the prime (r < p).
-s = Solver()
 r = Concat(r3, r2, r1, r0)
-s.add(UGE(r, field64Prime))
-check(s, "fully reduced result >= prime")
+prove(ULT(r, field64Prime), "fully reduced result >= prime")

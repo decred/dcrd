@@ -99,27 +99,13 @@ q4_saved_3 = q4
 # -------
 
 # Discarded carries are never set.
-for idx, discarded in enumerate(discards):
-    s = Solver()
-    s.add(discarded != ZERO)
-    check(s, f"discarded carry {idx} != 0")
+prove_no_discarded_carries(discards)
 
-# Top limb after row 0 is max 2**64 - 2 (p4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(p4_saved_0, (1<<64) - 2))
-check(s, "top limb after row 0 > 2**64-2")
-
-# Limb 5 after row 1 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_1, (1<<64) - 2))
-check(s, "limb 5 after row 1 > 2**64-2")
-
-# Limb 5 after row 2 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_2, (1<<64) - 2))
-check(s, "limb 5 after row 2 > 2**64-2")
-
-# Limb 5 after row 3 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_3, (1<<64) - 2))
-check(s, "limb 5 after row 3 > 2**64-2")
+# Top limb of each of the four rows is max 2**64 - 2.
+#
+# For row 0, that corresponds to: (p4 ≤ 2**64 - 2)
+# For rows 1-3, it corresponds to: (q4 ≤ 2**64 - 2)
+prove(ULE(p4_saved_0, (1<<64) - 2), "top limb after row 0 > 2**64-2")
+prove(ULE(q4_saved_1, (1<<64) - 2), "limb 5 after row 1 > 2**64-2")
+prove(ULE(q4_saved_2, (1<<64) - 2), "limb 5 after row 2 > 2**64-2")
+prove(ULE(q4_saved_3, (1<<64) - 2), "limb 5 after row 3 > 2**64-2")
