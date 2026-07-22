@@ -85,7 +85,7 @@ def prove(proposition, reason, assumptions=()):
 
     The assumptions encode additional assumptions proven elsewhere.
     """
-    s = Solver()
+    s = SolverFor("QF_BV")
     for a in assumptions:
         s.add(a)
     s.add(Not(proposition))
