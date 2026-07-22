@@ -857,9 +857,9 @@ func field64Square512(t *[8]uint64, a *[4]uint64) {
 // field64Reduce512 reduces a 512-bit little-endian limb array modulo p in
 // constant time and stores the result in r.
 func field64Reduce512(r *[4]uint64, x *[8]uint64) {
-	// The intermediate bounds and carry assumptions used by this algorithm have
-	// been formally verified.  The verification artifacts are available in
-	// internal/proofs.
+	// This algorithm has been formally verified, including its intermediate
+	// bounds, carry assumptions, and functional correctness.  The verification
+	// artifacts are available in internal/proofs.
 
 	// Per [HAC] section 14.3.4: Reduction method of moduli of special form,
 	// when the modulus is of the special form m = b^t - c, highly efficient
