@@ -66,6 +66,11 @@ def sub64(x, y, bin):
                 ONE, ZERO)
     return lo, borrow
 
+def split128(product):
+    """Return (high, low) 64-bit halves from a 128-bit value."""
+    assert product.size() == 128
+    return Extract(127, 64, product), Extract(63, 0, product)
+
 def check(s, reason):
     """Fail unless the proof succeeds."""
     result = s.check()
