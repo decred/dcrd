@@ -9,21 +9,20 @@ from z3_proof_helpers import *
 # Inputs.
 # -------
 
-x0 = BitVec('x0', 64)
-x1 = BitVec('x1', 64)
-x2 = BitVec('x2', 64)
-x3 = BitVec('x3', 64)
-x4 = BitVec('x4', 64)
-x5 = BitVec('x5', 64)
-x6 = BitVec('x6', 64)
-x7 = BitVec('x7', 64)
+x = BitVecs('x0 x1 x2 x3 x4 x5 x6 x7', 64)
 
+# NOTE: The code in this section reuses the variable names from the Go code
+# being proven for easy cross referencing.  However, the comments refer to them
+# by shorter mathematical variables for clarity.
+
+# Define P.
 field64Prime0 = BitVecVal(0xfffffffefffffc2f, 64)
 field64Prime1 = BitVecVal(0xffffffffffffffff, 64)
 field64Prime2 = BitVecVal(0xffffffffffffffff, 64)
 field64Prime3 = BitVecVal(0xffffffffffffffff, 64)
 field64Prime = Concat(field64Prime3, field64Prime2, field64Prime1, field64Prime0)
 
+# Define 2P.
 twicePrime0 = BitVecVal(0xfffffffdfffff85e, 64)
 twicePrime1 = BitVecVal(0xffffffffffffffff, 64)
 twicePrime2 = BitVecVal(0xffffffffffffffff, 64)
@@ -31,6 +30,7 @@ twicePrime3 = BitVecVal(0xffffffffffffffff, 64)
 twicePrime4 = ONE
 twicePrime = Concat(twicePrime4, twicePrime3, twicePrime2, twicePrime1, twicePrime0)
 
+# Define c = 2**256 - P.
 field64PrimeComplement = BitVecVal(2**32+977, 64)
 
 # ---------------
@@ -40,33 +40,34 @@ field64PrimeComplement = BitVecVal(2**32+977, 64)
 discards = []
 
 # first reduction: 512 bits -> 289 bits.
-h, t0 = mul64(x4, field64PrimeComplement)
+h, t0 = mul64(x[4], field64PrimeComplement)
 
-hi, lo = mul64(x5, field64PrimeComplement)
+hi, lo = mul64(x[5], field64PrimeComplement)
 t1, carry = add64(lo, h, ZERO)
 h, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
 
-hi, lo = mul64(x6, field64PrimeComplement)
+hi, lo = mul64(x[6], field64PrimeComplement)
 t2, carry = add64(lo, h, ZERO)
 h, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
 
-hi, lo = mul64(x7, field64PrimeComplement)
+hi, lo = mul64(x[7], field64PrimeComplement)
 t3, carry = add64(lo, h, ZERO)
 t4, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
 
-t0, carry = add64(t0, x0, ZERO)
-t1, carry = add64(t1, x1, carry)
-t2, carry = add64(t2, x2, carry)
-t3, carry = add64(t3, x3, carry)
-t4 += carry
+t0, carry = add64(t0, x[0], ZERO)
+t1, carry = add64(t1, x[1], carry)
+t2, carry = add64(t2, x[2], carry)
+t3, carry = add64(t3, x[3], carry)
+t4, discarded = add64(t4, ZERO, carry)
+discards.append(discarded)
 
 # Save for analysis.
 t4_saved = t4
 
-# second reduction: 289 bits -> t < 2p
+# second reduction: 289 bits -> t < 2P
 h, t4 = mul64(t4, field64PrimeComplement)
 
 t0, carry = add64(t0, t4, ZERO)
@@ -76,7 +77,7 @@ t3, carry = add64(t3, ZERO, carry)
 
 t4 = carry
 
-# final reduction: t < 2p -> t < p
+# final reduction: t < 2P -> t < P
 s0, borrow = sub64(t0, field64Prime0, ZERO)
 s1, borrow = sub64(t1, field64Prime1, borrow)
 s2, borrow = sub64(t2, field64Prime2, borrow)
@@ -100,10 +101,10 @@ prove_no_discarded_carries(discards)
 # 256 + 33 = 289 bits after the first reduction.
 prove(ULE(t4_saved, field64PrimeComplement), "top limb after 1st reduction > complement")
 
-# Value after second reduction is less than twice the prime (t < 2p).
+# Value after second reduction is less than twice the prime (t < 2P).
 t = Concat(t4, t3, t2, t1, t0)
-prove(ULT(t, twicePrime), "value after 2nd reduction >= 2p")
+prove(ULT(t, twicePrime), "value after 2nd reduction >= 2P")
 
-# Fully reduced result is less than the prime (r < p).
+# Fully reduced result is less than the prime (r < P).
 r = Concat(r3, r2, r1, r0)
-prove(ULT(r, field64Prime), "fully reduced result >= prime")
+prove(ULT(r, field64Prime), "fully reduced result >= P")
