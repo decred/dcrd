@@ -144,6 +144,18 @@ func (msg *MsgAddr) MaxPayloadLength(pver uint32) uint32 {
 		(MaxAddrPerMsg * maxNetAddressPayload(pver))
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgAddr) SerializeSize() int {
+	// Num addresses (varInt) + total size of the addresses.  Each network
+	// address in an addr message is serialized with a timestamp.
+	//
+	// Timestamp 4 bytes + services 8 bytes + ip 16 bytes + port 2 bytes.
+	const netAddressSize = 4 + 8 + 16 + 2
+	return VarIntSerializeSize(uint64(len(msg.AddrList))) +
+		len(msg.AddrList)*netAddressSize
+}
+
 // NewMsgAddr returns a new bitcoin addr message that conforms to the
 // Message interface.  See MsgAddr for details.
 func NewMsgAddr() *MsgAddr {

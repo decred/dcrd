@@ -248,6 +248,21 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 		(MaxAddrPerV2Msg * maxNetAddressPayloadV2())
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgAddrV2) SerializeSize() int {
+	// Each address consists of a timestamp 8 bytes + services 8 bytes +
+	// address type 1 byte + encoded address bytes + port 2 bytes.
+	const fixedAddrSize = 8 + 8 + 1 + 2
+
+	// Num addresses (varInt) + total size of the addresses.
+	n := VarIntSerializeSize(uint64(len(msg.AddrList)))
+	for i := range msg.AddrList {
+		n += fixedAddrSize + len(msg.AddrList[i].EncodedAddr)
+	}
+	return n
+}
+
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the
 // Message interface.  See MsgAddrV2 for details.
 //

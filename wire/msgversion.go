@@ -216,6 +216,19 @@ func (msg *MsgVersion) MaxPayloadLength(pver uint32) uint32 {
 		MaxUserAgentLen
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgVersion) SerializeSize() int {
+	// Protocol version 4 bytes + services 8 bytes + timestamp 8 bytes +
+	// remote and local net addresses (services 8 bytes + ip 16 bytes +
+	// port 2 bytes each, no timestamp) + nonce 8 bytes + user agent (varInt +
+	// string) + last block 4 bytes + relay transactions flag 1 byte.
+	const netAddressSize = 8 + 16 + 2
+	return 4 + 8 + 8 + netAddressSize*2 + 8 +
+		VarIntSerializeSize(uint64(len(msg.UserAgent))) + len(msg.UserAgent) +
+		4 + 1
+}
+
 // NewMsgVersion returns a new Decred version message that conforms to the
 // Message interface using the passed parameters and defaults for the remaining
 // fields.

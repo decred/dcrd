@@ -196,6 +196,14 @@ func TestAddrV2Wire(t *testing.T) {
 			continue
 		}
 
+		// Ensure the serialize size is the actual encoded size.
+		sz := subject.SerializeSize()
+		actualSz := len(buf.Bytes())
+		if sz != actualSz {
+			t.Errorf("Wrong serialize size #%d\n got: %d want: %d", i,
+				sz, actualSz)
+		}
+
 		// Decode the message from the wire format and ensure it deserializes
 		// correctly.
 		var msg MsgAddrV2

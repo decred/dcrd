@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -186,6 +186,14 @@ func TestCFiltersV2Wire(t *testing.T) {
 			t.Errorf("BtcEncode #%d\n got: %s want: %s", i,
 				spew.Sdump(buf.Bytes()), spew.Sdump(test.buf))
 			continue
+		}
+
+		// Ensure the serialize size is the actual encoded size.
+		sz := test.in.SerializeSize()
+		actualSz := len(buf.Bytes())
+		if sz != actualSz {
+			t.Errorf("Wrong serialize size #%d\n got: %d want: %d", i,
+				sz, actualSz)
 		}
 
 		// Decode the message from wire format.
