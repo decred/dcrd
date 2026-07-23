@@ -15,7 +15,8 @@ import (
 	"lukechampine.com/blake3"
 )
 
-// MaxBlockHeaderPayload is the maximum number of bytes a block header can be.
+// MaxBlockHeaderPayload is the number of bytes a serialized block header is.
+// Every field is fixed width, so this is the exact size, not an upper bound.
 // Version 4 bytes + PrevBlock 32 bytes + MerkleRoot 32 bytes + StakeRoot 32
 // bytes + VoteBits 2 bytes + FinalState 6 bytes + Voters 2 bytes + FreshStake 1
 // byte + Revocations 1 bytes + PoolSize 4 bytes + Bits 4 bytes + SBits 8 bytes
