@@ -272,9 +272,9 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns a mix message and its message type by its hash if it is accepted by and currently in the mixpool.
 |-
-|[[#getmixpairrequests|getmixpairrequests]]
+|[[#getmixpoolinfo|getmixpoolinfo]]
 |Y
-|Returns the current set of mixing pair request messages from the mixpool.  WARNING: This is experimental and will very likely be removed in the next version.  Do not use!
+|Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.
 |-
 |[[#getnettotals|getnettotals]]
 |Y
@@ -1549,24 +1549,38 @@ of the best block.
 
 ----
 
-====getmixpairrequests====
+====getmixpoolinfo====
 {|
 !Method
-|getmixpairrequests
+|getmixpoolinfo
 |-
 !Parameters
 |None
 |-
 !Description
 |
-: Returns the current set of mixing pair request messages from the mixpool.
-: WARNING: This is experimental and will very likely be removed in the next version.  Do not use!
+: Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.
 |-
 !Returns
-|<code>(json array of string)</code> hex-encoded mixing pair request messages.
+|<code>(json object)</code>
+: <code>epoch</code>: <code>(numeric)</code> Duration between mix epochs, in seconds.
+: <code>nextepoch</code>: <code>(numeric)</code> Unix timestamp of the next mix epoch.
+: <code>pairings</code>: <code>(json array of object)</code> Pending pair requests grouped by mixing compatibility.
+:: <code>mixamount</code>: <code>(numeric)</code> Amount of each mixed output, in DCR.
+:: <code>scriptclass</code>: <code>(string)</code> Script class of the mixed outputs.
+:: <code>txversion</code>: <code>(numeric)</code> Transaction version of the mix transaction.
+:: <code>locktime</code>: <code>(numeric)</code> Lock time of the mix transaction.
+:: <code>pairingflags</code>: <code>(numeric)</code> Pairing flags of the pair request.
+:: <code>pairrequests</code>: <code>(json array of object)</code> The pair requests matching these mixing parameters.
+::: <code>hash</code>: <code>(string)</code> Hash of the pair request message.
+::: <code>identity</code>: <code>(string)</code> Participant ephemeral public key identity as a hex string.
+::: <code>messagecount</code>: <code>(numeric)</code> Number of mixed outputs, each of value mixamount, the pair request is creating.
+::: <code>inputvalue</code>: <code>(numeric)</code> Total value of inputs contributed by the pair request, in DCR.
+::: <code>utxos</code>: <code>(json array of string)</code> Unspent transaction outputs contributed by the pair request, each as a "hash:index:tree" string.
+::: <code>expiry</code>: <code>(numeric)</code> Block height at which the pair request expires.
 |-
 !Example Return
-|<code>["a1d1d8c6ffc20a51ad9a5aa093c31bdeb06a0f627af95...",...]</code>
+|<code>{"epoch":600,"nextepoch":1751049600,"pairings":[{"mixamount":1,"scriptclass":"P2PKH-secp256k1-v0","txversion":1,"locktime":0,"pairingflags":1,"pairrequests":[{"hash":"a1d1d8c6...","identity":"02d1a...","messagecount":1,"inputvalue":1.2,"utxos":["a1d1d8c6...:0:0"],"expiry":987654}]}]}</code>
 |}
 
 ----
