@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -87,7 +87,7 @@ func TestMsgMixSecretsWire(t *testing.T) {
 	expected = append(expected, repeat(0x8f, 32)...)
 	expected = append(expected, repeat(0x90, 32)...)
 
-	expectedSerializationEqual(t, buf.Bytes(), expected)
+	assertSerializationEqual(t, buf.Bytes(), expected)
 
 	decodedRS := new(MsgMixSecrets)
 	err = decodedRS.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
