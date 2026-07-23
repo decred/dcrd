@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	// MaxCFHeaderPayload is the maximum byte size of a committed
-	// filter header.
+	// MaxCFHeaderPayload is the serialized byte size of a committed filter
+	// header.  A header is a single fixed-size hash, so this is the exact
+	// size, not an upper bound.
 	MaxCFHeaderPayload = chainhash.HashSize
 
 	// MaxCFHeadersPerMsg is the maximum number of committed filter headers
