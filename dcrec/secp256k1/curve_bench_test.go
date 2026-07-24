@@ -216,16 +216,15 @@ func BenchmarkScalarMultNonConst(b *testing.B) {
 	}
 }
 
-// BenchmarkNAF benchmarks conversion of a positive integer into its
-// non-adjacent form representation.
-func BenchmarkNAF(b *testing.B) {
-	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
-	kBytes := k.Bytes()
+// BenchmarkWNAF benchmarks conversion of a non-negative integer into its
+// width-w windowed non-adjacent form representation, where w is [wNAFWidth].
+func BenchmarkWNAF(b *testing.B) {
+	k := mustModNScalar("8447e288d34b360bc885cb8ce7c00575")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		naf(kBytes)
+		wnaf(k)
 	}
 }
 

@@ -634,72 +634,107 @@ func TestDoubleJacobian(t *testing.T) {
 	}
 }
 
-// checkNAFEncoding returns an error if the provided positive and negative
-// portions of an overall NAF encoding do not adhere to the requirements or they
-// do not sum back to the provided original value.
-func checkNAFEncoding(pos, neg []byte, origValue *big.Int) error {
-	// NAF must not have a leading zero byte and the number of negative
-	// bytes must not exceed the positive portion.
-	if len(pos) > 0 && pos[0] == 0 {
-		return fmt.Errorf("positive has leading zero -- got %x", pos)
+// decodeWNAFDigit converts the provided wNAF code to the signed digit it
+// represents.
+func decodeWNAFDigit(code uint8) int8 {
+	const (
+		positiveCodeLimit = 1 << (wNAFWidth - 2)
+		maxCode           = 1 << (wNAFWidth - 1)
+	)
+	switch {
+	case code == 0:
+		return 0
+	case code <= positiveCodeLimit:
+		return 2*int8(code) - 1
 	}
-	if len(neg) > len(pos) {
-		return fmt.Errorf("negative has len %d > pos len %d", len(neg),
-			len(pos))
+	return (maxCode + 1) - 2*int8(code)
+}
+
+// checkWNAFEncoding returns an error if the provided windowed NAF encoding does
+// not adhere to the encoding requirements or does not reconstruct the provided
+// original value.
+func checkWNAFEncoding(s *wnafScalar, origValue *big.Int) error {
+	// Ensure the reported number of used bits does not exceed the size of the
+	// array.
+	if int(s.bits) > len(s.codes) {
+		return fmt.Errorf("bits %d > %d", s.bits, len(s.codes))
 	}
 
-	// Ensure the result doesn't have any adjacent non-zero digits.
-	gotPos := new(big.Int).SetBytes(pos)
-	gotNeg := new(big.Int).SetBytes(neg)
-	posOrNeg := new(big.Int).Or(gotPos, gotNeg)
-	prevBit := posOrNeg.Bit(0)
-	for bit := 1; bit < posOrNeg.BitLen(); bit++ {
-		thisBit := posOrNeg.Bit(bit)
-		if prevBit == 1 && thisBit == 1 {
-			return fmt.Errorf("adjacent non-zero digits found at bit pos %d",
-				bit-1)
+	// wNAF must not have a leading zero and the individual codes must not
+	// exceed the max allowed code for the window width.
+	codes := s.codes[:s.bits]
+	if len(codes) > 0 && codes[len(codes)-1] == 0 {
+		return fmt.Errorf("leading zero in encoding: %v", codes)
+	}
+	const maxCode = 1 << (wNAFWidth - 1)
+	for _, code := range codes {
+		if code > maxCode {
+			return fmt.Errorf("found code %d > %d", code, maxCode)
 		}
-		prevBit = thisBit
 	}
 
-	// Ensure the resulting positive and negative portions of the overall
-	// NAF representation sum back to the original value.
-	gotValue := new(big.Int).Sub(gotPos, gotNeg)
-	if origValue.Cmp(gotValue) != 0 {
-		return fmt.Errorf("pos-neg is not original value: got %x, want %x",
-			gotValue, origValue)
+	// Ensure each non-zero digit is separated by at least the width of the
+	// window.
+	const minDistance = wNAFWidth
+	prevNonZeroBit := -minDistance
+	for bit, code := range codes {
+		if code == 0 {
+			continue
+		}
+
+		if distance := bit - prevNonZeroBit; distance < minDistance {
+			return fmt.Errorf("non-zero digits at bit pos %d and %d are only "+
+				"%d bits apart", prevNonZeroBit, bit, distance)
+		}
+
+		prevNonZeroBit = bit
+	}
+
+	// Reconstruct the represented value and ensure it matches the original
+	// value.
+	sum := new(big.Int)
+	for bit, code := range codes {
+		digit := decodeWNAFDigit(code)
+		term := big.NewInt(int64(digit))
+		term.Lsh(term, uint(bit))
+		sum.Add(sum, term)
+	}
+	if origValue.Cmp(sum) != 0 {
+		return fmt.Errorf("failed to reconstruct orig value: got %v, want %v",
+			sum, origValue)
 	}
 
 	return nil
 }
 
-// TestNAF ensures encoding various edge cases and values to non-adjacent form
-// produces valid results.
-func TestNAF(t *testing.T) {
-	tests := []struct {
+// TestWNAF ensures encoding various edge cases and values to width-w windowed
+// non-adjacent form, where w is [wNAFWidth], produces valid results.
+func TestWNAF(t *testing.T) {
+	type wnafTest struct {
 		name string // test description
 		in   string // hex encoded test value
-	}{{
-		name: "empty is zero",
-		in:   "",
-	}, {
-		name: "zero",
-		in:   "00",
-	}, {
-		name: "just before first carry",
-		in:   "aa",
-	}, {
-		name: "first carry",
-		in:   "ab",
-	}, {
+	}
+	extraTests := []wnafTest{{
 		name: "leading zeroes",
-		in:   "002f20569b90697ad471c1be6107814f53f47446be298a3a2a6b686b97d35cf9",
+		in:   "002f20569b90697ad471c1be6107814f",
 	}, {
-		name: "257 bits when NAF encoded",
-		in:   "c000000000000000000000000000000000000000000000000000000000000001",
+		name: "highest allowed bit only",
+		in:   "100000000000000000000000000000000",
 	}, {
-		name: "32-byte scalar",
-		in:   "6df2b5d30854069ccdec40ae022f5c948936324a4e9ebed8eb82cfd5a6b6d766",
+		name: "largest 129-bit value",
+		in:   "1ffffffffffffffffffffffffffffffff",
+	}, {
+		name: "130 bits when NAF encoded",
+		in:   "1f0000000000000000000000000000001",
+	}, {
+		name: "alternating bits (0xa5)",
+		in:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+	}, {
+		name: "alternating bits (0x5a)",
+		in:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+	}, {
+		name: "all ones",
+		in:   "ffffffffffffffffffffffffffffffff",
 	}, {
 		name: "first term of balanced length-two representation #1",
 		in:   "b776e53fb55f6b006a270d42d64ec2b1",
@@ -714,21 +749,35 @@ func TestNAF(t *testing.T) {
 		in:   "a2e79d200f27f2360fba57619936159b",
 	}}
 
+	// Add tests for the first small values since they collectively exercise
+	// every possible residue modulo 2^w, where w is the window width, multiple
+	// times.  Then append the extra deterministic tests for edge cases.
+	const smallValues = 2*(1<<wNAFWidth) + 1
+	tests := make([]wnafTest, 0, smallValues+len(extraTests))
+	for i := 0; i < smallValues; i++ {
+		tests = append(tests, struct {
+			name string
+			in   string
+		}{
+			name: fmt.Sprintf("%d", i),
+			in:   fmt.Sprintf("%x", i),
+		})
+	}
+	tests = append(tests, extraTests...)
+
 	for _, test := range tests {
-		// Ensure the resulting positive and negative portions of the overall
-		// NAF representation adhere to the requirements of NAF encoding and
-		// they sum back to the original value.
-		result := naf(hexToBytes(test.in))
-		pos, neg := result.Pos(), result.Neg()
-		if err := checkNAFEncoding(pos, neg, fromHex(test.in)); err != nil {
+		// Ensure the resulting encoding adheres to the encoding requirements
+		// and reconstructs to the original value.
+		result := wnaf(mustModNScalar(test.in))
+		if err := checkWNAFEncoding(&result, fromHex(test.in)); err != nil {
 			t.Errorf("%q: %v", test.name, err)
 		}
 	}
 }
 
-// TestNAFRandom ensures that encoding randomly-generated values to non-adjacent
-// form produces valid results.
-func TestNAFRandom(t *testing.T) {
+// TestWNAFRandom ensures that encoding randomly-generated values to windowed
+// non-adjacent form produces valid results.
+func TestWNAFRandom(t *testing.T) {
 	// Use a unique random seed each test instance and log it if the tests fail.
 	seed := time.Now().Unix()
 	rng := mrand.New(mrand.NewSource(seed))
@@ -739,16 +788,23 @@ func TestNAFRandom(t *testing.T) {
 	}(t, seed)
 
 	for i := 0; i < 100; i++ {
-		// Ensure the resulting positive and negative portions of the overall
-		// NAF representation adhere to the requirements of NAF encoding and
-		// they sum back to the original value.
-		bigIntVal, modNVal := randIntAndModNScalar(t, rng)
-		valBytes := modNVal.Bytes()
-		result := naf(valBytes[:])
-		pos, neg := result.Pos(), result.Neg()
-		if err := checkNAFEncoding(pos, neg, bigIntVal); err != nil {
-			t.Fatalf("encoding err: %v\nin: %x\npos: %x\nneg: %x", err,
-				bigIntVal, pos, neg)
+		modNVal := randModNScalar(t, rng)
+
+		// Create a random balanced scalar representative to ensure it is under
+		// 129 bits and use it to create a big integer of the same value.
+		k1, _ := splitK(modNVal)
+		if k1.IsOverHalfOrder() {
+			k1.Negate()
+		}
+		k1Bytes := k1.Bytes()
+		bigIntVal := new(big.Int).SetBytes(k1Bytes[:])
+
+		// Ensure the resulting encoding adheres to the encoding requirements
+		// and reconstructs to the original value.
+		result := wnaf(&k1)
+		if err := checkWNAFEncoding(&result, bigIntVal); err != nil {
+			t.Fatalf("encoding err: %v\nin: %x\ncodes: %x", err, bigIntVal,
+				result.codes[:result.bits])
 		}
 	}
 }
@@ -877,28 +933,16 @@ func TestScalarBaseMultJacobian(t *testing.T) {
 // modNBitLen returns the minimum number of bits required to represent the mod n
 // scalar.  The result is 0 when the value is 0.
 func modNBitLen(s *ModNScalar) uint16 {
-	if w := s.n[7]; w > 0 {
-		return uint16(bits.Len32(w)) + 224
-	}
-	if w := s.n[6]; w > 0 {
-		return uint16(bits.Len32(w)) + 192
-	}
-	if w := s.n[5]; w > 0 {
-		return uint16(bits.Len32(w)) + 160
-	}
-	if w := s.n[4]; w > 0 {
-		return uint16(bits.Len32(w)) + 128
-	}
 	if w := s.n[3]; w > 0 {
-		return uint16(bits.Len32(w)) + 96
+		return uint16(bits.Len64(w)) + 192
 	}
 	if w := s.n[2]; w > 0 {
-		return uint16(bits.Len32(w)) + 64
+		return uint16(bits.Len64(w)) + 128
 	}
 	if w := s.n[1]; w > 0 {
-		return uint16(bits.Len32(w)) + 32
+		return uint16(bits.Len64(w)) + 64
 	}
-	return uint16(bits.Len32(s.n[0]))
+	return uint16(bits.Len64(s.n[0]))
 }
 
 // checkLambdaDecomposition returns an error if the provided decomposed scalars

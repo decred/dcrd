@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -116,23 +116,27 @@ func TestModNScalarSetInt(t *testing.T) {
 	tests := []struct {
 		name     string    // test description
 		in       uint32    // test value
-		expected [8]uint32 // expected raw ints
+		expected [4]uint64 // expected limbs
 	}{{
+		name:     "zero",
+		in:       0,
+		expected: [4]uint64{0, 0, 0, 0},
+	}, {
 		name:     "five",
 		in:       5,
-		expected: [8]uint32{5, 0, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{5, 0, 0, 0},
 	}, {
-		name:     "group order word zero",
-		in:       orderWordZero,
-		expected: [8]uint32{orderWordZero, 0, 0, 0, 0, 0, 0, 0},
+		name:     "max uint8 (2^8 - 1)",
+		in:       255,
+		expected: [4]uint64{255, 0, 0, 0},
 	}, {
-		name:     "group order word zero + 1",
-		in:       orderWordZero + 1,
-		expected: [8]uint32{orderWordZero + 1, 0, 0, 0, 0, 0, 0, 0},
+		name:     "max uint16 (2^16 - 1)",
+		in:       65535,
+		expected: [4]uint64{65535, 0, 0, 0},
 	}, {
-		name:     "2^32 - 1",
+		name:     "max uint32 (2^32 - 1)",
 		in:       4294967295,
-		expected: [8]uint32{4294967295, 0, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{4294967295, 0, 0, 0},
 	}}
 
 	for _, test := range tests {
@@ -152,88 +156,136 @@ func TestModNScalarSetBytes(t *testing.T) {
 	tests := []struct {
 		name     string    // test description
 		in       string    // hex encoded test value
-		expected [8]uint32 // expected raw ints
+		expected [4]uint64 // expected raw ints
 		overflow bool      // expected overflow result
 	}{{
 		name:     "zero",
 		in:       "00",
-		expected: [8]uint32{0, 0, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{0, 0, 0, 0},
+		overflow: false,
+	}, {
+		name:     "one (only limb zero set)",
+		in:       "01",
+		expected: [4]uint64{1, 0, 0, 0},
+		overflow: false,
+	}, {
+		name:     "2^64 - 1 (limb zero all ones)",
+		in:       "ffffffffffffffff",
+		expected: [4]uint64{0xffffffffffffffff, 0, 0, 0},
+		overflow: false,
+	}, {
+		name:     "2^64 (limb one low bit)",
+		in:       "010000000000000000",
+		expected: [4]uint64{0, 1, 0, 0},
+		overflow: false,
+	}, {
+		name:     "2^128 - 1 (limbs zero and one all ones)",
+		in:       "ffffffffffffffffffffffffffffffff",
+		expected: [4]uint64{0xffffffffffffffff, 0xffffffffffffffff, 0, 0},
+		overflow: false,
+	}, {
+		name:     "2^128 (limb two low bit)",
+		in:       "0100000000000000000000000000000000",
+		expected: [4]uint64{0, 0, 1, 0},
+		overflow: false,
+	}, {
+		name: "2^192 - 1 (limbs zero, one, and two all ones)",
+		in:   "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: [4]uint64{
+			0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff, 0,
+		},
+		overflow: false,
+	}, {
+		name:     "2^192 (limb three low bit)",
+		in:       "01000000000000000000000000000000000000000000000000",
+		expected: [4]uint64{0, 0, 0, 1},
+		overflow: false,
+	}, {
+		name:     "2^255 (limb three high bit)",
+		in:       "8000000000000000000000000000000000000000000000000000000000000000",
+		expected: [4]uint64{0, 0, 0, 0x8000000000000000},
+		overflow: false,
+	}, {
+		name: "distinct value in every limb (verifies limb ordering)",
+		in:   "0123456789abcdeffedcba98765432100f1e2d3c4b5a69788796a5b4c3d2e1f0",
+		expected: [4]uint64{
+			0x08796a5b4c3d2e1f0, 0x0f1e2d3c4b5a6978, 0xfedcba9876543210,
+			0x0123456789abcdef,
+		},
 		overflow: false,
 	}, {
 		name:     "group order (aka 0)",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
-		expected: [8]uint32{0, 0, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{0, 0, 0, 0},
 		overflow: true,
 	}, {
-		name: "group order - 1",
+		name: "group order - 1 (limb zero one below prime, upper limbs maxed)",
 		in:   "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
-		expected: [8]uint32{
-			0xd0364140, 0xbfd25e8c, 0xaf48a03b, 0xbaaedce6,
-			0xfffffffe, 0xffffffff, 0xffffffff, 0xffffffff,
+		expected: [4]uint64{
+			0xbfd25e8cd0364140, 0xbaaedce6af48a03b, 0xfffffffffffffffe,
+			0xffffffffffffffff,
 		},
 		overflow: false,
 	}, {
-		name:     "group order + 1 (aka 1, overflow in word zero)",
+		name:     "group order + 1 (aka 1, overflow in limb zero)",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
-		expected: [8]uint32{1, 0, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{1, 0, 0, 0},
 		overflow: true,
 	}, {
-		name:     "group order word zero",
-		in:       "d0364141",
-		expected: [8]uint32{0xd0364141, 0, 0, 0, 0, 0, 0, 0},
-		overflow: false,
-	}, {
-		name:     "group order word zero and one",
+		name:     "group order limb zero",
 		in:       "bfd25e8cd0364141",
-		expected: [8]uint32{0xd0364141, 0xbfd25e8c, 0, 0, 0, 0, 0, 0},
+		expected: [4]uint64{0xbfd25e8cd0364141, 0, 0, 0},
 		overflow: false,
 	}, {
-		name:     "group order words zero, one, and two",
-		in:       "af48a03bbfd25e8cd0364141",
-		expected: [8]uint32{0xd0364141, 0xbfd25e8c, 0xaf48a03b, 0, 0, 0, 0, 0},
+		name:     "group order limbs zero and one",
+		in:       "baaedce6af48a03bbfd25e8cd0364141",
+		expected: [4]uint64{0xbfd25e8cd0364141, 0xbaaedce6af48a03b, 0, 0},
 		overflow: false,
 	}, {
-		name:     "overflow in word one",
-		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8dd0364141",
-		expected: [8]uint32{0, 1, 0, 0, 0, 0, 0, 0},
-		overflow: true,
+		name: "group order limbs zero, one, and two",
+		in:   "fffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		expected: [4]uint64{
+			0xbfd25e8cd0364141, 0xbaaedce6af48a03b, 0xfffffffffffffffe, 0,
+		},
+		overflow: false,
 	}, {
-		name:     "overflow in word two",
+		name:     "group order + 2^64 (overflow in limb one)",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03cbfd25e8cd0364141",
-		expected: [8]uint32{0, 0, 1, 0, 0, 0, 0, 0},
+		expected: [4]uint64{0, 1, 0, 0},
 		overflow: true,
 	}, {
-		name:     "overflow in word three",
-		in:       "fffffffffffffffffffffffffffffffebaaedce7af48a03bbfd25e8cd0364141",
-		expected: [8]uint32{0, 0, 0, 1, 0, 0, 0, 0},
-		overflow: true,
-	}, {
-		name:     "overflow in word four",
+		name:     "group order + 2^128 (overflow in limb two)",
 		in:       "ffffffffffffffffffffffffffffffffbaaedce6af48a03bbfd25e8cd0364141",
-		expected: [8]uint32{0, 0, 0, 0, 1, 0, 0, 0},
+		expected: [4]uint64{0, 0, 1, 0},
+		overflow: true,
+	}, {
+		name:     "2^256 - 1 (max input)",
+		in:       "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: [4]uint64{0x402da1732fc9bebe, 0x4551231950b75fc4, 1, 0},
+
 		overflow: true,
 	}, {
 		name: "(group order - 1) * 2 NOT mod N, truncated >32 bytes",
 		in:   "01fffffffffffffffffffffffffffffffd755db9cd5e9140777fa4bd19a06c8284",
-		expected: [8]uint32{
-			0x19a06c82, 0x777fa4bd, 0xcd5e9140, 0xfd755db9,
-			0xffffffff, 0xffffffff, 0xffffffff, 0x01ffffff,
+		expected: [4]uint64{
+			0x777fa4bd19a06c82, 0xfd755db9cd5e9140, 0xffffffffffffffff,
+			0x01ffffffffffffff,
 		},
 		overflow: false,
 	}, {
-		name: "alternating bits",
+		name: "alternating bits (spans all limbs)",
 		in:   "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
-		expected: [8]uint32{
-			0xa5a5a5a5, 0xa5a5a5a5, 0xa5a5a5a5, 0xa5a5a5a5,
-			0xa5a5a5a5, 0xa5a5a5a5, 0xa5a5a5a5, 0xa5a5a5a5,
+		expected: [4]uint64{
+			0xa5a5a5a5a5a5a5a5, 0xa5a5a5a5a5a5a5a5, 0xa5a5a5a5a5a5a5a5,
+			0xa5a5a5a5a5a5a5a5,
 		},
 		overflow: false,
 	}, {
-		name: "alternating bits 2",
+		name: "alternating bits 2 (spans all limbs)",
 		in:   "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
-		expected: [8]uint32{
-			0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a,
-			0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a,
+		expected: [4]uint64{
+			0x5a5a5a5a5a5a5a5a, 0x5a5a5a5a5a5a5a5a, 0x5a5a5a5a5a5a5a5a,
+			0x5a5a5a5a5a5a5a5a,
 		},
 		overflow: false,
 	}}
@@ -305,35 +357,35 @@ func TestModNScalarBytes(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 	}, {
-		name:     "group order + 1 (aka 1, overflow in word zero)",
+		name:     "group order + 1 (aka 1, overflow in limb zero)",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
 		expected: "0000000000000000000000000000000000000000000000000000000000000001",
 	}, {
-		name:     "group order word zero",
+		name:     "group order limb zero",
 		in:       "d0364141",
 		expected: "00000000000000000000000000000000000000000000000000000000d0364141",
 	}, {
-		name:     "group order word zero and one",
+		name:     "group order limb zero and one",
 		in:       "bfd25e8cd0364141",
 		expected: "000000000000000000000000000000000000000000000000bfd25e8cd0364141",
 	}, {
-		name:     "group order words zero, one, and two",
+		name:     "group order limbs zero, one, and two",
 		in:       "af48a03bbfd25e8cd0364141",
 		expected: "0000000000000000000000000000000000000000af48a03bbfd25e8cd0364141",
 	}, {
-		name:     "overflow in word one",
+		name:     "overflow in limb one",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8dd0364141",
 		expected: "0000000000000000000000000000000000000000000000000000000100000000",
 	}, {
-		name:     "overflow in word two",
+		name:     "overflow in limb two",
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03cbfd25e8cd0364141",
 		expected: "0000000000000000000000000000000000000000000000010000000000000000",
 	}, {
-		name:     "overflow in word three",
+		name:     "overflow in limb three",
 		in:       "fffffffffffffffffffffffffffffffebaaedce7af48a03bbfd25e8cd0364141",
 		expected: "0000000000000000000000000000000000000001000000000000000000000000",
 	}, {
-		name:     "overflow in word four",
+		name:     "overflow in limb four",
 		in:       "ffffffffffffffffffffffffffffffffbaaedce6af48a03bbfd25e8cd0364141",
 		expected: "0000000000000000000000000000000100000000000000000000000000000000",
 	}, {
@@ -501,11 +553,11 @@ func TestModNScalarEqualsRandom(t *testing.T) {
 			t.Fatalf("failed equality check\nscalar in: %v", s)
 		}
 
-		// Flip a random bit in a random word and ensure it's no longer equal.
-		randomWord := rng.Int31n(int32(len(s.n)))
-		randomBit := uint32(1 << uint32(rng.Int31n(32)))
+		// Flip a random bit in a random limb and ensure it's no longer equal.
+		randomLimb := rng.Int31n(int32(len(s.n)))
+		randomBit := uint64(1 << uint64(rng.Int63n(64)))
 		s2 := new(ModNScalar).Set(s)
-		s2.n[randomWord] ^= randomBit
+		s2.n[randomLimb] ^= randomBit
 		if s2.Equals(s) {
 			t.Fatalf("failed inequality check\nscalar in: %v", s2)
 		}
@@ -531,54 +583,34 @@ func TestModNScalarAdd(t *testing.T) {
 		in2:      "0",
 		expected: "1",
 	}, {
-		name:     "group order (aka 0) + 1 (gets reduced, no overflow)",
-		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
-		in2:      "1",
-		expected: "1",
-	}, {
-		name:     "group order - 1 + 1 (aka 0, overflow to prime)",
+		name:     "group order-1 + 1 (aka 0, overflow to order)",
 		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		in2:      "1",
 		expected: "0",
 	}, {
-		name:     "group order - 1 + 2 (aka 1, overflow in word zero)",
+		name:     "group order (aka 0) + 1 (aka 1, gets reduced, no overflow)",
+		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		in2:      "1",
+		expected: "1",
+	}, {
+		name:     "group order-1 + 2 (aka 1, overflow in limb zero)",
 		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		in2:      "2",
 		expected: "1",
 	}, {
-		name:     "overflow in word one",
-		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8bd0364141",
-		in2:      "100000001",
-		expected: "1",
-	}, {
-		name:     "overflow in word two",
+		name:     "overflow in limb one",
 		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03abfd25e8cd0364141",
 		in2:      "10000000000000001",
 		expected: "1",
 	}, {
-		name:     "overflow in word three",
-		in1:      "fffffffffffffffffffffffffffffffebaaedce5af48a03bbfd25e8cd0364141",
-		in2:      "1000000000000000000000001",
-		expected: "1",
-	}, {
-		name:     "overflow in word four",
+		name:     "overflow in limb two",
 		in1:      "fffffffffffffffffffffffffffffffdbaaedce6af48a03bbfd25e8cd0364141",
 		in2:      "100000000000000000000000000000001",
 		expected: "1",
 	}, {
-		name:     "overflow in word five",
-		in1:      "fffffffffffffffffffffffefffffffebaaedce6af48a03bbfd25e8cd0364141",
-		in2:      "10000000000000000000000000000000000000001",
-		expected: "1",
-	}, {
-		name:     "overflow in word six",
+		name:     "overflow in limb three",
 		in1:      "fffffffffffffffefffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
 		in2:      "1000000000000000000000000000000000000000000000001",
-		expected: "1",
-	}, {
-		name:     "overflow in word seven",
-		in1:      "fffffffefffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
-		in2:      "100000000000000000000000000000000000000000000000000000001",
 		expected: "1",
 	}, {
 		name:     "alternating bits",
@@ -601,7 +633,7 @@ func TestModNScalarAdd(t *testing.T) {
 		// Ensure the result has the expected value.
 		s1.Add(s2)
 		if !s1.Equals(expected) {
-			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
+			t.Errorf("%s: unexpected result\ngot: %v\nwant: %v", test.name,
 				s1, expected)
 			continue
 		}
@@ -645,53 +677,6 @@ func TestModNScalarAddRandom(t *testing.T) {
 	}
 }
 
-// TestAccumulator96Add ensures that the internal 96-bit accumulator used by
-// multiplication works as expected for overflow edge cases including overflow.
-func TestAccumulator96Add(t *testing.T) {
-	tests := []struct {
-		name     string        // test description
-		start    accumulator96 // starting value of accumulator
-		in       uint64        // value to add to accumulator
-		expected accumulator96 // expected value of accumulator after addition
-	}{{
-		name:     "0 + 0 = 0",
-		start:    accumulator96{[3]uint32{0, 0, 0}},
-		in:       0,
-		expected: accumulator96{[3]uint32{0, 0, 0}},
-	}, {
-		name:     "overflow in word zero",
-		start:    accumulator96{[3]uint32{0xffffffff, 0, 0}},
-		in:       1,
-		expected: accumulator96{[3]uint32{0, 1, 0}},
-	}, {
-		name:     "overflow in word one",
-		start:    accumulator96{[3]uint32{0, 0xffffffff, 0}},
-		in:       0x100000000,
-		expected: accumulator96{[3]uint32{0, 0, 1}},
-	}, {
-		name:     "overflow in words one and two",
-		start:    accumulator96{[3]uint32{0xffffffff, 0xffffffff, 0}},
-		in:       1,
-		expected: accumulator96{[3]uint32{0, 0, 1}},
-	}, {
-		// Start accumulator at 129127208455837319175 which is the result of
-		// 4294967295 * 4294967295 accumulated seven times.
-		name:     "max result from eight adds of max uint32 multiplications",
-		start:    accumulator96{[3]uint32{7, 4294967282, 6}},
-		in:       18446744065119617025,
-		expected: accumulator96{[3]uint32{8, 4294967280, 7}},
-	}}
-
-	for _, test := range tests {
-		acc := test.start
-		acc.Add(test.in)
-		if acc.n != test.expected.n {
-			t.Errorf("%s: wrong result\ngot: %v\nwant: %v", test.name, acc.n,
-				test.expected.n)
-		}
-	}
-}
-
 // TestModNScalarMul ensures that multiplying two scalars together works as
 // expected for edge cases.
 func TestModNScalarMul(t *testing.T) {
@@ -721,6 +706,16 @@ func TestModNScalarMul(t *testing.T) {
 		in2:      "2",
 		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413f",
 	}, {
+		name:     "(group order-1) * 3",
+		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		in2:      "3",
+		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413e",
+	}, {
+		name:     "(group order-1) * 4",
+		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		in2:      "4",
+		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413d",
+	}, {
 		name:     "(group order-1) * (group order-1)",
 		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		in2:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
@@ -731,55 +726,75 @@ func TestModNScalarMul(t *testing.T) {
 		in2:      "2",
 		expected: "1",
 	}, {
+		name:     "highest bit in limb zero squared",
+		in1:      "8000000000000000",
+		in2:      "8000000000000000",
+		expected: "40000000000000000000000000000000",
+	}, {
+		name:     "highest bit in limb one squared",
+		in1:      "80000000000000000000000000000000",
+		in2:      "80000000000000000000000000000000",
+		expected: "4000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:     "highest bit in limb two squared",
+		in1:      "800000000000000000000000000000000000000000000000",
+		in2:      "800000000000000000000000000000000000000000000000",
+		expected: "515448c6542dd7f1100b685ccbf26fafc0000000000000000000000000000000",
+	}, {
+		name:     "highest bit in limb three squared",
+		in1:      "8000000000000000000000000000000000000000000000000000000000000000",
+		in2:      "8000000000000000000000000000000000000000000000000000000000000000",
+		expected: "2759c7356071a6f179a5fd7916f341f19d0525b0839f3e1e225b3c8519f5f450",
+	}, {
+		name:     "cross limb product 64x128",
+		in1:      "10000000000000000",
+		in2:      "100000000000000000000000000000000",
+		expected: "1000000000000000000000000000000000000000000000000",
+	}, {
+		name:     "cross limb product 64x192",
+		in1:      "10000000000000000",
+		in2:      "1000000000000000000000000000000000000000000000000",
+		expected: "14551231950b75fc4402da1732fc9bebf",
+	}, {
+		name:     "cross limb product 128x192",
+		in1:      "100000000000000000000000000000000",
+		in2:      "1000000000000000000000000000000000000000000000000",
+		expected: "14551231950b75fc4402da1732fc9bebf0000000000000000",
+	}, {
 		name:     "group order (aka 0) * 3",
 		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
 		in2:      "3",
 		expected: "0",
 	}, {
-		name:     "overflow in word eight",
+		name:     "overflow in limb four",
 		in1:      "100000000000000000000000000000000",
 		in2:      "100000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf",
 	}, {
-		name:     "overflow in word nine",
-		in1:      "1000000000000000000000000000000000000",
-		in2:      "1000000000000000000000000000000000000",
-		expected: "14551231950b75fc4402da1732fc9bebf00000000",
-	}, {
-		name:     "overflow in word ten",
+		name:     "overflow in limb five",
 		in1:      "10000000000000000000000000000000000000000",
 		in2:      "10000000000000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf0000000000000000",
 	}, {
-		name:     "overflow in word eleven",
-		in1:      "100000000000000000000000000000000000000000000",
-		in2:      "100000000000000000000000000000000000000000000",
-		expected: "14551231950b75fc4402da1732fc9bebf000000000000000000000000",
-	}, {
-		name:     "overflow in word twelve",
+		name:     "overflow in limb six",
 		in1:      "1000000000000000000000000000000000000000000000000",
 		in2:      "1000000000000000000000000000000000000000000000000",
 		expected: "4551231950b75fc4402da1732fc9bec04551231950b75fc4402da1732fc9bebf",
 	}, {
-		name:     "overflow in word thirteen",
-		in1:      "10000000000000000000000000000000000000000000000000000",
-		in2:      "10000000000000000000000000000000000000000000000000000",
-		expected: "50b75fc4402da1732fc9bec09d671cd51b343a1b66926b57d2a4c1c61536bda7",
-	}, {
-		name:     "overflow in word fourteen",
+		name:     "overflow in limb seven",
 		in1:      "100000000000000000000000000000000000000000000000000000000",
 		in2:      "100000000000000000000000000000000000000000000000000000000",
 		expected: "402da1732fc9bec09d671cd581c69bc59509b0b074ec0aea8f564d667ec7eb3c",
 	}, {
-		name:     "overflow in word fifteen",
-		in1:      "1000000000000000000000000000000000000000000000000000000000000",
-		in2:      "1000000000000000000000000000000000000000000000000000000000000",
-		expected: "2fc9bec09d671cd581c69bc5e697f5e41f12c33a0a7b6f4e3302b92ea029cecd",
+		name:     "max limb * one",
+		in1:      "ffffffffffffffff",
+		in2:      "1",
+		expected: "ffffffffffffffff",
 	}, {
-		name:     "double overflow in internal accumulator",
-		in1:      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
-		in2:      "55555555555555555555555555555554e8e4f44ce51835693ff0ca2ef01215c2",
-		expected: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9d1c9e899ca306ad27fe1945de0242b7f",
+		name:     "max limb * max limb",
+		in1:      "ffffffffffffffff",
+		in2:      "ffffffffffffffff",
+		expected: "fffffffffffffffe0000000000000001",
 	}, {
 		name:     "alternating bits",
 		in1:      "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
@@ -881,35 +896,35 @@ func TestModNScalarSquare(t *testing.T) {
 		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
 		expected: "1",
 	}, {
-		name:     "overflow in word eight",
+		name:     "overflow in limb eight",
 		in:       "100000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf",
 	}, {
-		name:     "overflow in word nine",
+		name:     "overflow in limb nine",
 		in:       "1000000000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf00000000",
 	}, {
-		name:     "overflow in word ten",
+		name:     "overflow in limb ten",
 		in:       "10000000000000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf0000000000000000",
 	}, {
-		name:     "overflow in word eleven",
+		name:     "overflow in limb eleven",
 		in:       "100000000000000000000000000000000000000000000",
 		expected: "14551231950b75fc4402da1732fc9bebf000000000000000000000000",
 	}, {
-		name:     "overflow in word twelve",
+		name:     "overflow in limb twelve",
 		in:       "1000000000000000000000000000000000000000000000000",
 		expected: "4551231950b75fc4402da1732fc9bec04551231950b75fc4402da1732fc9bebf",
 	}, {
-		name:     "overflow in word thirteen",
+		name:     "overflow in limb thirteen",
 		in:       "10000000000000000000000000000000000000000000000000000",
 		expected: "50b75fc4402da1732fc9bec09d671cd51b343a1b66926b57d2a4c1c61536bda7",
 	}, {
-		name:     "overflow in word fourteen",
+		name:     "overflow in limb fourteen",
 		in:       "100000000000000000000000000000000000000000000000000000000",
 		expected: "402da1732fc9bec09d671cd581c69bc59509b0b074ec0aea8f564d667ec7eb3c",
 	}, {
-		name:     "overflow in word fifteen",
+		name:     "overflow in limb fifteen",
 		in:       "1000000000000000000000000000000000000000000000000000000000000",
 		expected: "2fc9bec09d671cd581c69bc5e697f5e41f12c33a0a7b6f4e3302b92ea029cecd",
 	}, {
@@ -979,6 +994,26 @@ func TestModNScalarSquareRandom(t *testing.T) {
 	}
 }
 
+// checkModNScalarNegateProps checks algebraic properties of scalar negation.
+func checkModNScalarNegateProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	negation := new(ModNScalar).NegateVal(val)
+
+	// Ensure involution produces the original value.  That is -(-x) == x.
+	involution := new(ModNScalar).Set(negation).Negate()
+	if !involution.Equals(val) {
+		t.Errorf("mismatched involution -- got: %v, want: %v", involution,
+			val)
+	}
+
+	// Ensure x + (-x) == 0.
+	sum := new(ModNScalar).Add2(val, negation)
+	if !sum.IsZero() {
+		t.Errorf("x + (-x) != 0 -- got: %v, want: 0", sum)
+	}
+}
+
 // TestModNScalarNegate ensures that negating scalars works as expected for edge
 // cases.
 func TestModNScalarNegate(t *testing.T) {
@@ -995,33 +1030,41 @@ func TestModNScalarNegate(t *testing.T) {
 		in:       "1",
 		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 	}, {
-		name:     "negation in word one",
-		in:       "0000000000000000000000000000000000000000000000000000000100000000",
-		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8bd0364141",
+		name:     "two",
+		in:       "2",
+		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413f",
 	}, {
-		name:     "negation in word two",
+		name:     "three",
+		in:       "3",
+		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413e",
+	}, {
+		name:     "group order - 2",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413f",
+		expected: "2",
+	}, {
+		name:     "group order - 1",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		expected: "1",
+	}, {
+		name:     "negation in limb one",
 		in:       "0000000000000000000000000000000000000000000000010000000000000000",
 		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03abfd25e8cd0364141",
 	}, {
-		name:     "negation in word three",
-		in:       "0000000000000000000000000000000000000001000000000000000000000000",
-		expected: "fffffffffffffffffffffffffffffffebaaedce5af48a03bbfd25e8cd0364141",
-	}, {
-		name:     "negation in word four",
+		name:     "negation in limb two",
 		in:       "0000000000000000000000000000000100000000000000000000000000000000",
 		expected: "fffffffffffffffffffffffffffffffdbaaedce6af48a03bbfd25e8cd0364141",
 	}, {
-		name:     "negation in word five",
-		in:       "0000000000000000000000010000000000000000000000000000000000000000",
-		expected: "fffffffffffffffffffffffefffffffebaaedce6af48a03bbfd25e8cd0364141",
-	}, {
-		name:     "negation in word six",
+		name:     "negation in limb three",
 		in:       "0000000000000001000000000000000000000000000000000000000000000000",
 		expected: "fffffffffffffffefffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
 	}, {
-		name:     "negation in word seven",
-		in:       "0000000100000000000000000000000000000000000000000000000000000000",
-		expected: "fffffffefffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		name:     "half group order (floor)",
+		in:       "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0",
+		expected: "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a1",
+	}, {
+		name:     "half group order (ceil)",
+		in:       "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a1",
+		expected: "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0",
 	}, {
 		name:     "alternating bits",
 		in:       "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
@@ -1051,6 +1094,9 @@ func TestModNScalarNegate(t *testing.T) {
 				result2, expected)
 			continue
 		}
+
+		// Ensure algebraic properties with negation hold.
+		checkModNScalarNegateProps(t, s)
 	}
 }
 
@@ -1086,6 +1132,35 @@ func TestModNScalarNegateRandom(t *testing.T) {
 				"big int result: %x\nscalar result %v", bigIntVal, modNVal,
 				bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with negation hold.
+		checkModNScalarNegateProps(t, modNVal)
+	}
+}
+
+// checkModNScalarInverseProps checks algebraic properties of the
+// multiplicative modular inverse of scalars.
+func checkModNScalarInverseProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	// Exception for 0 which does not have a modular multiplicative inverse.
+	if val.IsZero() {
+		return
+	}
+
+	inverse := new(ModNScalar).InverseValNonConst(val)
+
+	// Ensure x * x^-1 ≡ 1 (mod N).
+	product := new(ModNScalar).Mul2(val, inverse)
+	one := new(ModNScalar).SetInt(1)
+	if !product.Equals(one) {
+		t.Errorf("x * x^-1 != 1 (mod N) -- got: %v, want: %v", product, one)
+	}
+
+	// Ensure (x^-1)^-1 == x.
+	doubleInv := new(ModNScalar).InverseValNonConst(inverse)
+	if !doubleInv.Equals(val) {
+		t.Errorf("(x^-1)^-1 != x (mod N) -- got: %v, want: %v", doubleInv, val)
 	}
 }
 
@@ -1105,33 +1180,29 @@ func TestModNScalarInverseNonConst(t *testing.T) {
 		in:       "1",
 		expected: "1",
 	}, {
-		name:     "inverse carry in word one",
-		in:       "0000000000000000000000000000000000000000000000000000000100000000",
-		expected: "5588b13effffffffffffffffffffffff934e5b00ca8417bf50177f7ba415411a",
+		name:     "two",
+		in:       "2",
+		expected: "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a1",
 	}, {
-		name:     "inverse carry in word two",
+		name:     "group order - 1",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		expected: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+	}, {
+		name:     "group order - 2",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413f",
+		expected: "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0",
+	}, {
+		name:     "inverse carry in limb one",
 		in:       "0000000000000000000000000000000000000000000000010000000000000000",
 		expected: "4b0dff665588b13effffffffffffffffa09f710af01555259d4ad302583de6dc",
 	}, {
-		name:     "inverse carry in word three",
-		in:       "0000000000000000000000000000000000000001000000000000000000000000",
-		expected: "34b9ec244b0dff665588b13effffffffbcff4127932a971a78274c9d74176b38",
-	}, {
-		name:     "inverse carry in word four",
+		name:     "inverse carry in limb two",
 		in:       "0000000000000000000000000000000100000000000000000000000000000000",
 		expected: "50a51ac834b9ec244b0dff665588b13e9984d5b3cf80ef0fd6a23766a3ee9f22",
 	}, {
-		name:     "inverse carry in word five",
-		in:       "0000000000000000000000010000000000000000000000000000000000000000",
-		expected: "27cfab5e50a51ac834b9ec244b0dff6622f16e85b683d5a059bcd5a3b29d9dff",
-	}, {
-		name:     "inverse carry in word six",
+		name:     "inverse carry in limb three",
 		in:       "0000000000000001000000000000000000000000000000000000000000000000",
 		expected: "897f30c127cfab5e50a51ac834b9ec239c53f268b4700c14f19b9499ac58d8ad",
-	}, {
-		name:     "inverse carry in word seven",
-		in:       "0000000100000000000000000000000000000000000000000000000000000000",
-		expected: "6494ef93897f30c127cfab5e50a51ac7b4e8f713e0cddd182234e907286ae6b3",
 	}, {
 		name:     "alternating bits",
 		in:       "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
@@ -1163,6 +1234,9 @@ func TestModNScalarInverseNonConst(t *testing.T) {
 				result2, expected)
 			continue
 		}
+
+		// Ensure algebraic properties with inverses hold.
+		checkModNScalarInverseProps(t, s)
 	}
 }
 
@@ -1198,6 +1272,30 @@ func TestModNScalarInverseNonConstRandom(t *testing.T) {
 				"big int result: %x\nscalar result %v", bigIntVal, modNVal,
 				bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with inverses hold.
+		checkModNScalarInverseProps(t, modNVal)
+	}
+}
+
+// checkModNScalarHalfOrderProps checks algebraic properties of the half order
+// comparison.
+func checkModNScalarHalfOrderProps(t *testing.T, val *ModNScalar) {
+	t.Helper()
+
+	// Exception for 0 which is the only scalar where negation does not produce
+	// a distinct value.
+	if val.IsZero() {
+		return
+	}
+
+	// Ensure negating a scalar flips whether it is over half order.
+	//
+	// x > N/2 implies N-x < N/2 and vice versa.
+	negation := new(ModNScalar).NegateVal(val)
+	if val.IsOverHalfOrder() == negation.IsOverHalfOrder() {
+		t.Errorf("negation did not flip half order -- val: %v, negation: %v",
+			val, negation)
 	}
 }
 
@@ -1229,30 +1327,46 @@ func TestModNScalarIsOverHalfOrder(t *testing.T) {
 		in:       "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a1",
 		expected: true,
 	}, {
-		name:     "over half order word one",
-		in:       "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f47681b20a0",
-		expected: true,
-	}, {
-		name:     "over half order word two",
+		name:     "over half order limb one",
 		in:       "7fffffffffffffffffffffffffffffff5d576e7357a4501edfe92f46681b20a0",
 		expected: true,
 	}, {
-		name:     "over half order word three",
-		in:       "7fffffffffffffffffffffffffffffff5d576e7457a4501ddfe92f46681b20a0",
+		name:     "group order - 2",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd036413f",
 		expected: true,
 	}, {
-		name:     "over half order word seven",
-		in:       "8fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0",
+		name:     "group order - 1",
+		in:       "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
 		expected: true,
+	}, {
+		name:     "highest limb below half order",
+		in:       "7fffffffffffffffffffffffffffffff00000000000000000000000000000000",
+		expected: false,
+	}, {
+		name:     "highest bit set",
+		in:       "8000000000000000000000000000000000000000000000000000000000000000",
+		expected: true,
+	}, {
+		name:     "alternating bits",
+		in:       "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		expected: true,
+	}, {
+		name:     "alternating bits 2",
+		in:       "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		expected: false,
 	}}
 
 	for _, test := range tests {
-		result := mustModNScalarWithOverflow(test.in).IsOverHalfOrder()
+		s := mustModNScalarWithOverflow(test.in)
+		result := s.IsOverHalfOrder()
 		if result != test.expected {
 			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
 				result, test.expected)
 			continue
 		}
+
+		// Ensure algebraic properties with the half order hold.
+		checkModNScalarHalfOrderProps(t, s)
 	}
 }
 
@@ -1286,5 +1400,8 @@ func TestModNScalarIsOverHalfOrderRandom(t *testing.T) {
 				"in: %v\nbig int result: %v\nscalar result %v", bigIntVal,
 				modNVal, bigIntResult, modNValResult)
 		}
+
+		// Ensure algebraic properties with the half order hold.
+		checkModNScalarHalfOrderProps(t, modNVal)
 	}
 }

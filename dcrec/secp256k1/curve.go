@@ -720,16 +720,6 @@ func mulAdd64Carry(digit1, digit2, m, c uint64) (hi, lo uint64) {
 // because it is used for replacing division with multiplication and thus the
 // intermediate results must be done via a field extension to a larger field.
 func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
-	// Convert n1 and n2 to base 2^64 digits.
-	n1Digit0 := uint64(n1.n[0]) | uint64(n1.n[1])<<32
-	n1Digit1 := uint64(n1.n[2]) | uint64(n1.n[3])<<32
-	n1Digit2 := uint64(n1.n[4]) | uint64(n1.n[5])<<32
-	n1Digit3 := uint64(n1.n[6]) | uint64(n1.n[7])<<32
-	n2Digit0 := uint64(n2.n[0]) | uint64(n2.n[1])<<32
-	n2Digit1 := uint64(n2.n[2]) | uint64(n2.n[3])<<32
-	n2Digit2 := uint64(n2.n[4]) | uint64(n2.n[5])<<32
-	n2Digit3 := uint64(n2.n[6]) | uint64(n2.n[7])<<32
-
 	// Compute the full 512-bit product n1*n2.
 	var r0, r1, r2, r3, r4, r5, r6, r7, c uint64
 
@@ -738,40 +728,40 @@ func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
 	//
 	// Note that r0 is ignored because it is not needed to compute the higher
 	// terms and it is shifted out below anyway.
-	c, _ = bits.Mul64(n2Digit0, n1Digit0)
-	c, r1 = mulAdd64(n2Digit0, n1Digit1, c)
-	c, r2 = mulAdd64(n2Digit0, n1Digit2, c)
-	r4, r3 = mulAdd64(n2Digit0, n1Digit3, c)
+	c, _ = bits.Mul64(n2.n[0], n1.n[0])
+	c, r1 = mulAdd64(n2.n[0], n1.n[1], c)
+	c, r2 = mulAdd64(n2.n[0], n1.n[2], c)
+	r4, r3 = mulAdd64(n2.n[0], n1.n[3], c)
 
 	// Terms resulting from the product of the second digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r1 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit1, n1Digit0, r1)
-	c, r2 = mulAdd64Carry(n2Digit1, n1Digit1, r2, c)
-	c, r3 = mulAdd64Carry(n2Digit1, n1Digit2, r3, c)
-	r5, r4 = mulAdd64Carry(n2Digit1, n1Digit3, r4, c)
+	c, _ = mulAdd64(n2.n[1], n1.n[0], r1)
+	c, r2 = mulAdd64Carry(n2.n[1], n1.n[1], r2, c)
+	c, r3 = mulAdd64Carry(n2.n[1], n1.n[2], r3, c)
+	r5, r4 = mulAdd64Carry(n2.n[1], n1.n[3], r4, c)
 
 	// Terms resulting from the product of the third digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r2 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit2, n1Digit0, r2)
-	c, r3 = mulAdd64Carry(n2Digit2, n1Digit1, r3, c)
-	c, r4 = mulAdd64Carry(n2Digit2, n1Digit2, r4, c)
-	r6, r5 = mulAdd64Carry(n2Digit2, n1Digit3, r5, c)
+	c, _ = mulAdd64(n2.n[2], n1.n[0], r2)
+	c, r3 = mulAdd64Carry(n2.n[2], n1.n[1], r3, c)
+	c, r4 = mulAdd64Carry(n2.n[2], n1.n[2], r4, c)
+	r6, r5 = mulAdd64Carry(n2.n[2], n1.n[3], r5, c)
 
 	// Terms resulting from the product of the fourth digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r3 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit3, n1Digit0, r3)
-	c, r4 = mulAdd64Carry(n2Digit3, n1Digit1, r4, c)
-	c, r5 = mulAdd64Carry(n2Digit3, n1Digit2, r5, c)
-	r7, r6 = mulAdd64Carry(n2Digit3, n1Digit3, r6, c)
+	c, _ = mulAdd64(n2.n[3], n1.n[0], r3)
+	c, r4 = mulAdd64Carry(n2.n[3], n1.n[1], r4, c)
+	c, r5 = mulAdd64Carry(n2.n[3], n1.n[2], r5, c)
+	r7, r6 = mulAdd64Carry(n2.n[3], n1.n[3], r6, c)
 
 	// At this point the upper 256 bits of the full 512-bit product n1*n2 are in
 	// r4..r7 (recall the low order results were discarded as noted above).
@@ -796,14 +786,10 @@ func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
 	// less than the group order given the group order is > 2^255 and the
 	// maximum possible value of the result is 2^192.
 	var result ModNScalar
-	result.n[0] = uint32(r0)
-	result.n[1] = uint32(r0 >> 32)
-	result.n[2] = uint32(r1)
-	result.n[3] = uint32(r1 >> 32)
-	result.n[4] = uint32(r2)
-	result.n[5] = uint32(r2 >> 32)
-	result.n[6] = uint32(r3)
-	result.n[7] = uint32(r3 >> 32)
+	result.n[0] = r0
+	result.n[1] = r1
+	result.n[2] = r2
+	result.n[3] = r3
 	return result
 }
 
@@ -957,140 +943,337 @@ func splitK(k *ModNScalar) (ModNScalar, ModNScalar) {
 	return k1, k2
 }
 
-// nafScalar represents a positive integer up to a maximum value of 2^256 - 1
-// encoded in non-adjacent form.
+// wNAFWidth is the window width of the NAF representation used in scalar
+// multiplication.
 //
-// NAF is a signed-digit representation where each digit can be +1, 0, or -1.
+// It is important to note that this constant primarily exists to improve code
+// readability, to parameterize parts of the scalar multiplication
+// implementation, and to allow tests to assert invariants.
 //
-// In order to efficiently encode that information, this type uses two arrays, a
-// "positive" array where set bits represent the +1 signed digits and a
-// "negative" array where set bits represent the -1 signed digits.  0 is
-// represented by neither array having a bit set in that position.
+// However, the overall implementation is intentionally not fully parameterized
+// based on this constant because it is carefully optimized for this specific
+// window width and those optimizations involve taking advantage of known bounds
+// that an arbitrary window size would violate.
 //
-// The Pos and Neg methods return the aforementioned positive and negative
-// arrays, respectively.
-type nafScalar struct {
-	// pos houses the positive portion of the representation.  An additional
-	// byte is required for the positive portion because the NAF encoding can be
-	// up to 1 bit longer than the normal binary encoding of the value.
-	//
-	// neg houses the negative portion of the representation.  Even though the
-	// additional byte is not required for the negative portion, since it can
-	// never exceed the length of the normal binary encoding of the value,
-	// keeping the same length for positive and negative portions simplifies
-	// working with the representation and allows extra conditional branches to
-	// be avoided.
-	//
-	// start and end specify the starting and ending index to use within the pos
-	// and neg arrays, respectively.  This allows fixed size arrays to be used
-	// versus needing to dynamically allocate space on the heap.
-	//
-	// NOTE: The fields are defined in the order that they are to minimize the
-	// padding on 32-bit and 64-bit platforms.
-	pos        [33]byte
-	start, end uint8
-	neg        [33]byte
+// Choosing a new window size involves a variety of tradeoffs that must be
+// carefully analyzed.  For example, recoding costs, precomputation costs, and
+// average density.
+const wNAFWidth = 5
+
+// wnaf5RecodeCodes maps the low five bits of an integer to the encoded
+// representative of the width-5 wNAF digit that should be emitted.
+//
+// These values are not the signed digits themselves.  Rather, each is an
+// encoded representative that serves directly as an index into precomputed
+// tables.  See [wnafScalar] for the encoding details.
+//
+// For each odd residue, the represented signed digit is the unique value in
+// {±1, ±3, ±5, ±7, ±9, ±11, ±13, ±15} that is congruent to the residue modulo
+// 32:
+//
+//	residue ≡ digit (mod 32)
+//
+// Thus, subtracting the represented signed digit always produces an integer
+// that is divisible by 32.  This allows the optimized recoding algorithm to
+// skip five one-bit iterations of the canonical algorithm at once.
+//
+// Even residues always map to zero because they are already divisible by two
+// and therefore correspond only to implicit zero digits.
+//
+// The corresponding arithmetic adjustment for each encoded representative is
+// provided by [wnaf5RecodeAdjustments].
+var wnaf5RecodeCodes = [32]uint8{
+	0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8,
+	0, 16, 0, 15, 0, 14, 0, 13, 0, 12, 0, 11, 0, 10, 0, 9,
 }
 
-// Pos returns the bytes of the encoded value with bits set in the positions
-// that represent a signed digit of +1.
-func (s *nafScalar) Pos() []byte {
-	return s.pos[s.start:s.end]
+// wnaf5RecodeAdjustments maps the low five bits of an integer to the signed
+// adjustment that must be added to the working integer before shifting during
+// the width-5 wNAF recoding algorithm.
+//
+// While [wnaf5RecodeCodes] produces the encoded representative that is stored
+// in the resulting wNAF encoding, this table provides the corresponding
+// arithmetic adjustment.  The represented signed digit d satisfies:
+//
+//	residue ≡ d (mod 32)
+//
+// and the recoding algorithm updates the working integer via:
+//
+//	n = (n - d) / 2
+//
+// Rather than subtracting d directly, this table stores -d encoded as an
+// unsigned 64-bit two's complement value.  Negative adjustments therefore
+// appear as values such as:
+//
+//	-1 -> ^uint64(0)
+//	-3 -> ^uint64(2)
+//	-5 -> ^uint64(4)
+//	-7 -> ^uint64(6)
+//	-9 -> ^uint64(8)
+//	-11 -> ^uint64(10)
+//	-13 -> ^uint64(12)
+//	-15 -> ^uint64(14)
+//
+// The adjustment is sign-extended across the upper limbs during the multiword
+// addition which allows the hot loop to remain branch free.
+var wnaf5RecodeAdjustments = [32]uint64{
+	0, ^uint64(0), 0, ^uint64(2), 0, ^uint64(4), 0, ^uint64(6),
+	0, ^uint64(8), 0, ^uint64(10), 0, ^uint64(12), 0, ^uint64(14),
+	0, 15, 0, 13, 0, 11, 0, 9, 0, 7, 0, 5, 0, 3, 0, 1,
 }
 
-// Neg returns the bytes of the encoded value with bits set in the positions
-// that represent a signed digit of -1.
-func (s *nafScalar) Neg() []byte {
-	return s.neg[s.start:s.end]
+// wnafScalar represents a non-negative integer less than 2^129 encoded in
+// width-5 windowed non-adjacent form (wNAF).
+//
+// wNAF is a signed-digit representation where the valid digits are 0, ±1, ±3,
+// ±5, ±7, ±9, ±11, ±13, and ±15.
+//
+// Each entry corresponds to one bit position and encodes the signed digit.
+//
+// The encoding from code to digit is:
+// 0 -> 0
+// 1 -> +1
+// 2 -> +3
+// 3 -> +5
+// 4 -> +7
+// 5 -> +9
+// 6 -> +11
+// 7 -> +13
+// 8 -> +15
+// 9 -> -1
+// 10 -> -3
+// 11 -> -5
+// 12 -> -7
+// 13 -> -9
+// 14 -> -11
+// 15 -> -13
+// 16 -> -15
+//
+// The encoding is intentionally not using a more compact form so that it serves
+// directly as an index into precomputed tables which allows simplification of
+// hot paths.
+//
+// Formally, letting c denote the stored code value, the decoded signed digit
+// d(c) is given by the piecewise function:
+//
+//	       {0,      where c = 0
+//	d(c) = {2c - 1, where 0 < c ≤ 8
+//	       {17 - 2c, where 8 < c ≤ 16
+//
+// The array contains one extra entry because a recoding may produce a carry
+// into an additional most-significant digit.
+type wnafScalar struct {
+	codes [130]uint8
+	bits  uint8
 }
 
-// naf takes a positive integer up to a maximum value of 2^256 - 1 and returns
-// its non-adjacent form (NAF), which is a unique signed-digit representation
-// such that no two consecutive digits are nonzero.  See the documentation for
-// the returned type for details on how the representation is encoded
-// efficiently and how to interpret it
+// wnaf takes a non-negative integer less than 2^129 and returns its width-5
+// windowed non-adjacent form (wNAF) which is a unique signed-digit
+// representation such that non-zero digits are separated by at least 4 zeroes.
+// See [wnafScalar] for details on how the representation is encoded and how to
+// interpret it.
 //
-// NAF is useful in that it has the fewest nonzero digits of any signed digit
-// representation, only 1/3rd of its digits are nonzero on average, and at least
-// half of the digits will be 0.
+// Width-5 wNAF is useful because, on average, only about one in every six
+// digits is non-zero.
 //
-// The aforementioned properties are particularly beneficial for optimizing
-// elliptic curve point multiplication because they effectively minimize the
-// number of required point additions in exchange for needing to perform a mix
-// of fewer point additions and subtractions and possibly one additional point
-// doubling.  This is an excellent tradeoff because subtraction of points has
+// This property is particularly beneficial for optimizing elliptic curve point
+// multiplication because it greatly reduces the number of point additions at
+// the cost of precomputing a few odd multiples of the point and, in the worst
+// case, one additional point doubling due to a carry introduced by the
+// recoding.  This is an excellent tradeoff because subtraction of points has
 // the same computational complexity as addition of points and point doubling is
 // faster than both.
-func naf(k []byte) nafScalar {
-	// Strip leading zero bytes.
-	for len(k) > 0 && k[0] == 0x00 {
-		k = k[1:]
-	}
+func wnaf(k *ModNScalar) wnafScalar {
+	const (
+		// This is intentionally not using the package constant [wNAFWidth] for
+		// the window size for the reasons stated by its documentation.
+		//
+		// In particular, this implementation is carefully optimized for this
+		// specific width and involves assumptions that an arbitrary window size
+		// might violate.
+		//
+		// Using a separate constant helps make it clear that updating the
+		// window size here requires extra care to assert correctness.
+		windowSize = 5
+		windowMask = (1 << windowSize) - 1
+	)
 
-	// The non-adjacent form (NAF) of a positive integer k is an expression
-	// k = ∑_(i=0, l-1) k_i * 2^i where k_i ∈ {0,±1}, k_(l-1) != 0, and no two
-	// consecutive digits k_i are nonzero.
+	// The arithmetic for wNAF recoding is performed over the ordinary integers,
+	// not modulo the curve order.  Moreover, this method is required to be
+	// called with the scalar's balanced integer representative, which is known
+	// to fit within 129 bits.
 	//
-	// The traditional method of computing the NAF of a positive integer is
-	// given by algorithm 3.30 in [GECC].  It consists of repeatedly dividing k
-	// by 2 and choosing the remainder so that the quotient (k−r)/2 is even
-	// which ensures the next NAF digit is 0.  This requires log_2(k) steps.
+	// Consequently, the scalar is first converted to a uint192 with three
+	// 64-bit limbs where the top limb is at most 1.
+	t0, t1, t2 := k.n[0], k.n[1], k.n[2]
+
+	// This implementation is based on the standard width-w NAF recoding
+	// algorithm presented as Algorithm 3.35 in [GECC].  However, it has been
+	// modified to skip runs of zero digits instead of processing one bit at a
+	// time.
 	//
-	// However, in [BRID], Prodinger notes that a closed form expression for the
-	// NAF representation is the bitwise difference 3k/2 - k/2.  This is more
-	// efficient as it can be computed in O(1) versus the O(log(n)) of the
-	// traditional approach.
+	// The optimizations exploit the fact that runs of zero digits are implicit
+	// in the output representation.
 	//
-	// The following code makes use of that formula to compute the NAF more
-	// efficiently.
-	//
-	// To understand the logic here, observe that the only way the NAF has a
-	// nonzero digit at a given bit is when either 3k/2 or k/2 has a bit set in
-	// that position, but not both.  In other words, the result of a bitwise
-	// xor.  This can be seen simply by considering that when the bits are the
-	// same, the subtraction is either 0-0 or 1-1, both of which are 0.
-	//
-	// Further, observe that the "+1" digits in the result are contributed by
-	// 3k/2 while the "-1" digits are from k/2.  So, they can be determined by
-	// taking the bitwise and of each respective value with the result of the
-	// xor which identifies which bits are nonzero.
-	//
-	// Using that information, this loops backwards from the least significant
-	// byte to the most significant byte while performing the aforementioned
-	// calculations by propagating the potential carry and high order bit from
-	// the next word during the right shift.
-	kLen := len(k)
-	var result nafScalar
-	var carry uint8
-	for byteNum := kLen - 1; byteNum >= 0; byteNum-- {
-		// Calculate k/2.  Notice the carry from the previous word is added and
-		// the low order bit from the next word is shifted in accordingly.
-		kc := uint16(k[byteNum]) + uint16(carry)
-		var nextWord uint8
-		if byteNum > 0 {
-			nextWord = k[byteNum-1]
+	// Also, note that the last non-zero bit is initialized to the maximum value
+	// so that adding 1 at the end to account for the exclusive endpoint wraps
+	// around to 0 when no digits are emitted.
+	var result wnafScalar
+	var c uint64
+	var bit uint8
+	var lastNonZeroBit = ^uint8(0)
+	for t0|t1|t2 != 0 {
+		// The next five iterations of the canonical bit-by-bit algorithm would
+		// emit only zero when the low window is zero, so skip directly to the
+		// next window boundary in that case.
+		if residue := uint8(t0 & windowMask); residue != 0 {
+			// Skip the zero digits that the canonical bit-by-bit algorithm
+			// would emit before reaching the next odd value.
+			//
+			// Since 0 < residue < 32, shift is guaranteed to satisfy the
+			// following bounds:
+			//
+			//   0 ≤ shift < 5
+			shift := uint8(bits.TrailingZeros8(residue))
+			t0 = t0>>shift | t1<<(64-shift)
+			t1 = t1>>shift | t2<<(64-shift)
+			t2 >>= shift
+			bit += shift
+
+			residue = uint8(t0 & windowMask)
+			result.codes[bit] = wnaf5RecodeCodes[residue]
+			lastNonZeroBit = bit
+
+			// The selected digit is congruent to the low five bits modulo 32.
+			// Therefore, adding the stored adjustment (which represents the
+			// negation of that digit) makes the value divisible by 32.
+			//
+			// Negative adjustments are stored in two's complement.  Sign
+			// extending the value across the upper limbs allows the multiword
+			// addition to operate without branches.
+			adjustment := wnaf5RecodeAdjustments[residue]
+			signExtended := uint64(int64(adjustment) >> 63)
+			t0, c = bits.Add64(t0, adjustment, 0)
+			t1, c = bits.Add64(t1, signExtended, c)
+			t2, _ = bits.Add64(t2, signExtended, c)
 		}
-		halfK := kc>>1 | uint16(nextWord<<7)
 
-		// Calculate 3k/2 and determine the non-zero digits in the result.
-		threeHalfK := kc + halfK
-		nonZeroResultDigits := threeHalfK ^ halfK
-
-		// Determine the signed digits {0, ±1}.
-		result.pos[byteNum+1] = uint8(threeHalfK & nonZeroResultDigits)
-		result.neg[byteNum+1] = uint8(halfK & nonZeroResultDigits)
-
-		// Propagate the potential carry from the 3k/2 calculation.
-		carry = uint8(threeHalfK >> 8)
+		// Divide by 32 to prepare for the next window.
+		//
+		// The adjustment above guarantees the current value is divisible by 32.
+		t0 = t0>>windowSize | t1<<(64-windowSize)
+		t1 = t1>>windowSize | t2<<(64-windowSize)
+		t2 >>= windowSize
+		bit += windowSize
 	}
-	result.pos[0] = carry
 
-	// Set the starting and ending positions within the fixed size arrays to
-	// identify the bytes that are actually used.  This is important since the
-	// encoding is big endian and thus trailing zero bytes changes its value.
-	result.start = 1 - carry
-	result.end = uint8(kLen + 1)
+	result.bits = lastNonZeroBit + 1
 	return result
+}
+
+// wNAFPrecompTableSize is the size of the wNAF precomputed point table.
+const wNAFPrecompTableSize = 1 << (wNAFWidth - 1)
+
+// wNAFPrecompTable houses the precomputed odd point multiples used during wNAF
+// scalar multiplication.
+//
+// The first half of the table (starting at index 1) contains the positive odd
+// multiples:
+//
+//	P, 3P, 5P, ...
+//
+// While the second half of the table contains the corresponding negatives:
+//
+//	-P, -3P, -5P, ...
+//
+// Entry 0 is intentionally left unused so the encoded wNAF digit can be used
+// directly as an array index.
+type wNAFPrecompTable [wNAFPrecompTableSize + 1]JacobianPoint
+
+// wNAFNegateStart returns the index of the half of a precomputed table whose
+// points must be negated in order to match the sign adjustment made to the
+// corresponding scalar.
+//
+// When the scalar has been negated, the first half is negated so it represents
+// the negative odd multiples while the second half remains positive.
+// Otherwise, the opposite arrangement is used.
+func wNAFNegateStart(isScalarNegated bool) int {
+	if isScalarNegated {
+		return 1
+	}
+	return wNAFPrecompTableSize/2 + 1
+}
+
+// buildOddPrecomputeTables constructs the odd multiple tables for both P and
+// φ(P) and arranges the positive and negative representatives so they can be
+// indexed directly by encoded wNAF digits.
+func buildOddPrecomputeTables(p *JacobianPoint, pTable, phiTable *wNAFPrecompTable, k1Neg, k2Neg bool) {
+	// oddMultiplesPerHalf is the total number of odd multiples in each half of
+	// the table.
+	const oddMultiplesPerHalf = wNAFPrecompTableSize / 2
+
+	// Build the positive odd multiples of P.
+	//
+	// Width-w wNAF only ever emits odd signed digits, so only odd multiples of
+	// the point need to be precomputed.
+	//
+	// Both positive and negative entries are ultimately needed.  The second
+	// half is initially a copy of the positive half and the appropriate half is
+	// negated below depending on the sign of k1.
+	//
+	// The negation is deferred until after the φ(P) table is built because that
+	// table is constructed by applying φ to the corresponding positive odd
+	// multiples of P.
+	var twoP JacobianPoint
+	pTable[1].Set(p)
+	DoubleNonConst(&pTable[1], &twoP)
+	for i := 1; i < oddMultiplesPerHalf; i++ {
+		AddNonConst(&twoP, &pTable[i], &pTable[i+1])
+	}
+	copy(pTable[oddMultiplesPerHalf+1:], pTable[1:oddMultiplesPerHalf+1])
+
+	// Build the corresponding odd multiples of φ(P).
+	//
+	// As above, both positive and negative entries are ultimately needed.  The
+	// sign of this table is chosen independently from the P table because it
+	// depends only on the sign of k2.
+	//
+	// Note that φ is a group homomorphism, so:
+	//
+	//   φ(n*P) = n*φ(P)
+	//
+	// This allows the second table to be obtained by applying φ to each entry
+	// of the first table instead of computing each odd multiple independently.
+	//
+	// NOTE: φ(x,y) = (βx,y).  The Jacobian z coordinates are the same, so this
+	// math goes through.
+	for i := 1; i <= oddMultiplesPerHalf; i++ {
+		phiTable[i].Set(&pTable[i])
+		phiTable[i].X.Mul(endoBeta)
+	}
+	copy(phiTable[oddMultiplesPerHalf+1:], phiTable[1:oddMultiplesPerHalf+1])
+
+	// Negate whichever half of the table corresponds to the sign adjustment
+	// that was applied to k1.
+	//
+	// This maintains the invariant:
+	//
+	//   k1*P = -k1*-P
+	negateStart := wNAFNegateStart(k1Neg)
+	for i := negateStart; i < negateStart+oddMultiplesPerHalf; i++ {
+		pTable[i].Y.Negate(1).Normalize()
+	}
+
+	// Apply the same transformation independently to the φ(P) table based on
+	// the sign adjustment that was applied to k2.
+	//
+	// Similarly, this maintains the invariant:
+	//
+	//   k2*φ(P) = -k2*-φ(P)
+	negateStart = wNAFNegateStart(k2Neg)
+	for i := negateStart; i < negateStart+oddMultiplesPerHalf; i++ {
+		phiTable[i].Y.Negate(1).Normalize()
+	}
 }
 
 // ScalarMultNonConst multiplies k*P where k is a scalar modulo the curve order
@@ -1140,25 +1323,6 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// See section 3.5 in [GECC] for a more rigorous treatment.
 	// -------------------------------------------------------------------------
 
-	// Per above, the main equation here to remember is:
-	//   k*P = k1*P + k2*φ(P)
-	//
-	// p1 below is P in the equation while p2 is φ(P) in the equation.
-	//
-	// NOTE: φ(x,y) = (β*x,y).  The Jacobian z coordinates are the same, so this
-	// math goes through.
-	//
-	// Also, calculate -p1 and -p2 for use in the NAF optimization.
-	p1, p1Neg := new(JacobianPoint), new(JacobianPoint)
-	p1.Set(point)
-	p1Neg.Set(p1)
-	p1Neg.Y.Negate(1).Normalize()
-	p2, p2Neg := new(JacobianPoint), new(JacobianPoint)
-	p2.Set(p1)
-	p2.X.Mul(endoBeta).Normalize()
-	p2Neg.Set(p2)
-	p2Neg.Y.Negate(1).Normalize()
-
 	// Decompose k into k1 and k2 such that k = k1 + k2*λ (mod n) where k1 and
 	// k2 are around half the bit length of k in order to halve the number of EC
 	// operations.
@@ -1170,94 +1334,91 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// which means that when they would otherwise be a small negative magnitude
 	// they will instead be a large positive magnitude.  Since the goal is for
 	// the scalars to have a small magnitude to achieve a performance boost, use
-	// their negation when they are greater than the half order of the group and
-	// flip the positive and negative values of the corresponding point that
-	// will be multiplied by to compensate.
+	// their negation when they are greater than the half order of the group.
+	//
+	// In order to compensate, the positive and negative values of the
+	// corresponding points that will be multiplied by are flipped later.
 	//
 	// In other words, transform the calc when k1 is over the half order to:
 	//   k1*P = -k1*-P
 	//
 	// Similarly, transform the calc when k2 is over the half order to:
 	//   k2*φ(P) = -k2*-φ(P)
+	var k1Neg, k2Neg bool
 	k1, k2 := splitK(k)
 	if k1.IsOverHalfOrder() {
 		k1.Negate()
-		p1, p1Neg = p1Neg, p1
+		k1Neg = true
 	}
 	if k2.IsOverHalfOrder() {
 		k2.Negate()
-		p2, p2Neg = p2Neg, p2
+		k2Neg = true
 	}
 
-	// Convert k1 and k2 into their NAF representations since NAF has a lot more
-	// zeros overall on average which minimizes the number of required point
-	// additions in exchange for a mix of fewer point additions and subtractions
-	// at the cost of one additional point doubling.
+	// Per above, the main equation here to remember is:
+	//   k*P = k1*P + k2*φ(P)
+	//
+	// The simultaneous multiplication therefore needs two sets of precomputed
+	// odd multiples:
+	//
+	//   P, 3P, 5P, ...
+	//
+	// and:
+	//
+	//   φ(P), 3φ(P), 5φ(P), ...
+	var pPrecomps, phiPrecomps wNAFPrecompTable
+	buildOddPrecomputeTables(point, &pPrecomps, &phiPrecomps, k1Neg, k2Neg)
+
+	// Convert k1 and k2 into their windowed NAF representations since they have
+	// a lot more zeroes overall on average which greatly reduces the number of
+	// point additions at the cost of precomputing a few odd multiples of the
+	// point and, in the worst case, one additional point doubling due to a
+	// carry introduced by the recoding.
 	//
 	// This is an excellent tradeoff because subtraction of points has the same
 	// computational complexity as addition of points and point doubling is
 	// faster than both.
 	//
 	// Concretely, on average, 1/2 of all bits will be non-zero with the normal
-	// binary representation whereas only 1/3rd of the bits will be non-zero
-	// with NAF.
-	//
-	// The Pos version of the bytes contain the +1s and the Neg versions contain
-	// the -1s.
-	k1Bytes, k2Bytes := k1.Bytes(), k2.Bytes()
-	k1NAF, k2NAF := naf(k1Bytes[:]), naf(k2Bytes[:])
-	k1PosNAF, k1NegNAF := k1NAF.Pos(), k1NAF.Neg()
-	k2PosNAF, k2NegNAF := k2NAF.Pos(), k2NAF.Neg()
-	k1Len, k2Len := len(k1PosNAF), len(k2PosNAF)
+	// binary representation whereas only 1/6 of the bits will be non-zero with
+	// width-5 wNAF.
+	k1NAF, k2NAF := wnaf(&k1), wnaf(&k2)
 
-	// Add left-to-right using the NAF optimization.  See algorithm 3.77 from
-	// [GECC].
+	// Add left-to-right using the endomorphism and wNAF optimizations.  See
+	// algorithms 3.36 and 3.77 from [GECC].
 	//
 	// Point Q = ∞ (point at infinity).
+	//
+	// Like ordinary binary scalar multiplication, the accumulator is doubled
+	// once per processed bit position.  However, instead of each bit
+	// contributing either 0 or 1 copies of the point, each non-zero wNAF digit
+	// contributes a precomputed odd multiple while the preceding doublings
+	// supply the required power-of-two scaling.
+	//
+	//    ±P, ±3P, ±5P, ...
+	//
+	// Since non-zero digits are sparse and separated by several zero digits,
+	// relatively few point additions are required compared to the ordinary
+	// binary representation.
 	var q JacobianPoint
-	m := k1Len
-	if m < k2Len {
-		m = k2Len
+	maxBits := k1NAF.bits
+	if maxBits < k2NAF.bits {
+		maxBits = k2NAF.bits
 	}
-	for i := 0; i < m; i++ {
-		// Since k1 and k2 are potentially different lengths and the calculation
-		// is being done left to right, pad the front of the shorter one with
-		// 0s.
-		var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
-		if i >= m-k1Len {
-			k1BytePos, k1ByteNeg = k1PosNAF[i-(m-k1Len)], k1NegNAF[i-(m-k1Len)]
-		}
-		if i >= m-k2Len {
-			k2BytePos, k2ByteNeg = k2PosNAF[i-(m-k2Len)], k2NegNAF[i-(m-k2Len)]
+	for bit := maxBits; bit > 0; bit-- {
+		// Q = 2 * Q
+		DoubleNonConst(&q, &q)
+
+		// The encoded wNAF digit of k1 serves directly as an index into the
+		// precomputed odd multiples of P.
+		if code := k1NAF.codes[bit-1]; code != 0 {
+			AddNonConst(&q, &pPrecomps[code], &q)
 		}
 
-		for mask := uint8(1 << 7); mask > 0; mask >>= 1 {
-			// Q = 2 * Q
-			DoubleNonConst(&q, &q)
-
-			// Add or subtract the first point based on the signed digit of the
-			// NAF representation of k1 at this bit position.
-			//
-			// +1: Q = Q + p1
-			// -1: Q = Q - p1
-			//  0: Q = Q (no change)
-			if k1BytePos&mask == mask {
-				AddNonConst(&q, p1, &q)
-			} else if k1ByteNeg&mask == mask {
-				AddNonConst(&q, p1Neg, &q)
-			}
-
-			// Add or subtract the second point based on the signed digit of the
-			// NAF representation of k2 at this bit position.
-			//
-			// +1: Q = Q + p2
-			// -1: Q = Q - p2
-			//  0: Q = Q (no change)
-			if k2BytePos&mask == mask {
-				AddNonConst(&q, p2, &q)
-			} else if k2ByteNeg&mask == mask {
-				AddNonConst(&q, p2Neg, &q)
-			}
+		// Likewise, the encoded wNAF digit of k2 serves directly as an index
+		// into the precomputed odd multiples of φ(P).
+		if code := k2NAF.codes[bit-1]; code != 0 {
+			AddNonConst(&q, &phiPrecomps[code], &q)
 		}
 	}
 
