@@ -9,11 +9,7 @@ from z3_proof_helpers import *
 # Inputs.
 # -------
 
-a0 = BitVec('a0', 64)
-a1 = BitVec('a1', 64)
-a2 = BitVec('a2', 64)
-a3 = BitVec('a3', 64)
-a_full = Concat(a3, a2, a1, a0)
+a0, a1, a2, a3 = BitVecs('a0 a1 a2 a3', 64)
 
 # ---------------
 # Model the code.
@@ -73,7 +69,4 @@ discards.append(discarded)
 # -------
 
 # Discarded carries are never set.
-for idx, discarded in enumerate(discards):
-    s = Solver()
-    s.add(discarded != ZERO)
-    check(s, f"discarded carry {idx} != 0")
+prove_no_discarded_carries(discards)

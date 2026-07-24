@@ -9,14 +9,8 @@ from z3_proof_helpers import *
 # Inputs.
 # -------
 
-a0 = BitVec('a0', 64)
-a1 = BitVec('a1', 64)
-a2 = BitVec('a2', 64)
-a3 = BitVec('a3', 64)
-b0 = BitVec('b0', 64)
-b1 = BitVec('b1', 64)
-b2 = BitVec('b2', 64)
-b3 = BitVec('b3', 64)
+a0, a1, a2, a3 = BitVecs('a0 a1 a2 a3', 64)
+b0, b1, b2, b3 = BitVecs('b0 b1 b2 b3', 64)
 
 # ---------------
 # Model the code.
@@ -99,27 +93,13 @@ q4_saved_3 = q4
 # -------
 
 # Discarded carries are never set.
-for idx, discarded in enumerate(discards):
-    s = Solver()
-    s.add(discarded != ZERO)
-    check(s, f"discarded carry {idx} != 0")
+prove_no_discarded_carries(discards)
 
-# Top limb after row 0 is max 2**64 - 2 (p4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(p4_saved_0, (1<<64) - 2))
-check(s, "top limb after row 0 > 2**64-2")
-
-# Limb 5 after row 1 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_1, (1<<64) - 2))
-check(s, "limb 5 after row 1 > 2**64-2")
-
-# Limb 5 after row 2 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_2, (1<<64) - 2))
-check(s, "limb 5 after row 2 > 2**64-2")
-
-# Limb 5 after row 3 is max 2**64 - 2 (q4 ≤ 2**64 - 2).
-s = Solver()
-s.add(UGT(q4_saved_3, (1<<64) - 2))
-check(s, "limb 5 after row 3 > 2**64-2")
+# Top limb of each of the four rows is max 2**64 - 2.
+#
+# For row 0, that corresponds to: (p4 ≤ 2**64 - 2)
+# For rows 1-3, it corresponds to: (q4 ≤ 2**64 - 2)
+prove(ULE(p4_saved_0, (1<<64) - 2), "top limb after row 0 > 2**64-2")
+prove(ULE(q4_saved_1, (1<<64) - 2), "limb 5 after row 1 > 2**64-2")
+prove(ULE(q4_saved_2, (1<<64) - 2), "limb 5 after row 2 > 2**64-2")
+prove(ULE(q4_saved_3, (1<<64) - 2), "limb 5 after row 3 > 2**64-2")

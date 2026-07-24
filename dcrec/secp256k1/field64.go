@@ -799,9 +799,10 @@ func field64Square512(t *[8]uint64, a *[4]uint64) {
 	// The p5 carry is safe to discard because p5 + h13 + c ≤ 2^64 - 1 (where c
 	// is the carry from p4 + l13).
 	//
-	// A full proof involves case work that is omitted here, but the key point
-	// is that the only way the final add could have a carry is if all 3 of the
-	// following conditions were simultaneously true:
+	// A full proof involves case analysis that is omitted here since the
+	// impossibility of the carry is formally proven in internal/proofs, but the
+	// key point is that the only way the final add could have a carry is if all
+	// 3 of the following conditions were simultaneously true:
 	//
 	// 1) p5_old = 1 (the carry from the earlier chain, so ≤ 1)
 	// 2) h13 = 2^64 - 2 (h13 ≤ 2^64 - 2 as proven previously)
@@ -856,9 +857,9 @@ func field64Square512(t *[8]uint64, a *[4]uint64) {
 // field64Reduce512 reduces a 512-bit little-endian limb array modulo p in
 // constant time and stores the result in r.
 func field64Reduce512(r *[4]uint64, x *[8]uint64) {
-	// The intermediate bounds and carry assumptions used by this algorithm have
-	// been formally verified.  The verification artifacts are available in
-	// internal/proofs.
+	// This algorithm has been formally verified, including its intermediate
+	// bounds, carry assumptions, and functional correctness.  The verification
+	// artifacts are available in internal/proofs.
 
 	// Per [HAC] section 14.3.4: Reduction method of moduli of special form,
 	// when the modulus is of the special form m = b^t - c, highly efficient
@@ -891,14 +892,15 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 
 	h, t0 = bits.Mul64(x[4], field64PrimeComplement)
 
-	// Note that since hi is the upper 64 bits of the product of two uint64s:
-	//   h3 ≤ floor((2^64-1)^2 / 2^64) = 2^64 - 2
+	// Note that since hi is the upper 64 bits of the product of a uint64 with
+	// c and c < 2^33:
+	//   hi ≤ floor((2^64-1)(2^33 - 1) / 2^64) = 2^33 - 2
 	//
-	// Then, because c ≤ 1, a loose bound is:
-	//   p4 ≤ h3 + 1 = 2^64 - 1 < 2^64
+	// Then, because carry ≤ 1, a loose bound for h is:
+	//   h ≤ hi + 1 = 2^33 - 1 < 2^64
 	//
 	// Therefore, it is safe to discard the carry and the same applies to the
-	// next two limbs.
+	// next two limbs (second h and first t4).
 	hi, lo = bits.Mul64(x[5], field64PrimeComplement)
 	t1, carry = bits.Add64(lo, h, 0)
 	h, _ = bits.Add64(hi, 0, carry)
