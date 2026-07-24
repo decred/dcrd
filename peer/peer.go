@@ -36,6 +36,12 @@ const (
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
 
+	// maxQueuedOutputBytes is the maximum number of bytes queued for delivery
+	// to a single peer. A peer whose queued bytes exceed this will be
+	// disconnected. The value is chosen to comfortably exceed the largest
+	// single message.
+	maxQueuedOutputBytes = 40 * 1024 * 1024 // 40 MiB
+
 	// maxInvTrickleSize is the maximum amount of inventory to send in a single
 	// message when trickling inventory to remote peers.
 	maxInvTrickleSize = 1000
@@ -456,6 +462,7 @@ type Peer struct {
 	// The following variables must only be used atomically.
 	bytesReceived uint64
 	bytesSent     uint64
+	bytesQueued   int64 // total serialized bytes currently queued for send
 	lastRecv      int64
 	lastSend      int64
 	disconnect    int32
@@ -1746,11 +1753,12 @@ out:
 				continue
 			}
 
-			// At this point, the message was successfully sent, so
-			// update the last send time, signal the sender of the
-			// message that it has been sent (if requested), and
-			// signal the send queue to the deliver the next queued
-			// message.
+			// At this point the message was successfully sent, so deduct from
+			// the bytes queued for this peer, update the last send time, signal
+			// the sender of the message that it has been sent (if requested),
+			// and signal the send queue to the deliver the next queued message.
+			msgSize := int64(wire.MessageHeaderSize + msg.msg.SerializeSize())
+			atomic.AddInt64(&p.bytesQueued, -msgSize)
 			atomic.StoreInt64(&p.lastSend, time.Now().Unix())
 			if msg.doneChan != nil {
 				msg.doneChan <- struct{}{}
@@ -1820,6 +1828,22 @@ func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
 		}
 		return
 	}
+
+	// Limit the total serialized bytes queued for this peer. Disconnect the
+	// peer if it exceeds the limit.
+	msgSize := int64(wire.MessageHeaderSize + msg.SerializeSize())
+	if atomic.AddInt64(&p.bytesQueued, msgSize) > maxQueuedOutputBytes {
+		log.Debugf("Disconnecting peer %s: queued output exceeds %d bytes", p,
+			maxQueuedOutputBytes)
+		p.Disconnect()
+		if doneChan != nil {
+			go func() {
+				doneChan <- struct{}{}
+			}()
+		}
+		return
+	}
+
 	p.outputQueue <- outMsg{msg: msg, doneChan: doneChan}
 }
 
