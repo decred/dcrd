@@ -166,6 +166,13 @@ func TestMsgMixPairReqWire(t *testing.T) {
 
 	assertSerializationEqual(t, buf.Bytes(), expected)
 
+	// Ensure the serialize size is the actual encoded size.
+	sz := pr.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
+	}
+
 	decodedPR := new(MsgMixPairReq)
 	err = decodedPR.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
 	if err != nil {

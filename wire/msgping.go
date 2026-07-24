@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,6 +55,13 @@ func (msg *MsgPing) MaxPayloadLength(pver uint32) uint32 {
 	plen += 8
 
 	return plen
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgPing) SerializeSize() int {
+	// Nonce 8 bytes.
+	return 8
 }
 
 // NewMsgPing returns a new Decred ping message that conforms to the Message

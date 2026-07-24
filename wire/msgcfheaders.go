@@ -176,6 +176,16 @@ func (msg *MsgCFHeaders) MaxPayloadLength(pver uint32) uint32 {
 		(MaxCFHeaderPayload * MaxCFHeadersPerMsg)
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgCFHeaders) SerializeSize() int {
+	// Stop hash + filter type 1 byte + num headers (varInt) + (header hash
+	// size * num headers).
+	return chainhash.HashSize + 1 +
+		VarIntSerializeSize(uint64(len(msg.HeaderHashes))) +
+		len(msg.HeaderHashes)*MaxCFHeaderPayload
+}
+
 // NewMsgCFHeaders returns a new cfheaders message that conforms to the Message
 // interface. See MsgCFHeaders for details.
 //

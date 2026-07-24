@@ -36,6 +36,12 @@ const (
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
 
+	// maxQueuedOutputBytes is the maximum number of bytes queued for delivery
+	// to a single peer. A peer whose queued bytes exceed this will be
+	// disconnected. The value is chosen to comfortably exceed the largest
+	// single message.
+	maxQueuedOutputBytes = 40 * 1024 * 1024 // 40 MiB
+
 	// maxInvTrickleSize is the maximum amount of inventory to send in a single
 	// message when trickling inventory to remote peers.
 	maxInvTrickleSize = 1000
@@ -76,6 +82,19 @@ const (
 	// pingInterval is the interval of time to wait in between sending ping
 	// messages.
 	pingInterval = defaultIdleTimeout - 13*time.Second
+
+	// writeStallTimeout is the base amount of time a single message write is
+	// allowed to take before the peer is considered stalled and disconnected.
+	// A size-proportional allowance (see writeStallMinRate) is added to it so
+	// that larger messages are afforded proportionally more time.
+	writeStallTimeout = 20 * time.Second
+
+	// writeStallMinRate is the assumed minimum sustained write rate, in bytes
+	// per second, used together with writeStallTimeout, to derive the write
+	// deadline for a message.  At this rate the largest possible message (32
+	// MiB) is afforded roughly an additional two minutes on top of the base
+	// timeout.
+	writeStallMinRate = 256 * 1024 // 256 KiB
 )
 
 var (
@@ -456,6 +475,7 @@ type Peer struct {
 	// The following variables must only be used atomically.
 	bytesReceived uint64
 	bytesSent     uint64
+	bytesQueued   int64 // total serialized bytes currently queued for send
 	lastRecv      int64
 	lastSend      int64
 	disconnect    int32
@@ -993,6 +1013,16 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 		if err == nil {
 			log.Trace(spew.Sdump(buf.Bytes()))
 		}
+	}
+
+	// Limit how long the write is allowed to block. A base timeout plus an
+	// allowance proportional to the message size affords larger messages
+	// proportionally more time.
+	msgSize := wire.MessageHeaderSize + msg.SerializeSize()
+	allowance := time.Duration(msgSize/writeStallMinRate) * time.Second
+	deadline := time.Now().Add(writeStallTimeout + allowance)
+	if err := p.conn.SetWriteDeadline(deadline); err != nil {
+		return err
 	}
 
 	// Write the message to the peer.
@@ -1746,11 +1776,12 @@ out:
 				continue
 			}
 
-			// At this point, the message was successfully sent, so
-			// update the last send time, signal the sender of the
-			// message that it has been sent (if requested), and
-			// signal the send queue to the deliver the next queued
-			// message.
+			// At this point the message was successfully sent, so deduct from
+			// the bytes queued for this peer, update the last send time, signal
+			// the sender of the message that it has been sent (if requested),
+			// and signal the send queue to the deliver the next queued message.
+			msgSize := int64(wire.MessageHeaderSize + msg.msg.SerializeSize())
+			atomic.AddInt64(&p.bytesQueued, -msgSize)
 			atomic.StoreInt64(&p.lastSend, time.Now().Unix())
 			if msg.doneChan != nil {
 				msg.doneChan <- struct{}{}
@@ -1820,6 +1851,22 @@ func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
 		}
 		return
 	}
+
+	// Limit the total serialized bytes queued for this peer. Disconnect the
+	// peer if it exceeds the limit.
+	msgSize := int64(wire.MessageHeaderSize + msg.SerializeSize())
+	if atomic.AddInt64(&p.bytesQueued, msgSize) > maxQueuedOutputBytes {
+		log.Debugf("Disconnecting peer %s: queued output exceeds %d bytes", p,
+			maxQueuedOutputBytes)
+		p.Disconnect()
+		if doneChan != nil {
+			go func() {
+				doneChan <- struct{}{}
+			}()
+		}
+		return
+	}
+
 	p.outputQueue <- outMsg{msg: msg, doneChan: doneChan}
 }
 

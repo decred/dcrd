@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -42,6 +42,13 @@ func TestMemPool(t *testing.T) {
 	err := msg.BtcEncode(&buf, pver)
 	if err != nil {
 		t.Errorf("encode of MsgMemPool failed %v err <%v>", msg, err)
+	}
+
+	// Ensure the serialize size is the actual encoded size.
+	sz := msg.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
 	}
 
 	// Test decode with latest protocol version.

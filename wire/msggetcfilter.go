@@ -70,6 +70,13 @@ func (msg *MsgGetCFilter) MaxPayloadLength(pver uint32) uint32 {
 	return chainhash.HashSize + 1
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetCFilter) SerializeSize() int {
+	// Block hash + filter type.
+	return chainhash.HashSize + 1
+}
+
 // NewMsgGetCFilter returns a new getcfilter message that conforms to the
 // Message interface using the passed parameters and defaults for the remaining
 // fields.

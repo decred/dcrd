@@ -100,6 +100,7 @@ type Message interface {
 	BtcEncode(io.Writer, uint32) error
 	Command() string
 	MaxPayloadLength(uint32) uint32
+	SerializeSize() int
 }
 
 // makeEmptyMessage creates a message of the appropriate concrete type based

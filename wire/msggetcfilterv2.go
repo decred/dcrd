@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,6 +56,13 @@ func (msg *MsgGetCFilterV2) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgGetCFilterV2) MaxPayloadLength(pver uint32) uint32 {
+	// Block hash.
+	return chainhash.HashSize
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetCFilterV2) SerializeSize() int {
 	// Block hash.
 	return chainhash.HashSize
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -60,6 +60,13 @@ func (msg *MsgGetCFsV2) Command() string {
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgGetCFsV2) MaxPayloadLength(pver uint32) uint32 {
 	// Block hash.
+	return chainhash.HashSize * 2
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetCFsV2) SerializeSize() int {
+	// Start hash + end hash.
 	return chainhash.HashSize * 2
 }
 
