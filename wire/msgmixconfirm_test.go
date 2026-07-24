@@ -69,6 +69,13 @@ func TestMsgMixConfirmWire(t *testing.T) {
 
 	assertSerializationEqual(t, buf.Bytes(), expected)
 
+	// Ensure the serialize size is the actual encoded size.
+	sz := cm.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
+	}
+
 	decodedCM := new(MsgMixConfirm)
 	err = decodedCM.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
 	if err != nil {

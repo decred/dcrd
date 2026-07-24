@@ -1,5 +1,4 @@
-// Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2026 The Decred developers
+// Copyright (c) 2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,19 +12,19 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-// TestVerAck tests the MsgVerAck API.
-func TestVerAck(t *testing.T) {
+// TestGetMiningState tests the MsgGetMiningState API.
+func TestGetMiningState(t *testing.T) {
 	pver := ProtocolVersion
 
 	// Ensure the command is expected value.
-	wantCmd := "verack"
-	msg := NewMsgVerAck()
+	wantCmd := "getminings"
+	msg := NewMsgGetMiningState()
 	if cmd := msg.Command(); cmd != wantCmd {
-		t.Errorf("NewMsgVerAck: wrong command - got %v want %v",
+		t.Errorf("NewMsgGetMiningState: wrong command - got %v want %v",
 			cmd, wantCmd)
 	}
 
-	// Ensure max payload is expected value.
+	// Ensure max payload is expected value for latest protocol version.
 	wantPayload := uint32(0)
 	maxPayload := msg.MaxPayloadLength(pver)
 	if maxPayload != wantPayload {
@@ -42,23 +41,23 @@ func TestVerAck(t *testing.T) {
 	}
 }
 
-// TestVerAckWire tests the MsgVerAck wire encode and decode for various
-// protocol versions.
-func TestVerAckWire(t *testing.T) {
-	msgVerAck := NewMsgVerAck()
-	msgVerAckEncoded := []byte{}
+// TestGetMiningStateWire tests the MsgGetMiningState wire encode and decode for
+// various protocol versions.
+func TestGetMiningStateWire(t *testing.T) {
+	msgGetMiningState := NewMsgGetMiningState()
+	msgGetMiningStateEncoded := []byte{}
 
 	tests := []struct {
-		in   *MsgVerAck // Message to encode
-		out  *MsgVerAck // Expected decoded message
-		buf  []byte     // Wire encoding
-		pver uint32     // Protocol version for wire encoding
+		in   *MsgGetMiningState // Message to encode
+		out  *MsgGetMiningState // Expected decoded message
+		buf  []byte             // Wire encoding
+		pver uint32             // Protocol version for wire encoding
 	}{
 		// Latest protocol version.
 		{
-			msgVerAck,
-			msgVerAck,
-			msgVerAckEncoded,
+			msgGetMiningState,
+			msgGetMiningState,
+			msgGetMiningStateEncoded,
 			ProtocolVersion,
 		},
 	}
@@ -87,7 +86,7 @@ func TestVerAckWire(t *testing.T) {
 		}
 
 		// Decode the message from wire format.
-		var msg MsgVerAck
+		var msg MsgGetMiningState
 		rbuf := bytes.NewReader(test.buf)
 		err = msg.BtcDecode(rbuf, test.pver)
 		if err != nil {

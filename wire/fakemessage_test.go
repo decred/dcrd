@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -53,4 +53,10 @@ func (msg *fakeMessage) MaxPayloadLength(pver uint32) uint32 {
 	}
 
 	return lenp
+}
+
+// SerializeSize returns the length of the payload field of the fake message.
+// It satisfies the Message interface.
+func (msg *fakeMessage) SerializeSize() int {
+	return len(msg.payload)
 }

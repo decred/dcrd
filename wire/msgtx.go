@@ -1048,7 +1048,7 @@ func (msg *MsgTx) BytesWitness() ([]byte, error) {
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
-// transaction.
+// transaction.  This is part of the Message interface implementation.
 func (msg *MsgTx) SerializeSize() int {
 	// Unknown type return 0.
 	n := 0
