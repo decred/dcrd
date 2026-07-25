@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -63,7 +63,7 @@ func TestGetCFTypes(t *testing.T) {
 // protocol versions.
 func TestGetCFTypesWire(t *testing.T) {
 	msgGetCFTypes := NewMsgGetCFTypes()
-	msgGetCFTypesEncoded := []byte{}
+	var msgGetCFTypesEncoded []byte
 
 	tests := []struct {
 		in   *MsgGetCFTypes // Message to encode
