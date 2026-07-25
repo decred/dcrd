@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math/bits"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
 )
 
 // References:
@@ -137,10 +139,10 @@ func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 	// Constant-time select.
 	//
 	// Set f = f when f < p (aka borrow is set).  Otherwise f = s = f - p.
-	f.n[0] = constantTimeSelect64(borrow, f.n[0], s0)
-	f.n[1] = constantTimeSelect64(borrow, f.n[1], s1)
-	f.n[2] = constantTimeSelect64(borrow, f.n[2], s2)
-	f.n[3] = constantTimeSelect64(borrow, f.n[3], s3)
+	f.n[0] = arith.ConstantTimeSelect64(borrow, f.n[0], s0)
+	f.n[1] = arith.ConstantTimeSelect64(borrow, f.n[1], s1)
+	f.n[2] = arith.ConstantTimeSelect64(borrow, f.n[2], s2)
+	f.n[3] = arith.ConstantTimeSelect64(borrow, f.n[3], s3)
 	return uint32(1 - borrow)
 }
 
@@ -158,7 +160,7 @@ func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 // overflow behavior.
 func (f *FieldVal64) SetByteSlice(b []byte) bool {
 	var b32 [32]byte
-	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	b = b[:arith.ConstantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
 	result := f.SetBytes(&b32)
@@ -220,7 +222,7 @@ func (f *FieldVal64) Bytes() *[32]byte {
 // operations require a numeric value.  See IsZero for the version that returns
 // a bool.
 func (f *FieldVal64) IsZeroBit() uint32 {
-	return constantTimeEq64(f.n[0]|f.n[1]|f.n[2]|f.n[3], 0)
+	return arith.ConstantTimeEq64(f.n[0]|f.n[1]|f.n[2]|f.n[3], 0)
 }
 
 // IsZero returns whether or not the field value is equal to zero in constant
@@ -240,7 +242,7 @@ func (f *FieldVal64) IsOneBit() uint32 {
 	// The value can only be one if the single lowest significant bit is set in
 	// the first word and no other bits are set in any of the other words.
 	// This is a constant time implementation.
-	return constantTimeEq64((f.n[0]^1)|f.n[1]|f.n[2]|f.n[3], 0)
+	return arith.ConstantTimeEq64((f.n[0]^1)|f.n[1]|f.n[2]|f.n[3], 0)
 }
 
 // IsOne returns whether or not the field value is equal to one in constant
@@ -389,10 +391,10 @@ func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
 	// Set f = t = a+b only when there was no overflow and t < p (borrow set).
 	// Otherwise f = s = a+b - p.
 	cond := (1 - overflow) & borrow
-	f.n[0] = constantTimeSelect64(cond, t0, s0)
-	f.n[1] = constantTimeSelect64(cond, t1, s1)
-	f.n[2] = constantTimeSelect64(cond, t2, s2)
-	f.n[3] = constantTimeSelect64(cond, t3, s3)
+	f.n[0] = arith.ConstantTimeSelect64(cond, t0, s0)
+	f.n[1] = arith.ConstantTimeSelect64(cond, t1, s1)
+	f.n[2] = arith.ConstantTimeSelect64(cond, t2, s2)
+	f.n[3] = arith.ConstantTimeSelect64(cond, t3, s3)
 	return f
 }
 
@@ -943,10 +945,10 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
 	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
 	_, borrow = bits.Sub64(t4, 0, borrow)
-	r[0] = constantTimeSelect64(borrow, t0, s0)
-	r[1] = constantTimeSelect64(borrow, t1, s1)
-	r[2] = constantTimeSelect64(borrow, t2, s2)
-	r[3] = constantTimeSelect64(borrow, t3, s3)
+	r[0] = arith.ConstantTimeSelect64(borrow, t0, s0)
+	r[1] = arith.ConstantTimeSelect64(borrow, t1, s1)
+	r[2] = arith.ConstantTimeSelect64(borrow, t2, s2)
+	r[3] = arith.ConstantTimeSelect64(borrow, t3, s3)
 }
 
 // Inverse finds the modular multiplicative inverse of the field value in

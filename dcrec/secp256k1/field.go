@@ -6,6 +6,12 @@
 
 package secp256k1
 
+import (
+	"encoding/hex"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
+)
+
 // References:
 //   [HAC]: Handbook of Applied Cryptography Menezes, van Oorschot, Vanstone.
 //     https://cacr.uwaterloo.ca/hac/
@@ -58,10 +64,6 @@ package secp256k1
 // Since it is so important that the field arithmetic is extremely fast for high
 // performance crypto, this type does not perform any validation where it
 // ordinarily would.  See the documentation for [FieldVal] for more details.
-
-import (
-	"encoding/hex"
-)
 
 // Constants used to make the code more readable.
 const (
@@ -283,17 +285,17 @@ func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
 	//
 	// Thus, there is no need to test if the upper words of the field value
 	// exceeds them, hence, only equality is checked for them.
-	highWordsEq := constantTimeEq(f.n[9], fieldPrimeWordNine)
-	highWordsEq &= constantTimeEq(f.n[8], fieldPrimeWordEight)
-	highWordsEq &= constantTimeEq(f.n[7], fieldPrimeWordSeven)
-	highWordsEq &= constantTimeEq(f.n[6], fieldPrimeWordSix)
-	highWordsEq &= constantTimeEq(f.n[5], fieldPrimeWordFive)
-	highWordsEq &= constantTimeEq(f.n[4], fieldPrimeWordFour)
-	highWordsEq &= constantTimeEq(f.n[3], fieldPrimeWordThree)
-	highWordsEq &= constantTimeEq(f.n[2], fieldPrimeWordTwo)
-	overflow := highWordsEq & constantTimeGreater(f.n[1], fieldPrimeWordOne)
-	highWordsEq &= constantTimeEq(f.n[1], fieldPrimeWordOne)
-	overflow |= highWordsEq & constantTimeGreaterOrEq(f.n[0], fieldPrimeWordZero)
+	highWordsEq := arith.ConstantTimeEq(f.n[9], fieldPrimeWordNine)
+	highWordsEq &= arith.ConstantTimeEq(f.n[8], fieldPrimeWordEight)
+	highWordsEq &= arith.ConstantTimeEq(f.n[7], fieldPrimeWordSeven)
+	highWordsEq &= arith.ConstantTimeEq(f.n[6], fieldPrimeWordSix)
+	highWordsEq &= arith.ConstantTimeEq(f.n[5], fieldPrimeWordFive)
+	highWordsEq &= arith.ConstantTimeEq(f.n[4], fieldPrimeWordFour)
+	highWordsEq &= arith.ConstantTimeEq(f.n[3], fieldPrimeWordThree)
+	highWordsEq &= arith.ConstantTimeEq(f.n[2], fieldPrimeWordTwo)
+	overflow := highWordsEq & arith.ConstantTimeGreater(f.n[1], fieldPrimeWordOne)
+	highWordsEq &= arith.ConstantTimeEq(f.n[1], fieldPrimeWordOne)
+	overflow |= highWordsEq & arith.ConstantTimeGreaterOrEq(f.n[0], fieldPrimeWordZero)
 
 	return overflow
 }
@@ -316,7 +318,7 @@ func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
 //	Output Max Magnitude: 1
 func (f *FieldVal) SetByteSlice(b []byte) bool {
 	var b32 [32]byte
-	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	b = b[:arith.ConstantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
 	result := f.SetBytes(&b32)
@@ -393,9 +395,9 @@ func (f *FieldVal) Normalize() *FieldVal {
 	//
 	// Also note that 'm' will be zero when neither of the aforementioned
 	// conditions are true and the value will not be changed when 'm' is zero.
-	m = constantTimeEq(t9, fieldMSBMask)
-	m &= constantTimeEq(t8&t7&t6&t5&t4&t3&t2, fieldBaseMask)
-	m &= constantTimeGreater(t1+64+((t0+977)>>fieldBase), fieldBaseMask)
+	m = arith.ConstantTimeEq(t9, fieldMSBMask)
+	m &= arith.ConstantTimeEq(t8&t7&t6&t5&t4&t3&t2, fieldBaseMask)
+	m &= arith.ConstantTimeGreater(t1+64+((t0+977)>>fieldBase), fieldBaseMask)
 	m |= t9 >> fieldMSBBits
 	t0 += m * 977
 	t1 = (t0 >> fieldBase) + t1 + (m << 6)
@@ -532,7 +534,7 @@ func (f *FieldVal) IsZeroBit() uint32 {
 	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
 		f.n[5] | f.n[6] | f.n[7] | f.n[8] | f.n[9]
 
-	return constantTimeEq(bits, 0)
+	return arith.ConstantTimeEq(bits, 0)
 }
 
 // IsZero returns whether or not the field value is equal to zero in constant
@@ -566,7 +568,7 @@ func (f *FieldVal) IsOneBit() uint32 {
 	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
 		f.n[6] | f.n[7] | f.n[8] | f.n[9]
 
-	return constantTimeEq(bits, 0)
+	return arith.ConstantTimeEq(bits, 0)
 }
 
 // IsOne returns whether or not the field value is equal to one in constant
@@ -1741,25 +1743,25 @@ func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	// The intuition here is that the value is greater than field prime minus
 	// the group order if one of the higher individual words is greater than the
 	// corresponding word and all higher words in the value are equal.
-	result := constantTimeGreater(f.n[9], pMinusNWordNine)
-	highWordsEqual := constantTimeEq(f.n[9], pMinusNWordNine)
-	result |= highWordsEqual & constantTimeGreater(f.n[8], pMinusNWordEight)
-	highWordsEqual &= constantTimeEq(f.n[8], pMinusNWordEight)
-	result |= highWordsEqual & constantTimeGreater(f.n[7], pMinusNWordSeven)
-	highWordsEqual &= constantTimeEq(f.n[7], pMinusNWordSeven)
-	result |= highWordsEqual & constantTimeGreater(f.n[6], pMinusNWordSix)
-	highWordsEqual &= constantTimeEq(f.n[6], pMinusNWordSix)
-	result |= highWordsEqual & constantTimeGreater(f.n[5], pMinusNWordFive)
-	highWordsEqual &= constantTimeEq(f.n[5], pMinusNWordFive)
-	result |= highWordsEqual & constantTimeGreater(f.n[4], pMinusNWordFour)
-	highWordsEqual &= constantTimeEq(f.n[4], pMinusNWordFour)
-	result |= highWordsEqual & constantTimeGreater(f.n[3], pMinusNWordThree)
-	highWordsEqual &= constantTimeEq(f.n[3], pMinusNWordThree)
-	result |= highWordsEqual & constantTimeGreater(f.n[2], pMinusNWordTwo)
-	highWordsEqual &= constantTimeEq(f.n[2], pMinusNWordTwo)
-	result |= highWordsEqual & constantTimeGreater(f.n[1], pMinusNWordOne)
-	highWordsEqual &= constantTimeEq(f.n[1], pMinusNWordOne)
-	result |= highWordsEqual & constantTimeGreaterOrEq(f.n[0], pMinusNWordZero)
+	result := arith.ConstantTimeGreater(f.n[9], pMinusNWordNine)
+	highWordsEqual := arith.ConstantTimeEq(f.n[9], pMinusNWordNine)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[8], pMinusNWordEight)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[8], pMinusNWordEight)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[7], pMinusNWordSeven)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[7], pMinusNWordSeven)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[6], pMinusNWordSix)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[6], pMinusNWordSix)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[5], pMinusNWordFive)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[5], pMinusNWordFive)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[4], pMinusNWordFour)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[4], pMinusNWordFour)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[3], pMinusNWordThree)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[3], pMinusNWordThree)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[2], pMinusNWordTwo)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[2], pMinusNWordTwo)
+	result |= highWordsEqual & arith.ConstantTimeGreater(f.n[1], pMinusNWordOne)
+	highWordsEqual &= arith.ConstantTimeEq(f.n[1], pMinusNWordOne)
+	result |= highWordsEqual & arith.ConstantTimeGreaterOrEq(f.n[0], pMinusNWordZero)
 
 	return result != 0
 }

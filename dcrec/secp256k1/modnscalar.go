@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"math/bits"
 	"sync"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
 )
 
 // References:
@@ -169,7 +171,7 @@ func (s *ModNScalar) Zero() {
 // operations require a numeric value.  See [ModNScalar.IsZero] for the version
 // that returns a bool.
 func (s *ModNScalar) IsZeroBit() uint32 {
-	return constantTimeEq64(s.n[0]|s.n[1]|s.n[2]|s.n[3], 0)
+	return arith.ConstantTimeEq64(s.n[0]|s.n[1]|s.n[2]|s.n[3], 0)
 }
 
 // IsZero returns whether or not the scalar is equal to zero in constant time.
@@ -228,10 +230,10 @@ func (s *ModNScalar) SetBytes(b *[32]byte) uint32 {
 	// Constant-time select.
 	//
 	// Set s = s when s < N (aka borrow is set).  Otherwise s = t = s - N.
-	s.n[0] = constantTimeSelect64(borrow, s.n[0], t0)
-	s.n[1] = constantTimeSelect64(borrow, s.n[1], t1)
-	s.n[2] = constantTimeSelect64(borrow, s.n[2], t2)
-	s.n[3] = constantTimeSelect64(borrow, s.n[3], t3)
+	s.n[0] = arith.ConstantTimeSelect64(borrow, s.n[0], t0)
+	s.n[1] = arith.ConstantTimeSelect64(borrow, s.n[1], t1)
+	s.n[2] = arith.ConstantTimeSelect64(borrow, s.n[2], t2)
+	s.n[3] = arith.ConstantTimeSelect64(borrow, s.n[3], t3)
 	return uint32(1 - borrow)
 }
 
@@ -255,7 +257,7 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 	// Always copy a total of 32 bytes regardless of the input length to avoid
 	// introducing data-dependent timing.
 	var b32 [32]byte
-	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	b = b[:arith.ConstantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
 	result := s.SetBytes(&b32)
@@ -362,10 +364,10 @@ func (s *ModNScalar) Add2(a, b *ModNScalar) *ModNScalar {
 	// Set s = t = a+b only when there was no overflow and t < N (borrow set).
 	// Otherwise s = u = a+b - N.
 	cond := (1 - overflow) & borrow
-	s.n[0] = constantTimeSelect64(cond, t0, u0)
-	s.n[1] = constantTimeSelect64(cond, t1, u1)
-	s.n[2] = constantTimeSelect64(cond, t2, u2)
-	s.n[3] = constantTimeSelect64(cond, t3, u3)
+	s.n[0] = arith.ConstantTimeSelect64(cond, t0, u0)
+	s.n[1] = arith.ConstantTimeSelect64(cond, t1, u1)
+	s.n[2] = arith.ConstantTimeSelect64(cond, t2, u2)
+	s.n[3] = arith.ConstantTimeSelect64(cond, t3, u3)
 	return s
 }
 
@@ -731,10 +733,10 @@ func scalar64Reduce512(r *[4]uint64, x *[8]uint64) {
 	//
 	// Set r = t only when t < N (borrow set).
 	// Otherwise r = s = t - N.
-	r[0] = constantTimeSelect64(borrow, t0, s0)
-	r[1] = constantTimeSelect64(borrow, t1, s1)
-	r[2] = constantTimeSelect64(borrow, t2, s2)
-	r[3] = constantTimeSelect64(borrow, t3, s3)
+	r[0] = arith.ConstantTimeSelect64(borrow, t0, s0)
+	r[1] = arith.ConstantTimeSelect64(borrow, t1, s1)
+	r[2] = arith.ConstantTimeSelect64(borrow, t2, s2)
+	r[3] = arith.ConstantTimeSelect64(borrow, t3, s3)
 }
 
 // Mul2 multiplies the passed two scalars together modulo the group order in
@@ -799,7 +801,8 @@ func (s *ModNScalar) NegateVal(val *ModNScalar) *ModNScalar {
 	// being about 3-4% slower on 64-bit hardware.
 	//
 	// Determine mask first to allow aliasing.
-	mask := -uint64(constantTimeNotEq64(val.n[0]|val.n[1]|val.n[2]|val.n[3], 0))
+	combinedLimbs := val.n[0] | val.n[1] | val.n[2] | val.n[3]
+	mask := -uint64(arith.ConstantTimeNotEq64(combinedLimbs, 0))
 
 	// Unconditionally subtract the scalar from the group order.
 	//
