@@ -223,20 +223,10 @@ func (msg *MsgAddrV2) Command() string {
 	return CmdAddrV2
 }
 
-// maxNetAddressPayloadV2 returns the max payload size for a network address
-// based on the protocol version.
-func maxNetAddressPayloadV2() uint32 {
-	const (
-		timestampSize   = 8
-		servicesSize    = 8
-		addressTypeSize = 1
-		portSize        = 2
-	)
-
-	const maxAddressSize = 32 // TorV3 is a 32-byte pubkey
-	return timestampSize + servicesSize + addressTypeSize + maxAddressSize +
-		portSize
-}
+// maxNetAddressPayloadV2 returns the max payload size for a NetAddressV2.
+// Timestamp 8 bytes + services 8 bytes + address type 1 byte +
+// TorV3 address 32 bytes + port 2 bytes.
+const maxNetAddressPayloadV2 = 51
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
@@ -245,7 +235,18 @@ func (msg *MsgAddrV2) MaxPayloadLength(pver uint32) uint32 {
 		return 0
 	}
 	return uint32(VarIntSerializeSize(MaxAddrPerV2Msg)) +
-		(MaxAddrPerV2Msg * maxNetAddressPayloadV2())
+		(MaxAddrPerV2Msg * maxNetAddressPayloadV2)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgAddrV2) SerializeSize() int {
+	// Num addresses (varInt) + total size of the addresses.
+	n := VarIntSerializeSize(uint64(len(msg.AddrList)))
+	for i := range msg.AddrList {
+		n += msg.AddrList[i].SerializeSize()
+	}
+	return n
 }
 
 // NewMsgAddrV2 returns a new wire addrv2 message that conforms to the

@@ -116,6 +116,14 @@ func (msg *MsgInv) MaxPayloadLength(pver uint32) uint32 {
 		maxInvVectPayload)
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgInv) SerializeSize() int {
+	// Num inventory vectors (varInt) + total size of the inventory vectors.
+	return VarIntSerializeSize(uint64(len(msg.InvList))) +
+		len(msg.InvList)*maxInvVectPayload
+}
+
 // NewMsgInv returns a new Decred inv message that conforms to the Message
 // interface.  See MsgInv for details.
 func NewMsgInv() *MsgInv {

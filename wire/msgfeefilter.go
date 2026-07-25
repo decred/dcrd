@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,6 +55,13 @@ func (msg *MsgFeeFilter) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgFeeFilter) MaxPayloadLength(pver uint32) uint32 {
+	// 8 bytes min fee.
+	return 8
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgFeeFilter) SerializeSize() int {
 	// 8 bytes min fee.
 	return 8
 }

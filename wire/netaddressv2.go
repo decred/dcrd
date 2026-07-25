@@ -41,6 +41,14 @@ type NetAddressV2 struct {
 	Port uint16
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// network address.
+func (na *NetAddressV2) SerializeSize() int {
+	// Timestamp 8 bytes + services 8 bytes + address type 1 byte + encoded
+	// address bytes + port 2 bytes.
+	return 8 + 8 + 1 + len(na.EncodedAddr) + 2
+}
+
 // NewNetAddressV2 creates a new network address using the provided parameters
 // without validation.
 func NewNetAddressV2(netAddressType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services ServiceFlag) NetAddressV2 {

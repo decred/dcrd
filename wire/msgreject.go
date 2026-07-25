@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -210,6 +210,23 @@ func (msg *MsgReject) MaxPayloadLength(pver uint32) uint32 {
 	// limit on the length of the reason, so the max payload is the
 	// overall maximum message payload.
 	return uint32(MaxMessagePayload)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgReject) SerializeSize() int {
+	// Rejected command (varInt + string) + code 1 byte + reason (varInt +
+	// string).
+	n := VarIntSerializeSize(uint64(len(msg.Cmd))) + len(msg.Cmd) + 1 +
+		VarIntSerializeSize(uint64(len(msg.Reason))) + len(msg.Reason)
+
+	// CmdBlock and CmdTx messages have an additional hash field that
+	// identifies the specific block or transaction.
+	if msg.Cmd == CmdBlock || msg.Cmd == CmdTx {
+		n += chainhash.HashSize
+	}
+
+	return n
 }
 
 // NewMsgReject returns a new Decred reject message that conforms to the
