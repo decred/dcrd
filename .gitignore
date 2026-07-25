@@ -55,3 +55,6 @@ cmd/promptsecret/promptsecret
 # Vim
 *.sw*
 Session.vim
+
+# Python bytecode cache
+__pycache__/
