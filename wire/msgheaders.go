@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -130,6 +130,15 @@ func (msg *MsgHeaders) MaxPayloadLength(pver uint32) uint32 {
 	// 1 byte for the number of transactions which is always 0).
 	return uint32(VarIntSerializeSize(MaxBlockHeadersPerMsg)) +
 		((MaxBlockHeaderPayload + 1) * MaxBlockHeadersPerMsg)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgHeaders) SerializeSize() int {
+	// Num headers (varInt) + for each header the block header bytes plus
+	// 1 byte for the number of transactions which is always 0.
+	return VarIntSerializeSize(uint64(len(msg.Headers))) +
+		len(msg.Headers)*(blockHeaderLen+1)
 }
 
 // NewMsgHeaders returns a new Decred headers message that conforms to the

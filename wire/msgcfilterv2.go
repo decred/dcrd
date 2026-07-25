@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Decred developers
+// Copyright (c) 2024-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -151,6 +151,17 @@ func (msg *MsgCFilterV2) MaxPayloadLength(pver uint32) uint32 {
 		MaxCFilterDataSize + 4 +
 		uint32(VarIntSerializeSize(MaxHeaderProofHashes)) +
 		(MaxHeaderProofHashes * chainhash.HashSize)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgCFilterV2) SerializeSize() int {
+	// Block hash + filter data (varInt + data) + proof index 4 bytes +
+	// num proof hashes (varInt) + proof hashes.
+	return chainhash.HashSize +
+		VarIntSerializeSize(uint64(len(msg.Data))) + len(msg.Data) + 4 +
+		VarIntSerializeSize(uint64(len(msg.ProofHashes))) +
+		len(msg.ProofHashes)*chainhash.HashSize
 }
 
 // NewMsgCFilterV2 returns a new cfilterv2 message that conforms to the Message

@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2024 The Decred developers
+// Copyright (c) 2018-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,6 +52,13 @@ func (msg *MsgGetCFTypes) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgGetCFTypes) MaxPayloadLength(pver uint32) uint32 {
+	// Empty message.
+	return 0
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetCFTypes) SerializeSize() int {
 	// Empty message.
 	return 0
 }

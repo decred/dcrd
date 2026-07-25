@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -187,6 +187,20 @@ func (msg *MsgMixConfirm) MaxPayloadLength(pver uint32) uint32 {
 
 	// See tests for this calculation.
 	return 1016520
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgMixConfirm) SerializeSize() int {
+	// Signature 64 bytes + identity 33 bytes + session id 32 bytes +
+	// run 4 bytes.
+	const fixedSize = 64 + 33 + 32 + 4
+
+	// Fixed fields + mix transaction + num seen DC-net messages (varInt) +
+	// seen DC-net hashes.
+	return fixedSize + msg.Mix.SerializeSize() +
+		VarIntSerializeSize(uint64(len(msg.SeenDCNets))) +
+		len(msg.SeenDCNets)*chainhash.HashSize
 }
 
 // Pub returns the message sender's public key identity.

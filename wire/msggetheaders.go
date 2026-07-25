@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -129,6 +129,15 @@ func (msg *MsgGetHeaders) MaxPayloadLength(pver uint32) uint32 {
 	// block locators + hash stop.
 	return 4 + uint32(VarIntSerializeSize(MaxBlockLocatorsPerMsg)) +
 		(MaxBlockLocatorsPerMsg * chainhash.HashSize) + chainhash.HashSize
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetHeaders) SerializeSize() int {
+	// Protocol version 4 bytes + num block locator hashes (varInt) + block
+	// locator hashes + hash stop.
+	return 4 + VarIntSerializeSize(uint64(len(msg.BlockLocatorHashes))) +
+		len(msg.BlockLocatorHashes)*chainhash.HashSize + chainhash.HashSize
 }
 
 // NewMsgGetHeaders returns a new Decred getheaders message that conforms to

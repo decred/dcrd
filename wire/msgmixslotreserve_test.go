@@ -106,6 +106,13 @@ func TestMsgMixSlotReserveWire(t *testing.T) {
 
 	assertSerializationEqual(t, buf.Bytes(), expected)
 
+	// Ensure the serialize size is the actual encoded size.
+	sz := sr.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
+	}
+
 	decodedSR := new(MsgMixSlotReserve)
 	err = decodedSR.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
 	if err != nil {

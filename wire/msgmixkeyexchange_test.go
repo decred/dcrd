@@ -70,6 +70,13 @@ func TestMsgMixKeyExchangeWire(t *testing.T) {
 
 	assertSerializationEqual(t, buf.Bytes(), expected)
 
+	// Ensure the serialize size is the actual encoded size.
+	sz := ke.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
+	}
+
 	decodedKE := new(MsgMixKeyExchange)
 	err = decodedKE.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
 	if err != nil {

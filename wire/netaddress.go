@@ -16,17 +16,9 @@ import (
 // a TCP address as required.
 var ErrInvalidNetAddr = errors.New("provided net.Addr is not a net.TCPAddr")
 
-// maxNetAddressPayload returns the max payload size for a Decred NetAddress
-// based on the protocol version.
-func maxNetAddressPayload(pver uint32) uint32 {
-	// Services 8 bytes + ip 16 bytes + port 2 bytes.
-	plen := uint32(26)
-
-	// Timestamp 4 bytes.
-	plen += 4
-
-	return plen
-}
+// maxNetAddressPayload returns the max payload size for a NetAddress.
+// Timestamp 4 bytes + services 8 bytes + ip 16 bytes + port 2 bytes.
+const maxNetAddressPayload = 30
 
 // NetAddress defines information about a peer on the network including the time
 // it was last seen, the services it supports, its IP address, and port.
@@ -57,6 +49,21 @@ func (na *NetAddress) HasService(service ServiceFlag) bool {
 // message.
 func (na *NetAddress) AddService(service ServiceFlag) {
 	na.Services |= service
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// network address.  The ts flag indicates whether or not the timestamp is
+// included in the encoding.
+func (na *NetAddress) SerializeSize(ts bool) int {
+	// Services 8 bytes + ip 16 bytes + port 2 bytes.
+	n := 8 + 16 + 2
+
+	// Timestamp 4 bytes.
+	if ts {
+		n += 4
+	}
+
+	return n
 }
 
 // NewNetAddressIPPort returns a new NetAddress using the provided IP, port, and

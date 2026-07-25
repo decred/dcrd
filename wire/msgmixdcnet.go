@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -267,6 +267,32 @@ func (msg *MsgMixDCNet) MaxPayloadLength(pver uint32) uint32 {
 
 	// See tests for this calculation.
 	return 20988047
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgMixDCNet) SerializeSize() int {
+	// Signature 64 bytes + identity 33 bytes + session id 32 bytes +
+	// run 4 bytes.
+	const fixedSize = 64 + 33 + 32 + 4
+
+	// Fixed fields + DC-net mix vectors, which are serialized as the number of
+	// vectors (varInt) and, when non-empty, the vector length and message size
+	// varInts plus the fixed-size messages themselves.
+	n := fixedSize + VarIntSerializeSize(uint64(len(msg.DCNet)))
+	if len(msg.DCNet) > 0 {
+		n += VarIntSerializeSize(uint64(len(msg.DCNet[0]))) +
+			VarIntSerializeSize(MixMsgSize)
+		for i := range msg.DCNet {
+			n += len(msg.DCNet[i]) * MixMsgSize
+		}
+	}
+
+	// Num seen slot reserve messages (varInt) + seen slot reserve hashes.
+	n += VarIntSerializeSize(uint64(len(msg.SeenSlotReserves))) +
+		len(msg.SeenSlotReserves)*chainhash.HashSize
+
+	return n
 }
 
 // Pub returns the message sender's public key identity.

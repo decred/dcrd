@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -60,8 +60,8 @@ func TestNetAddress(t *testing.T) {
 
 	// Ensure max payload is expected value for latest protocol version.
 	pver := ProtocolVersion
-	wantPayload := uint32(30)
-	maxPayload := maxNetAddressPayload(ProtocolVersion)
+	wantPayload := 30
+	maxPayload := maxNetAddressPayload
 	if maxPayload != wantPayload {
 		t.Errorf("maxNetAddressPayload: wrong max payload length for "+
 			"protocol version %d - got %v, want %v", pver,
@@ -157,6 +157,14 @@ func TestNetAddressWire(t *testing.T) {
 			t.Errorf("writeNetAddress #%d\n got: %s want: %s", i,
 				spew.Sdump(buf.Bytes()), spew.Sdump(test.buf))
 			continue
+		}
+
+		// Ensure the serialize size is the actual encoded size.
+		sz := test.in.SerializeSize(test.ts)
+		actualSz := len(buf.Bytes())
+		if sz != actualSz {
+			t.Errorf("Wrong serialize size #%d\n got: %d want: %d", i,
+				sz, actualSz)
 		}
 
 		// Decode the message from wire format.
