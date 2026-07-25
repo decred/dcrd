@@ -746,7 +746,7 @@ func scalar64Reduce512(r *[4]uint64, x *[8]uint64) {
 // s3.Mul2(s, s2).AddInt(1) so that s3 = (s * s2) + 1.
 func (s *ModNScalar) Mul2(a, b *ModNScalar) *ModNScalar {
 	var product [8]uint64
-	field64Mul512(&product, &a.n, &b.n)
+	arith.Mul512(&product, &a.n, &b.n)
 	scalar64Reduce512(&s.n, &product)
 	return s
 }
@@ -767,7 +767,7 @@ func (s *ModNScalar) Mul(val *ModNScalar) *ModNScalar {
 // s3.SquareVal(s).Mul(s) so that s3 = s^2 * s = s^3.
 func (s *ModNScalar) SquareVal(val *ModNScalar) *ModNScalar {
 	var product [8]uint64
-	field64Square512(&product, &val.n)
+	arith.Square512(&product, &val.n)
 	scalar64Reduce512(&s.n, &product)
 	return s
 }
