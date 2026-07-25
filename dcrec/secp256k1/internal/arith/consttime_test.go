@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package arith
 
 import "testing"
 
@@ -28,7 +28,7 @@ func TestConstantTimeSelect64(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := constantTimeSelect64(test.cond, test.a, test.b)
+		got := ConstantTimeSelect64(test.cond, test.a, test.b)
 		if got != test.want {
 			t.Errorf("%q: unexpected result -- got %d, want %d", test.name,
 				got, test.want)
