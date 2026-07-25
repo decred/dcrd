@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -175,6 +175,18 @@ func (msg *MsgGetInitState) MaxPayloadLength(pver uint32) uint32 {
 		MaxInitStateTypeLen
 	return uint32(VarIntSerializeSize(MaxInitStateTypes) +
 		MaxInitStateTypes*maxLenType)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetInitState) SerializeSize() int {
+	// Num types (varInt) + for each type its serialized length (varInt +
+	// string).
+	n := VarIntSerializeSize(uint64(len(msg.Types)))
+	for _, typ := range msg.Types {
+		n += VarIntSerializeSize(uint64(len(typ))) + len(typ)
+	}
+	return n
 }
 
 // NewMsgGetInitState returns a new Decred getinitialstate message that

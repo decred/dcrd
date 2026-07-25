@@ -94,6 +94,13 @@ func TestMsgMixDCNetWire(t *testing.T) {
 
 	assertSerializationEqual(t, buf.Bytes(), expected)
 
+	// Ensure the serialize size is the actual encoded size.
+	sz := dc.SerializeSize()
+	actualSz := len(buf.Bytes())
+	if sz != actualSz {
+		t.Errorf("Wrong serialize size - got: %d want: %d", sz, actualSz)
+	}
+
 	decodedDC := new(MsgMixDCNet)
 	err = decodedDC.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
 	if err != nil {

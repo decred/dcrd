@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -297,6 +297,35 @@ func (msg *MsgMixSecrets) MaxPayloadLength(pver uint32) uint32 {
 
 	// See tests for this calculation
 	return 70831
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgMixSecrets) SerializeSize() int {
+	// Signature 64 bytes + identity 33 bytes + session id 32 bytes +
+	// run 4 bytes + seed 32 bytes.
+	const fixedSize = 64 + 33 + 32 + 4 + 32
+
+	// Fixed fields + num slot reserve messages (varInt) + slot reserve
+	// messages (each a varInt-prefixed byte slice).
+	n := fixedSize + VarIntSerializeSize(uint64(len(msg.SlotReserveMsgs)))
+	for _, sr := range msg.SlotReserveMsgs {
+		n += VarIntSerializeSize(uint64(len(sr))) + len(sr)
+	}
+
+	// DC-net mixed messages vector, serialized as the number of messages
+	// (varInt) and, when non-empty, the message size varInt plus the
+	// fixed-size messages themselves.
+	n += VarIntSerializeSize(uint64(len(msg.DCNetMsgs)))
+	if len(msg.DCNetMsgs) > 0 {
+		n += VarIntSerializeSize(MixMsgSize) + len(msg.DCNetMsgs)*MixMsgSize
+	}
+
+	// Num seen secrets messages (varInt) + seen secret hashes.
+	n += VarIntSerializeSize(uint64(len(msg.SeenSecrets))) +
+		len(msg.SeenSecrets)*chainhash.HashSize
+
+	return n
 }
 
 // Pub returns the message sender's public key identity.

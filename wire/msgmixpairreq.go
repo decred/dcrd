@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024 The Decred developers
+// Copyright (c) 2023-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -404,6 +404,47 @@ func (msg *MsgMixPairReq) MaxPayloadLength(pver uint32) uint32 {
 
 	// See tests for this calculation.
 	return 8476848
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgMixPairReq) SerializeSize() int {
+	// Signature 64 bytes + identity 33 bytes + expiry 4 bytes +
+	// mix amount 8 bytes.
+	n := 64 + 33 + 4 + 8
+
+	// Script class (varInt + string).
+	n += VarIntSerializeSize(uint64(len(msg.ScriptClass))) + len(msg.ScriptClass)
+
+	// Tx version 2 bytes + lock time 4 bytes + message count 4 bytes +
+	// input value 8 bytes.
+	n += 2 + 4 + 4 + 8
+
+	// Num UTXOs (varInt) + each UTXO.
+	n += VarIntSerializeSize(uint64(len(msg.UTXOs)))
+	for i := range msg.UTXOs {
+		utxo := &msg.UTXOs[i]
+
+		// Outpoint (hash 32 bytes + index 4 bytes + tree 1 byte) + script
+		// (varInt + bytes) + pubkey (varInt + bytes) + signature (varInt +
+		// bytes) + opcode 1 byte.
+		n += 37 +
+			VarIntSerializeSize(uint64(len(utxo.Script))) + len(utxo.Script) +
+			VarIntSerializeSize(uint64(len(utxo.PubKey))) + len(utxo.PubKey) +
+			VarIntSerializeSize(uint64(len(utxo.Signature))) + len(utxo.Signature) +
+			1
+	}
+
+	// Has change flag 1 byte + optional change output.
+	n += 1
+	if msg.Change != nil {
+		n += msg.Change.SerializeSize()
+	}
+
+	// Flags 1 byte + pairing flags 1 byte.
+	n += 2
+
+	return n
 }
 
 // Pub returns the message sender's public key identity.

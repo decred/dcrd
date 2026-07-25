@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -239,6 +239,19 @@ func (msg *MsgInitState) MaxPayloadLength(pver uint32) uint32 {
 		(MaxISVotesAtHeadPerMsg * chainhash.HashSize) +
 		uint32(VarIntSerializeSize(MaxISTSpendsAtHeadPerMsg)) +
 		(MaxISTSpendsAtHeadPerMsg * chainhash.HashSize)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgInitState) SerializeSize() int {
+	// Num block hashes (varInt) + block hashes + num vote hashes (varInt) +
+	// vote hashes + num tspend hashes (varInt) + tspend hashes.
+	return VarIntSerializeSize(uint64(len(msg.BlockHashes))) +
+		len(msg.BlockHashes)*chainhash.HashSize +
+		VarIntSerializeSize(uint64(len(msg.VoteHashes))) +
+		len(msg.VoteHashes)*chainhash.HashSize +
+		VarIntSerializeSize(uint64(len(msg.TSpendHashes))) +
+		len(msg.TSpendHashes)*chainhash.HashSize
 }
 
 // NewMsgInitState returns a new Decred initstate message that conforms to the

@@ -103,6 +103,14 @@ func TestGetCFTypesWire(t *testing.T) {
 			continue
 		}
 
+		// Ensure the serialize size is the actual encoded size.
+		sz := test.in.SerializeSize()
+		actualSz := len(buf.Bytes())
+		if sz != actualSz {
+			t.Errorf("Wrong serialize size #%d\n got: %d want: %d", i,
+				sz, actualSz)
+		}
+
 		// Decode the message from wire format.
 		var msg MsgGetCFTypes
 		rbuf := bytes.NewReader(test.buf)

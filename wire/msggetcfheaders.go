@@ -133,6 +133,15 @@ func (msg *MsgGetCFHeaders) MaxPayloadLength(pver uint32) uint32 {
 		(MaxBlockLocatorsPerMsg * chainhash.HashSize) + chainhash.HashSize + 1
 }
 
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgGetCFHeaders) SerializeSize() int {
+	// Num block locator hashes (varInt) + block locator hashes + hash stop +
+	// filter type 1 byte.
+	return VarIntSerializeSize(uint64(len(msg.BlockLocatorHashes))) +
+		len(msg.BlockLocatorHashes)*chainhash.HashSize + chainhash.HashSize + 1
+}
+
 // NewMsgGetCFHeaders returns a new getcfheader message that conforms to the
 // Message interface using the passed parameters and defaults for the remaining
 // fields.

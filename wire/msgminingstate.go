@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -191,6 +191,17 @@ func (msg *MsgMiningState) MaxPayloadLength(pver uint32) uint32 {
 		(MaxMSBlocksAtHeadPerMsg * chainhash.HashSize) +
 		uint32(VarIntSerializeSize(MaxMSVotesAtHeadPerMsg)) +
 		(MaxMSVotesAtHeadPerMsg * chainhash.HashSize)
+}
+
+// SerializeSize returns the number of bytes it would take to serialize the
+// message.  This is part of the Message interface implementation.
+func (msg *MsgMiningState) SerializeSize() int {
+	// Protocol version 4 bytes + height 4 bytes + num block hashes (varInt) +
+	// block hashes + num vote hashes (varInt) + vote hashes.
+	return 4 + 4 + VarIntSerializeSize(uint64(len(msg.BlockHashes))) +
+		len(msg.BlockHashes)*chainhash.HashSize +
+		VarIntSerializeSize(uint64(len(msg.VoteHashes))) +
+		len(msg.VoteHashes)*chainhash.HashSize
 }
 
 // NewMsgMiningState returns a new Decred miningstate message that conforms to
