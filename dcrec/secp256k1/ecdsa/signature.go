@@ -22,10 +22,6 @@ import (
 //     https://www.secg.org/sec1-v2.pdf
 
 var (
-	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
-	// defined here to avoid extra allocations.
-	zero32 = [32]byte{}
-
 	// orderAsFieldVal is the order of the secp256k1 curve group stored as a
 	// field value.  It is provided here to avoid the need to create it multiple
 	// times.
@@ -140,7 +136,7 @@ func (sig *Signature) Serialize() []byte {
 
 // zeroArray32 zeroes the provided 32-byte buffer.
 func zeroArray32(b *[32]byte) {
-	copy(b[:], zero32[:])
+	*b = [32]byte{}
 }
 
 // fieldToModNScalar converts a field value to scalar modulo the group order and

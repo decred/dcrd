@@ -198,16 +198,7 @@ func (f FieldVal) String() string {
 //	Output Normalized: Yes
 //	Output Max Magnitude: 1
 func (f *FieldVal) Zero() {
-	f.n[0] = 0
-	f.n[1] = 0
-	f.n[2] = 0
-	f.n[3] = 0
-	f.n[4] = 0
-	f.n[5] = 0
-	f.n[6] = 0
-	f.n[7] = 0
-	f.n[8] = 0
-	f.n[9] = 0
+	f.n = [10]uint32{}
 }
 
 // Set sets the field value equal to the passed value in constant time.  The

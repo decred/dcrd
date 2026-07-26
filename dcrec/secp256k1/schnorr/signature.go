@@ -237,9 +237,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *secp256k1.PublicKey) bool {
 
 // zeroArray zeroes the memory of a scalar array.
 func zeroArray(a *[scalarSize]byte) {
-	for i := 0; i < scalarSize; i++ {
-		a[i] = 0x00
-	}
+	*a = [scalarSize]byte{}
 }
 
 // schnorrSign generates an EC-Schnorr-DCRv0 signature over the secp256k1 curve
