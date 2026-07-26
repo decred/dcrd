@@ -242,3 +242,154 @@ func TestMul512Random(t *testing.T) {
 		}
 	}
 }
+
+// TestSquare512 ensures [Square512] returns the expected result by comparing it
+// against the [big.Int] result.  It also tests full buffer replacement and that
+// [Mul512] and [Square512] agree on the result.
+func TestSquare512(t *testing.T) {
+	tests := []struct {
+		name string // test description
+		a    string // hex encoded value to square
+	}{{
+		name: "zero",
+		a:    "0",
+	}, {
+		name: "identity",
+		a:    "1",
+	}, {
+		name: "small value",
+		a:    "2",
+	}, {
+		name: "2^4",
+		a:    "10",
+	}, {
+		name: "2^8",
+		a:    "100",
+	}, {
+		name: "2^16",
+		a:    "10000",
+	}, {
+		name: "2^32",
+		a:    "100000000",
+	}, {
+		name: "max uint64",
+		a:    "ffffffffffffffff",
+	}, {
+		name: "2^64",
+		a:    "10000000000000000",
+	}, {
+		name: "max uint128 minus one",
+		a:    "fffffffffffffffffffffffffffffffe",
+	}, {
+		name: "max uint128",
+		a:    "ffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^128",
+		a:    "100000000000000000000000000000000",
+	}, {
+		name: "max uint192",
+		a:    "ffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "2^192",
+		a:    "1000000000000000000000000000000000000000000000000",
+	}, {
+		name: "2^255",
+		a:    "8000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name: "near max uint256",
+		a:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0001",
+	}, {
+		name: "max uint256 minus one",
+		a:    "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+	}, {
+		name: "max uint256",
+		a:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		name: "sparse bits",
+		a:    "8000000000000000000000000000000100000000000000000000000000000001",
+	}, {
+		name: "high and low bits",
+		a:    "8000000000000000000000000000000000000000000000000000000000000001",
+	}, {
+		name: "alternating bits",
+		a:    "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+	}, {
+		name: "alternating bits 2",
+		a:    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}, {
+		name: "alternating bits 3",
+		a:    "5555555555555555555555555555555555555555555555555555555555555555",
+	}, {
+		name: "carry propagation through zero limbs",
+		a:    "ffffffffffffffffffffffffffffffff00000000000000000000000000000001",
+	}}
+
+	for _, test := range tests {
+		aBig := mustBig(test.a)
+		a := mustBigToUint256(aBig)
+		want := new(big.Int).Mul(aBig, aBig)
+
+		// Fill the array that will be used to store the result with non-zero
+		// values to ensure the entire array is overwritten.
+		var result [8]uint64
+		for i := 0; i < 8; i++ {
+			result[i] = 0xffffffffffffffff
+		}
+
+		// Compute the result with [Square512] and ensure it matches the same
+		// result produced by [big.Int].
+		Square512(&result, &a)
+		if got := uint512ToBig(result); got.Cmp(want) != 0 {
+			t.Errorf("%s: incorrect square\n  a:    %064x\n  got:  %0128x\n"+
+				"want: %0128x", test.name, aBig, got, want)
+		}
+
+		// Ensure [Mul512] and [Square512] agree.
+		var mulResult [8]uint64
+		Mul512(&mulResult, &a, &a)
+		if result != mulResult {
+			t.Errorf("%s: square and mul disagree\n  a:       %064x\n"+
+				"  square:  %0128x\n  mul:     %0128x", test.name, aBig,
+				uint512ToBig(result), uint512ToBig(mulResult))
+		}
+	}
+}
+
+// TestSquare512Random ensures that squaring randomly-generated values via
+// [Square512] returns the expected result by comparing it against the [big.Int]
+// result.  It also tests that [Mul512] and [Square512] agree on the result.
+func TestSquare512Random(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().UnixNano()
+	rng := mrand.New(mrand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 1000; i++ {
+		// Generate a random [big.Int] operand and the expected result.
+		aBig := randBig(t, rng)
+		a := mustBigToUint256(aBig)
+		want := new(big.Int).Mul(aBig, aBig)
+
+		// Compute the result with [Square512] and ensure it matches the same
+		// result produced by [big.Int].
+		var result [8]uint64
+		Square512(&result, &a)
+		if got := uint512ToBig(result); got.Cmp(want) != 0 {
+			t.Errorf("incorrect square\n  a:    %064x\n  got:  %0128x\n"+
+				"want: %0128x", aBig, got, want)
+		}
+
+		// Ensure [Mul512] and [Square512] agree.
+		var mulResult [8]uint64
+		Mul512(&mulResult, &a, &a)
+		if result != mulResult {
+			t.Errorf("square and mul disagree\n  a:       %064x\n"+
+				"  square:  %0128x\n  mul:     %0128x", aBig,
+				uint512ToBig(result), uint512ToBig(mulResult))
+		}
+	}
+}
