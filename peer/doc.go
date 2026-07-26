@@ -97,6 +97,11 @@ done channel which will be notified when the message is actually sent can
 optionally be specified.  There are certain message types which are better sent
 using other functions which provide additional functionality.
 
+Remote peers that do not read data quickly enough would otherwise cause queued
+messages to accumulate.  Consequently, every message write is subject to a
+deadline that scales with the size of the message and peers that exceed it are
+disconnected.
+
 Of special interest are inventory messages.  Rather than manually sending MsgInv
 messages via [Peer.QueueMessage], the inventory vectors should be queued using
 the [Peer.QueueInventory] function.  It employs batching and trickling along

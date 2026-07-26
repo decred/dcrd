@@ -36,17 +36,23 @@ type conn struct {
 	// remote network, address for the connection.
 	rnet, raddr string
 
-	// mocks socks proxy if true
+	// mocks socks proxy if true.
 	proxy bool
+
+	// setWriteDeadlineErr is returned by SetWriteDeadline when it is non-nil.
+	setWriteDeadlineErr error
+
+	// writeDeadline stores the most recent deadline set by SetWriteDeadline.
+	writeDeadline time.Time
 }
 
 // LocalAddr returns the local address for the connection.
-func (c conn) LocalAddr() net.Addr {
+func (c *conn) LocalAddr() net.Addr {
 	return &addr{c.lnet, c.laddr}
 }
 
 // Remote returns the remote address for the connection.
-func (c conn) RemoteAddr() net.Addr {
+func (c *conn) RemoteAddr() net.Addr {
 	if !c.proxy {
 		return &addr{c.rnet, c.raddr}
 	}
@@ -60,7 +66,7 @@ func (c conn) RemoteAddr() net.Addr {
 }
 
 // Close handles closing the connection.
-func (c conn) Close() error {
+func (c *conn) Close() error {
 	readCloseErr := c.ReadCloser.Close()
 	writeCloseErr := c.WriteCloser.Close()
 	if readCloseErr != nil {
@@ -69,9 +75,17 @@ func (c conn) Close() error {
 	return writeCloseErr
 }
 
-func (c conn) SetDeadline(t time.Time) error      { return nil }
-func (c conn) SetReadDeadline(t time.Time) error  { return nil }
-func (c conn) SetWriteDeadline(t time.Time) error { return nil }
+func (c *conn) SetDeadline(t time.Time) error     { return nil }
+func (c *conn) SetReadDeadline(t time.Time) error { return nil }
+
+func (c *conn) SetWriteDeadline(t time.Time) error {
+	if c.setWriteDeadlineErr != nil {
+		return c.setWriteDeadlineErr
+	}
+
+	c.writeDeadline = t
+	return nil
+}
 
 // addr mocks a network address.
 type addr struct {
@@ -908,6 +922,92 @@ func TestPushAddrV2Msg(t *testing.T) {
 			t.Errorf("%s: expected %d addresses sent, got %d", test.name,
 				test.wantSentLen, got)
 		}
+	}
+}
+
+// sizedMsg implements the wire.Message interface with a configurable serialized
+// size.
+type sizedMsg struct {
+	size int
+}
+
+func (msg *sizedMsg) BtcDecode(io.Reader, uint32) error { return nil }
+func (msg *sizedMsg) BtcEncode(io.Writer, uint32) error { return nil }
+func (msg *sizedMsg) Command() string                   { return "sized" }
+func (msg *sizedMsg) MaxPayloadLength(uint32) uint32    { return uint32(msg.size) }
+func (msg *sizedMsg) SerializeSize() int                { return msg.size }
+
+// TestWriteMessageDeadline ensures the write deadline applied to each outgoing
+// message is the base timeout plus an allowance that is proportional to the
+// total serialized size of the message.
+func TestWriteMessageDeadline(t *testing.T) {
+	tests := []struct {
+		name          string        // test description
+		payloadSize   int           // serialized size of the message payload
+		wantAllowance time.Duration // expected time allowed beyond the base timeout
+	}{{
+		name:          "empty payload",
+		payloadSize:   0,
+		wantAllowance: 0,
+	}, {
+		name:          "one byte below increased allowance",
+		payloadSize:   writeStallBytesPerSec - wire.MessageHeaderSize - 1,
+		wantAllowance: 0,
+	}, {
+		name:          "exactly a full second allowance",
+		payloadSize:   writeStallBytesPerSec - wire.MessageHeaderSize,
+		wantAllowance: time.Second,
+	}, {
+		name:          "exactly a two second allowance",
+		payloadSize:   2*writeStallBytesPerSec - wire.MessageHeaderSize,
+		wantAllowance: 2 * time.Second,
+	}, {
+		name:          "largest possible message (32 MiB)",
+		payloadSize:   wire.MaxMessagePayload - wire.MessageHeaderSize,
+		wantAllowance: 128 * time.Second,
+	}}
+
+	// Create a peer with a mock connection along with a goroutine that discards
+	// everything written to the other end so the writes below do not block.
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	defer inConn.Close()
+	defer outConn.Close()
+	go io.Copy(io.Discard, outConn)
+	p := NewInboundPeer(mockPeerConfig(), inConn)
+
+	// Override the now function so the deadlines are deterministic.
+	mockNow := time.Now()
+	mockNowFn := func() time.Time { return mockNow }
+	p.nowFn = mockNowFn
+
+	for _, test := range tests {
+		if err := p.writeMessage(&sizedMsg{size: test.payloadSize}); err != nil {
+			t.Fatalf("%s: unexpected error writing message: %v", test.name, err)
+		}
+
+		got := inConn.writeDeadline
+		want := mockNow.Add(writeStallTimeout + test.wantAllowance)
+		if !got.Equal(want) {
+			t.Fatalf("%s: wrong write deadline - got %v, want %v", test.name, got,
+				want)
+		}
+	}
+}
+
+// TestWriteMessageDeadlineError ensures a failure to set the write deadline on
+// the underlying connection is returned to the caller.
+func TestWriteMessageDeadlineError(t *testing.T) {
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	defer inConn.Close()
+	defer outConn.Close()
+	p := NewInboundPeer(mockPeerConfig(), inConn)
+
+	wantErr := errors.New("set write deadline failed")
+	inConn.setWriteDeadlineErr = wantErr
+
+	got := p.writeMessage(&sizedMsg{})
+	if !errors.Is(got, wantErr) {
+		t.Fatalf("wrong error - got %v, want %v", got, wantErr)
 	}
 }
 
