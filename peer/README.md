@@ -28,6 +28,8 @@ A quick overview of the major features peer provides are as follows:
    protocol version negotiation
  - Asynchronous message queueing of outbound messages with optional channel for
    notification when the message is actually sent
+ - Size-dependent deadline on every message write which disconnects peers that
+   do not read data quickly enough
  - Flexible peer configuration
    - Caller is responsible for creating outgoing connections and listening for
      incoming connections so they have flexibility to establish connections as

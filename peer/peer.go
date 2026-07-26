@@ -76,6 +76,18 @@ const (
 	// pingInterval is the interval of time to wait in between sending ping
 	// messages.
 	pingInterval = defaultIdleTimeout - 13*time.Second
+
+	// writeStallTimeout is the base amount of time a single message write is
+	// allowed to take before the peer is considered stalled and disconnected.
+	// A size-proportional allowance (see writeStallBytesPerSec) is added to it
+	// so that larger messages are afforded proportionally more time.
+	writeStallTimeout = 20 * time.Second
+
+	// writeStallBytesPerSec is the number of message bytes afforded one
+	// additional second on top of writeStallTimeout.  In other words, one
+	// second is added to the deadline for every 256 KiB of the message, so the
+	// largest possible message (32 MiB) gets roughly two extra minutes.
+	writeStallBytesPerSec = 256 * 1024 // 256 KiB
 )
 
 var (
@@ -994,6 +1006,17 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 		if err == nil {
 			log.Trace(spew.Sdump(buf.Bytes()))
 		}
+	}
+
+	// Limit how long the write is allowed to block.  A base timeout plus an
+	// allowance proportional to the message size affords larger messages
+	// proportionally more time.
+	msgSize := wire.MessageHeaderSize + msg.SerializeSize()
+	allowance := time.Duration(msgSize/writeStallBytesPerSec) * time.Second
+	deadline := p.nowFn().Add(writeStallTimeout + allowance)
+	err := p.conn.SetWriteDeadline(deadline)
+	if err != nil {
+		return err
 	}
 
 	// Write the message to the peer.
