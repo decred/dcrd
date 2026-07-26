@@ -473,6 +473,7 @@ type Peer struct {
 	remoteAddr net.Addr
 	cfg        Config
 	inbound    bool
+	nowFn      func() time.Time
 
 	flagsMtx             sync.Mutex // protects the peer flags below
 	id                   int32
@@ -911,7 +912,7 @@ func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 	// enough that if they overlap we would have timed out the peer.
 	p.statsMtx.Lock()
 	if p.lastPingNonce != 0 && msg.Nonce == p.lastPingNonce {
-		p.lastPingMicros = time.Since(p.lastPingTime).Nanoseconds()
+		p.lastPingMicros = p.nowFn().Sub(p.lastPingTime).Nanoseconds()
 		p.lastPingMicros /= 1000 // convert to usec.
 		p.lastPingNonce = 0
 	}
@@ -929,7 +930,7 @@ type hashable interface {
 
 // readMessage reads the next wire message from the peer with logging.
 func (p *Peer) readMessage() (wire.Message, []byte, error) {
-	err := p.conn.SetReadDeadline(time.Now().Add(p.cfg.IdleTimeout))
+	err := p.conn.SetReadDeadline(p.nowFn().Add(p.cfg.IdleTimeout))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1059,7 +1060,7 @@ func (p *Peer) maybeAddDeadline(d *pendingDeadlines, msg wire.Message) {
 	// - [wire.MsgGetHeaders] is not required to send a response if the remote
 	//   peer does not have any headers for the locator
 	var addedDeadline bool
-	deadline := time.Now().Add(stallResponseTimeout)
+	deadline := p.nowFn().Add(stallResponseTimeout)
 	switch msg := msg.(type) {
 	case *wire.MsgGetData:
 		// Prevent the peer from getting too far ahead with advertised inventory
@@ -1193,7 +1194,7 @@ out:
 				}
 
 				handlerActive = true
-				handlersStartTime = time.Now()
+				handlersStartTime = p.nowFn()
 
 			case sccHandlerDone:
 				// Warn on unbalanced callback signaling.
@@ -1205,7 +1206,7 @@ out:
 
 				// Extend active deadlines by the time it took to execute the
 				// callback.
-				duration := time.Since(handlersStartTime)
+				duration := p.nowFn().Sub(handlersStartTime)
 				deadlineOffset += duration
 				handlerActive = false
 
@@ -1216,7 +1217,7 @@ out:
 		case <-stallTicker.C:
 			// Calculate the offset to apply to the deadline based on how long
 			// the handlers have taken to execute since the last tick.
-			now := time.Now()
+			now := p.nowFn()
 			offset := deadlineOffset
 			if handlerActive {
 				offset += now.Sub(handlersStartTime)
@@ -1524,7 +1525,7 @@ out:
 
 			break out
 		}
-		atomic.StoreInt64(&p.lastRecv, time.Now().Unix())
+		atomic.StoreInt64(&p.lastRecv, p.nowFn().Unix())
 		select {
 		case p.stallControl <- stallControlMsg{sccReceiveMessage, rmsg}:
 		case <-p.quit:
@@ -1725,7 +1726,7 @@ out:
 				// Setup ping statistics.
 				p.statsMtx.Lock()
 				p.lastPingNonce = m.Nonce
-				p.lastPingTime = time.Now()
+				p.lastPingTime = p.nowFn()
 				p.statsMtx.Unlock()
 			}
 
@@ -1751,7 +1752,7 @@ out:
 			// message that it has been sent (if requested), and
 			// signal the send queue to the deliver the next queued
 			// message.
-			atomic.StoreInt64(&p.lastSend, time.Now().Unix())
+			atomic.StoreInt64(&p.lastSend, p.nowFn().Unix())
 			if msg.doneChan != nil {
 				msg.doneChan <- struct{}{}
 			}
@@ -1943,7 +1944,7 @@ func (p *Peer) readRemoteVersionMsg(onVersion OnVersionCallback) error {
 	p.startingHeight = int64(msg.LastBlock)
 
 	// Set the peer's time offset.
-	p.timeOffset = msg.Timestamp.Unix() - time.Now().Unix()
+	p.timeOffset = msg.Timestamp.Unix() - p.nowFn().Unix()
 	p.statsMtx.Unlock()
 
 	// Set the peer's ID and user agent.
@@ -2346,6 +2347,7 @@ func newPeerBase(cfgOrig *Config, conn net.Conn, inbound bool) *Peer {
 		blake256Hasher: blake256.NewHasher256(),
 		conn:           conn,
 		inbound:        inbound,
+		nowFn:          time.Now,
 		knownInventory: lru.NewSetWithDefaultTTL[wire.InvVect](
 			maxKnownInventory, maxKnownInventoryTTL),
 		timeConnected:   time.Now(),
