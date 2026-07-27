@@ -478,7 +478,7 @@ func (f *FieldVal64) Mul(val *FieldVal64) *FieldVal64 {
 // The field value is returned to support chaining.  This enables syntax like:
 // f3.Mul2(f, f2).AddInt(1) so that f3 = (f * f2) + 1.
 func (f *FieldVal64) Mul2(a, b *FieldVal64) *FieldVal64 {
-	field64Mul(&f.n, &a.n, &b.n)
+	field64MulReduce(&f.n, &a.n, &b.n)
 	return f
 }
 
@@ -649,7 +649,7 @@ func (f *FieldVal64) Square() *FieldVal64 {
 // The field value is returned to support chaining.  This enables syntax like:
 // f3.SquareVal(f).Mul(f) so that f3 = f^2 * f = f^3.
 func (f *FieldVal64) SquareVal(val *FieldVal64) *FieldVal64 {
-	field64Square(&f.n, &val.n)
+	field64SquareReduce(&f.n, &val.n)
 	return f
 }
 

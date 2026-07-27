@@ -20,8 +20,8 @@ func BenchmarkField64MulReduceAMD64(b *testing.B) {
 		fn        func(r *[4]uint64, a, b *[4]uint64)
 		supported bool
 	}{
-		{name: "Generic", fn: field64MulGeneric, supported: true},
-		{name: "BMI2/ADX", fn: field64MulADX, supported: field64UseBMI2AndADX},
+		{name: "Generic", fn: field64MulReduceGeneric, supported: true},
+		{name: "BMI2/ADX", fn: field64MulReduceADX, supported: field64UseBMI2AndADX},
 	}
 
 	a := mustFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab").n
@@ -57,8 +57,8 @@ func BenchmarkField64SquareReduceAMD64(b *testing.B) {
 		fn        func(r *[4]uint64, a *[4]uint64)
 		supported bool
 	}{
-		{name: "Generic", fn: field64SquareGeneric, supported: true},
-		{name: "BMI2/ADX", fn: field64SquareADX, supported: field64UseBMI2AndADX},
+		{name: "Generic", fn: field64SquareReduceGeneric, supported: true},
+		{name: "BMI2/ADX", fn: field64SquareReduceADX, supported: field64UseBMI2AndADX},
 	}
 
 	a := mustFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca").n

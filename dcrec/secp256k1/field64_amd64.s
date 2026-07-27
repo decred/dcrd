@@ -58,8 +58,8 @@
 	MOVQ  R14, 16(AX)             \
 	MOVQ  R15, 24(AX)
 
-// func field64MulADX(r *[4]uint64, a, b *[4]uint64)
-TEXT ·field64MulADX(SB), NOSPLIT, $0-24
+// func field64MulReduceADX(r *[4]uint64, a, b *[4]uint64)
+TEXT ·field64MulReduceADX(SB), NOSPLIT, $0-24
 	MOVQ  a+8(FP), SI
 	MOVQ  b+16(FP), DI
 	XORQ  BX, BX
@@ -126,8 +126,8 @@ TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 	REDUCE()
 	RET
 
-// func field64SquareADX(r *[4]uint64, a *[4]uint64)
-TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
+// func field64SquareReduceADX(r *[4]uint64, a *[4]uint64)
+TEXT ·field64SquareReduceADX(SB), NOSPLIT, $0-16
 	MOVQ   a+8(FP), AX
 	MOVQ   0(AX), DX   // a0
 	MOVQ   8(AX), SI   // a1
