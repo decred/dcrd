@@ -19,38 +19,38 @@ var field64UseBMI2AndADX = func() bool {
 }()
 
 //go:noescape
-func field64MulADX(r *[4]uint64, a, b *[4]uint64)
+func field64MulReduceADX(r *[4]uint64, a, b *[4]uint64)
 
 //go:noescape
-func field64SquareADX(r *[4]uint64, a *[4]uint64)
+func field64SquareReduceADX(r *[4]uint64, a *[4]uint64)
 
-// field64Mul sets r = a * b (mod p)
-func field64Mul(r *[4]uint64, a, b *[4]uint64) {
+// field64MulReduce sets r = a * b (mod p)
+func field64MulReduce(r *[4]uint64, a, b *[4]uint64) {
 	if field64UseBMI2AndADX {
-		field64MulADX(r, a, b)
+		field64MulReduceADX(r, a, b)
 		return
 	}
-	field64MulGeneric(r, a, b)
+	field64MulReduceGeneric(r, a, b)
 }
 
-// field64Square sets r = a^2 (mod p)
-func field64Square(r *[4]uint64, a *[4]uint64) {
+// field64SquareReduce sets r = a^2 (mod p)
+func field64SquareReduce(r *[4]uint64, a *[4]uint64) {
 	if field64UseBMI2AndADX {
-		field64SquareADX(r, a)
+		field64SquareReduceADX(r, a)
 		return
 	}
-	field64SquareGeneric(r, a)
+	field64SquareReduceGeneric(r, a)
 }
 
-// field64MulGeneric sets r = a * b (mod p)
-func field64MulGeneric(r *[4]uint64, a, b *[4]uint64) {
+// field64MulReduceGeneric sets r = a * b (mod p)
+func field64MulReduceGeneric(r *[4]uint64, a, b *[4]uint64) {
 	var product [8]uint64
 	arith.Mul512(&product, a, b)
 	field64Reduce512(r, &product)
 }
 
-// field64SquareGeneric sets r = a^2 (mod p)
-func field64SquareGeneric(r *[4]uint64, a *[4]uint64) {
+// field64SquareReduceGeneric sets r = a^2 (mod p)
+func field64SquareReduceGeneric(r *[4]uint64, a *[4]uint64) {
 	var product [8]uint64
 	arith.Square512(&product, a)
 	field64Reduce512(r, &product)
