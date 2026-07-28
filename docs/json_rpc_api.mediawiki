@@ -272,6 +272,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns a mix message and its message type by its hash if it is accepted by and currently in the mixpool.
 |-
+|[[#getmixpoolinfo|getmixpoolinfo]]
+|Y
+|Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.
+|-
 |[[#getnettotals|getnettotals]]
 |Y
 |Returns a JSON object containing network traffic statistics.
@@ -1541,6 +1545,54 @@ of the best block.
 |-
 !Example Return
 |<code>{"type":"mixpairreq","message":"a1d1d8c6ffc20a51ad9a5aa093c31bdeb06a0f627af95..."}</code>
+|}
+
+----
+
+====getmixpoolinfo====
+{|
+!Method
+|getmixpoolinfo
+|-
+!Parameters
+|None
+|-
+!Description
+|
+: Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>epoch</code>: <code>(numeric)</code> Duration between mix epochs, in seconds.
+: <code>nextepoch</code>: <code>(numeric)</code> Unix timestamp of the next mix epoch.
+: <code>pairings</code>: <code>(json array of object)</code> Pending pair requests grouped by mixing compatibility.
+:: <code>mixamount</code>: <code>(numeric)</code> Amount of each mixed output, in DCR.
+:: <code>scriptclass</code>: <code>(string)</code> Script class of the mixed outputs.
+:: <code>txversion</code>: <code>(numeric)</code> Transaction version of the mix transaction.
+:: <code>locktime</code>: <code>(numeric)</code> Lock time of the mix transaction.
+:: <code>pairingflags</code>: <code>(numeric)</code> Pairing flags of the pair request.
+:: <code>pairrequests</code>: <code>(json array of object)</code> The pair requests matching these mixing parameters.
+::: <code>hash</code>: <code>(string)</code> Hash of the pair request message.
+::: <code>identity</code>: <code>(string)</code> Participant ephemeral public key identity as a hex string.
+::: <code>messagecount</code>: <code>(numeric)</code> Number of mixed outputs, each of value mixamount, the pair request is creating.
+::: <code>inputvalue</code>: <code>(numeric)</code> Total value of inputs contributed by the pair request, in DCR.
+::: <code>utxos</code>: <code>(json array of object)</code> Unspent transaction outputs contributed by the pair request.
+:::: <code>txid</code>: <code>(string)</code> The hash of the origin transaction.
+:::: <code>vout</code>: <code>(numeric)</code> The index of the output being contributed.
+:::: <code>tree</code>: <code>(numeric)</code> The tree of the output being contributed.
+:::: <code>amountin</code>: <code>(numeric)</code> The amount of the output, in DCR.
+:::: <code>blockheight</code>: <code>(numeric)</code> The height of the block containing the origin transaction.
+:::: <code>scriptPubKey</code>: <code>(json object)</code> The public key script used to pay coins.
+::::: <code>asm</code>: <code>(string)</code> Disassembly of the script.
+::::: <code>hex</code>: <code>(string)</code> Hex-encoded bytes of the script.
+::::: <code>reqSigs</code>: <code>(numeric)</code> The number of required signatures.
+::::: <code>type</code>: <code>(string)</code> The type of the script (e.g. 'pubkeyhash').
+::::: <code>addresses</code>: <code>(json array of string)</code> The Decred addresses associated with this output.
+::::: <code>version</code>: <code>(numeric)</code> The script version.
+::: <code>expiry</code>: <code>(numeric)</code> Block height at which the pair request expires.
+|-
+!Example Return
+|<code>{"epoch":600,"nextepoch":1751049600,"pairings":[{"mixamount":1,"scriptclass":"P2PKH-secp256k1-v0","txversion":1,"locktime":0,"pairingflags":1,"pairrequests":[{"hash":"a1d1d8c6...","identity":"02d1a...","messagecount":1,"inputvalue":1.2,"utxos":[{"txid":"a1d1d8c6...","vout":0,"tree":0,"amountin":1.2,"blockheight":987000,"scriptPubKey":{"asm":"OP_DUP OP_HASH160 2da3aaa402b110247f08c3ea2300a0567de77a5b OP_EQUALVERIFY OP_CHECKSIG","hex":"76a9142da3aaa402b110247f08c3ea2300a0567de77a5b88ac","reqSigs":1,"type":"pubkeyhash","addresses":["DsV8DxpEUFyZtcAwpWfejmWRpR5FEsrM6Yo"],"version":0}}],"expiry":987654}]}]}</code>
 |}
 
 ----

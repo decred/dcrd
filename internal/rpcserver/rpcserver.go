@@ -210,6 +210,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getmempoolinfo":        handleGetMempoolInfo,
 	"getmininginfo":         handleGetMiningInfo,
 	"getmixmessage":         handleGetMixMessage,
+	"getmixpoolinfo":        handleGetMixpoolInfo,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
 	"getnetworkinfo":        handleGetNetworkInfo,
@@ -379,6 +380,7 @@ var rpcLimited = map[string]struct{}{
 	"getheaders":           {},
 	"getinfo":              {},
 	"getmixmessage":        {},
+	"getmixpoolinfo":       {},
 	"getnettotals":         {},
 	"getnetworkhashps":     {},
 	"getnetworkinfo":       {},
@@ -1262,6 +1264,38 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	}
 
 	return vinList
+}
+
+// createScriptPubKeyResult returns a JSON object describing the passed public
+// key script information.
+func createScriptPubKeyResult(scriptVersion uint16, pkScript []byte,
+	chainParams *chaincfg.Params) types.ScriptPubKeyResult {
+
+	// Disassemble script into single line printable format.  The disassembled
+	// string will contain [error] inline if the script doesn't fully parse, so
+	// ignore the error here.
+	script := pkScript
+	disbuf, _ := txscript.DisasmString(script)
+
+	// Attempt to extract known addresses associated with the script.
+	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, script,
+		chainParams)
+	addresses := make([]string, len(addrs))
+	for i, addr := range addrs {
+		addresses[i] = addr.String()
+	}
+
+	// Determine the number of required signatures for known standard types.
+	reqSigs := stdscript.DetermineRequiredSigs(scriptVersion, script)
+
+	return types.ScriptPubKeyResult{
+		Asm:       disbuf,
+		Hex:       hex.EncodeToString(script),
+		ReqSigs:   int32(reqSigs),
+		Type:      scriptType.String(),
+		Addresses: addresses,
+		Version:   scriptVersion,
+	}
 }
 
 // createVoutList returns a slice of JSON objects for the outputs of the passed
@@ -2664,6 +2698,84 @@ func handleGetMixMessage(_ context.Context, s *Server, cmd any) (any, error) {
 	return &result, nil
 }
 
+// handleGetMixpoolInfo implements the getmixpoolinfo command, returning the
+// timing of the next mix epoch and the pending pair requests grouped by pairing
+// description.
+func handleGetMixpoolInfo(_ context.Context, s *Server, _ any) (any, error) {
+	mp := s.cfg.MixPooler
+	prs := mp.MixPRs()
+
+	// Use a map to group PRs by their pairing description. This is converted to
+	// a slice for JSON marshalling later.
+	groups := make(map[string]*types.Pairing)
+	for _, pr := range prs {
+		pairing, err := pr.Pairing()
+		if err != nil {
+			return nil, rpcInternalErr(err, "Failed to generate PR pairing")
+		}
+
+		key := string(pairing)
+		group, ok := groups[key]
+		if !ok {
+			group = &types.Pairing{
+				MixAmount:    dcrutil.Amount(pr.MixAmount).ToCoin(),
+				ScriptClass:  pr.ScriptClass,
+				TxVersion:    pr.TxVersion,
+				LockTime:     pr.LockTime,
+				PairingFlags: pr.PairingFlags,
+				PairRequests: make([]types.PairRequest, 0, min(len(prs), mixing.MaxPeers)),
+			}
+			groups[key] = group
+		}
+
+		// The pair request only provides the hash, index and tree of the UTXO,
+		// so amountIn, blockHeight and scriptPubKey are retrieved from the
+		// local UTXO set.
+		utxos := make([]types.PairRequestUTXO, len(pr.UTXOs))
+		for i := range pr.UTXOs {
+			op := pr.UTXOs[i].OutPoint
+
+			entry, err := s.cfg.Chain.FetchUtxoEntry(op)
+			if entry == nil || err != nil {
+				return nil, rpcNoTxInfoError(&op.Hash)
+			}
+
+			utxos[i].Txid = op.Hash.String()
+			utxos[i].Vout = op.Index
+			utxos[i].Tree = op.Tree
+			utxos[i].AmountIn = dcrutil.Amount(entry.Amount()).ToCoin()
+			utxos[i].BlockHeight = uint32(entry.BlockHeight())
+			utxos[i].ScriptPubKey = createScriptPubKeyResult(
+				entry.ScriptVersion(), entry.PkScript(), s.cfg.ChainParams)
+		}
+
+		group.PairRequests = append(group.PairRequests, types.PairRequest{
+			Hash:         pr.Hash().String(),
+			Identity:     hex.EncodeToString(pr.Identity[:]),
+			MessageCount: pr.MessageCount,
+			InputValue:   dcrutil.Amount(pr.InputValue).ToCoin(),
+			UTXOs:        utxos,
+			Expiry:       pr.Expiry,
+		})
+	}
+
+	// Convert map to slice for JSON marshalling.
+	pairings := make([]types.Pairing, 0, len(groups))
+	for _, group := range groups {
+		pairings = append(pairings, *group)
+	}
+
+	epoch := mp.Epoch()
+	nextEpoch := s.cfg.Clock.Now().Truncate(epoch).Add(epoch)
+
+	result := types.GetMixpoolInfoResult{
+		Epoch:     int64(epoch.Seconds()),
+		NextEpoch: nextEpoch.Unix(),
+		Pairings:  pairings,
+	}
+	return &result, nil
+}
+
 // handleGetNetTotals implements the getnettotals command.
 func handleGetNetTotals(_ context.Context, s *Server, _ any) (any, error) {
 	totalBytesRecv, totalBytesSent := s.cfg.ConnMgr.NetTotals()
@@ -3727,35 +3839,12 @@ func handleGetTxOut(_ context.Context, s *Server, cmd any) (any, error) {
 		isCoinbase = entry.IsCoinBase()
 	}
 
-	// Disassemble script into single line printable format.  The
-	// disassembled string will contain [error] inline if the script
-	// doesn't fully parse, so ignore the error here.
-	script := pkScript
-	disbuf, _ := txscript.DisasmString(script)
-
-	// Attempt to extract known addresses associated with the script.
-	scriptType, addrs := stdscript.ExtractAddrs(scriptVersion, script,
-		s.cfg.ChainParams)
-	addresses := make([]string, len(addrs))
-	for i, addr := range addrs {
-		addresses[i] = addr.String()
-	}
-
-	// Determine the number of required signatures for known standard types.
-	reqSigs := stdscript.DetermineRequiredSigs(scriptVersion, script)
-
 	txOutReply := &types.GetTxOutResult{
 		BestBlock:     bestBlockHash,
 		Confirmations: confirmations,
 		Value:         dcrutil.Amount(value).ToUnit(dcrutil.AmountCoin),
-		ScriptPubKey: types.ScriptPubKeyResult{
-			Asm:       disbuf,
-			Hex:       hex.EncodeToString(pkScript),
-			ReqSigs:   int32(reqSigs),
-			Type:      scriptType.String(),
-			Addresses: addresses,
-			Version:   scriptVersion,
-		},
+		ScriptPubKey: createScriptPubKeyResult(scriptVersion, pkScript,
+			s.cfg.ChainParams),
 		Coinbase: isCoinbase,
 	}
 	return txOutReply, nil
