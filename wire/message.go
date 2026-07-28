@@ -257,15 +257,8 @@ func WriteMessageN(w io.Writer, msg Message, pver uint32, dcrnet CurrencyNet) (i
 	}
 	copy(command[:], []byte(cmd))
 
-	// Allocate enough buffer space for the entire message size if it is
-	// known.  When it is not known, use an extra size hint of 64 bytes,
-	// which matches the default small allocation size of a bytes.Buffer
-	// as of Go 1.25.
-	extraCap := 64
-	switch msg := msg.(type) {
-	case interface{ SerializeSize() int }:
-		extraCap = msg.SerializeSize()
-	}
+	// Allocate enough buffer space for the entire message size.
+	extraCap := msg.SerializeSize()
 
 	// Initialize buffer with zeroed bytes for the message header (to be
 	// filled in, with checksum, after appending the payload
