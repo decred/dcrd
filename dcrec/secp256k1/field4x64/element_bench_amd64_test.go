@@ -10,22 +10,22 @@ import (
 	"testing"
 )
 
-// BenchmarkField64MulReduceAMD64 benchmarks how long it takes to multiply two
-// field elements together and reduce them modulo the field prime with each of
-// the specialized amd64 implementations along with the number of allocations
+// BenchmarkMulReduceAMD64 benchmarks how long it takes to multiply two field
+// elements together and reduce them modulo the field prime with each of the
+// specialized amd64 implementations along with the number of allocations
 // needed.
-func BenchmarkField64MulReduceAMD64(b *testing.B) {
+func BenchmarkMulReduceAMD64(b *testing.B) {
 	benches := []struct {
 		name      string
 		fn        func(r *[4]uint64, a, b *[4]uint64)
 		supported bool
 	}{
-		{name: "Generic", fn: field64MulReduceGeneric, supported: true},
-		{name: "BMI2/ADX", fn: field64MulReduceADX, supported: field64UseBMI2AndADX},
+		{name: "Generic", fn: mulReduceGeneric, supported: true},
+		{name: "BMI2/ADX", fn: mulReduceADX, supported: useBMI2AndADX},
 	}
 
-	a := mustFieldVal64("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab").n
-	c := mustFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca").n
+	a := mustElement("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab").n
+	c := mustElement("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca").n
 	var r [4]uint64
 
 	for _, bench := range benches {
@@ -47,21 +47,20 @@ func BenchmarkField64MulReduceAMD64(b *testing.B) {
 	}
 }
 
-// BenchmarkField64SquareReduceAMD64 benchmarks how long it takes to square a
-// field element and reduce it modulo the field prime with each of the
-// specialized amd64 implementations along with the number of allocations
-// needed.
-func BenchmarkField64SquareReduceAMD64(b *testing.B) {
+// BenchmarkSquareReduceAMD64 benchmarks how long it takes to square a field
+// element and reduce it modulo the field prime with each of the specialized
+// amd64 implementations along with the number of allocations needed.
+func BenchmarkSquareReduceAMD64(b *testing.B) {
 	benches := []struct {
 		name      string
 		fn        func(r *[4]uint64, a *[4]uint64)
 		supported bool
 	}{
-		{name: "Generic", fn: field64SquareReduceGeneric, supported: true},
-		{name: "BMI2/ADX", fn: field64SquareReduceADX, supported: field64UseBMI2AndADX},
+		{name: "Generic", fn: squareReduceGeneric, supported: true},
+		{name: "BMI2/ADX", fn: squareReduceADX, supported: useBMI2AndADX},
 	}
 
-	a := mustFieldVal64("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca").n
+	a := mustElement("16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca").n
 	var r [4]uint64
 
 	for _, bench := range benches {

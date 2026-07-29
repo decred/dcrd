@@ -6,12 +6,12 @@ package field4x64
 
 import "testing"
 
-// TestField64AMD64 ensures each of the specialized amd64 [FieldVal64.Mul] and
-// [FieldVal64.Square] implementations return the expected results.
+// TestElementAMD64 ensures each of the specialized amd64 [Element.Mul] and
+// [Element.Square] implementations return the expected results.
 //
 // Note that any tests which require instruction sets that aren't available on
 // the system executing the tests are skipped.
-func TestField64AMD64(t *testing.T) {
+func TestElementAMD64(t *testing.T) {
 	// NOTE: This is intentionally not made parallel because it modifies the
 	// global feature flags to ensure all supported variants are tested.
 
@@ -22,7 +22,7 @@ func TestField64AMD64(t *testing.T) {
 	}
 	variants := []mulVariantTest{
 		{name: "Pure Go", featureFlag: &pureGo},
-		{name: "BMI2/ADX", featureFlag: &field64UseBMI2AndADX},
+		{name: "BMI2/ADX", featureFlag: &useBMI2AndADX},
 	}
 
 	// Restore the feature flags after the tests complete.
@@ -56,10 +56,10 @@ func TestField64AMD64(t *testing.T) {
 			*variant.featureFlag = true
 
 			t.Run("Mul", func(t *testing.T) {
-				testField64Mul(t)
+				testElementMul(t)
 			})
 			t.Run("Square", func(t *testing.T) {
-				testField64Square(t)
+				testElementSquare(t)
 			})
 		})
 	}

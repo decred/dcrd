@@ -22,15 +22,15 @@ import (
 // It uses tight 256-bit packing with four little-endian uint64s and fully
 // reduces after each operation.  Hardware intrinsics are used when available.
 
-// FieldVal64 implements optimized fixed-precision arithmetic over the
-// secp256k1 finite field.  This means all arithmetic is performed modulo
+// Element implements optimized fixed-precision arithmetic over the secp256k1
+// finite field.  This means all arithmetic is performed modulo
 //
 //	0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
 //
-// Unlike [FieldVal], this fully reduces after each operation and therefore does
-// not require normalization or manual magnitude tracking.  It is also quite a
-// bit faster than [FieldVal] on all modern 64-bit hardware.
-type FieldVal64 struct {
+// This fully reduces after each operation and therefore does not require
+// normalization or manual magnitude tracking.  It is also quite a bit faster
+// than [field10x26.Element] on all modern 64-bit hardware.
+type Element struct {
 	// Each 256-bit value is represented as 4 64-bit integers in base 2^64.
 	// It only implements the arithmetic needed for elliptic curve operations.
 	//
@@ -56,95 +56,95 @@ type FieldVal64 struct {
 	n [4]uint64
 }
 
-// Constants related to the field representation.
+// Constants related to the internal representation.
 const (
-	// field64PrimeComplement is the two's complement of the secp256k1 prime.
-	field64PrimeComplement = 0x1000003d1 // 2^32 + 977
+	// fieldPrimeComplement is the two's complement of the secp256k1 prime.
+	fieldPrimeComplement = 0x1000003d1 // 2^32 + 977
 
 	// These fields provide convenient access to each of the limbs of the
-	// secp256k1 prime in the internal field representation to improve code
+	// secp256k1 prime in the internal representation to improve code
 	// readability.
-	field64Prime0 = 0xfffffffefffffc2f
-	field64Prime1 = 0xffffffffffffffff
-	field64Prime2 = 0xffffffffffffffff
-	field64Prime3 = 0xffffffffffffffff
+	fieldPrimeLimb0 = 0xfffffffefffffc2f
+	fieldPrimeLimb1 = 0xffffffffffffffff
+	fieldPrimeLimb2 = 0xffffffffffffffff
+	fieldPrimeLimb3 = 0xffffffffffffffff
 )
 
-// String returns the field value as a human-readable hex string.
-func (f FieldVal64) String() string {
-	return hex.EncodeToString(f.Bytes()[:])
+// String returns the element as a human-readable hex string.
+func (e Element) String() string {
+	return hex.EncodeToString(e.Bytes()[:])
 }
 
-// Zero sets the field value to zero in constant time.  A newly created field
-// value is already set to zero.  This function can be useful to clear an
-// existing field value for reuse.
-func (f *FieldVal64) Zero() {
-	f.n = [4]uint64{}
+// Zero sets the element to zero in constant time.  A newly created element is
+// already set to zero.  This function can be useful to clear an existing
+// element for reuse.
+func (e *Element) Zero() {
+	e.n = [4]uint64{}
 }
 
-// Set sets the field value equal to the passed value in constant time.
+// Set sets the element equal to the passed element in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f := new(FieldVal).Set(f2).Add(1) so that f = f2 + 1 where f2 is not
+// The element is returned to support chaining.  This enables syntax like:
+// e := new(Element).Set(e2).Add(1) so that e = e2 + 1 where e2 is not
 // modified.
-func (f *FieldVal64) Set(val *FieldVal64) *FieldVal64 {
-	f.n = val.n
-	return f
+func (e *Element) Set(val *Element) *Element {
+	e.n = val.n
+	return e
 }
 
-// SetInt sets the field value to the passed integer in constant time.  This is
-// a convenience function since it is fairly common to perform some arithmetic
-// with small native integers.
+// SetInt sets the element to the passed integer in constant time.  This is a
+// convenience function since it is fairly common to perform arithmetic with
+// small native integers.
 //
-// The field value is returned to support chaining.  This enables syntax such
-// as f := new(FieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
-func (f *FieldVal64) SetInt(v uint16) *FieldVal64 {
-	f.n = [4]uint64{uint64(v), 0, 0, 0}
-	return f
+// The element is returned to support chaining.  This enables syntax such
+// as e := new(Element).SetInt(2).Mul(e2) so that e = 2 * e2.
+func (e *Element) SetInt(v uint16) *Element {
+	e.n = [4]uint64{uint64(v), 0, 0, 0}
+	return e
 }
 
-// SetBytes packs the passed 32-byte big-endian value into the internal field
-// value representation in constant time.  It interprets the provided array as a
-// 256-bit big-endian unsigned integer, packs it into the internal field value
-// representation, and returns either 1 if it is greater than or equal to the
-// field prime (aka it overflowed) or 0 otherwise in constant time.
+// SetBytes packs the passed 32-byte big-endian value into the internal
+// representation in constant time.  It interprets the provided array as a
+// 256-bit big-endian unsigned integer, packs it, and returns either 1 if it is
+// greater than or equal to the field prime (aka it overflowed) or 0 otherwise
+// in constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
 // operations require a numeric value.
-func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
+func (e *Element) SetBytes(b *[32]byte) uint32 {
 	// Pack the 256 total bits across the 4 uint64 limbs.
-	f.n[0] = binary.BigEndian.Uint64(b[24:32])
-	f.n[1] = binary.BigEndian.Uint64(b[16:24])
-	f.n[2] = binary.BigEndian.Uint64(b[8:16])
-	f.n[3] = binary.BigEndian.Uint64(b[0:8])
+	e.n[0] = binary.BigEndian.Uint64(b[24:32])
+	e.n[1] = binary.BigEndian.Uint64(b[16:24])
+	e.n[2] = binary.BigEndian.Uint64(b[8:16])
+	e.n[3] = binary.BigEndian.Uint64(b[0:8])
 
-	// Since f < 2^256 < 2p (where p is the secp256k1 prime), the max possible
+	// Since e < 2^256 < 2p (where p is the secp256k1 prime), the max possible
 	// number of reductions required is one.  Therefore, in the case a reduction
 	// is needed, it can be performed with a single subtraction of p.
 	//
-	// Since p must only conditionally be subtracted when f ≥ p, the following
-	// handles it in constant time by always calculating s = f - p and selecting
+	// Since p must only conditionally be subtracted when e ≥ p, the following
+	// handles it in constant time by always calculating s = e - p and selecting
 	// the correct case via a constant time select.
 
-	// Subtract p with borrow propagation.  borrow is set iff f < p.
+	// Subtract p with borrow propagation.  borrow is set iff e < p.
 	//
-	// In other words, the input overflowed (≥ p) when f - p does NOT borrow.
+	// In other words, the input overflowed (≥ p) when e - p does NOT borrow.
 	//
-	// s = f - p
+	// s = e - p
 	var s0, s1, s2, s3, borrow uint64
-	s0, borrow = bits.Sub64(f.n[0], field64Prime0, 0)
-	s1, borrow = bits.Sub64(f.n[1], field64Prime1, borrow)
-	s2, borrow = bits.Sub64(f.n[2], field64Prime2, borrow)
-	s3, borrow = bits.Sub64(f.n[3], field64Prime3, borrow)
+	s0, borrow = bits.Sub64(e.n[0], fieldPrimeLimb0, 0)
+	s1, borrow = bits.Sub64(e.n[1], fieldPrimeLimb1, borrow)
+	s2, borrow = bits.Sub64(e.n[2], fieldPrimeLimb2, borrow)
+	s3, borrow = bits.Sub64(e.n[3], fieldPrimeLimb3, borrow)
 
 	// Constant-time select.
 	//
-	// Set f = f when f < p (aka borrow is set).  Otherwise f = s = f - p.
-	f.n[0] = arith.ConstantTimeSelect64(borrow, f.n[0], s0)
-	f.n[1] = arith.ConstantTimeSelect64(borrow, f.n[1], s1)
-	f.n[2] = arith.ConstantTimeSelect64(borrow, f.n[2], s2)
-	f.n[3] = arith.ConstantTimeSelect64(borrow, f.n[3], s3)
+	// Set e = e when e < p (aka borrow is set).  Otherwise e = s = e - p.
+	e.n[0] = arith.ConstantTimeSelect64(borrow, e.n[0], s0)
+	e.n[1] = arith.ConstantTimeSelect64(borrow, e.n[1], s1)
+	e.n[2] = arith.ConstantTimeSelect64(borrow, e.n[2], s2)
+	e.n[3] = arith.ConstantTimeSelect64(borrow, e.n[3], s3)
 	return uint32(1 - borrow)
 }
 
@@ -155,8 +155,8 @@ func zeroArray32(b *[32]byte) {
 
 // SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
 // integer (meaning it is truncated to the first 32 bytes), packs it into the
-// internal field value representation, and returns whether or not the resulting
-// truncated 256-bit integer is greater than or equal to the field prime (aka it
+// internal representation, and returns whether or not the resulting truncated
+// 256-bit integer is greater than or equal to the field prime (aka it
 // overflowed) in constant time.
 //
 // Note that since passing a slice with more than 32 bytes is truncated, it is
@@ -165,148 +165,145 @@ func zeroArray32(b *[32]byte) {
 // caller to decide whether it needs to provide numbers of the appropriate size
 // or it if is acceptable to use this function with the described truncation and
 // overflow behavior.
-func (f *FieldVal64) SetByteSlice(b []byte) bool {
+func (e *Element) SetByteSlice(b []byte) bool {
 	var b32 [32]byte
 	b = b[:arith.ConstantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
-	result := f.SetBytes(&b32)
+	result := e.SetBytes(&b32)
 	zeroArray32(&b32)
 	return result != 0
 }
 
-// Normalize is a no-op.  It is provided to keep API parity for
-// [secp256k1.FieldVal].
-func (f *FieldVal64) Normalize() *FieldVal64 {
-	return f
+// Normalize is a no-op.  It is provided to keep API parity with the other field
+// element implementations.
+func (e *Element) Normalize() *Element {
+	return e
 }
 
-// PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
-// directly into the passed byte slice in constant time.  The target slice must
-// have at least 32 bytes available or it will panic.
+// PutBytesUnchecked unpacks the element to a 32-byte big-endian value directly
+// into the passed byte slice in constant time.  The target slice must have at
+// least 32 bytes available or it will panic.
 //
-// There is a similar function, [FieldVal64.PutBytes], which unpacks the field
-// value into a 32-byte array directly.  This version is provided since it can
-// be useful to write directly into part of a larger buffer without needing a
+// There is a similar function, [Element.PutBytes], which unpacks the element
+// into a 32-byte array directly.  This version is provided since it can be
+// useful to write directly into part of a larger buffer without needing a
 // separate allocation.
-func (f *FieldVal64) PutBytesUnchecked(b []byte) {
+func (e *Element) PutBytesUnchecked(b []byte) {
 	// Unpack the 256 total bits from the 4 uint64 limbs.
-	binary.BigEndian.PutUint64(b[0:8], f.n[3])
-	binary.BigEndian.PutUint64(b[8:16], f.n[2])
-	binary.BigEndian.PutUint64(b[16:24], f.n[1])
-	binary.BigEndian.PutUint64(b[24:32], f.n[0])
+	binary.BigEndian.PutUint64(b[0:8], e.n[3])
+	binary.BigEndian.PutUint64(b[8:16], e.n[2])
+	binary.BigEndian.PutUint64(b[16:24], e.n[1])
+	binary.BigEndian.PutUint64(b[24:32], e.n[0])
 }
 
-// PutBytes unpacks the field value to a 32-byte big-endian value using the
-// passed byte array in constant time.
+// PutBytes unpacks the element to a 32-byte big-endian value using the passed
+// byte array in constant time.
 //
-// There is a similar function, [FieldVal64.PutBytesUnchecked], which unpacks
-// the field value into a slice that must have at least 32 bytes available.
-// This version is provided since it can be useful to write directly into an
-// array that is type checked.
+// There is a similar function, [Element.PutBytesUnchecked], which unpacks the
+// element into a slice that must have at least 32 bytes available.  This
+// version is provided since it can be useful to write directly into an array
+// that is type checked.
 //
-// Alternatively, there is also [FieldVal64.Bytes], which unpacks the field
-// value into a new array and returns that which can sometimes be more ergonomic
-// in applications that aren't concerned about an additional copy.
-func (f *FieldVal64) PutBytes(b *[32]byte) {
-	f.PutBytesUnchecked(b[:])
+// Alternatively, there is also [Element.Bytes], which unpacks the element into
+// a new array and returns that which can sometimes be more ergonomic in
+// applications that aren't concerned about an additional copy.
+func (e *Element) PutBytes(b *[32]byte) {
+	e.PutBytesUnchecked(b[:])
 }
 
-// Bytes unpacks the field value to a 32-byte big-endian value in constant time.
+// Bytes unpacks the element to a 32-byte big-endian value in constant time.
 //
-// See [FieldVal64.PutBytes] and [FieldVal64.PutBytesUnchecked] for variants
-// that allow an array or slice to be passed which can be useful to cut down on
-// the number of allocations by allowing the caller to reuse a buffer or write
+// See [Element.PutBytes] and [Element.PutBytesUnchecked] for variants that
+// allow an array or slice to be passed which can be useful to cut down on the
+// number of allocations by allowing the caller to reuse a buffer or write
 // directly into part of a larger buffer.
-func (f *FieldVal64) Bytes() *[32]byte {
+func (e *Element) Bytes() *[32]byte {
 	var b [32]byte
-	f.PutBytesUnchecked(b[:])
+	e.PutBytesUnchecked(b[:])
 	return &b
 }
 
-// IsZeroBit returns 1 when the field value is equal to zero or 0 otherwise in
+// IsZeroBit returns 1 when the element is equal to zero or 0 otherwise in
 // constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See IsZero for the version that returns
-// a bool.
-func (f *FieldVal64) IsZeroBit() uint32 {
-	return arith.ConstantTimeEq64(f.n[0]|f.n[1]|f.n[2]|f.n[3], 0)
-}
-
-// IsZero returns whether or not the field value is equal to zero in constant
-// time.
-func (f *FieldVal64) IsZero() bool {
-	return (f.n[0] | f.n[1] | f.n[2] | f.n[3]) == 0
-}
-
-// IsOneBit returns 1 when the field value is equal to one or 0 otherwise in
-// constant time.
-//
-// Note that a bool is not used here because it is not possible in Go to convert
-// from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See [FieldVal64.IsOne] for the version
+// operations require a numeric value.  See [Element.IsZero] for the version
 // that returns a bool.
-func (f *FieldVal64) IsOneBit() uint32 {
-	// The value can only be one if the single lowest significant bit is set in
-	// the first word and no other bits are set in any of the other words.
-	// This is a constant time implementation.
-	return arith.ConstantTimeEq64((f.n[0]^1)|f.n[1]|f.n[2]|f.n[3], 0)
+func (e *Element) IsZeroBit() uint32 {
+	return arith.ConstantTimeEq64(e.n[0]|e.n[1]|e.n[2]|e.n[3], 0)
 }
 
-// IsOne returns whether or not the field value is equal to one in constant
-// time.
-func (f *FieldVal64) IsOne() bool {
-	// The value can only be one if the single lowest significant bit is set in
-	// the first word and no other bits are set in any of the other words.
-	// This is a constant time implementation.
-	return ((f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3]) == 0
+// IsZero returns whether or not the element is equal to zero in constant time.
+func (e *Element) IsZero() bool {
+	return (e.n[0] | e.n[1] | e.n[2] | e.n[3]) == 0
 }
 
-// IsOddBit returns 1 when the field value is an odd number or 0 otherwise in
+// IsOneBit returns 1 when the element is equal to one or 0 otherwise in
 // constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See [FieldVal64.IsOdd] for the version
+// operations require a numeric value.  See [Element.IsOne] for the version
 // that returns a bool.
-func (f *FieldVal64) IsOddBit() uint32 {
-	// Only odd numbers have the bottom bit set.
-	return uint32(f.n[0] & 1)
-}
-
-// IsOdd returns whether or not the field value is an odd number in constant
-// time.
-func (f *FieldVal64) IsOdd() bool {
-	// Only odd numbers have the bottom bit set.
-	return f.n[0]&1 == 1
-}
-
-// Equals returns whether or not the two field values are the same in constant
-// time.
-func (f *FieldVal64) Equals(val *FieldVal64) bool {
-	// Xor only sets bits when they are different, so the two field values
-	// can only be the same if no bits are set after xoring each word.
+func (e *Element) IsOneBit() uint32 {
+	// The element can only be one if the single lowest significant bit is set
+	// in the first limb and no other bits are set in any of the other limbs.
 	// This is a constant time implementation.
-	return ((f.n[0] ^ val.n[0]) | (f.n[1] ^ val.n[1]) | (f.n[2] ^ val.n[2]) |
-		(f.n[3] ^ val.n[3])) == 0
+	return arith.ConstantTimeEq64((e.n[0]^1)|e.n[1]|e.n[2]|e.n[3], 0)
 }
 
-// NegateVal negates the passed value and stores the result in f in constant
-// time.  The ignored parameter exists to keep API parity with [FieldVal].
+// IsOne returns whether or not the element is equal to one in constant time.
+func (e *Element) IsOne() bool {
+	// The element can only be one if the single lowest significant bit is set
+	// in the first limb and no other bits are set in any of the other limbs.
+	// This is a constant time implementation.
+	return ((e.n[0] ^ 1) | e.n[1] | e.n[2] | e.n[3]) == 0
+}
+
+// IsOddBit returns 1 when the element is an odd number or 0 otherwise in
+// constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.NegateVal(f2).AddInt(1) so that f = -f2 + 1.
-func (f *FieldVal64) NegateVal(val *FieldVal64, _ uint32) *FieldVal64 {
-	// Since the value is already in the range 0 ≤ val < p, where p is the
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See [Element.IsOdd] for the version that
+// returns a bool.
+func (e *Element) IsOddBit() uint32 {
+	// Only odd numbers have the bottom bit set.
+	return uint32(e.n[0] & 1)
+}
+
+// IsOdd returns whether or not the element is an odd number in constant time.
+func (e *Element) IsOdd() bool {
+	// Only odd numbers have the bottom bit set.
+	return e.n[0]&1 == 1
+}
+
+// Equals returns whether or not the two elements are the same in constant time.
+func (e *Element) Equals(val *Element) bool {
+	// Xor only sets bits when they are different, so the two elements can only
+	// be the same if no bits are set after xoring each limb.  This is a
+	// constant time implementation.
+	return ((e.n[0] ^ val.n[0]) | (e.n[1] ^ val.n[1]) | (e.n[2] ^ val.n[2]) |
+		(e.n[3] ^ val.n[3])) == 0
+}
+
+// NegateVal negates the passed element and stores the result in e in constant
+// time.  The ignored parameter exists to keep API parity with the field element
+// implementations.
+//
+// The element is returned to support chaining.  This enables syntax like:
+// e.NegateVal(e2).AddInt(1) so that e = -e2 + 1.
+func (e *Element) NegateVal(val *Element, _ uint32) *Element {
+	// Since the element is already in the range 0 ≤ val < p, where p is the
 	// secp256k1 prime, negation modulo p is just p - val.  This implies that
 	// the result will always be in the desired range with the sole exception of
 	// 0 because p - 0 = p itself.
 	//
 	// The following handles that case in constant time by creating a mask that
-	// is all 0s in the case the value being negated is 0 and all 1s otherwise
-	// and then bitwise ands that mask with each word of the prime.
+	// is all 0s in the case the element being negated is 0 and all 1s otherwise
+	// and then bitwise ands that mask with each limb of the prime.
 
 	// Subtract val from 0. borrow is set iff val != 0.
 	//
@@ -322,55 +319,56 @@ func (f *FieldVal64) NegateVal(val *FieldVal64, _ uint32) *FieldVal64 {
 	// The upper limbs of the prime are all 1s, so there is no need to mask them
 	// given they are equal to the mask for both cases.
 	mask := -borrow
-	maskedPrime0 := field64Prime0 & mask
+	maskedPrime0 := fieldPrimeLimb0 & mask
 
 	// Add 0 when val == 0 or p when val != 0.  The result is either:
 	//
-	// val == 0: f = 0 + 0 = 0
-	// val != 0: f = -val + p = p - val
+	// val == 0: e = 0 + 0 = 0
+	// val != 0: e = -val + p = p - val
 	var carry uint64
-	f.n[0], carry = bits.Add64(t0, maskedPrime0, 0)
-	f.n[1], carry = bits.Add64(t1, mask, carry)
-	f.n[2], carry = bits.Add64(t2, mask, carry)
-	f.n[3], _ = bits.Add64(t3, mask, carry)
-	return f
+	e.n[0], carry = bits.Add64(t0, maskedPrime0, 0)
+	e.n[1], carry = bits.Add64(t1, mask, carry)
+	e.n[2], carry = bits.Add64(t2, mask, carry)
+	e.n[3], _ = bits.Add64(t3, mask, carry)
+	return e
 }
 
-// Negate negates the field value in constant time.  The existing field value is
-// modified.  The ignored parameter exists to keep API parity with [FieldVal].
+// Negate negates the element in constant time.  The existing element is
+// modified.  The ignored parameter exists to keep API parity with the field
+// element implementations.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Negate().AddInt(1) so that f = -f + 1.
-func (f *FieldVal64) Negate(_ uint32) *FieldVal64 {
-	return f.NegateVal(f, 0)
+// The element is returned to support chaining.  This enables syntax like:
+// e.Negate().AddInt(1) so that e = -e + 1.
+func (e *Element) Negate(_ uint32) *Element {
+	return e.NegateVal(e, 0)
 }
 
-// AddInt adds the passed integer to the existing field value and stores the
-// result in f in constant time.  This is a convenience function since it is
-// fairly common to perform some arithmetic with small native integers.
+// AddInt adds the passed integer to the existing element and stores the result
+// in e in constant time.  This is a convenience function since it is fairly
+// common to perform some arithmetic with small native integers.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.AddInt(1).Add(f2) so that f = f + 1 + f2.
-func (f *FieldVal64) AddInt(ui uint16) *FieldVal64 {
-	return f.Add(new(FieldVal64).SetInt(ui))
+// The element is returned to support chaining.  This enables syntax like:
+// e.AddInt(1).Add(e2) so that e = e + 1 + e2.
+func (e *Element) AddInt(ui uint16) *Element {
+	return e.Add(new(Element).SetInt(ui))
 }
 
-// Add adds the passed value to the existing field value and stores the result
-// in f in constant time.
+// Add adds the passed element to the existing element and stores the result in
+// e in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Add(f2).AddInt(1) so that f = f + f2 + 1.
-func (f *FieldVal64) Add(val *FieldVal64) *FieldVal64 {
-	return f.Add2(f, val)
+// The element is returned to support chaining.  This enables syntax like:
+// e.Add(e2).AddInt(1) so that e = e + e2 + 1.
+func (e *Element) Add(val *Element) *Element {
+	return e.Add2(e, val)
 }
 
-// Add2 adds the passed two field values together and stores the result in f in
+// Add2 adds the passed two elements together and stores the result in e in
 // constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.Add2(f, f2).AddInt(1) so that f3 = f + f2 + 1.
-func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
-	// Since both values are already in the range 0 ≤ val < p (where p is the
+// The element is returned to support chaining.  This enables syntax like:
+// e3.Add2(e, e2).AddInt(1) so that e3 = e + e2 + 1.
+func (e *Element) Add2(a, b *Element) *Element {
+	// Since both elements are already in the range 0 ≤ val < p (where p is the
 	// secp256k1 prime), the maximum possible result is < 2p - 1.  So a maximum
 	// of one subtraction of p is required in the worst case.
 	//
@@ -391,115 +389,115 @@ func (f *FieldVal64) Add2(a, b *FieldVal64) *FieldVal64 {
 	//
 	// s = t - p = a+b - p
 	var s0, s1, s2, s3, borrow uint64
-	s0, borrow = bits.Sub64(t0, field64Prime0, 0)
-	s1, borrow = bits.Sub64(t1, field64Prime1, borrow)
-	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
-	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
+	s0, borrow = bits.Sub64(t0, fieldPrimeLimb0, 0)
+	s1, borrow = bits.Sub64(t1, fieldPrimeLimb1, borrow)
+	s2, borrow = bits.Sub64(t2, fieldPrimeLimb2, borrow)
+	s3, borrow = bits.Sub64(t3, fieldPrimeLimb3, borrow)
 
 	// Constant-time select.
 	//
-	// Set f = t = a+b only when there was no overflow and t < p (borrow set).
-	// Otherwise f = s = a+b - p.
+	// Set e = t = a+b only when there was no overflow and t < p (borrow set).
+	// Otherwise e = s = a+b - p.
 	cond := (1 - overflow) & borrow
-	f.n[0] = arith.ConstantTimeSelect64(cond, t0, s0)
-	f.n[1] = arith.ConstantTimeSelect64(cond, t1, s1)
-	f.n[2] = arith.ConstantTimeSelect64(cond, t2, s2)
-	f.n[3] = arith.ConstantTimeSelect64(cond, t3, s3)
-	return f
+	e.n[0] = arith.ConstantTimeSelect64(cond, t0, s0)
+	e.n[1] = arith.ConstantTimeSelect64(cond, t1, s1)
+	e.n[2] = arith.ConstantTimeSelect64(cond, t2, s2)
+	e.n[3] = arith.ConstantTimeSelect64(cond, t3, s3)
+	return e
 }
 
-// MulBy2 multiplies the field value by 2 and stores the result in f in constant
+// MulBy2 multiplies the element by 2 and stores the result in e in constant
 // time.
 //
 // This method is optimized to provide a significant speed advantage over the
-// more general [FieldVal64.MulInt].
+// more general [Element.MulInt].
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy2().Add(f2) so that f = 2 * f + f2.
-func (f *FieldVal64) MulBy2() *FieldVal64 {
-	return f.Add(f)
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy2().Add(e2) so that e = 2 * e + e2.
+func (e *Element) MulBy2() *Element {
+	return e.Add(e)
 }
 
-// MulBy3 multiplies the field value by 3 and stores the result in f in constant
+// MulBy3 multiplies the element by 3 and stores the result in e in constant
 // time.
 //
 // This method is optimized to provide a significant speed advantage over the
-// more general [FieldVal64.MulInt].
+// more general [Element.MulInt].
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy3().Add(f2) so that f = 3 * f + f2.
-func (f *FieldVal64) MulBy3() *FieldVal64 {
-	var orig FieldVal64
-	orig.Set(f)
-	return f.MulBy2().Add(&orig)
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy3().Add(e2) so that e = 3 * e + e2.
+func (e *Element) MulBy3() *Element {
+	var orig Element
+	orig.Set(e)
+	return e.MulBy2().Add(&orig)
 }
 
-// MulBy4 multiplies the field value by 4 and stores the result in f in constant
+// MulBy4 multiplies the element by 4 and stores the result in e in constant
 // time.
 //
 // This method is optimized to provide a significant speed advantage over the
-// more general [FieldVal64.MulInt].
+// more general [Element.MulInt].
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy4().Add(f2) so that f = 4 * f + f2.
-func (f *FieldVal64) MulBy4() *FieldVal64 {
-	return f.MulBy2().MulBy2()
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy4().Add(e2) so that e = 4 * e + e2.
+func (e *Element) MulBy4() *Element {
+	return e.MulBy2().MulBy2()
 }
 
-// MulBy8 multiplies the field value by 8 and stores the result in f in constant
+// MulBy8 multiplies the element by 8 and stores the result in e in constant
 // time.
 //
 // This method is optimized to provide a significant speed advantage over the
-// more general [FieldVal64.MulInt].
+// more general [Element.MulInt].
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy8().Add(f2) so that f = 8 * f + f2.
-func (f *FieldVal64) MulBy8() *FieldVal64 {
-	return f.MulBy4().MulBy2()
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy8().Add(e2) so that e = 8 * e + e2.
+func (e *Element) MulBy8() *Element {
+	return e.MulBy4().MulBy2()
 }
 
-// MulInt multiplies the field value by the passed int and stores the result in
-// f in constant time.
+// MulInt multiplies the element by the passed int and stores the result in e in
+// constant time.
 //
 // Callers should prefer using the faster specialized methods for multiplying by
 // 2, 3, 4, and 8, as they are commonly used in curve equations.
 //
-// See [FieldVal64.MulBy2], [FieldVal64.MulBy3], [FieldVal64.MulBy4], and
-// [FieldVal64.MulBy8] for the aforementioned optimized methods.
+// See [Element.MulBy2], [Element.MulBy3], [Element.MulBy4], and
+// [Element.MulBy8] for the aforementioned optimized methods.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulInt(15).Add(f2) so that f = 15 * f + f2.
-func (f *FieldVal64) MulInt(val uint8) *FieldVal64 {
-	return f.Mul(new(FieldVal64).SetInt(uint16(val)))
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulInt(15).Add(e2) so that e = 15 * e + e2.
+func (e *Element) MulInt(val uint8) *Element {
+	return e.Mul(new(Element).SetInt(uint16(val)))
 }
 
-// Mul multiplies the passed value to the existing field value and stores the
-// result in f in constant time.
+// Mul multiplies the passed element to the existing element and stores the
+// result in e in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Mul(f2).AddInt(1) so that f = (f * f2) + 1.
-func (f *FieldVal64) Mul(val *FieldVal64) *FieldVal64 {
-	return f.Mul2(f, val)
+// The element is returned to support chaining.  This enables syntax like:
+// e.Mul(e2).AddInt(1) so that e = (e * e2) + 1.
+func (e *Element) Mul(val *Element) *Element {
+	return e.Mul2(e, val)
 }
 
-// Mul2 multiplies the passed two field values together and stores the result in
-// f in constant time.
+// Mul2 multiplies the passed two elements together and stores the result in e
+// in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.Mul2(f, f2).AddInt(1) so that f3 = (f * f2) + 1.
-func (f *FieldVal64) Mul2(a, b *FieldVal64) *FieldVal64 {
-	field64MulReduce(&f.n, &a.n, &b.n)
-	return f
+// The element is returned to support chaining.  This enables syntax like:
+// e3.Mul2(e, e2).AddInt(1) so that e3 = (e * e2) + 1.
+func (e *Element) Mul2(a, b *Element) *Element {
+	mulReduce(&e.n, &a.n, &b.n)
+	return e
 }
 
-// SquareRootVal either calculates the square root of the passed value when it
-// exists or the square root of the negation of the value when it does not exist
-// and stores the result in f in constant time.  The return flag is true when
-// the calculated square root is for the passed value itself and false when it
-// is for its negation.
-func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
+// SquareRootVal either calculates the square root of the passed element when it
+// exists or the square root of the negation of the element when it does not
+// exist and stores the result in e in constant time.  The return flag is true
+// when the calculated square root is for the passed element itself and false
+// when it is for its negation.
+func (e *Element) SquareRootVal(val *Element) bool {
 	// This uses the Tonelli-Shanks method for calculating the square root of
-	// the value when it exists.  The key principles of the method follow.
+	// the element when it exists.  The key principles of the method follow.
 	//
 	// Fermat's little theorem states that for a nonzero number 'a' and prime
 	// 'p', a^(p-1) ≡ 1 (mod p).
@@ -521,15 +519,15 @@ func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
 	// The Tonelli-Shanks method uses these facts along with factoring out
 	// powers of two to solve a congruence that results in either the solution
 	// when the square root exists or the square root of the negation of the
-	// value when it does not.  In the case of primes that are ≡ 3 (mod 4), the
-	// possible solutions are r = ±a^((p+1)/4) (mod p).  Therefore, either r^2 ≡
-	// a (mod p) is true in which case ±r are the two solutions, or r^2 ≡ -a
-	// (mod p) in which case 'a' is a non-residue and there are no solutions.
+	// element when it does not.  In the case of primes that are ≡ 3 (mod 4),
+	// the possible solutions are r = ±a^((p+1)/4) (mod p).  Therefore, either
+	// r^2 ≡ a (mod p) is true in which case ±r are the two solutions, or r^2 ≡
+	// -a (mod p) in which case 'a' is a non-residue and there are no solutions.
 	//
 	// The secp256k1 prime is ≡ 3 (mod 4), so this result applies.
 	//
 	// In other words, calculate a^((p+1)/4) and then square it and check it
-	// against the original value to determine if it is actually the square
+	// against the original element to determine if it is actually the square
 	// root.
 	//
 	// In order to efficiently compute a^((p+1)/4), (p+1)/4 needs to be split
@@ -565,7 +563,7 @@ func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
 	// => 2^1 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
 	//
 	// This has a cost of 254 field squarings and 13 field multiplications.
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 Element
 	a.Set(val)
 	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
 	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
@@ -627,48 +625,48 @@ func (f *FieldVal64) SquareRootVal(val *FieldVal64) bool {
 	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
 	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
 
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
-	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
-	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
-	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
+	e.SquareVal(&a223).Square().Square().Square().Square() // e = a^(2^228 - 2^5)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^233 - 2^10)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^238 - 2^15)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^243 - 2^20)
+	e.Square().Square().Square()                           // e = a^(2^246 - 2^23)
+	e.Mul(&a22)                                            // e = a^(2^246 - 2^22 - 1)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^251 - 2^27 - 2^5)
+	e.Square()                                             // e = a^(2^252 - 2^28 - 2^6)
+	e.Mul(&a2)                                             // e = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
+	e.Square().Square()                                    // e = a^(2^254 - 2^30 - 244) = a^((p+1)/4)
 
 	// Verify the result is actually the square root by squaring it and checking
-	// against the original value.
-	var sqr FieldVal64
-	return sqr.SquareVal(f).Equals(val)
+	// against the original element.
+	var sqr Element
+	return sqr.SquareVal(e).Equals(val)
 }
 
-// Square squares the field value in constant time.  The existing field value is
+// Square squares the element in constant time.  The existing element is
 // modified.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Square().Mul(f2) so that f = f^2 * f2.
-func (f *FieldVal64) Square() *FieldVal64 {
-	return f.SquareVal(f)
+// The element is returned to support chaining.  This enables syntax like:
+// e.Square().Mul(e2) so that e = e^2 * e2.
+func (e *Element) Square() *Element {
+	return e.SquareVal(e)
 }
 
-// SquareVal squares the passed value and stores the result in f in constant
+// SquareVal squares the passed element and stores the result in e in constant
 // time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.SquareVal(f).Mul(f) so that f3 = f^2 * f = f^3.
-func (f *FieldVal64) SquareVal(val *FieldVal64) *FieldVal64 {
-	field64SquareReduce(&f.n, &val.n)
-	return f
+// The element is returned to support chaining.  This enables syntax like:
+// e3.SquareVal(e).Mul(e) so that e3 = e^2 * e = e^3.
+func (e *Element) SquareVal(val *Element) *Element {
+	squareReduce(&e.n, &val.n)
+	return e
 }
 
-// Inverse finds the modular multiplicative inverse of the field value in
-// constant time.  The existing field value is modified.
+// Inverse finds the modular multiplicative inverse of the element in constant
+// time.  The existing element is modified.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Inverse().Mul(f2) so that f = f^-1 * f2.
-func (f *FieldVal64) Inverse() *FieldVal64 {
+// The element is returned to support chaining.  This enables syntax like:
+// e.Inverse().Mul(e2) so that e = e^-1 * e2.
+func (e *Element) Inverse() *Element {
 	// Fermat's little theorem states that for a nonzero number 'a' and prime
 	// 'p', a^(p-1) ≡ 1 (mod p).  Multiplying both sides of the equation by the
 	// multiplicative inverse a^-1 yields a^(p-2) ≡ a^-1 (mod p).  Thus, a^(p-2)
@@ -710,8 +708,8 @@ func (f *FieldVal64) Inverse() *FieldVal64 {
 	// => 2^[1] 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
 	//
 	// This has a cost of 255 field squarings and 15 field multiplications.
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal64
-	a.Set(f)
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 Element
+	a.Set(e)
 	a2.SquareVal(&a).Mul(&a)                                  // a2  = a^(2^2 - 1)
 	a3.SquareVal(&a2).Mul(&a)                                 // a3  = a^(2^3 - 1)
 	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
@@ -772,24 +770,23 @@ func (f *FieldVal64) Inverse() *FieldVal64 {
 	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
 	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
 
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 4194305)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 134217760)
-	f.Mul(&a)                                              // f = a^(2^251 - 134217759)
-	f.Square().Square().Square()                           // f = a^(2^254 - 1073742072)
-	f.Mul(&a2)                                             // f = a^(2^254 - 1073742069)
-	f.Square().Square()                                    // f = a^(2^256 - 4294968276)
-	return f.Mul(&a)                                       // f = a^(2^256 - 4294968275) = a^(p-2)
+	e.SquareVal(&a223).Square().Square().Square().Square() // e = a^(2^228 - 2^5)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^233 - 2^10)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^238 - 2^15)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^243 - 2^20)
+	e.Square().Square().Square()                           // e = a^(2^246 - 2^23)
+	e.Mul(&a22)                                            // e = a^(2^246 - 4194305)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^251 - 134217760)
+	e.Mul(&a)                                              // e = a^(2^251 - 134217759)
+	e.Square().Square().Square()                           // e = a^(2^254 - 1073742072)
+	e.Mul(&a2)                                             // e = a^(2^254 - 1073742069)
+	e.Square().Square()                                    // e = a^(2^256 - 4294968276)
+	return e.Mul(&a)                                       // e = a^(2^256 - 4294968275) = a^(p-2)
 }
 
-// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
-// than or equal to the field prime minus the secp256k1 group order in constant
-// time.
-func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
+// IsGtOrEqPrimeMinusOrder returns whether or not the element is greater than or
+// equal to the field prime minus the secp256k1 group order in constant time.
+func (e *Element) IsGtOrEqPrimeMinusOrder() bool {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273 and the group
 	// order is 2^256 - 432420386565659656852420866394968145599.  Thus, the
 	// prime minus the group order is:
@@ -798,7 +795,7 @@ func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
 	// In hex that is:
 	// 0x00000000 00000000 00000000 00000001 45512319 50b75fc4 402da172 2fc9baee
 	//
-	// Converting that to field representation (base 2^64) is:
+	// Converting that to the internal representation (base 2^64) is:
 	//
 	// n[0] = 0x402da1722fc9baee
 	// n[1] = 0x4551231950b75fc4
@@ -807,28 +804,28 @@ func (f *FieldVal64) IsGtOrEqPrimeMinusOrder() bool {
 	//
 	// This can be verified with the following test code:
 	//   pMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
-	//   var fv FieldVal64
-	//   fv.SetByteSlice(pMinusN.Bytes())
-	//   t.Logf("%x", fv.n)
+	//   var v Element
+	//   v.SetByteSlice(pMinusN.Bytes())
+	//   t.Logf("%x", v.n)
 	//
 	//   Outputs: [402da1722fc9baee 4551231950b75fc4 1 0]
 	const (
-		field64PMinusN0 = 0x402da1722fc9baee
-		field64PMinusN1 = 0x4551231950b75fc4
-		field64PMinusN2 = 0x0000000000000001
-		field64PMinusN3 = 0x0000000000000000
+		pMinusNLimb0 = 0x402da1722fc9baee
+		pMinusNLimb1 = 0x4551231950b75fc4
+		pMinusNLimb2 = 0x0000000000000001
+		pMinusNLimb3 = 0x0000000000000000
 	)
 
-	// The goal is to return true when the value is greater than or equal to the
-	// field prime minus the group order.  That is, return true when f ≥ p - n,
-	// which is trivially rearranged to f - (p - n) ≥ 0.
+	// The goal is to return true when the element is greater than or equal to
+	// the field prime minus the group order.  That is, return true when e ≥ p -
+	// n, which is trivially rearranged to e - (p - n) ≥ 0.
 	//
-	// In other words, the condition is met iff subtracting (p - n) from f is
+	// In other words, the condition is met iff subtracting (p - n) from e is
 	// non-negative (aka there was no borrow).
 	var borrow uint64
-	_, borrow = bits.Sub64(f.n[0], field64PMinusN0, 0)
-	_, borrow = bits.Sub64(f.n[1], field64PMinusN1, borrow)
-	_, borrow = bits.Sub64(f.n[2], field64PMinusN2, borrow)
-	_, borrow = bits.Sub64(f.n[3], field64PMinusN3, borrow)
+	_, borrow = bits.Sub64(e.n[0], pMinusNLimb0, 0)
+	_, borrow = bits.Sub64(e.n[1], pMinusNLimb1, borrow)
+	_, borrow = bits.Sub64(e.n[2], pMinusNLimb2, borrow)
+	_, borrow = bits.Sub64(e.n[3], pMinusNLimb3, borrow)
 	return borrow == 0
 }

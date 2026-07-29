@@ -10,9 +10,9 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
 )
 
-// field64Reduce512 reduces a 512-bit little-endian limb array modulo p in
-// constant time and stores the result in r using pure Go.
-func field64Reduce512(r *[4]uint64, x *[8]uint64) {
+// reduce512 reduces a 512-bit little-endian limb array modulo p in constant
+// time and stores the result in r using pure Go.
+func reduce512(r *[4]uint64, x *[8]uint64) {
 	// This algorithm has been formally verified, including its intermediate
 	// bounds, carry assumptions, and functional correctness.  The verification
 	// artifacts are available in internal/proofs.
@@ -46,7 +46,7 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 
 	var t0, t1, t2, t3, t4, h, lo, hi, carry uint64
 
-	h, t0 = bits.Mul64(x[4], field64PrimeComplement)
+	h, t0 = bits.Mul64(x[4], fieldPrimeComplement)
 
 	// Note that since hi is the upper 64 bits of the product of a uint64 with
 	// c and c < 2^33:
@@ -57,15 +57,15 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	//
 	// Therefore, it is safe to discard the carry and the same applies to the
 	// next two limbs (second h and first t4).
-	hi, lo = bits.Mul64(x[5], field64PrimeComplement)
+	hi, lo = bits.Mul64(x[5], fieldPrimeComplement)
 	t1, carry = bits.Add64(lo, h, 0)
 	h, _ = bits.Add64(hi, 0, carry)
 
-	hi, lo = bits.Mul64(x[6], field64PrimeComplement)
+	hi, lo = bits.Mul64(x[6], fieldPrimeComplement)
 	t2, carry = bits.Add64(lo, h, 0)
 	h, _ = bits.Add64(hi, 0, carry)
 
-	hi, lo = bits.Mul64(x[7], field64PrimeComplement)
+	hi, lo = bits.Mul64(x[7], fieldPrimeComplement)
 	t3, carry = bits.Add64(lo, h, 0)
 	t4, _ = bits.Add64(hi, 0, carry)
 
@@ -81,7 +81,7 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	// The value now fits in 289 bits, so reduce it again.  Only the fifth limb
 	// (t4) needs to be considered since all of the higher limbs are ≥ 320 bits
 	// and thus guaranteed to be 0.
-	h, t4 = bits.Mul64(t4, field64PrimeComplement)
+	h, t4 = bits.Mul64(t4, fieldPrimeComplement)
 
 	t0, carry = bits.Add64(t0, t4, 0)
 	t1, carry = bits.Add64(t1, h, carry)
@@ -94,10 +94,10 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	t4 = carry
 
 	var s0, s1, s2, s3, borrow uint64
-	s0, borrow = bits.Sub64(t0, field64Prime0, 0)
-	s1, borrow = bits.Sub64(t1, field64Prime1, borrow)
-	s2, borrow = bits.Sub64(t2, field64Prime2, borrow)
-	s3, borrow = bits.Sub64(t3, field64Prime3, borrow)
+	s0, borrow = bits.Sub64(t0, fieldPrimeLimb0, 0)
+	s1, borrow = bits.Sub64(t1, fieldPrimeLimb1, borrow)
+	s2, borrow = bits.Sub64(t2, fieldPrimeLimb2, borrow)
+	s3, borrow = bits.Sub64(t3, fieldPrimeLimb3, borrow)
 	_, borrow = bits.Sub64(t4, 0, borrow)
 	r[0] = arith.ConstantTimeSelect64(borrow, t0, s0)
 	r[1] = arith.ConstantTimeSelect64(borrow, t1, s1)
@@ -105,20 +105,20 @@ func field64Reduce512(r *[4]uint64, x *[8]uint64) {
 	r[3] = arith.ConstantTimeSelect64(borrow, t3, s3)
 }
 
-// field64MulReduceGeneric sets r = a * b (mod p).  This is a generic
-// implementation that performs the multiplication and reduction steps
-// separately without any reliance on specific hardware extensions.
-func field64MulReduceGeneric(r *[4]uint64, a, b *[4]uint64) {
+// mulReduceGeneric sets r = a * b (mod p).  This is a generic implementation
+// that performs the multiplication and reduction steps separately without any
+// reliance on specific hardware extensions.
+func mulReduceGeneric(r *[4]uint64, a, b *[4]uint64) {
 	var product [8]uint64
 	arith.Mul512(&product, a, b)
-	field64Reduce512(r, &product)
+	reduce512(r, &product)
 }
 
-// field64SquareReduceGeneric sets r = a^2 (mod p).  This is a generic
-// implementation that performs the squaring and reduction steps separately
-// without any reliance on specific hardware extensions.
-func field64SquareReduceGeneric(r *[4]uint64, a *[4]uint64) {
+// squareReduceGeneric sets r = a^2 (mod p).  This is a generic implementation
+// that performs the squaring and reduction steps separately without any
+// reliance on specific hardware extensions.
+func squareReduceGeneric(r *[4]uint64, a *[4]uint64) {
 	var product [8]uint64
 	arith.Square512(&product, a)
-	field64Reduce512(r, &product)
+	reduce512(r, &product)
 }
