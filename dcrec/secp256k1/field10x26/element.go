@@ -4,7 +4,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package field10x26
 
 import (
 	"encoding/hex"
@@ -298,6 +298,11 @@ func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
 	overflow |= highWordsEq & arith.ConstantTimeGreaterOrEq(f.n[0], fieldPrimeWordZero)
 
 	return overflow
+}
+
+// zeroArray32 zeroes the provided 32-byte buffer.
+func zeroArray32(b *[32]byte) {
+	*b = [32]byte{}
 }
 
 // SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
