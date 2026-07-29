@@ -4,7 +4,7 @@
 
 //go:build amd64 && !purego
 
-package secp256k1
+package field4x64
 
 import (
 	"testing"
