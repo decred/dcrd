@@ -42,7 +42,7 @@ import (
 // While both of those things are still true without intrinsics, modern Go now
 // provides access to intrinsics that permit the hardware to perform both full
 // 128-bit products and addition with carry which entirely mitigates those
-// limitations.  As a result, there is now an alternative [secp256k1.FieldVal64]
+// limitations.  As a result, there is now an alternative [field4x64.Element]
 // implementation that uses the aforementioned 4x64 representation with
 // intrinsics.
 //
