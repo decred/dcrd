@@ -51,14 +51,14 @@ func fromHex(s string) *big.Int {
 	return r
 }
 
-// mustFieldValInternal converts the passed hex string into a [FieldVal] and
-// will panic if there is an error.  Values that overflow are treated as an
-// error unless the allow overflow flag is set.
+// mustElementInternal converts the passed hex string into an [Element] and will
+// panic if there is an error.  Values that overflow are treated as an error
+// unless the allow overflow flag is set.
 //
 // This is only provided for the hard-coded constants so errors in the source
 // code can be detected. It will only (and must only) be called with hard-coded
 // values.
-func mustFieldValInternal(s string, allowOverflow bool) *FieldVal {
+func mustElementInternal(s string, allowOverflow bool) *Element {
 	if len(s)%2 != 0 {
 		s = "0" + s
 	}
@@ -69,30 +69,30 @@ func mustFieldValInternal(s string, allowOverflow bool) *FieldVal {
 	if len(b) > 32 {
 		panic("hex in source file overflows uint256: " + s)
 	}
-	var f FieldVal
-	if overflow := f.SetByteSlice(b); overflow && !allowOverflow {
+	var e Element
+	if overflow := e.SetByteSlice(b); overflow && !allowOverflow {
 		panic("hex in source file overflows mod N scalar: " + s)
 	}
-	return &f
+	return &e
 }
 
-// mustFieldVal converts the passed hex string into a [FieldVal] and will panic
+// mustElement converts the passed hex string into an [Element] and will panic
 // if there is an error.  Values that overflow are treated as an error.
 //
 // This is only provided for the hard-coded constants so errors in the source
 // code can be detected. It will only (and must only) be called with hard-coded
 // values.
-func mustFieldVal(s string) *FieldVal {
-	return mustFieldValInternal(s, false)
+func mustElement(s string) *Element {
+	return mustElementInternal(s, false)
 }
 
-// mustFieldValWithOverflow converts the passed hex string into a [FieldVal] and
+// mustElementWithOverflow converts the passed hex string into an [Element] and
 // will panic if there is an error.  Values that overflow are NOT treated as an
 // error.
 //
 // This is only provided for the hard-coded constants so errors in the source
 // code can be detected. It will only (and must only) be called with hard-coded
 // values.
-func mustFieldValWithOverflow(s string) *FieldVal {
-	return mustFieldValInternal(s, true)
+func mustElementWithOverflow(s string) *Element {
+	return mustElementInternal(s, true)
 }
