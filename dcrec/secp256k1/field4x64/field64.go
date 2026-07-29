@@ -2,7 +2,9 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+// Package field4x64 implements highly optimized, constant-time arithmetic over
+// the secp256k1 finite field using a dense 4x64 representation.
+package field4x64
 
 import (
 	"encoding/binary"
@@ -146,6 +148,11 @@ func (f *FieldVal64) SetBytes(b *[32]byte) uint32 {
 	return uint32(1 - borrow)
 }
 
+// zeroArray32 zeroes the provided 32-byte buffer.
+func zeroArray32(b *[32]byte) {
+	*b = [32]byte{}
+}
+
 // SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
 // integer (meaning it is truncated to the first 32 bytes), packs it into the
 // internal field value representation, and returns whether or not the resulting
@@ -168,8 +175,11 @@ func (f *FieldVal64) SetByteSlice(b []byte) bool {
 	return result != 0
 }
 
-// Normalize is a no-op.  It is provided to keep API parity with [FieldVal].
-func (f *FieldVal64) Normalize() {}
+// Normalize is a no-op.  It is provided to keep API parity for
+// [secp256k1.FieldVal].
+func (f *FieldVal64) Normalize() *FieldVal64 {
+	return f
+}
 
 // PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
 // directly into the passed byte slice in constant time.  The target slice must

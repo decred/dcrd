@@ -4,7 +4,7 @@
 
 //go:build !purego
 
-package secp256k1
+package field4x64
 
 // field64MulReduce sets r = a * b (mod p) using processor-specific hardware
 // extensions when available.

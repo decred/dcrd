@@ -4,7 +4,7 @@
 
 //go:build !purego
 
-package secp256k1
+package field4x64
 
 import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/cpufeat"
