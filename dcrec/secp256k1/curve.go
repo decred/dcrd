@@ -8,8 +8,6 @@ package secp256k1
 import (
 	"encoding/hex"
 	"math/bits"
-
-	"github.com/decred/dcrd/dcrec/secp256k1/v4/field10x26"
 )
 
 // References:
@@ -27,8 +25,6 @@ import (
 // All group operations are performed using Jacobian coordinates.  For a given
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3.
-
-type FieldVal = field10x26.Element
 
 // mustFieldValInternal converts the passed hex string into a [FieldVal] and
 // will panic if there is an error.  Values that overflow are treated as an
