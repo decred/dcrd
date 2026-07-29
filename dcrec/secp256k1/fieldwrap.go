@@ -5,10 +5,6 @@
 
 package secp256k1
 
-import (
-	"github.com/decred/dcrd/dcrec/secp256k1/v4/field10x26"
-)
-
 // ----------------------------------------------------------------------------
 // NOTE: [FieldVal] is intentionally a wrapper as opposed to a direct type
 // alias despite it creating some boilerplate.
@@ -20,10 +16,6 @@ import (
 // architecture-specific implementation that is ultimately selected which would
 // very likely lead to misleading documentation and incorrect usage.
 // ----------------------------------------------------------------------------
-
-// fieldImpl defines the concrete finite field implementation.  This will
-// ultimately allow selection of different concrete implementations.
-type fieldImpl = field10x26.Element
 
 // FieldVal implements optimized fixed-precision arithmetic over the
 // secp256k1 finite field.  This means all arithmetic is performed modulo
