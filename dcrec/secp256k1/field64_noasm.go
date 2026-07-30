@@ -6,6 +6,10 @@
 
 package secp256k1
 
+// field64UseBMI2AndADX depends on hardware support and access to assembly
+// instructions.
+var field64UseBMI2AndADX = false
+
 // field64MulReduce sets r = a * b (mod p).  This defers to the generic
 // implementation that does not rely on the optimized assembly implementations.
 func field64MulReduce(r *[4]uint64, a, b *[4]uint64) {
