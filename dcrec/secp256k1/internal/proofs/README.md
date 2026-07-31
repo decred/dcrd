@@ -6,8 +6,9 @@ proofs
 This consists of formal verification artifacts used to help establish the
 correctness of the security-critical arithmetic implementations.
 
-The current proofs formally verify properties of the optimized field arithmetic
-implementations using [z3](https://github.com/Z3Prover/z3):
+The current proofs formally verify properties of the optimized scalar and field
+arithmetic implementations using the [Z3 Theorem
+Prover](https://github.com/Z3Prover/z3):
 
 - Correctness of multi-precision multiplication
 - Bounds on intermediate values
@@ -45,3 +46,7 @@ optimized implementations preserve the required arithmetic invariants.
 - [Field Modular Reduction](field_4x64_reduce_prover.py)
   Provides formal verification of the reduction of a 512-bit value represented
   using saturated 64-bit limbs modulo the secp256k1 prime.
+
+- [Scalar Modular Reduction](modnscalar_4x64_reduce_prover.py)
+  Provides formal verification of the reduction of a 512-bit value represented
+  using saturated 64-bit limbs modulo the secp256k1 group order.
