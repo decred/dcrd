@@ -4,7 +4,16 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+// Package field10x26 implements highly optimized, constant-time arithmetic
+// over the secp256k1 finite field using a 10x26 representation with bounded
+// overflow between normalizations.
+package field10x26
+
+import (
+	"encoding/hex"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
+)
 
 // References:
 //   [HAC]: Handbook of Applied Cryptography Menezes, van Oorschot, Vanstone.
@@ -20,9 +29,9 @@ package secp256k1
 // optimizations not available to arbitrary-precision arithmetic and generic
 // modular arithmetic algorithms.
 //
-// There are various ways to internally represent each finite field element.
-// For example, the most obvious representation would be to use an array of 4
-// uint64s (aka 4x64: 64 bits * 4 = 256 bits).  However, at the time this field
+// There are various internal representations for finite field elements.  For
+// example, the most obvious representation would be to use an array of 4
+// uint64s (aka 4x64: 64 bits * 4 = 256 bits).  However, at the time this
 // implementation was written, Go did not have access to hardware intrinsics, so
 // that representation suffered from a couple of issues.  First, there is no
 // native Go type large enough to handle the intermediate results while adding
@@ -33,7 +42,7 @@ package secp256k1
 // While both of those things are still true without intrinsics, modern Go now
 // provides access to intrinsics that permit the hardware to perform both full
 // 128-bit products and addition with carry which entirely mitigates those
-// limitations.  As a result, there is now an alternative [FieldVal64]
+// limitations.  As a result, there is now an alternative [field4x64.Element]
 // implementation that uses the aforementioned 4x64 representation with
 // intrinsics.
 //
@@ -57,11 +66,7 @@ package secp256k1
 //
 // Since it is so important that the field arithmetic is extremely fast for high
 // performance crypto, this type does not perform any validation where it
-// ordinarily would.  See the documentation for [FieldVal] for more details.
-
-import (
-	"encoding/hex"
-)
+// ordinarily would.  See the documentation for [Element] for more details.
 
 // Constants used to make the code more readable.
 const (
@@ -71,48 +76,48 @@ const (
 	eightBitsMask = 0xff
 )
 
-// Constants related to the field representation.
+// Constants related to the internal representation.
 const (
-	// fieldWords is the number of words used to internally represent the
+	// fieldLimbs is the number of limbs used to internally represent the
 	// 256-bit value.
-	fieldWords = 10
+	fieldLimbs = 10
 
-	// fieldBase is the exponent used to form the numeric base of each word.
-	// 2^(fieldBase*i) where i is the word position.
+	// fieldBase is the exponent used to form the numeric base of each limb.
+	// 2^(fieldBase*i) where i is the limb position.
 	fieldBase = 26
 
-	// fieldBaseMask is the mask for the bits in each word needed to
-	// represent the numeric base of each word (except the most significant
-	// word).
+	// fieldBaseMask is the mask for the bits in each limb needed to
+	// represent the numeric base of each limb (except the most significant
+	// limb).
 	fieldBaseMask = (1 << fieldBase) - 1
 
-	// fieldMSBBits is the number of bits in the most significant word used
+	// fieldMSBBits is the number of bits in the most significant limb used
 	// to represent the value.
-	fieldMSBBits = 256 - (fieldBase * (fieldWords - 1))
+	fieldMSBBits = 256 - (fieldBase * (fieldLimbs - 1))
 
-	// fieldMSBMask is the mask for the bits in the most significant word
+	// fieldMSBMask is the mask for the bits in the most significant limb
 	// needed to represent the value.
 	fieldMSBMask = (1 << fieldMSBBits) - 1
 
-	// These fields provide convenient access to each of the words of the
-	// secp256k1 prime in the internal field representation to improve code
+	// These fields provide convenient access to each of the limbs of the
+	// secp256k1 prime in the internal representation to improve code
 	// readability.
-	fieldPrimeWordZero  = 0x03fffc2f
-	fieldPrimeWordOne   = 0x03ffffbf
-	fieldPrimeWordTwo   = 0x03ffffff
-	fieldPrimeWordThree = 0x03ffffff
-	fieldPrimeWordFour  = 0x03ffffff
-	fieldPrimeWordFive  = 0x03ffffff
-	fieldPrimeWordSix   = 0x03ffffff
-	fieldPrimeWordSeven = 0x03ffffff
-	fieldPrimeWordEight = 0x03ffffff
-	fieldPrimeWordNine  = 0x003fffff
+	fieldPrimeLimb0 = 0x03fffc2f
+	fieldPrimeLimb1 = 0x03ffffbf
+	fieldPrimeLimb2 = 0x03ffffff
+	fieldPrimeLimb3 = 0x03ffffff
+	fieldPrimeLimb4 = 0x03ffffff
+	fieldPrimeLimb5 = 0x03ffffff
+	fieldPrimeLimb6 = 0x03ffffff
+	fieldPrimeLimb7 = 0x03ffffff
+	fieldPrimeLimb8 = 0x03ffffff
+	fieldPrimeLimb9 = 0x003fffff
 )
 
-// FieldVal implements optimized fixed-precision arithmetic over the
-// secp256k1 finite field.  This means all arithmetic is performed modulo
+// Element implements optimized fixed-precision arithmetic over the secp256k1
+// finite field.  This means all arithmetic is performed modulo
 //
-//	0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
+//	0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f
 //
 // WARNING: Since it is so important for the field arithmetic to be extremely
 // fast for high performance crypto, this type does not perform any validation
@@ -120,38 +125,38 @@ const (
 // IMPERATIVE for callers to understand some key concepts that are described
 // below and ensure the methods are called with the necessary preconditions that
 // each method is documented with.  For example, some methods only give the
-// correct result if the field value is normalized and others require the field
-// values involved to have a maximum magnitude and THERE ARE NO EXPLICIT CHECKS
-// TO ENSURE THOSE PRECONDITIONS ARE SATISFIED.  This does, unfortunately, make
-// the type more difficult to use correctly and while I typically prefer to
+// correct result if the element is normalized and others require the elements
+// involved to have a maximum magnitude and THERE ARE NO EXPLICIT CHECKS TO
+// ENSURE THOSE PRECONDITIONS ARE SATISFIED.  This does, unfortunately, make the
+// type more difficult to use correctly and while it is typically preferable to
 // ensure all state and input is valid for most code, this is a bit of an
 // exception because those extra checks really add up in what ends up being
 // critical hot paths.
 //
 // The first key concept when working with this type is normalization.  In order
 // to avoid the need to propagate a ton of carries, the internal representation
-// provides additional overflow bits for each word of the overall 256-bit value.
+// provides additional overflow bits for each limb of the overall 256-bit value.
 // This means that there are multiple internal representations for the same
 // value and, as a result, any methods that rely on comparison of the value,
 // such as equality and oddness determination, require the caller to provide a
-// normalized value.
+// normalized field element.
 //
 // The second key concept when working with this type is magnitude.  As
 // previously mentioned, the internal representation provides additional
 // overflow bits which means that the more math operations that are performed on
-// the field value between normalizations, the more those overflow bits
-// accumulate.  The magnitude is effectively that maximum possible number of
-// those overflow bits that could possibly be required as a result of a given
-// operation.  Since there are only a limited number of overflow bits available,
-// this implies that the max possible magnitude MUST be tracked by the caller
-// and the caller MUST normalize the field value if a given operation would
-// cause the magnitude of the result to exceed the max allowed value.
+// the element between normalizations, the more those overflow bits accumulate.
+// The magnitude is effectively that maximum possible number of those overflow
+// bits that could possibly be required as a result of a given operation.  Since
+// there are only a limited number of overflow bits available, this implies that
+// the max possible magnitude MUST be tracked by the caller and the caller MUST
+// normalize the element if a given operation would cause the magnitude of the
+// result to exceed the max allowed value.
 //
-// IMPORTANT: The max allowed magnitude of a field value is 32.
-type FieldVal struct {
+// IMPORTANT: The max allowed magnitude of an element is 32.
+type Element struct {
 	// Each 256-bit value is represented as 10 32-bit integers in base 2^26.
-	// This provides 6 bits of overflow in each word (10 bits in the most
-	// significant word) for a total of 64 bits of overflow (9*6 + 10 = 64).  It
+	// This provides 6 bits of overflow in each limb (10 bits in the most
+	// significant limb) for a total of 64 bits of overflow (9*6 + 10 = 64).  It
 	// only implements the arithmetic needed for elliptic curve operations.
 	//
 	// The following depicts the internal representation:
@@ -179,129 +184,133 @@ type FieldVal struct {
 	n [10]uint32
 }
 
-// String returns the field value as a normalized human-readable hex string.
+// String returns the element as a normalized human-readable hex string.
 //
 //	Preconditions: None
-//	Output Normalized: Field is not modified -- same as input value
-//	Output Max Magnitude: Field is not modified -- same as input value
-func (f FieldVal) String() string {
-	// f is a copy, so it's safe to normalize it without mutating the original.
-	f.Normalize()
-	return hex.EncodeToString(f.Bytes()[:])
+//	Output Normalized: Element is not modified -- same as input element
+//	Output Max Magnitude: Element is not modified -- same as input element
+func (e Element) String() string {
+	// e is a copy, so it's safe to normalize it without mutating the original.
+	e.Normalize()
+	return hex.EncodeToString(e.Bytes()[:])
 }
 
-// Zero sets the field value to zero in constant time.  A newly created field
-// value is already set to zero.  This function can be useful to clear an
-// existing field value for reuse.
-//
-//	Preconditions: None
-//	Output Normalized: Yes
-//	Output Max Magnitude: 1
-func (f *FieldVal) Zero() {
-	f.n = [10]uint32{}
-}
-
-// Set sets the field value equal to the passed value in constant time.  The
-// normalization and magnitude of the two fields will be identical.
-//
-// The field value is returned to support chaining.  This enables syntax like:
-// f := new(FieldVal).Set(f2).Add(1) so that f = f2 + 1 where f2 is not
-// modified.
-//
-//	Preconditions: None
-//	Output Normalized: Same as input value
-//	Output Max Magnitude: Same as input value
-func (f *FieldVal) Set(val *FieldVal) *FieldVal {
-	*f = *val
-	return f
-}
-
-// SetInt sets the field value to the passed integer in constant time.  This is
-// a convenience function since it is fairly common to perform some arithmetic
-// with small native integers.
-//
-// The field value is returned to support chaining.  This enables syntax such
-// as f := new(FieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
+// Zero sets the element to zero in constant time.  A newly created element is
+// already set to zero.  This function can be useful to clear an existing
+// element for reuse.
 //
 //	Preconditions: None
 //	Output Normalized: Yes
 //	Output Max Magnitude: 1
-func (f *FieldVal) SetInt(ui uint16) *FieldVal {
-	f.Zero()
-	f.n[0] = uint32(ui)
-	return f
+func (e *Element) Zero() {
+	e.n = [10]uint32{}
 }
 
-// SetBytes packs the passed 32-byte big-endian value into the internal field
-// value representation in constant time.  It interprets the provided array as a
-// 256-bit big-endian unsigned integer, packs it into the internal field value
-// representation, and returns either 1 if it is greater than or equal to the
-// field prime (aka it overflowed) or 0 otherwise in constant time.
+// Set sets the element equal to the passed element in constant time.  The
+// normalization and magnitude of the two elements will be identical.
+//
+// The element is returned to support chaining.  This enables syntax like:
+// e := new(Element).Set(e2).Add(1) so that e = e2 + 1 where e2 is not modified.
+//
+//	Preconditions: None
+//	Output Normalized: Same as input element
+//	Output Max Magnitude: Same as input element
+func (e *Element) Set(val *Element) *Element {
+	*e = *val
+	return e
+}
+
+// SetInt sets the element to the passed integer in constant time.  This is a
+// convenience function since it is fairly common to perform arithmetic with
+// small native integers.
+//
+// The element is returned to support chaining.  This enables syntax such
+// as e := new(Element).SetInt(2).Mul(e2) so that e = 2 * e2.
+//
+//	Preconditions: None
+//	Output Normalized: Yes
+//	Output Max Magnitude: 1
+func (e *Element) SetInt(ui uint16) *Element {
+	e.Zero()
+	e.n[0] = uint32(ui)
+	return e
+}
+
+// SetBytes packs the passed 32-byte big-endian value into the internal
+// representation in constant time.  It interprets the provided array as a
+// 256-bit big-endian unsigned integer, packs it, and returns either 1 if it is
+// greater than or equal to the field prime (aka it overflowed) or 0 otherwise
+// in constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
 // operations require a numeric value.
 //
 //	Preconditions: None
-//	Output Normalized: Yes if no overflow, no otherwise
+//	Output Normalized: Yes when no overflow, No otherwise
 //	Output Max Magnitude: 1
-func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
-	// Pack the 256 total bits across the 10 uint32 words with a max of
-	// 26-bits per word.  This could be done with a couple of for loops,
+func (e *Element) SetBytes(b *[32]byte) uint32 {
+	// Pack the 256 total bits across the 10 uint32 limbs with at most
+	// 26-bits per limb.  This could be done with a couple of for loops,
 	// but this unrolled version is significantly faster.  Benchmarks show
 	// this is about 34 times faster than the variant which uses loops.
-	f.n[0] = uint32(b[31]) | uint32(b[30])<<8 | uint32(b[29])<<16 |
+	e.n[0] = uint32(b[31]) | uint32(b[30])<<8 | uint32(b[29])<<16 |
 		(uint32(b[28])&twoBitsMask)<<24
-	f.n[1] = uint32(b[28])>>2 | uint32(b[27])<<6 | uint32(b[26])<<14 |
+	e.n[1] = uint32(b[28])>>2 | uint32(b[27])<<6 | uint32(b[26])<<14 |
 		(uint32(b[25])&fourBitsMask)<<22
-	f.n[2] = uint32(b[25])>>4 | uint32(b[24])<<4 | uint32(b[23])<<12 |
+	e.n[2] = uint32(b[25])>>4 | uint32(b[24])<<4 | uint32(b[23])<<12 |
 		(uint32(b[22])&sixBitsMask)<<20
-	f.n[3] = uint32(b[22])>>6 | uint32(b[21])<<2 | uint32(b[20])<<10 |
+	e.n[3] = uint32(b[22])>>6 | uint32(b[21])<<2 | uint32(b[20])<<10 |
 		uint32(b[19])<<18
-	f.n[4] = uint32(b[18]) | uint32(b[17])<<8 | uint32(b[16])<<16 |
+	e.n[4] = uint32(b[18]) | uint32(b[17])<<8 | uint32(b[16])<<16 |
 		(uint32(b[15])&twoBitsMask)<<24
-	f.n[5] = uint32(b[15])>>2 | uint32(b[14])<<6 | uint32(b[13])<<14 |
+	e.n[5] = uint32(b[15])>>2 | uint32(b[14])<<6 | uint32(b[13])<<14 |
 		(uint32(b[12])&fourBitsMask)<<22
-	f.n[6] = uint32(b[12])>>4 | uint32(b[11])<<4 | uint32(b[10])<<12 |
+	e.n[6] = uint32(b[12])>>4 | uint32(b[11])<<4 | uint32(b[10])<<12 |
 		(uint32(b[9])&sixBitsMask)<<20
-	f.n[7] = uint32(b[9])>>6 | uint32(b[8])<<2 | uint32(b[7])<<10 |
+	e.n[7] = uint32(b[9])>>6 | uint32(b[8])<<2 | uint32(b[7])<<10 |
 		uint32(b[6])<<18
-	f.n[8] = uint32(b[5]) | uint32(b[4])<<8 | uint32(b[3])<<16 |
+	e.n[8] = uint32(b[5]) | uint32(b[4])<<8 | uint32(b[3])<<16 |
 		(uint32(b[2])&twoBitsMask)<<24
-	f.n[9] = uint32(b[2])>>2 | uint32(b[1])<<6 | uint32(b[0])<<14
+	e.n[9] = uint32(b[2])>>2 | uint32(b[1])<<6 | uint32(b[0])<<14
 
-	// The intuition here is that the field value is greater than the prime if
-	// one of the higher individual words is greater than corresponding word of
-	// the prime and all higher words in the field value are equal to their
-	// corresponding word of the prime.  Since this type is modulo the prime,
+	// The intuition here is that the element is greater than the prime if one
+	// of the higher individual limbs is greater than corresponding limb of the
+	// prime and all higher limbs in the element are equal to their
+	// corresponding limb of the prime.  Since this type is modulo the prime,
 	// being equal is also an overflow back to 0.
 	//
 	// Note that because the input is 32 bytes and it was just packed into the
-	// field representation, the only words that can possibly be greater are
+	// internal representation, the only limbs that can possibly be greater are
 	// zero and one, because ceil(log_2(2^256 - 1 - P)) = 33 bits max and the
-	// internal field representation encodes 26 bits with each word.
+	// internal representation encodes 26 bits with each limb.
 	//
-	// Thus, there is no need to test if the upper words of the field value
-	// exceeds them, hence, only equality is checked for them.
-	highWordsEq := constantTimeEq(f.n[9], fieldPrimeWordNine)
-	highWordsEq &= constantTimeEq(f.n[8], fieldPrimeWordEight)
-	highWordsEq &= constantTimeEq(f.n[7], fieldPrimeWordSeven)
-	highWordsEq &= constantTimeEq(f.n[6], fieldPrimeWordSix)
-	highWordsEq &= constantTimeEq(f.n[5], fieldPrimeWordFive)
-	highWordsEq &= constantTimeEq(f.n[4], fieldPrimeWordFour)
-	highWordsEq &= constantTimeEq(f.n[3], fieldPrimeWordThree)
-	highWordsEq &= constantTimeEq(f.n[2], fieldPrimeWordTwo)
-	overflow := highWordsEq & constantTimeGreater(f.n[1], fieldPrimeWordOne)
-	highWordsEq &= constantTimeEq(f.n[1], fieldPrimeWordOne)
-	overflow |= highWordsEq & constantTimeGreaterOrEq(f.n[0], fieldPrimeWordZero)
+	// Thus, there is no need to test if the upper limbs of the element exceeds
+	// them, hence, only equality is checked for them.
+	highLimbsEq := arith.ConstantTimeEq(e.n[9], fieldPrimeLimb9)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[8], fieldPrimeLimb8)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[7], fieldPrimeLimb7)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[6], fieldPrimeLimb6)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[5], fieldPrimeLimb5)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[4], fieldPrimeLimb4)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[3], fieldPrimeLimb3)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[2], fieldPrimeLimb2)
+	overflow := highLimbsEq & arith.ConstantTimeGreater(e.n[1], fieldPrimeLimb1)
+	highLimbsEq &= arith.ConstantTimeEq(e.n[1], fieldPrimeLimb1)
+	overflow |= highLimbsEq & arith.ConstantTimeGreaterOrEq(e.n[0], fieldPrimeLimb0)
 
 	return overflow
 }
 
+// zeroArray32 zeroes the provided 32-byte buffer.
+func zeroArray32(b *[32]byte) {
+	*b = [32]byte{}
+}
+
 // SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
 // integer (meaning it is truncated to the first 32 bytes), packs it into the
-// internal field value representation, and returns whether or not the resulting
-// truncated 256-bit integer is greater than or equal to the field prime (aka it
+// internal representation, and returns whether or not the resulting truncated
+// 256-bit integer is greater than or equal to the field prime (aka it
 // overflowed) in constant time.
 //
 // Note that since passing a slice with more than 32 bytes is truncated, it is
@@ -312,35 +321,34 @@ func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
 // overflow behavior.
 //
 //	Preconditions: None
-//	Output Normalized: Yes if no overflow, no otherwise
+//	Output Normalized: Yes when no overflow, No otherwise
 //	Output Max Magnitude: 1
-func (f *FieldVal) SetByteSlice(b []byte) bool {
+func (e *Element) SetByteSlice(b []byte) bool {
 	var b32 [32]byte
-	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	b = b[:arith.ConstantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
-	result := f.SetBytes(&b32)
+	result := e.SetBytes(&b32)
 	zeroArray32(&b32)
 	return result != 0
 }
 
-// Normalize normalizes the internal field words into the desired range and
-// performs fast modular reduction over the secp256k1 prime by making use of the
-// special form of the prime in constant time.
+// Normalize normalizes the internal limbs into the desired range and performs
+// fast modular reduction over the secp256k1 prime by making use of the special
+// form of the prime in constant time.
 //
 //	Preconditions: None
 //	Output Normalized: Yes
 //	Output Max Magnitude: 1
-func (f *FieldVal) Normalize() *FieldVal {
-	// The field representation leaves 6 bits of overflow in each word so
-	// intermediate calculations can be performed without needing to
-	// propagate the carry to each higher word during the calculations.  In
-	// order to normalize, we need to "compact" the full 256-bit value to
-	// the right while propagating any carries through to the high order
-	// word.
+func (e *Element) Normalize() *Element {
+	// The internal representation leaves 6 bits of overflow in each limb so
+	// intermediate calculations can be performed without needing to propagate
+	// the carry to each higher limb during the calculations.  In order to
+	// normalize, we need to "compact" the full 256-bit value to the right while
+	// propagating any carries through to the high order limb.
 	//
-	// Since this field is doing arithmetic modulo the secp256k1 prime, we
-	// also need to perform modular reduction over the prime.
+	// Since this is doing arithmetic modulo the secp256k1 prime, we also need
+	// to perform modular reduction over the prime.
 	//
 	// Per [HAC] section 14.3.4: Reduction method of moduli of special form,
 	// when the modulus is of the special form m = b^t - c, highly efficient
@@ -349,53 +357,53 @@ func (f *FieldVal) Normalize() *FieldVal {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273, so it fits
 	// this criteria.
 	//
-	// 4294968273 in field representation (base 2^26) is:
+	// 4294968273 in internal representation (base 2^26) is:
 	// n[0] = 977
 	// n[1] = 64
 	// That is to say (2^26 * 64) + 977 = 4294968273
 	//
-	// The algorithm presented in the referenced section typically repeats
-	// until the quotient is zero.  However, due to our field representation
-	// we already know to within one reduction how many times we would need
-	// to repeat as it's the uppermost bits of the high order word.  Thus we
-	// can simply multiply the magnitude by the field representation of the
-	// prime and do a single iteration.  After this step there might be an
-	// additional carry to bit 256 (bit 22 of the high order word).
-	t9 := f.n[9]
+	// The algorithm presented in the referenced section typically repeats until
+	// the quotient is zero.  However, due to our internal representation we
+	// already know to within one reduction how many times we would need to
+	// repeat as it's the uppermost bits of the high order limb.  Thus we can
+	// simply multiply the magnitude by the internal representation of the prime
+	// and do a single iteration.  After this step there might be an additional
+	// carry to bit 256 (bit 22 of the high order limb).
+	t9 := e.n[9]
 	m := t9 >> fieldMSBBits
 	t9 &= fieldMSBMask
-	t0 := f.n[0] + m*977
-	t1 := (t0 >> fieldBase) + f.n[1] + (m << 6)
+	t0 := e.n[0] + m*977
+	t1 := (t0 >> fieldBase) + e.n[1] + (m << 6)
 	t0 &= fieldBaseMask
-	t2 := (t1 >> fieldBase) + f.n[2]
+	t2 := (t1 >> fieldBase) + e.n[2]
 	t1 &= fieldBaseMask
-	t3 := (t2 >> fieldBase) + f.n[3]
+	t3 := (t2 >> fieldBase) + e.n[3]
 	t2 &= fieldBaseMask
-	t4 := (t3 >> fieldBase) + f.n[4]
+	t4 := (t3 >> fieldBase) + e.n[4]
 	t3 &= fieldBaseMask
-	t5 := (t4 >> fieldBase) + f.n[5]
+	t5 := (t4 >> fieldBase) + e.n[5]
 	t4 &= fieldBaseMask
-	t6 := (t5 >> fieldBase) + f.n[6]
+	t6 := (t5 >> fieldBase) + e.n[6]
 	t5 &= fieldBaseMask
-	t7 := (t6 >> fieldBase) + f.n[7]
+	t7 := (t6 >> fieldBase) + e.n[7]
 	t6 &= fieldBaseMask
-	t8 := (t7 >> fieldBase) + f.n[8]
+	t8 := (t7 >> fieldBase) + e.n[8]
 	t7 &= fieldBaseMask
 	t9 = (t8 >> fieldBase) + t9
 	t8 &= fieldBaseMask
 
 	// At this point, the magnitude is guaranteed to be one, however, the
-	// value could still be greater than the prime if there was either a
-	// carry through to bit 256 (bit 22 of the higher order word) or the
-	// value is greater than or equal to the field characteristic.  The
+	// element could still be greater than the prime if there was either a
+	// carry through to bit 256 (bit 22 of the higher order limb) or the
+	// element is greater than or equal to the field characteristic.  The
 	// following determines if either or these conditions are true and does
 	// the final reduction in constant time.
 	//
 	// Also note that 'm' will be zero when neither of the aforementioned
-	// conditions are true and the value will not be changed when 'm' is zero.
-	m = constantTimeEq(t9, fieldMSBMask)
-	m &= constantTimeEq(t8&t7&t6&t5&t4&t3&t2, fieldBaseMask)
-	m &= constantTimeGreater(t1+64+((t0+977)>>fieldBase), fieldBaseMask)
+	// conditions are true and the element will not be changed when 'm' is zero.
+	m = arith.ConstantTimeEq(t9, fieldMSBMask)
+	m &= arith.ConstantTimeEq(t8&t7&t6&t5&t4&t3&t2, fieldBaseMask)
+	m &= arith.ConstantTimeGreater(t1+64+((t0+977)>>fieldBase), fieldBaseMask)
 	m |= t9 >> fieldMSBBits
 	t0 += m * 977
 	t1 = (t0 >> fieldBase) + t1 + (m << 6)
@@ -418,487 +426,482 @@ func (f *FieldVal) Normalize() *FieldVal {
 	t8 &= fieldBaseMask
 	t9 &= fieldMSBMask // Remove potential multiple of 2^256.
 
-	// Finally, set the normalized and reduced words.
-	f.n[0] = t0
-	f.n[1] = t1
-	f.n[2] = t2
-	f.n[3] = t3
-	f.n[4] = t4
-	f.n[5] = t5
-	f.n[6] = t6
-	f.n[7] = t7
-	f.n[8] = t8
-	f.n[9] = t9
-	return f
+	// Finally, set the normalized and reduced limbs.
+	e.n[0] = t0
+	e.n[1] = t1
+	e.n[2] = t2
+	e.n[3] = t3
+	e.n[4] = t4
+	e.n[5] = t5
+	e.n[6] = t6
+	e.n[7] = t7
+	e.n[8] = t8
+	e.n[9] = t9
+	return e
 }
 
-// PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
-// directly into the passed byte slice in constant time.  The target slice must
-// have at least 32 bytes available or it will panic.
+// PutBytesUnchecked unpacks the element to a 32-byte big-endian value directly
+// into the passed byte slice in constant time.  The target slice must have at
+// least 32 bytes available or it will panic.
 //
-// There is a similar function, [FieldVal.PutBytes], which unpacks the field
-// value into a 32-byte array directly.  This version is provided since it can
-// be useful to write directly into part of a larger buffer without needing a
+// There is a similar function, [Element.PutBytes], which unpacks the element
+// into a 32-byte array directly.  This version is provided since it can be
+// useful to write directly into part of a larger buffer without needing a
 // separate allocation.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
+//	  - The element MUST be normalized
 //	  - The target slice MUST have at least 32 bytes available
-func (f *FieldVal) PutBytesUnchecked(b []byte) {
-	// Unpack the 256 total bits from the 10 uint32 words with a max of
-	// 26-bits per word.  This could be done with a couple of for loops,
+func (e *Element) PutBytesUnchecked(b []byte) {
+	// Unpack the 256 total bits from the 10 uint32 limbs with at most
+	// 26-bits per limb.  This could be done with a couple of for loops,
 	// but this unrolled version is a bit faster.  Benchmarks show this is
 	// about 10 times faster than the variant which uses loops.
-	b[31] = byte(f.n[0] & eightBitsMask)
-	b[30] = byte((f.n[0] >> 8) & eightBitsMask)
-	b[29] = byte((f.n[0] >> 16) & eightBitsMask)
-	b[28] = byte((f.n[0]>>24)&twoBitsMask | (f.n[1]&sixBitsMask)<<2)
-	b[27] = byte((f.n[1] >> 6) & eightBitsMask)
-	b[26] = byte((f.n[1] >> 14) & eightBitsMask)
-	b[25] = byte((f.n[1]>>22)&fourBitsMask | (f.n[2]&fourBitsMask)<<4)
-	b[24] = byte((f.n[2] >> 4) & eightBitsMask)
-	b[23] = byte((f.n[2] >> 12) & eightBitsMask)
-	b[22] = byte((f.n[2]>>20)&sixBitsMask | (f.n[3]&twoBitsMask)<<6)
-	b[21] = byte((f.n[3] >> 2) & eightBitsMask)
-	b[20] = byte((f.n[3] >> 10) & eightBitsMask)
-	b[19] = byte((f.n[3] >> 18) & eightBitsMask)
-	b[18] = byte(f.n[4] & eightBitsMask)
-	b[17] = byte((f.n[4] >> 8) & eightBitsMask)
-	b[16] = byte((f.n[4] >> 16) & eightBitsMask)
-	b[15] = byte((f.n[4]>>24)&twoBitsMask | (f.n[5]&sixBitsMask)<<2)
-	b[14] = byte((f.n[5] >> 6) & eightBitsMask)
-	b[13] = byte((f.n[5] >> 14) & eightBitsMask)
-	b[12] = byte((f.n[5]>>22)&fourBitsMask | (f.n[6]&fourBitsMask)<<4)
-	b[11] = byte((f.n[6] >> 4) & eightBitsMask)
-	b[10] = byte((f.n[6] >> 12) & eightBitsMask)
-	b[9] = byte((f.n[6]>>20)&sixBitsMask | (f.n[7]&twoBitsMask)<<6)
-	b[8] = byte((f.n[7] >> 2) & eightBitsMask)
-	b[7] = byte((f.n[7] >> 10) & eightBitsMask)
-	b[6] = byte((f.n[7] >> 18) & eightBitsMask)
-	b[5] = byte(f.n[8] & eightBitsMask)
-	b[4] = byte((f.n[8] >> 8) & eightBitsMask)
-	b[3] = byte((f.n[8] >> 16) & eightBitsMask)
-	b[2] = byte((f.n[8]>>24)&twoBitsMask | (f.n[9]&sixBitsMask)<<2)
-	b[1] = byte((f.n[9] >> 6) & eightBitsMask)
-	b[0] = byte((f.n[9] >> 14) & eightBitsMask)
+	b[31] = byte(e.n[0] & eightBitsMask)
+	b[30] = byte((e.n[0] >> 8) & eightBitsMask)
+	b[29] = byte((e.n[0] >> 16) & eightBitsMask)
+	b[28] = byte((e.n[0]>>24)&twoBitsMask | (e.n[1]&sixBitsMask)<<2)
+	b[27] = byte((e.n[1] >> 6) & eightBitsMask)
+	b[26] = byte((e.n[1] >> 14) & eightBitsMask)
+	b[25] = byte((e.n[1]>>22)&fourBitsMask | (e.n[2]&fourBitsMask)<<4)
+	b[24] = byte((e.n[2] >> 4) & eightBitsMask)
+	b[23] = byte((e.n[2] >> 12) & eightBitsMask)
+	b[22] = byte((e.n[2]>>20)&sixBitsMask | (e.n[3]&twoBitsMask)<<6)
+	b[21] = byte((e.n[3] >> 2) & eightBitsMask)
+	b[20] = byte((e.n[3] >> 10) & eightBitsMask)
+	b[19] = byte((e.n[3] >> 18) & eightBitsMask)
+	b[18] = byte(e.n[4] & eightBitsMask)
+	b[17] = byte((e.n[4] >> 8) & eightBitsMask)
+	b[16] = byte((e.n[4] >> 16) & eightBitsMask)
+	b[15] = byte((e.n[4]>>24)&twoBitsMask | (e.n[5]&sixBitsMask)<<2)
+	b[14] = byte((e.n[5] >> 6) & eightBitsMask)
+	b[13] = byte((e.n[5] >> 14) & eightBitsMask)
+	b[12] = byte((e.n[5]>>22)&fourBitsMask | (e.n[6]&fourBitsMask)<<4)
+	b[11] = byte((e.n[6] >> 4) & eightBitsMask)
+	b[10] = byte((e.n[6] >> 12) & eightBitsMask)
+	b[9] = byte((e.n[6]>>20)&sixBitsMask | (e.n[7]&twoBitsMask)<<6)
+	b[8] = byte((e.n[7] >> 2) & eightBitsMask)
+	b[7] = byte((e.n[7] >> 10) & eightBitsMask)
+	b[6] = byte((e.n[7] >> 18) & eightBitsMask)
+	b[5] = byte(e.n[8] & eightBitsMask)
+	b[4] = byte((e.n[8] >> 8) & eightBitsMask)
+	b[3] = byte((e.n[8] >> 16) & eightBitsMask)
+	b[2] = byte((e.n[8]>>24)&twoBitsMask | (e.n[9]&sixBitsMask)<<2)
+	b[1] = byte((e.n[9] >> 6) & eightBitsMask)
+	b[0] = byte((e.n[9] >> 14) & eightBitsMask)
 }
 
-// PutBytes unpacks the field value to a 32-byte big-endian value using the
-// passed byte array in constant time.
+// PutBytes unpacks the element to a 32-byte big-endian value using the passed
+// byte array in constant time.
 //
-// There is a similar function, [FieldVal.PutBytesUnchecked], which unpacks the
-// field value into a slice that must have at least 32 bytes available.  This
+// There is a similar function, [Element.PutBytesUnchecked], which unpacks the
+// element into a slice that must have at least 32 bytes available.  This
 // version is provided since it can be useful to write directly into an array
 // that is type checked.
 //
-// Alternatively, there is also [FieldVal.Bytes], which unpacks the field value
-// into a new array and returns that which can sometimes be more ergonomic in
+// Alternatively, there is also [Element.Bytes], which unpacks the element into
+// a new array and returns that which can sometimes be more ergonomic in
 // applications that aren't concerned about an additional copy.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) PutBytes(b *[32]byte) {
-	f.PutBytesUnchecked(b[:])
+//	  - The element MUST be normalized
+func (e *Element) PutBytes(b *[32]byte) {
+	e.PutBytesUnchecked(b[:])
 }
 
-// Bytes unpacks the field value to a 32-byte big-endian value in constant time.
+// Bytes unpacks the element to a 32-byte big-endian value in constant time.
 //
-// See [FieldVal.PutBytes] and [FieldVal.PutBytesUnchecked] for variants that
+// See [Element.PutBytes] and [Element.PutBytesUnchecked] for variants that
 // allow an array or slice to be passed which can be useful to cut down on the
 // number of allocations by allowing the caller to reuse a buffer or write
 // directly into part of a larger buffer.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) Bytes() *[32]byte {
+//	  - The element MUST be normalized
+func (e *Element) Bytes() *[32]byte {
 	b := new([32]byte)
-	f.PutBytesUnchecked(b[:])
+	e.PutBytesUnchecked(b[:])
 	return b
 }
 
-// IsZeroBit returns 1 when the field value is equal to zero or 0 otherwise in
+// IsZeroBit returns 1 when the element is equal to zero or 0 otherwise in
 // constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See [FieldVal.IsZero] for the version
+// operations require a numeric value.  See [Element.IsZero] for the version
 // that returns a bool.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsZeroBit() uint32 {
-	// The value can only be zero if no bits are set in any of the words.
+//	  - The element MUST be normalized
+func (e *Element) IsZeroBit() uint32 {
+	// The element can only be zero if no bits are set in any of the limbs.
 	// This is a constant time implementation.
-	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
-		f.n[5] | f.n[6] | f.n[7] | f.n[8] | f.n[9]
+	bits := e.n[0] | e.n[1] | e.n[2] | e.n[3] | e.n[4] |
+		e.n[5] | e.n[6] | e.n[7] | e.n[8] | e.n[9]
 
-	return constantTimeEq(bits, 0)
+	return arith.ConstantTimeEq(bits, 0)
 }
 
-// IsZero returns whether or not the field value is equal to zero in constant
-// time.
+// IsZero returns whether or not the element is equal to zero in constant time.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsZero() bool {
-	// The value can only be zero if no bits are set in any of the words.
+//	  - The element MUST be normalized
+func (e *Element) IsZero() bool {
+	// The element can only be zero if no bits are set in any of the limbs.
 	// This is a constant time implementation.
-	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
-		f.n[5] | f.n[6] | f.n[7] | f.n[8] | f.n[9]
+	bits := e.n[0] | e.n[1] | e.n[2] | e.n[3] | e.n[4] |
+		e.n[5] | e.n[6] | e.n[7] | e.n[8] | e.n[9]
 
 	return bits == 0
 }
 
-// IsOneBit returns 1 when the field value is equal to one or 0 otherwise in
+// IsOneBit returns 1 when the element is equal to one or 0 otherwise in
 // constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See [FieldVal.IsOne] for the version
+// operations require a numeric value.  See [Element.IsOne] for the version
 // that returns a bool.
 //
 //	Preconditions:
-//	   - The field value MUST be normalized
-func (f *FieldVal) IsOneBit() uint32 {
-	// The value can only be one if the single lowest significant bit is set in
-	// the first word and no other bits are set in any of the other words.
+//	   - The element MUST be normalized
+func (e *Element) IsOneBit() uint32 {
+	// The element can only be one if the single lowest significant bit is set in
+	// the first limb and no other bits are set in any of the other limbs.
 	// This is a constant time implementation.
-	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
-		f.n[6] | f.n[7] | f.n[8] | f.n[9]
+	bits := (e.n[0] ^ 1) | e.n[1] | e.n[2] | e.n[3] | e.n[4] | e.n[5] |
+		e.n[6] | e.n[7] | e.n[8] | e.n[9]
 
-	return constantTimeEq(bits, 0)
+	return arith.ConstantTimeEq(bits, 0)
 }
 
-// IsOne returns whether or not the field value is equal to one in constant
-// time.
+// IsOne returns whether or not the element is equal to one in constant time.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsOne() bool {
-	// The value can only be one if the single lowest significant bit is set in
-	// the first word and no other bits are set in any of the other words.
+//	  - The element MUST be normalized
+func (e *Element) IsOne() bool {
+	// The element can only be one if the single lowest significant bit is set
+	// in the first limb and no other bits are set in any of the other limbs.
 	// This is a constant time implementation.
-	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
-		f.n[6] | f.n[7] | f.n[8] | f.n[9]
+	bits := (e.n[0] ^ 1) | e.n[1] | e.n[2] | e.n[3] | e.n[4] | e.n[5] |
+		e.n[6] | e.n[7] | e.n[8] | e.n[9]
 
 	return bits == 0
 }
 
-// IsOddBit returns 1 when the field value is an odd number or 0 otherwise in
+// IsOddBit returns 1 when the element is an odd number or 0 otherwise in
 // constant time.
 //
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
-// operations require a numeric value.  See [FieldVal.IsOdd] for the version
+// operations require a numeric value.  See [Element.IsOdd] for the version
 // that returns a bool.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsOddBit() uint32 {
+//	  - The element MUST be normalized
+func (e *Element) IsOddBit() uint32 {
 	// Only odd numbers have the bottom bit set.
-	return f.n[0] & 1
+	return e.n[0] & 1
 }
 
-// IsOdd returns whether or not the field value is an odd number in constant
-// time.
+// IsOdd returns whether or not the element is an odd number in constant time.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsOdd() bool {
+//	  - The element MUST be normalized
+func (e *Element) IsOdd() bool {
 	// Only odd numbers have the bottom bit set.
-	return f.n[0]&1 == 1
+	return e.n[0]&1 == 1
 }
 
-// Equals returns whether or not the two field values are the same in constant
-// time.
+// Equals returns whether or not the two elements are the same in constant time.
 //
 //	Preconditions:
-//	  - Both field values being compared MUST be normalized
-func (f *FieldVal) Equals(val *FieldVal) bool {
-	// Xor only sets bits when they are different, so the two field values
-	// can only be the same if no bits are set after xoring each word.
-	// This is a constant time implementation.
-	bits := (f.n[0] ^ val.n[0]) | (f.n[1] ^ val.n[1]) | (f.n[2] ^ val.n[2]) |
-		(f.n[3] ^ val.n[3]) | (f.n[4] ^ val.n[4]) | (f.n[5] ^ val.n[5]) |
-		(f.n[6] ^ val.n[6]) | (f.n[7] ^ val.n[7]) | (f.n[8] ^ val.n[8]) |
-		(f.n[9] ^ val.n[9])
+//	  - Both elements being compared MUST be normalized
+func (e *Element) Equals(val *Element) bool {
+	// Xor only sets bits when they are different, so the two elements can only
+	// be the same if no bits are set after xoring each limb.  This is a
+	// constant time implementation.
+	bits := (e.n[0] ^ val.n[0]) | (e.n[1] ^ val.n[1]) | (e.n[2] ^ val.n[2]) |
+		(e.n[3] ^ val.n[3]) | (e.n[4] ^ val.n[4]) | (e.n[5] ^ val.n[5]) |
+		(e.n[6] ^ val.n[6]) | (e.n[7] ^ val.n[7]) | (e.n[8] ^ val.n[8]) |
+		(e.n[9] ^ val.n[9])
 
 	return bits == 0
 }
 
-// NegateVal negates the passed value and stores the result in f in constant
-// time.  The caller must provide the maximum magnitude of the passed value for
-// a correct result.
+// NegateVal negates the passed element and stores the result in e in constant
+// time.  The caller must provide the maximum magnitude of the passed element
+// for a correct result.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.NegateVal(f2).AddInt(1) so that f = -f2 + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e.NegateVal(e2).AddInt(1) so that e = -e2 + 1.
 //
 //	Preconditions:
 //	  - The max magnitude MUST be 31
 //	Output Normalized: No
 //	Output Max Magnitude: Input magnitude + 1
-func (f *FieldVal) NegateVal(val *FieldVal, magnitude uint32) *FieldVal {
-	// Negation in the field is just the prime minus the value.  However,
-	// in order to allow negation against a field value without having to
-	// normalize/reduce it first, multiply by the magnitude (that is how
-	// "far" away it is from the normalized value) to adjust.  Also, since
-	// negating a value pushes it one more order of magnitude away from the
+func (e *Element) NegateVal(val *Element, magnitude uint32) *Element {
+	// Negation in the field is just the prime minus the element.  However, in
+	// order to allow negation against an element without having to
+	// normalize/reduce it first, multiply by the magnitude (that is how "far"
+	// away it is from its normalized representation) to adjust.  Also, since
+	// negating an element pushes it one more order of magnitude away from the
 	// normalized range, add 1 to compensate.
 	//
 	// For some intuition here, imagine you're performing mod 12 arithmetic
-	// (picture a clock) and you are negating the number 7.  So you start at
-	// 12 (which is of course 0 under mod 12) and count backwards (left on
-	// the clock) 7 times to arrive at 5.  Notice this is just 12-7 = 5.
-	// Now, assume you're starting with 19, which is a number that is
-	// already larger than the modulus and congruent to 7 (mod 12).  When a
-	// value is already in the desired range, its magnitude is 1.  Since 19
-	// is an additional "step", its magnitude (mod 12) is 2.  Since any
-	// multiple of the modulus is congruent to zero (mod m), the answer can
-	// be shortcut by simply multiplying the magnitude by the modulus and
-	// subtracting.  Keeping with the example, this would be (2*12)-19 = 5.
-	f.n[0] = (magnitude+1)*fieldPrimeWordZero - val.n[0]
-	f.n[1] = (magnitude+1)*fieldPrimeWordOne - val.n[1]
-	f.n[2] = (magnitude+1)*fieldBaseMask - val.n[2]
-	f.n[3] = (magnitude+1)*fieldBaseMask - val.n[3]
-	f.n[4] = (magnitude+1)*fieldBaseMask - val.n[4]
-	f.n[5] = (magnitude+1)*fieldBaseMask - val.n[5]
-	f.n[6] = (magnitude+1)*fieldBaseMask - val.n[6]
-	f.n[7] = (magnitude+1)*fieldBaseMask - val.n[7]
-	f.n[8] = (magnitude+1)*fieldBaseMask - val.n[8]
-	f.n[9] = (magnitude+1)*fieldMSBMask - val.n[9]
+	// (picture a clock) and you are negating the number 7.  So you start at 12
+	// (which is of course 0 under mod 12) and count backwards (left on the
+	// clock) 7 times to arrive at 5.  Notice this is just 12-7 = 5.  Now,
+	// assume you're starting with 19, which is a number that is already larger
+	// than the modulus and congruent to 7 (mod 12).  When an element is already
+	// in the desired range, its magnitude is 1.  Since 19 is an additional
+	// "step", its magnitude (mod 12) is 2.  Since any multiple of the modulus
+	// is congruent to zero (mod m), the answer can be shortcut by simply
+	// multiplying the magnitude by the modulus and subtracting.  Keeping with
+	// the example, this would be (2*12)-19 = 5.
+	e.n[0] = (magnitude+1)*fieldPrimeLimb0 - val.n[0]
+	e.n[1] = (magnitude+1)*fieldPrimeLimb1 - val.n[1]
+	e.n[2] = (magnitude+1)*fieldBaseMask - val.n[2]
+	e.n[3] = (magnitude+1)*fieldBaseMask - val.n[3]
+	e.n[4] = (magnitude+1)*fieldBaseMask - val.n[4]
+	e.n[5] = (magnitude+1)*fieldBaseMask - val.n[5]
+	e.n[6] = (magnitude+1)*fieldBaseMask - val.n[6]
+	e.n[7] = (magnitude+1)*fieldBaseMask - val.n[7]
+	e.n[8] = (magnitude+1)*fieldBaseMask - val.n[8]
+	e.n[9] = (magnitude+1)*fieldMSBMask - val.n[9]
 
-	return f
+	return e
 }
 
-// Negate negates the field value in constant time.  The existing field value is
-// modified.  The caller must provide the maximum magnitude of the field value
-// for a correct result.
+// Negate negates the element in constant time.  The existing element is
+// modified.  The caller must provide the maximum magnitude of the element for a
+// correct result.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Negate().AddInt(1) so that f = -f + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e.Negate().AddInt(1) so that e = -e + 1.
 //
 //	Preconditions:
 //	  - The max magnitude MUST be 31
 //	Output Normalized: No
 //	Output Max Magnitude: Input magnitude + 1
-func (f *FieldVal) Negate(magnitude uint32) *FieldVal {
-	return f.NegateVal(f, magnitude)
+func (e *Element) Negate(magnitude uint32) *Element {
+	return e.NegateVal(e, magnitude)
 }
 
-// AddInt adds the passed integer to the existing field value and stores the
-// result in f in constant time.  This is a convenience function since it is
-// fairly common to perform some arithmetic with small native integers.
+// AddInt adds the passed integer to the existing element and stores the result
+// in e in constant time.  This is a convenience function since it is fairly
+// common to perform some arithmetic with small native integers.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.AddInt(1).Add(f2) so that f = f + 1 + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.AddInt(1).Add(e2) so that e = e + 1 + e2.
 //
 //	Preconditions:
-//	  - The field value MUST have a max magnitude of 31
-//	  - The integer MUST be a max of 32767
+//	  - The element MUST have a max magnitude of 31
+//	  - The integer MUST be at most 32767
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude + 1
-func (f *FieldVal) AddInt(ui uint16) *FieldVal {
-	// Since the field representation intentionally provides overflow bits,
-	// it's ok to use carryless addition as the carry bit is safely part of
-	// the word and will be normalized out.
-	f.n[0] += uint32(ui)
+//	Output Max Magnitude: Existing element magnitude + 1
+func (e *Element) AddInt(ui uint16) *Element {
+	// Since the internal representation intentionally provides overflow bits,
+	// it's ok to use carryless addition as the carry bit is safely part of the
+	// limb and will be normalized out.
+	e.n[0] += uint32(ui)
 
-	return f
+	return e
 }
 
-// Add adds the passed value to the existing field value and stores the result
-// in f in constant time.
+// Add adds the passed element to the existing element and stores the result in
+// e in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Add(f2).AddInt(1) so that f = f + f2 + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e.Add(e2).AddInt(1) so that e = e + e2 + 1.
 //
 //	Preconditions:
-//	  - The sum of the magnitudes of the two field values MUST be a max of 32
+//	  - The sum of the magnitudes of the two elements MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Sum of the magnitude of the two individual field values
-func (f *FieldVal) Add(val *FieldVal) *FieldVal {
-	// Since the field representation intentionally provides overflow bits,
-	// it's ok to use carryless addition as the carry bit is safely part of
-	// each word and will be normalized out.  This could obviously be done
-	// in a loop, but the unrolled version is faster.
-	f.n[0] += val.n[0]
-	f.n[1] += val.n[1]
-	f.n[2] += val.n[2]
-	f.n[3] += val.n[3]
-	f.n[4] += val.n[4]
-	f.n[5] += val.n[5]
-	f.n[6] += val.n[6]
-	f.n[7] += val.n[7]
-	f.n[8] += val.n[8]
-	f.n[9] += val.n[9]
+//	Output Max Magnitude: Sum of the magnitude of the two individual elements
+func (e *Element) Add(val *Element) *Element {
+	// Since the internal representation intentionally provides overflow bits,
+	// it's ok to use carryless addition as the carry bit is safely part of each
+	// limb and will be normalized out.  This could obviously be done in a loop,
+	// but the unrolled version is faster.
+	e.n[0] += val.n[0]
+	e.n[1] += val.n[1]
+	e.n[2] += val.n[2]
+	e.n[3] += val.n[3]
+	e.n[4] += val.n[4]
+	e.n[5] += val.n[5]
+	e.n[6] += val.n[6]
+	e.n[7] += val.n[7]
+	e.n[8] += val.n[8]
+	e.n[9] += val.n[9]
 
-	return f
+	return e
 }
 
-// Add2 adds the passed two field values together and stores the result in f in
+// Add2 adds the passed two elements together and stores the result in e in
 // constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.Add2(f, f2).AddInt(1) so that f3 = f + f2 + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e3.Add2(e, e2).AddInt(1) so that e3 = e + e2 + 1.
 //
 //	Preconditions:
-//	  - The sum of the magnitudes of the two field values MUST be a max of 32
+//	  - The sum of the magnitudes of the two elements MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Sum of the magnitude of the two field values
-func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
-	// Since the field representation intentionally provides overflow bits,
-	// it's ok to use carryless addition as the carry bit is safely part of
-	// each word and will be normalized out.  This could obviously be done
-	// in a loop, but the unrolled version is faster.
-	f.n[0] = val.n[0] + val2.n[0]
-	f.n[1] = val.n[1] + val2.n[1]
-	f.n[2] = val.n[2] + val2.n[2]
-	f.n[3] = val.n[3] + val2.n[3]
-	f.n[4] = val.n[4] + val2.n[4]
-	f.n[5] = val.n[5] + val2.n[5]
-	f.n[6] = val.n[6] + val2.n[6]
-	f.n[7] = val.n[7] + val2.n[7]
-	f.n[8] = val.n[8] + val2.n[8]
-	f.n[9] = val.n[9] + val2.n[9]
+//	Output Max Magnitude: Sum of the magnitude of the two elements
+func (e *Element) Add2(val *Element, val2 *Element) *Element {
+	// Since the internal representation intentionally provides overflow bits,
+	// it's ok to use carryless addition as the carry bit is safely part of each
+	// limb and will be normalized out.  This could obviously be done in a loop,
+	// but the unrolled version is faster.
+	e.n[0] = val.n[0] + val2.n[0]
+	e.n[1] = val.n[1] + val2.n[1]
+	e.n[2] = val.n[2] + val2.n[2]
+	e.n[3] = val.n[3] + val2.n[3]
+	e.n[4] = val.n[4] + val2.n[4]
+	e.n[5] = val.n[5] + val2.n[5]
+	e.n[6] = val.n[6] + val2.n[6]
+	e.n[7] = val.n[7] + val2.n[7]
+	e.n[8] = val.n[8] + val2.n[8]
+	e.n[9] = val.n[9] + val2.n[9]
 
-	return f
+	return e
 }
 
-// MulBy2 multiplies the field value by 2 and stores the result in f in constant
-// time.  Note that this function can overflow if multiplying the value by any
-// of the individual words exceeds a max uint32.  Therefore it is important that
-// the caller ensures no overflows will occur before using this function.
+// MulBy2 multiplies the element by 2 and stores the result in e in constant
+// time.  Note that this function can overflow if multiplying the element causes
+// any individual limb to overflow uint32.  Therefore it is important that the
+// caller ensures no overflows will occur before using this function.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy2().Add(f2) so that f = 2 * f + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy2().Add(e2) so that e = 2 * e + e2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by 2 val MUST be a max of 32
+//	  - The element magnitude multiplied by 2 MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude times 2
-func (f *FieldVal) MulBy2() *FieldVal {
-	return f.MulInt(2)
+//	Output Max Magnitude: Existing element magnitude times 2
+func (e *Element) MulBy2() *Element {
+	return e.MulInt(2)
 }
 
-// MulBy3 multiplies the field value by 3 and stores the result in f in constant
-// time.  Note that this function can overflow if multiplying the value by any
-// of the individual words exceeds a max uint32.  Therefore it is important that
-// the caller ensures no overflows will occur before using this function.
+// MulBy3 multiplies the element by 3 and stores the result in e in constant
+// time.  Note that this function can overflow if multiplying the element causes
+// any individual limb to overflow uint32.  Therefore it is important that the
+// caller ensures no overflows will occur before using this function.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy3().Add(f2) so that f = 3 * f + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy3().Add(e2) so that e = 3 * e + e2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by 3 val MUST be a max of 32
+//	  - The element magnitude multiplied by 3 MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude times 3
-func (f *FieldVal) MulBy3() *FieldVal {
-	return f.MulInt(3)
+//	Output Max Magnitude: Existing element magnitude times 3
+func (e *Element) MulBy3() *Element {
+	return e.MulInt(3)
 }
 
-// MulBy4 multiplies the field value by 4 and stores the result in f in constant
-// time.  Note that this function can overflow if multiplying the value by any
-// of the individual words exceeds a max uint32.  Therefore it is important that
-// the caller ensures no overflows will occur before using this function.
+// MulBy4 multiplies the element by 4 and stores the result in e in constant
+// time.  Note that this function can overflow if multiplying the element causes
+// any individual limb to overflow uint32.  Therefore it is important that the
+// caller ensures no overflows will occur before using this function.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy4().Add(f2) so that f = 4 * f + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy4().Add(e2) so that e = 4 * e + e2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by 4 val MUST be a max of 32
+//	  - The element magnitude multiplied by 4 MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude times 4
-func (f *FieldVal) MulBy4() *FieldVal {
-	return f.MulInt(4)
+//	Output Max Magnitude: Existing element magnitude times 4
+func (e *Element) MulBy4() *Element {
+	return e.MulInt(4)
 }
 
-// MulBy8 multiplies the field value by 8 and stores the result in f in constant
-// time.  Note that this function can overflow if multiplying the value by any
-// of the individual words exceeds a max uint32.  Therefore it is important that
-// the caller ensures no overflows will occur before using this function.
+// MulBy8 multiplies the element by 8 and stores the result in e in constant
+// time.  Note that this function can overflow if multiplying the element causes
+// any individual limb to overflow uint32.  Therefore it is important that the
+// caller ensures no overflows will occur before using this function.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulBy8().Add(f2) so that f = 8 * f + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulBy8().Add(e2) so that e = 8 * e + e2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by 8 val MUST be a max of 32
+//	  - The element magnitude multiplied by 8 MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude times 8
-func (f *FieldVal) MulBy8() *FieldVal {
-	return f.MulInt(8)
+//	Output Max Magnitude: Existing element times 8
+func (e *Element) MulBy8() *Element {
+	return e.MulInt(8)
 }
 
-// MulInt multiplies the field value by the passed int and stores the result in
-// f in constant time.  Note that this function can overflow if multiplying the
-// value by any of the individual words exceeds a max uint32.  Therefore it is
+// MulInt multiplies the element by the passed int and stores the result in e in
+// constant time.  Note that this function can overflow if multiplying the
+// element causes any individual limb to overflow uint32.  Therefore it is
 // important that the caller ensures no overflows will occur before using this
 // function.
 //
 // Callers should prefer using the specialized methods for multiplying by 2, 3,
 // 4, and 8, as they are commonly used in curve equations.
 //
-// See [FieldVal.MulBy2], [FieldVal.MulBy3], [FieldVal.MulBy4], and
-// [FieldVal.MulBy8] for the aforementioned specialized methods.
+// See [Element.MulBy2], [Element.MulBy3], [Element.MulBy4], and
+// [Element.MulBy8] for the aforementioned specialized methods.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.MulInt(2).Add(f2) so that f = 2 * f + f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.MulInt(2).Add(e2) so that e = 2 * e + e2.
 //
 //	Preconditions:
-//	  - The field value magnitude multiplied by given val MUST be a max of 32
+//	  - The element magnitude multiplied by given val MUST be at most 32
 //	Output Normalized: No
-//	Output Max Magnitude: Existing field magnitude times the provided integer val
-func (f *FieldVal) MulInt(val uint8) *FieldVal {
-	// Since each word of the field representation can hold up to
-	// 32 - fieldBase extra bits which will be normalized out, it's safe
-	// to multiply each word without using a larger type or carry
-	// propagation so long as the values won't overflow a uint32.  This
-	// could obviously be done in a loop, but the unrolled version is
-	// faster.
+//	Output Max Magnitude: Existing element magnitude times the provided integer val
+func (e *Element) MulInt(val uint8) *Element {
+	// Since each limb of the internal representation can hold up to 32 -
+	// [fieldBase] extra bits which will be normalized out, it's safe to
+	// multiply each limb without using a larger type or carry propagation so
+	// long as the values won't overflow a uint32.  This could obviously be done
+	// in a loop, but the unrolled version is faster.
 	ui := uint32(val)
-	f.n[0] *= ui
-	f.n[1] *= ui
-	f.n[2] *= ui
-	f.n[3] *= ui
-	f.n[4] *= ui
-	f.n[5] *= ui
-	f.n[6] *= ui
-	f.n[7] *= ui
-	f.n[8] *= ui
-	f.n[9] *= ui
+	e.n[0] *= ui
+	e.n[1] *= ui
+	e.n[2] *= ui
+	e.n[3] *= ui
+	e.n[4] *= ui
+	e.n[5] *= ui
+	e.n[6] *= ui
+	e.n[7] *= ui
+	e.n[8] *= ui
+	e.n[9] *= ui
 
-	return f
+	return e
 }
 
-// Mul multiplies the passed value to the existing field value and stores the
-// result in f in constant time.  Note that this function can overflow if
-// multiplying any of the individual words exceeds a max uint32.  In practice,
-// this means the magnitude of either value involved in the multiplication must
-// be a max of 8.
+// Mul multiplies the passed element to the existing element and stores the
+// result in e in constant time.  Note that this function can overflow if
+// multiplying causes any individual limb to overflow uint32.  In practice, this
+// means the magnitude of either element involved in the multiplication must be
+// at most 8.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Mul(f2).AddInt(1) so that f = (f * f2) + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e.Mul(e2).AddInt(1) so that e = (e * e2) + 1.
 //
 //	Preconditions:
-//	  - Both field values MUST have a max magnitude of 8
+//	  - Both elements MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) Mul(val *FieldVal) *FieldVal {
-	return f.Mul2(f, val)
+func (e *Element) Mul(val *Element) *Element {
+	return e.Mul2(e, val)
 }
 
-// Mul2 multiplies the passed two field values together and stores the result in
-// f in constant time.  Note that this function can overflow if multiplying any
-// of the individual words exceeds a max uint32.  In practice, this means the
-// magnitude of either value involved in the multiplication must be a max of 8.
+// Mul2 multiplies the passed two elements together and stores the result in e
+// in constant time.  Note that this function can overflow if multiplying any of
+// the individual limbs exceeds a max uint32.  In practice, this means the
+// magnitude of either element involved in the multiplication must be at most 8.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.Mul2(f, f2).AddInt(1) so that f3 = (f * f2) + 1.
+// The element is returned to support chaining.  This enables syntax like:
+// e3.Mul2(e, e2).AddInt(1) so that e3 = (e * e2) + 1.
 //
 //	Preconditions:
-//	  - Both input field values MUST have a max magnitude of 8
+//	  - Both input elements MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) Mul2(val *FieldVal, val2 *FieldVal) *FieldVal {
+func (e *Element) Mul2(val *Element, val2 *Element) *Element {
 	// This could be done with a couple of for loops and an array to store
 	// the intermediate terms, but this unrolled version is significantly
 	// faster.
@@ -1090,24 +1093,24 @@ func (f *FieldVal) Mul2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273, so it fits
 	// this criteria.
 	//
-	// 4294968273 in field representation (base 2^26) is:
+	// 4294968273 in the internal representation (base 2^26) is:
 	// n[0] = 977
 	// n[1] = 64
 	// That is to say (2^26 * 64) + 977 = 4294968273
 	//
-	// Since each word is in base 26, the upper terms (t10 and up) start
-	// at 260 bits (versus the final desired range of 256 bits), so the
-	// field representation of 'c' from above needs to be adjusted for the
-	// extra 4 bits by multiplying it by 2^4 = 16.  4294968273 * 16 =
-	// 68719492368.  Thus, the adjusted field representation of 'c' is:
+	// Since each limb is in base 26, the upper terms (t10 and up) start at 260
+	// bits (versus the final desired range of 256 bits), so the internal
+	// representation of 'c' from above needs to be adjusted for the extra 4
+	// bits by multiplying it by 2^4 = 16.  4294968273 * 16 = 68719492368.
+	// Thus, the adjusted internal representation of 'c' is:
 	// n[0] = 977 * 16 = 15632
 	// n[1] = 64 * 16 = 1024
 	// That is to say (2^26 * 1024) + 15632 = 68719492368
 	//
-	// To reduce the final term, t19, the entire 'c' value is needed instead
-	// of only n[0] because there are no more terms left to handle n[1].
-	// This means there might be some magnitude left in the upper bits that
-	// is handled below.
+	// To reduce the final term, t19, the entire 'c' value is needed instead of
+	// only n[0] because there are no more terms left to handle n[1].  This
+	// means there might be some magnitude left in the upper bits that is
+	// handled below.
 	m = t0 + t10*15632
 	t0 = m & fieldBaseMask
 	m = (m >> fieldBase) + t1 + t10*1024 + t11*15632
@@ -1130,7 +1133,7 @@ func (f *FieldVal) Mul2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	t9 = m & fieldMSBMask
 	m >>= fieldMSBBits
 
-	// At this point, if the magnitude is greater than 0, the overall value
+	// At this point, if the magnitude is greater than 0, the overall element
 	// is greater than the max possible 256-bit value.  In particular, it is
 	// "how many times larger" than the max value it is.
 	//
@@ -1138,46 +1141,46 @@ func (f *FieldVal) Mul2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	// quotient is zero.  However, due to the above, we already know at
 	// least how many times we would need to repeat as it's the value
 	// currently in m.  Thus we can simply multiply the magnitude by the
-	// field representation of the prime and do a single iteration.  Notice
+	// internal representation of the prime and do a single iteration.  Notice
 	// that nothing will be changed when the magnitude is zero, so we could
 	// skip this in that case, however always running regardless allows it
 	// to run in constant time.  The final result will be in the range
 	// 0 <= result <= prime + (2^64 - c), so it is guaranteed to have a
 	// magnitude of 1, but it is denormalized.
 	d := t0 + m*977
-	f.n[0] = uint32(d & fieldBaseMask)
+	e.n[0] = uint32(d & fieldBaseMask)
 	d = (d >> fieldBase) + t1 + m*64
-	f.n[1] = uint32(d & fieldBaseMask)
-	f.n[2] = uint32((d >> fieldBase) + t2)
-	f.n[3] = uint32(t3)
-	f.n[4] = uint32(t4)
-	f.n[5] = uint32(t5)
-	f.n[6] = uint32(t6)
-	f.n[7] = uint32(t7)
-	f.n[8] = uint32(t8)
-	f.n[9] = uint32(t9)
+	e.n[1] = uint32(d & fieldBaseMask)
+	e.n[2] = uint32((d >> fieldBase) + t2)
+	e.n[3] = uint32(t3)
+	e.n[4] = uint32(t4)
+	e.n[5] = uint32(t5)
+	e.n[6] = uint32(t6)
+	e.n[7] = uint32(t7)
+	e.n[8] = uint32(t8)
+	e.n[9] = uint32(t9)
 
-	return f
+	return e
 }
 
-// SquareRootVal either calculates the square root of the passed value when it
-// exists or the square root of the negation of the value when it does not exist
-// and stores the result in f in constant time.  The return flag is true when
-// the calculated square root is for the passed value itself and false when it
-// is for its negation.
+// SquareRootVal either calculates the square root of the passed element when it
+// exists or the square root of the negation of the element when it does not
+// exist and stores the result in e in constant time.  The return flag is true
+// when the calculated square root is for the passed element itself and false
+// when it is for its negation.
 //
 // Note that this function can overflow if multiplying any of the individual
-// words exceeds a max uint32.  In practice, this means the magnitude of the
-// field must be a max of 8 to prevent overflow.  The magnitude of the result
+// limbs exceeds a max uint32.  In practice, this means the magnitude of the
+// element must be at most 8 to prevent overflow.  The magnitude of the result
 // will be 1.
 //
 //	Preconditions:
-//	  - The input field value MUST have a max magnitude of 8
+//	  - The input element MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
+func (e *Element) SquareRootVal(val *Element) bool {
 	// This uses the Tonelli-Shanks method for calculating the square root of
-	// the value when it exists.  The key principles of the method follow.
+	// the element when it exists.  The key principles of the method follow.
 	//
 	// Fermat's little theorem states that for a nonzero number 'a' and prime
 	// 'p', a^(p-1) ≡ 1 (mod p).
@@ -1199,15 +1202,15 @@ func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
 	// The Tonelli-Shanks method uses these facts along with factoring out
 	// powers of two to solve a congruence that results in either the solution
 	// when the square root exists or the square root of the negation of the
-	// value when it does not.  In the case of primes that are ≡ 3 (mod 4), the
-	// possible solutions are r = ±a^((p+1)/4) (mod p).  Therefore, either r^2 ≡
-	// a (mod p) is true in which case ±r are the two solutions, or r^2 ≡ -a
-	// (mod p) in which case 'a' is a non-residue and there are no solutions.
+	// element when it does not.  In the case of primes that are ≡ 3 (mod 4),
+	// the possible solutions are r = ±a^((p+1)/4) (mod p).  Therefore, either
+	// r^2 ≡ a (mod p) is true in which case ±r are the two solutions, or r^2 ≡
+	// -a (mod p) in which case 'a' is a non-residue and there are no solutions.
 	//
 	// The secp256k1 prime is ≡ 3 (mod 4), so this result applies.
 	//
 	// In other words, calculate a^((p+1)/4) and then square it and check it
-	// against the original value to determine if it is actually the square
+	// against the original element to determine if it is actually the square
 	// root.
 	//
 	// In order to efficiently compute a^((p+1)/4), (p+1)/4 needs to be split
@@ -1243,7 +1246,7 @@ func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
 	// => 2^1 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
 	//
 	// This has a cost of 254 field squarings and 13 field multiplications.
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 Element
 	a.Set(val)
 	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
 	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
@@ -1305,54 +1308,54 @@ func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
 	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
 	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
 
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
-	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
-	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
-	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 2^8 - 2^3 - 2^2)
+	e.SquareVal(&a223).Square().Square().Square().Square() // e = a^(2^228 - 2^5)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^233 - 2^10)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^238 - 2^15)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^243 - 2^20)
+	e.Square().Square().Square()                           // e = a^(2^246 - 2^23)
+	e.Mul(&a22)                                            // e = a^(2^246 - 2^22 - 1)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^251 - 2^27 - 2^5)
+	e.Square()                                             // e = a^(2^252 - 2^28 - 2^6)
+	e.Mul(&a2)                                             // e = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
+	e.Square().Square()                                    // e = a^(2^254 - 2^30 - 2^8 - 2^3 - 2^2)
 	//                                                     //   = a^(2^254 - 2^30 - 244)
 	//                                                     //   = a^((p+1)/4)
 
 	// Ensure the calculated result is actually the square root by squaring it
-	// and checking against the original value.
-	var sqr FieldVal
-	return sqr.SquareVal(f).Normalize().Equals(val.Normalize())
+	// and checking against the original element.
+	var sqr Element
+	return sqr.SquareVal(e).Normalize().Equals(val.Normalize())
 }
 
-// Square squares the field value in constant time.  The existing field value is
+// Square squares the element in constant time.  The existing element is
 // modified.  Note that this function can overflow if multiplying any of the
-// individual words exceeds a max uint32.  In practice, this means the magnitude
-// of the field must be a max of 8 to prevent overflow.
+// individual limbs exceeds a max uint32.  In practice, this means the magnitude
+// of the element must be at most 8 to prevent overflow.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Square().Mul(f2) so that f = f^2 * f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.Square().Mul(e2) so that e = e^2 * e2.
 //
 //	Preconditions:
-//	  - The field value MUST have a max magnitude of 8
+//	  - The element MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) Square() *FieldVal {
-	return f.SquareVal(f)
+func (e *Element) Square() *Element {
+	return e.SquareVal(e)
 }
 
-// SquareVal squares the passed value and stores the result in f in constant
+// SquareVal squares the passed element and stores the result in e in constant
 // time.  Note that this function can overflow if multiplying any of the
-// individual words exceeds a max uint32.  In practice, this means the magnitude
-// of the field being squared must be a max of 8 to prevent overflow.
+// individual limbs exceeds a max uint32.  In practice, this means the magnitude
+// of the element being squared must be at most 8 to prevent overflow.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f3.SquareVal(f).Mul(f) so that f3 = f^2 * f = f^3.
+// The element is returned to support chaining.  This enables syntax like:
+// e3.SquareVal(e).Mul(e) so that e3 = e^2 * e = e^3.
 //
 //	Preconditions:
-//	  - The input field value MUST have a max magnitude of 8
+//	  - The input element MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) SquareVal(val *FieldVal) *FieldVal {
+func (e *Element) SquareVal(val *Element) *Element {
 	// This could be done with a couple of for loops and an array to store
 	// the intermediate terms, but this unrolled version is significantly
 	// faster.
@@ -1497,16 +1500,16 @@ func (f *FieldVal) SquareVal(val *FieldVal) *FieldVal {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273, so it fits
 	// this criteria.
 	//
-	// 4294968273 in field representation (base 2^26) is:
+	// 4294968273 in the internal representation (base 2^26) is:
 	// n[0] = 977
 	// n[1] = 64
 	// That is to say (2^26 * 64) + 977 = 4294968273
 	//
-	// Since each word is in base 26, the upper terms (t10 and up) start
-	// at 260 bits (versus the final desired range of 256 bits), so the
-	// field representation of 'c' from above needs to be adjusted for the
-	// extra 4 bits by multiplying it by 2^4 = 16.  4294968273 * 16 =
-	// 68719492368.  Thus, the adjusted field representation of 'c' is:
+	// Since each limb is in base 26, the upper terms (t10 and up) start at 260
+	// bits (versus the final desired range of 256 bits), so the internal
+	// representation of 'c' from above needs to be adjusted for the extra 4
+	// bits by multiplying it by 2^4 = 16.  4294968273 * 16 = 68719492368.
+	// Thus, the adjusted internal representation of 'c' is:
 	// n[0] = 977 * 16 = 15632
 	// n[1] = 64 * 16 = 1024
 	// That is to say (2^26 * 1024) + 15632 = 68719492368
@@ -1537,47 +1540,47 @@ func (f *FieldVal) SquareVal(val *FieldVal) *FieldVal {
 	t9 = m & fieldMSBMask
 	m >>= fieldMSBBits
 
-	// At this point, if the magnitude is greater than 0, the overall value
+	// At this point, if the magnitude is greater than 0, the overall element
 	// is greater than the max possible 256-bit value.  In particular, it is
 	// "how many times larger" than the max value it is.
 	//
 	// The algorithm presented in [HAC] section 14.3.4 repeats until the
 	// quotient is zero.  However, due to the above, we already know at
-	// least how many times we would need to repeat as it's the value
+	// least how many times we would need to repeat as it's the quantity
 	// currently in m.  Thus we can simply multiply the magnitude by the
-	// field representation of the prime and do a single iteration.  Notice
+	// internal representation of the prime and do a single iteration.  Notice
 	// that nothing will be changed when the magnitude is zero, so we could
 	// skip this in that case, however always running regardless allows it
 	// to run in constant time.  The final result will be in the range
 	// 0 <= result <= prime + (2^64 - c), so it is guaranteed to have a
 	// magnitude of 1, but it is denormalized.
 	n := t0 + m*977
-	f.n[0] = uint32(n & fieldBaseMask)
+	e.n[0] = uint32(n & fieldBaseMask)
 	n = (n >> fieldBase) + t1 + m*64
-	f.n[1] = uint32(n & fieldBaseMask)
-	f.n[2] = uint32((n >> fieldBase) + t2)
-	f.n[3] = uint32(t3)
-	f.n[4] = uint32(t4)
-	f.n[5] = uint32(t5)
-	f.n[6] = uint32(t6)
-	f.n[7] = uint32(t7)
-	f.n[8] = uint32(t8)
-	f.n[9] = uint32(t9)
+	e.n[1] = uint32(n & fieldBaseMask)
+	e.n[2] = uint32((n >> fieldBase) + t2)
+	e.n[3] = uint32(t3)
+	e.n[4] = uint32(t4)
+	e.n[5] = uint32(t5)
+	e.n[6] = uint32(t6)
+	e.n[7] = uint32(t7)
+	e.n[8] = uint32(t8)
+	e.n[9] = uint32(t9)
 
-	return f
+	return e
 }
 
-// Inverse finds the modular multiplicative inverse of the field value in
-// constant time.  The existing field value is modified.
+// Inverse finds the modular multiplicative inverse of the element in constant
+// time.  The existing element is modified.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f.Inverse().Mul(f2) so that f = f^-1 * f2.
+// The element is returned to support chaining.  This enables syntax like:
+// e.Inverse().Mul(e2) so that e = e^-1 * e2.
 //
 //	Preconditions:
-//	  - The field value MUST have a max magnitude of 8
+//	  - The element MUST have a max magnitude of 8
 //	Output Normalized: No
 //	Output Max Magnitude: 1
-func (f *FieldVal) Inverse() *FieldVal {
+func (e *Element) Inverse() *Element {
 	// Fermat's little theorem states that for a nonzero number 'a' and prime
 	// 'p', a^(p-1) ≡ 1 (mod p).  Multiplying both sides of the equation by the
 	// multiplicative inverse a^-1 yields a^(p-2) ≡ a^-1 (mod p).  Thus, a^(p-2)
@@ -1619,8 +1622,8 @@ func (f *FieldVal) Inverse() *FieldVal {
 	// => 2^[1] 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
 	//
 	// This has a cost of 255 field squarings and 15 field multiplications.
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal
-	a.Set(f)
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 Element
+	a.Set(e)
 	a2.SquareVal(&a).Mul(&a)                                  // a2  = a^(2^2 - 1)
 	a3.SquareVal(&a2).Mul(&a)                                 // a3  = a^(2^3 - 1)
 	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
@@ -1681,27 +1684,26 @@ func (f *FieldVal) Inverse() *FieldVal {
 	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
 	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
 
-	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
-	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
-	f.Mul(&a22)                                            // f = a^(2^246 - 4194305)
-	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 134217760)
-	f.Mul(&a)                                              // f = a^(2^251 - 134217759)
-	f.Square().Square().Square()                           // f = a^(2^254 - 1073742072)
-	f.Mul(&a2)                                             // f = a^(2^254 - 1073742069)
-	f.Square().Square()                                    // f = a^(2^256 - 4294968276)
-	return f.Mul(&a)                                       // f = a^(2^256 - 4294968275) = a^(p-2)
+	e.SquareVal(&a223).Square().Square().Square().Square() // e = a^(2^228 - 2^5)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^233 - 2^10)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^238 - 2^15)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^243 - 2^20)
+	e.Square().Square().Square()                           // e = a^(2^246 - 2^23)
+	e.Mul(&a22)                                            // e = a^(2^246 - 4194305)
+	e.Square().Square().Square().Square().Square()         // e = a^(2^251 - 134217760)
+	e.Mul(&a)                                              // e = a^(2^251 - 134217759)
+	e.Square().Square().Square()                           // e = a^(2^254 - 1073742072)
+	e.Mul(&a2)                                             // e = a^(2^254 - 1073742069)
+	e.Square().Square()                                    // e = a^(2^256 - 4294968276)
+	return e.Mul(&a)                                       // e = a^(2^256 - 4294968275) = a^(p-2)
 }
 
-// IsGtOrEqPrimeMinusOrder returns whether or not the field value is greater
-// than or equal to the field prime minus the secp256k1 group order in constant
-// time.
+// IsGtOrEqPrimeMinusOrder returns whether or not the element is greater than or
+// equal to the field prime minus the secp256k1 group order in constant time.
 //
 //	Preconditions:
-//	  - The field value MUST be normalized
-func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
+//	  - The element MUST be normalized
+func (e *Element) IsGtOrEqPrimeMinusOrder() bool {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273 and the group
 	// order is 2^256 - 432420386565659656852420866394968145599.  Thus,
 	// the prime minus the group order is:
@@ -1710,7 +1712,7 @@ func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	// In hex that is:
 	// 0x00000000 00000000 00000000 00000001 45512319 50b75fc4 402da172 2fc9baee
 	//
-	// Converting that to field representation (base 2^26) is:
+	// Converting that to the internal representation (base 2^26) is:
 	//
 	// n[0] = 0x03c9baee
 	// n[1] = 0x03685c8b
@@ -1720,46 +1722,46 @@ func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	//
 	// This can be verified with the following test code:
 	//   pMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
-	//   var fv FieldVal
-	//   fv.SetByteSlice(pMinusN.Bytes())
-	//   t.Logf("%x", fv.n)
+	//   var v Element
+	//   v.SetByteSlice(pMinusN.Bytes())
+	//   t.Logf("%x", v.n)
 	//
 	//   Outputs: [3c9baee 3685c8b 1fc4402 6542dd 1455123 0 0 0 0 0]
 	const (
-		pMinusNWordZero  = 0x03c9baee
-		pMinusNWordOne   = 0x03685c8b
-		pMinusNWordTwo   = 0x01fc4402
-		pMinusNWordThree = 0x006542dd
-		pMinusNWordFour  = 0x01455123
-		pMinusNWordFive  = 0x00000000
-		pMinusNWordSix   = 0x00000000
-		pMinusNWordSeven = 0x00000000
-		pMinusNWordEight = 0x00000000
-		pMinusNWordNine  = 0x00000000
+		pMinusNLimb0 = 0x03c9baee
+		pMinusNLimb1 = 0x03685c8b
+		pMinusNLimb2 = 0x01fc4402
+		pMinusNLimb3 = 0x006542dd
+		pMinusNLimb4 = 0x01455123
+		pMinusNLimb5 = 0x00000000
+		pMinusNLimb6 = 0x00000000
+		pMinusNLimb7 = 0x00000000
+		pMinusNLimb8 = 0x00000000
+		pMinusNLimb9 = 0x00000000
 	)
 
-	// The intuition here is that the value is greater than field prime minus
-	// the group order if one of the higher individual words is greater than the
-	// corresponding word and all higher words in the value are equal.
-	result := constantTimeGreater(f.n[9], pMinusNWordNine)
-	highWordsEqual := constantTimeEq(f.n[9], pMinusNWordNine)
-	result |= highWordsEqual & constantTimeGreater(f.n[8], pMinusNWordEight)
-	highWordsEqual &= constantTimeEq(f.n[8], pMinusNWordEight)
-	result |= highWordsEqual & constantTimeGreater(f.n[7], pMinusNWordSeven)
-	highWordsEqual &= constantTimeEq(f.n[7], pMinusNWordSeven)
-	result |= highWordsEqual & constantTimeGreater(f.n[6], pMinusNWordSix)
-	highWordsEqual &= constantTimeEq(f.n[6], pMinusNWordSix)
-	result |= highWordsEqual & constantTimeGreater(f.n[5], pMinusNWordFive)
-	highWordsEqual &= constantTimeEq(f.n[5], pMinusNWordFive)
-	result |= highWordsEqual & constantTimeGreater(f.n[4], pMinusNWordFour)
-	highWordsEqual &= constantTimeEq(f.n[4], pMinusNWordFour)
-	result |= highWordsEqual & constantTimeGreater(f.n[3], pMinusNWordThree)
-	highWordsEqual &= constantTimeEq(f.n[3], pMinusNWordThree)
-	result |= highWordsEqual & constantTimeGreater(f.n[2], pMinusNWordTwo)
-	highWordsEqual &= constantTimeEq(f.n[2], pMinusNWordTwo)
-	result |= highWordsEqual & constantTimeGreater(f.n[1], pMinusNWordOne)
-	highWordsEqual &= constantTimeEq(f.n[1], pMinusNWordOne)
-	result |= highWordsEqual & constantTimeGreaterOrEq(f.n[0], pMinusNWordZero)
+	// The intuition here is that the element is greater than field prime minus
+	// the group order if one of the higher individual limbs is greater than the
+	// corresponding limb and all higher limbs in the element are equal.
+	result := arith.ConstantTimeGreater(e.n[9], pMinusNLimb9)
+	highLimbsEqual := arith.ConstantTimeEq(e.n[9], pMinusNLimb9)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[8], pMinusNLimb8)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[8], pMinusNLimb8)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[7], pMinusNLimb7)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[7], pMinusNLimb7)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[6], pMinusNLimb6)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[6], pMinusNLimb6)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[5], pMinusNLimb5)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[5], pMinusNLimb5)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[4], pMinusNLimb4)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[4], pMinusNLimb4)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[3], pMinusNLimb3)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[3], pMinusNLimb3)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[2], pMinusNLimb2)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[2], pMinusNLimb2)
+	result |= highLimbsEqual & arith.ConstantTimeGreater(e.n[1], pMinusNLimb1)
+	highLimbsEqual &= arith.ConstantTimeEq(e.n[1], pMinusNLimb1)
+	result |= highLimbsEqual & arith.ConstantTimeGreaterOrEq(e.n[0], pMinusNLimb0)
 
 	return result != 0
 }

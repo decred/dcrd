@@ -50,6 +50,21 @@ use optimized secp256k1 elliptic curve cryptography.
 Finally, a comprehensive suite of tests is provided to provide a high level of
 quality assurance.
 
+## Caveats
+
+Constant time implementations are designed to eliminate data dependent timing
+variation at the algorithmic level.  This property depends on the Go compiler
+continuing to compile the relevant operations into constant time machine
+instructions.
+
+This package also consistently uses temporary stack allocated buffers which it
+attempts to clear in order to reduce the likelihood of sensitive data lingering
+in memory, but Go does not guarantee such writes are never optimized away.
+
+Significant effort has been made to ensure correctness, including careful review
+of the generated assembly, but it is impossible to guarantee exact behavior of
+future versions of the Go compiler.
+
 # Use of secp256k1 in Decred
 
 At the time of this writing, the primary public key cryptography in widespread
