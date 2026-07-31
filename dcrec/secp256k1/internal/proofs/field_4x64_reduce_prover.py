@@ -16,11 +16,11 @@ x = BitVecs('x0 x1 x2 x3 x4 x5 x6 x7', 64)
 # by shorter mathematical variables for clarity.
 
 # Define P.
-field64Prime0 = BitVecVal(0xfffffffefffffc2f, 64)
-field64Prime1 = BitVecVal(0xffffffffffffffff, 64)
-field64Prime2 = BitVecVal(0xffffffffffffffff, 64)
-field64Prime3 = BitVecVal(0xffffffffffffffff, 64)
-field64Prime = Concat(field64Prime3, field64Prime2, field64Prime1, field64Prime0)
+fieldPrime0 = BitVecVal(0xfffffffefffffc2f, 64)
+fieldPrime1 = BitVecVal(0xffffffffffffffff, 64)
+fieldPrime2 = BitVecVal(0xffffffffffffffff, 64)
+fieldPrime3 = BitVecVal(0xffffffffffffffff, 64)
+fieldPrime = Concat(fieldPrime3, fieldPrime2, fieldPrime1, fieldPrime0)
 
 # Define 2P.
 twicePrime0 = BitVecVal(0xfffffffdfffff85e, 64)
@@ -31,7 +31,7 @@ twicePrime4 = ONE
 twicePrime = Concat(twicePrime4, twicePrime3, twicePrime2, twicePrime1, twicePrime0)
 
 # Define c = 2**256 - P.
-field64PrimeComplement = BitVecVal(2**32+977, 64)
+fieldPrimeComplement = BitVecVal(2**32+977, 64)
 
 # --------------------------------------------------------------------------
 # Prove the constant definitions satisfy the required identities before
@@ -39,8 +39,8 @@ field64PrimeComplement = BitVecVal(2**32+977, 64)
 # --------------------------------------------------------------------------
 
 # Prove twicePrime = 2P.
-field64Prime320 = ZeroExt(64, field64Prime)
-prove(twicePrime == field64Prime320 << 1, "twicePrime != 2P")
+fieldPrime320 = ZeroExt(64, fieldPrime)
+prove(twicePrime == fieldPrime320 << 1, "twicePrime != 2P")
 
 # --------------------------------------------------------------------------
 # Lemma R-identity: P + c == 2**256
@@ -51,8 +51,8 @@ prove(twicePrime == field64Prime320 << 1, "twicePrime != 2P")
 # => 0 + c ≡ 2**256 (mod P)
 # => c ≡ 2**256 (mod P)
 # --------------------------------------------------------------------------
-field64PrimeComplement320 = ZeroExt(256, field64PrimeComplement)
-prove(field64Prime320+field64PrimeComplement320 == BitVecVal(1, 320)<<256,
+fieldPrimeComplement320 = ZeroExt(256, fieldPrimeComplement)
+prove(fieldPrime320+fieldPrimeComplement320 == BitVecVal(1, 320)<<256,
    "Lemma R-identity: P+c != 2**256")
 
 # ---------------
@@ -62,19 +62,19 @@ prove(field64Prime320+field64PrimeComplement320 == BitVecVal(1, 320)<<256,
 discards = []
 
 # first reduction: 512 bits -> 289 bits.
-h, t0 = mul64(x[4], field64PrimeComplement)
+h, t0 = mul64(x[4], fieldPrimeComplement)
 
-hi, lo = mul64(x[5], field64PrimeComplement)
+hi, lo = mul64(x[5], fieldPrimeComplement)
 t1, carry = add64(lo, h, ZERO)
 h, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
 
-hi, lo = mul64(x[6], field64PrimeComplement)
+hi, lo = mul64(x[6], fieldPrimeComplement)
 t2, carry = add64(lo, h, ZERO)
 h, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
 
-hi, lo = mul64(x[7], field64PrimeComplement)
+hi, lo = mul64(x[7], fieldPrimeComplement)
 t3, carry = add64(lo, h, ZERO)
 t4, discarded = add64(hi, ZERO, carry)
 discards.append(discarded)
@@ -90,7 +90,7 @@ discards.append(discarded)
 t4_saved = t4
 
 # second reduction: 289 bits -> t < 2P
-h, t4 = mul64(t4, field64PrimeComplement)
+h, t4 = mul64(t4, fieldPrimeComplement)
 
 t0, carry = add64(t0, t4, ZERO)
 t1, carry = add64(t1, h, carry)
@@ -100,10 +100,10 @@ t3, carry = add64(t3, ZERO, carry)
 t4 = carry
 
 # final reduction: t < 2P -> t < P
-s0, borrow = sub64(t0, field64Prime0, ZERO)
-s1, borrow = sub64(t1, field64Prime1, borrow)
-s2, borrow = sub64(t2, field64Prime2, borrow)
-s3, borrow = sub64(t3, field64Prime3, borrow)
+s0, borrow = sub64(t0, fieldPrime0, ZERO)
+s1, borrow = sub64(t1, fieldPrime1, borrow)
+s2, borrow = sub64(t2, fieldPrime2, borrow)
+s3, borrow = sub64(t3, fieldPrime3, borrow)
 _, borrow = sub64(t4, ZERO, borrow)
 r0 = If(borrow == ONE, t0, s0)
 r1 = If(borrow == ONE, t1, s1)
@@ -121,7 +121,7 @@ prove_no_discarded_carries(discards)
 #
 # Since the complement is 33 bits, this proves the value does not exceed
 # 256 + 33 = 289 bits after the first reduction.
-prove(ULE(t4_saved, field64PrimeComplement), "top limb after 1st reduction > complement")
+prove(ULE(t4_saved, fieldPrimeComplement), "top limb after 1st reduction > complement")
 
 # Value after second reduction is less than twice the prime (t < 2P).
 t = Concat(t4, t3, t2, t1, t0)
@@ -129,7 +129,7 @@ prove(ULT(t, twicePrime), "value after 2nd reduction >= 2P")
 
 # Fully reduced result is less than the prime (r < P).
 r = Concat(r3, r2, r1, r0)
-prove(ULT(r, field64Prime), "fully reduced result >= P")
+prove(ULT(r, fieldPrime), "fully reduced result >= P")
 
 # -----------------------------------------------------------------------------
 # Prove functional congruence: r ≡ x (mod P).
@@ -155,7 +155,7 @@ prove(ULT(r, field64Prime), "fully reduced result >= P")
 # which contains no multipliers at all and reduces to adder-network equivalence
 # that the solver dispatches quickly.
 #
-# The Go function, field64Reduce512, computes r in three stages:
+# The Go function, field4x64.reduce512, computes r in three stages:
 #
 # 1) First reduction: Fold the high 256 bits of x (x4..x7) into the low 256 bits
 #    (x0..x3).  This produces t_1 = x_lo + x_hi*c which fits in 289 bits (5
@@ -169,7 +169,7 @@ prove(ULT(r, field64Prime), "fully reduced result >= P")
 # P which is exactly the definition of x ≡ r (mod P).
 def prove_functional_congruence_lemmas():
     """
-    Prove r == x (mod P) for field64Reduce512.
+    Prove r == x (mod P) for field4x64.reduce512.
 
     x is the 512-bit input (8 limbs x0..x7) and r is the fully-reduced 256-bit
     output (4 limbs).
@@ -325,14 +325,14 @@ def prove_functional_congruence_lemmas():
     # and the 4-limb result wouldn't represent it.  This fact is proven above
     # for the real total, so this does not smuggle in a new assumption.
     # -------------------------------------------------------------------------
-    p = cwidth(field64Prime)
+    p = cwidth(fieldPrime)
     twop = cwidth(twicePrime)
     z = BitVecs("z0 z1 z2 z3 z4", 64)
     s = [None]*4
-    s[0], borrow = sub64(z[0], field64Prime0, ZERO)
-    s[1], borrow = sub64(z[1], field64Prime1, borrow)
-    s[2], borrow = sub64(z[2], field64Prime2, borrow)
-    s[3], borrow = sub64(z[3], field64Prime3, borrow)
+    s[0], borrow = sub64(z[0], fieldPrime0, ZERO)
+    s[1], borrow = sub64(z[1], fieldPrime1, borrow)
+    s[2], borrow = sub64(z[2], fieldPrime2, borrow)
+    s[3], borrow = sub64(z[3], fieldPrime3, borrow)
     _, borrow = sub64(z[4], ZERO, borrow)
     t = pack_limbs(z)
     r = If(borrow == ONE, t, pack_limbs(s))

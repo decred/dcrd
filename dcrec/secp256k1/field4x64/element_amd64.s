@@ -58,8 +58,8 @@
 	MOVQ  R14, 16(AX)             \
 	MOVQ  R15, 24(AX)
 
-// func field64MulADX(r *[4]uint64, a, b *[4]uint64)
-TEXT ·field64MulADX(SB), NOSPLIT, $0-24
+// func mulReduceADX(r *[4]uint64, a, b *[4]uint64)
+TEXT ·mulReduceADX(SB), NOSPLIT, $0-24
 	MOVQ  a+8(FP), SI
 	MOVQ  b+16(FP), DI
 	XORQ  BX, BX
@@ -126,8 +126,8 @@ TEXT ·field64MulADX(SB), NOSPLIT, $0-24
 	REDUCE()
 	RET
 
-// func field64SquareADX(r *[4]uint64, a *[4]uint64)
-TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
+// func squareReduceADX(r *[4]uint64, a *[4]uint64)
+TEXT ·squareReduceADX(SB), NOSPLIT, $0-16
 	MOVQ   a+8(FP), AX
 	MOVQ   0(AX), DX   // a0
 	MOVQ   8(AX), SI   // a1
@@ -187,15 +187,4 @@ TEXT ·field64SquareADX(SB), NOSPLIT, $0-16
 	ADCXQ  AX, R15
 
 	REDUCE()
-	RET
-
-// func field64CPUID(eaxIn, ecxIn uint32) (eax, ebx, ecx, edx uint32)
-TEXT ·field64CPUID(SB), NOSPLIT, $0-24
-	MOVL eaxIn+0(FP), AX
-	MOVL ecxIn+4(FP), CX
-	CPUID
-	MOVL AX, eax+8(FP)
-	MOVL BX, ebx+12(FP)
-	MOVL CX, ecx+16(FP)
-	MOVL DX, edx+20(FP)
 	RET
