@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -981,7 +982,8 @@ func TestWriteMessageDeadline(t *testing.T) {
 	p.nowFn = mockNowFn
 
 	for _, test := range tests {
-		if err := p.writeMessage(&sizedMsg{size: test.payloadSize}); err != nil {
+		msg := &sizedMsg{size: test.payloadSize}
+		if err := p.writeMessage(msg, msgSize(msg)); err != nil {
 			t.Fatalf("%s: unexpected error writing message: %v", test.name, err)
 		}
 
@@ -1005,9 +1007,80 @@ func TestWriteMessageDeadlineError(t *testing.T) {
 	wantErr := errors.New("set write deadline failed")
 	inConn.setWriteDeadlineErr = wantErr
 
-	got := p.writeMessage(&sizedMsg{})
+	got := p.writeMessage(&sizedMsg{}, 0)
 	if !errors.Is(got, wantErr) {
 		t.Fatalf("wrong error - got %v, want %v", got, wantErr)
+	}
+}
+
+// TestQueuedOutputLimit ensures a peer is disconnected when the total bytes
+// queued for it exceeds the allowed limit.
+func TestQueuedOutputLimit(t *testing.T) {
+	// Create a peer with a mock connection.  Note the peer is intentionally not
+	// run so nothing drains the output queue and thus the queued bytes
+	// accumulate.
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	defer inConn.Close()
+	defer outConn.Close()
+	p := NewInboundPeer(mockPeerConfig(), inConn)
+
+	// Queue messages that total exactly the limit and ensure the peer remains
+	// connected.
+	const numMsgs = 4
+	const msgSize = maxQueuedOutputBytes/numMsgs - wire.MessageHeaderSize
+	for i := 0; i < numMsgs; i++ {
+		p.QueueMessage(&sizedMsg{size: msgSize}, nil)
+	}
+	if got := atomic.LoadInt64(&p.bytesQueued); got != maxQueuedOutputBytes {
+		t.Fatalf("wrong bytes queued - got %d, want %d", got,
+			maxQueuedOutputBytes)
+	}
+	if !p.Connected() {
+		t.Fatal("peer disconnected without exceeding queued output limit")
+	}
+
+	// Queue one more message to exceed the limit and ensure the peer is
+	// disconnected and the done channel is signalled.
+	done := make(chan struct{}, 1)
+	p.QueueMessage(&sizedMsg{size: 1}, done)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("done channel not signalled")
+	}
+	if p.Connected() {
+		t.Fatal("peer not disconnected after exceeding queued output limit")
+	}
+}
+
+// TestQueuedOutputBytesDeducted ensures the bytes queued for a peer are
+// deducted once the associated message has been sent.
+func TestQueuedOutputBytesDeducted(t *testing.T) {
+	// Create a pair of peers that are connected to each other using a fake
+	// connection.
+	peerCfg := mockPeerConfig()
+	inConn, outConn := pipe("10.0.0.1:9108", "10.0.0.2:9108")
+	outPeer := NewOutboundPeer(peerCfg, outConn.RemoteAddr(), outConn)
+	inPeer := NewInboundPeer(peerCfg, inConn)
+	if err := runHandshakes(inPeer, outPeer); err != nil {
+		t.Fatalf("failed to perform handshake: %v", err)
+	}
+	cancel, wg := runPeersAsync(inPeer, outPeer)
+	defer wg.Wait()
+	defer cancel()
+
+	// Queue a message and wait until it has been sent.
+	done := make(chan struct{})
+	outPeer.QueueMessage(wire.NewMsgPing(0), done)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("done channel not signalled")
+	}
+
+	// Ensure the bytes queued for the message were deducted once it was sent.
+	if got := atomic.LoadInt64(&outPeer.bytesQueued); got != 0 {
+		t.Fatalf("wrong bytes queued - got %d, want 0", got)
 	}
 }
 

@@ -36,6 +36,12 @@ const (
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
 
+	// maxQueuedOutputBytes is the maximum number of bytes queued for delivery
+	// to a single peer. A peer whose queued bytes exceed this will be
+	// disconnected. The value is chosen to comfortably exceed the largest
+	// single message.
+	maxQueuedOutputBytes = 40 * 1024 * 1024 // 40 MiB
+
 	// maxInvTrickleSize is the maximum amount of inventory to send in a single
 	// message when trickling inventory to remote peers.
 	maxInvTrickleSize = 1000
@@ -370,6 +376,18 @@ func newNetAddress(addr net.Addr, services wire.ServiceFlag) (*wire.NetAddressV2
 type outMsg struct {
 	msg      wire.Message
 	doneChan chan<- struct{}
+
+	// size is the serialized size of the message as calculated by [msgSize] at
+	// the time the message is queued.  It is stored so the exact same value is
+	// used both when adding to and deducting from the total bytes queued for
+	// the peer.
+	size int64
+}
+
+// msgSize returns the total serialized size of the passed message including the
+// message header.
+func msgSize(msg wire.Message) int64 {
+	return int64(wire.MessageHeaderSize + msg.SerializeSize())
 }
 
 // stallControlCmd represents the command of a stall control message.
@@ -468,6 +486,7 @@ type Peer struct {
 	// The following variables must only be used atomically.
 	bytesReceived uint64
 	bytesSent     uint64
+	bytesQueued   int64 // total serialized bytes currently queued for send
 	lastRecv      int64
 	lastSend      int64
 	disconnect    int32
@@ -982,8 +1001,10 @@ func (p *Peer) readMessage() (wire.Message, []byte, error) {
 	return msg, buf, nil
 }
 
-// writeMessage sends a wire message to the peer with logging.
-func (p *Peer) writeMessage(msg wire.Message) error {
+// writeMessage sends a wire message to the peer with logging.  The size must be
+// the total serialized size of the message, including the message header, as
+// returned by [msgSize].
+func (p *Peer) writeMessage(msg wire.Message, size int64) error {
 	// Don't do anything if we're disconnecting.
 	if atomic.LoadInt32(&p.disconnect) != 0 {
 		return nil
@@ -1011,8 +1032,7 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 	// Limit how long the write is allowed to block.  A base timeout plus an
 	// allowance proportional to the message size affords larger messages
 	// proportionally more time.
-	msgSize := wire.MessageHeaderSize + msg.SerializeSize()
-	allowance := time.Duration(msgSize/writeStallBytesPerSec) * time.Second
+	allowance := time.Duration(size/writeStallBytesPerSec) * time.Second
 	deadline := p.nowFn().Add(writeStallTimeout + allowance)
 	err := p.conn.SetWriteDeadline(deadline)
 	if err != nil {
@@ -1663,9 +1683,11 @@ out:
 
 				invMsg.AddInvVect(iv)
 				if len(invMsg.InvList) >= maxInvTrickleSize {
-					waiting = queuePacket(
-						outMsg{msg: invMsg},
-						&pendingMsgs, waiting)
+					om, ok := p.queueOutMsg(invMsg, nil)
+					if !ok {
+						break out
+					}
+					waiting = queuePacket(om, &pendingMsgs, waiting)
 					invMsg = wire.NewMsgInvSizeHint(uint(len(invSendQueue)))
 				}
 
@@ -1674,8 +1696,11 @@ out:
 				p.AddKnownInventory(iv)
 			}
 			if len(invMsg.InvList) > 0 {
-				waiting = queuePacket(outMsg{msg: invMsg},
-					&pendingMsgs, waiting)
+				om, ok := p.queueOutMsg(invMsg, nil)
+				if !ok {
+					break out
+				}
+				waiting = queuePacket(om, &pendingMsgs, waiting)
 			}
 			invSendQueue = nil
 
@@ -1758,7 +1783,10 @@ out:
 			case <-p.quit:
 				break out
 			}
-			if err := p.writeMessage(msg.msg); err != nil {
+
+			err := p.writeMessage(msg.msg, msg.size)
+			atomic.AddInt64(&p.bytesQueued, -msg.size)
+			if err != nil {
 				p.Disconnect()
 				if p.shouldLogWriteError(err) {
 					log.Errorf("Failed to send message to "+
@@ -1812,6 +1840,24 @@ cleanup:
 	log.Tracef("Peer output handler done for %s", p)
 }
 
+// queueOutMsg adds the passed wire message to the delivery queue for the peer.
+// If adding this message would exceed the limit of queued bytes, the peer is instead
+// disconnected and false is returned.
+//
+// This function is safe for concurrent access.
+func (p *Peer) queueOutMsg(msg wire.Message, doneChan chan<- struct{}) (outMsg, bool) {
+	size := msgSize(msg)
+	queued := atomic.AddInt64(&p.bytesQueued, size)
+	if queued > maxQueuedOutputBytes {
+		log.Debugf("%s exceeded max allowed queued output bytes (queued %d, "+
+			"max %d) -- disconnecting", p, queued, maxQueuedOutputBytes)
+		p.Disconnect()
+		return outMsg{}, false
+	}
+
+	return outMsg{msg: msg, doneChan: doneChan, size: size}, true
+}
+
 // QueueMessage adds the passed wire message to the peer send queue.
 //
 // This function is safe for concurrent access.
@@ -1844,7 +1890,18 @@ func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
 		}
 		return
 	}
-	p.outputQueue <- outMsg{msg: msg, doneChan: doneChan}
+
+	om, ok := p.queueOutMsg(msg, doneChan)
+	if !ok {
+		if doneChan != nil {
+			go func() {
+				doneChan <- struct{}{}
+			}()
+		}
+		return
+	}
+
+	p.outputQueue <- om
 }
 
 // QueueInventory adds the passed inventory to the inventory send queue which
@@ -1893,7 +1950,12 @@ func (p *Peer) QueueInventoryImmediate(invVect *wire.InvVect) {
 	invMsg := wire.NewMsgInvSizeHint(1)
 	invMsg.AddInvVect(invVect)
 	p.AddKnownInventory(invVect)
-	p.outputQueue <- outMsg{msg: invMsg, doneChan: nil}
+	om, ok := p.queueOutMsg(invMsg, nil)
+	if !ok {
+		return
+	}
+
+	p.outputQueue <- om
 }
 
 // Connected returns whether or not the peer is currently connected.
@@ -2148,7 +2210,7 @@ func (p *Peer) writeLocalVersionMsg() error {
 		return err
 	}
 
-	if err := p.writeMessage(localVerMsg); err != nil {
+	if err := p.writeMessage(localVerMsg, msgSize(localVerMsg)); err != nil {
 		return err
 	}
 
@@ -2173,7 +2235,8 @@ func (p *Peer) inboundHandshake(onVersion OnVersionCallback) error {
 		return err
 	}
 
-	if err := p.writeMessage(wire.NewMsgVerAck()); err != nil {
+	verAckMsg := wire.NewMsgVerAck()
+	if err := p.writeMessage(verAckMsg, msgSize(verAckMsg)); err != nil {
 		return err
 	}
 
@@ -2214,7 +2277,8 @@ func (p *Peer) outboundHandshake(onVersion OnVersionCallback) error {
 		return err
 	}
 
-	if err := p.writeMessage(wire.NewMsgVerAck()); err != nil {
+	verAckMsg := wire.NewMsgVerAck()
+	if err := p.writeMessage(verAckMsg, msgSize(verAckMsg)); err != nil {
 		return err
 	}
 
