@@ -833,9 +833,9 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block,
 			// It is acceptable for a transaction input in the regular tree to
 			// reference the output of another transaction in the regular tree
 			// of this block only if the referenced transaction comes before the
-			// current one in this block.  Add the outputs of the referenced
-			// transaction as available utxos when this is the case.  Otherwise,
-			// the utxo details are still needed.
+			// current one in this block.  Add the output of the referenced
+			// transaction as an available utxo when this is the case.
+			// Otherwise, the utxo details are still needed.
 			//
 			// NOTE: The >= is correct here because i is one less than the
 			// actual position of the transaction within the block due to
@@ -845,8 +845,9 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block,
 				i >= inFlightIndex {
 
 				originTx := regularTxns[inFlightIndex]
-				view.AddTxOuts(originTx, block.Height(), uint32(inFlightIndex),
-					isTreasuryEnabled)
+				originIdx := txIn.PreviousOutPoint.Index
+				view.AddTxOut(originTx, originIdx, block.Height(),
+					uint32(inFlightIndex), isTreasuryEnabled)
 				continue
 			}
 
