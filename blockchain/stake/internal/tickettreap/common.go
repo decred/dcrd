@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2025 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -88,11 +88,11 @@ func (t *treapNode) rightSize() uint32 {
 	return 0
 }
 
-// getByIndex returns the (Key, *Value) at the given position and panics if idx is
-// out of bounds.
+// getByIndex returns the (Key, *Value) at the given position and panics if idx
+// is out of bounds.
 func (t *treapNode) getByIndex(idx int) (Key, *Value) {
-	if idx < 0 || idx > int(t.size) {
-		panic(fmt.Sprintf("getByIndex(%v) index out of bounds", idx))
+	if idx < 0 || idx >= int(t.size) {
+		panic(fmt.Sprintf("getByIndex(%d) index out of bounds", idx))
 	}
 	node := t
 	for {

@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,9 +8,11 @@ package tickettreap
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -23,6 +25,27 @@ func assertPanic(t *testing.T, f func()) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("The code did not panic")
+		}
+	}()
+	f()
+}
+
+// assertPanicMsg tests that the function parameter panics with a message that
+// contains the provided string, and will raise a testing error otherwise.
+func assertPanicMsg(t *testing.T, want string, f func()) {
+	t.Helper()
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("The code did not panic")
+			return
+		}
+
+		got := fmt.Sprint(r)
+		if !strings.Contains(got, want) {
+			t.Errorf("Unexpected panic message - got %q, want it to contain %q",
+				got, want)
 		}
 	}()
 	f()
@@ -144,9 +167,15 @@ func TestImmutableSequential(t *testing.T) {
 		}
 	}
 
-	// assert panic for GetByIndex out of bounds
-	assertPanic(t, func() {
+	// assert panic for GetByIndex out of bounds.
+	assertPanicMsg(t, "index out of bounds", func() {
 		testTreap.GetByIndex(numItems)
+	})
+	assertPanicMsg(t, "index out of bounds", func() {
+		testTreap.GetByIndex(numItems + 1)
+	})
+	assertPanicMsg(t, "index out of bounds", func() {
+		testTreap.GetByIndex(-1)
 	})
 
 	if !testTreap.root.isHeap() {
