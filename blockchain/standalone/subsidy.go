@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -230,10 +230,22 @@ func (c *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
 	// subsidy became zero when applicable.  The cached intervals are stored in
 	// a map for O(1) lookup and also tracked via a sorted array to support the
 	// binary searches for efficient sparse interval query support.
+	//
+	// Note that the mutex is not held while performing the calculation above,
+	// so another goroutine might have already cached the same interval in the
+	// interim.  Avoid inserting the interval again in that case since doing so
+	// would add duplicate entries to the sorted interval array, causing it to
+	// grow without bound and require repeated sorting.
+	//
+	// The calculation is fully deterministic so any subsidy another goroutine
+	// cached for the interval is necessarily identical to the one calculated
+	// here.
 	c.mtx.Lock()
-	c.cache[reqInterval] = subsidy
-	c.cachedIntervals = append(c.cachedIntervals, reqInterval)
-	sort.Sort((*uint64s)(&c.cachedIntervals))
+	if _, ok := c.cache[reqInterval]; !ok {
+		c.cache[reqInterval] = subsidy
+		c.cachedIntervals = append(c.cachedIntervals, reqInterval)
+		sort.Sort((*uint64s)(&c.cachedIntervals))
+	}
 	c.mtx.Unlock()
 	return subsidy
 }
