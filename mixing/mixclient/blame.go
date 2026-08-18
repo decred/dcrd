@@ -139,12 +139,46 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 		if err != nil {
 			return
 		}
+
+		// Collect all valid RS hashes into a map for O(1) lookup.
+		rsHashes := make(map[chainhash.Hash]struct{}, len(rss))
 		for _, rs := range rss {
-			if len(rs.PrevMsgs()) != 0 {
+			rsHashes[rs.Hash()] = struct{}{}
+		}
+
+		// Assign blame to a peer if they initiated the reveal. Peers provide
+		// the hash of at least one other RS in the session to prove they are
+		// responding to an already initiated reveal rather than being the
+		// initiator themselves. Blame will also be assigned to any peer
+		// referencing an unknown or invalid RS hash.
+		blamePeer := func(rs *wire.MsgMixSecrets) (bool, string) {
+			var hasSessionRS bool
+			for _, prev := range rs.PrevMsgs() {
+				// RS referencing itself doesn't count.
+				if prev == rs.Hash() {
+					continue
+				}
+				if _, ok := rsHashes[prev]; !ok {
+					return true, "referencing unknown RS"
+				}
+				hasSessionRS = true
+			}
+
+			if hasSessionRS {
+				return false, ""
+			}
+
+			return true, "false failure accusation"
+		}
+
+		for _, rs := range rss {
+			blamePeer, reason := blamePeer(rs)
+			if !blamePeer {
 				continue
 			}
+
 			id := &rs.Identity
-			sesRun.logf("blaming %x for false failure accusation", id[:])
+			sesRun.logf("blaming %x for %s", id[:], reason)
 			blamed = append(blamed, *id)
 		}
 		if len(blamed) > 0 {
