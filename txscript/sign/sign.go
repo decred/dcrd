@@ -118,15 +118,15 @@ func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 }
 
 // signMultiSig signs as many of the outputs in the provided multisig script as
-// possible. It returns the generated script and a boolean if the script
-// fulfills the contract (i.e. nrequired signatures are provided).  Since it is
-// arguably legal to not be able to sign any of the outputs, no error is
-// returned.
+// possible. It returns the generated script if 1 or more signature was provided,
+// otherwise it returns detailed error (while some parts of that error message
+// are expected artifacts of execution others might be useful when debugging
+// signing issues).
 func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType txscript.SigHashType, addresses []stdaddr.Address,
-	nRequired uint16, kdb KeyDB) ([]byte, bool) {
+	nRequired uint16, kdb KeyDB) ([]byte, error) {
 
-	// No need to add dummy in Decred.
+	// No need to add dummy in Decred (like for Bitcoin where it was bugged).
 	builder := txscript.NewScriptBuilder()
 	var signed uint16
 	for _, addr := range addresses {
@@ -147,8 +147,14 @@ func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte,
 		}
 	}
 
+	// TODO - implement gathering all the errors for inspection
+	errs := fmt.Errorf("")
+	if signed == 0 {
+		return nil, fmt.Errorf("couldn't sign even once: %v", errs)
+	}
+
 	script, _ := builder.Script()
-	return script, signed == nRequired
+	return script, nil
 }
 
 // stakeSubScriptType potentially transforms the provided script type by
@@ -291,8 +297,11 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
 	case stdscript.STMultiSig:
 		details := stdscript.ExtractMultiSigScriptDetailsV0(subScript, false)
 		threshold := details.RequiredSigs
-		script, _ := signMultiSig(tx, idx, subScript, hashType, addresses,
+		script, err := signMultiSig(tx, idx, subScript, hashType, addresses,
 			threshold, kdb)
+		if err != nil {
+			return nil, scriptType, nil, err
+		}
 		return script, scriptType, addresses, nil
 
 	case stdscript.STStakeSubmissionPubKeyHash,
