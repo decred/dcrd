@@ -38,7 +38,7 @@ import (
 // This value may change over time and is not a stable part of the package API.
 const MinPeers = mixing.MinPeers
 
-const pairingVersion byte = 2
+const pairingVersion byte = 3
 
 const (
 	timeoutDuration = 30 * time.Second
@@ -141,11 +141,12 @@ type Wallet interface {
 }
 
 type deadlines struct {
-	recvKE time.Time
-	recvCT time.Time
-	recvSR time.Time
-	recvDC time.Time
-	recvCM time.Time
+	recvKE   time.Time
+	recvCT   time.Time
+	recvSR   time.Time
+	recvDC   time.Time
+	recvDCRS time.Time
+	recvCM   time.Time
 }
 
 func (d *deadlines) start(begin time.Time) {
@@ -158,6 +159,7 @@ func (d *deadlines) start(begin time.Time) {
 	d.recvCT = add()
 	d.recvSR = add()
 	d.recvDC = add()
+	d.recvDCRS = add()
 	d.recvCM = add()
 }
 
@@ -1990,23 +1992,41 @@ DCs:
 			return err
 		}
 
-		// Broadcast partially signed mix tx
+		// Create partially signed mix tx.
 		cm := wire.NewMsgMixConfirm(*p.id, sesRun.sid, 0,
 			p.coinjoin.Tx().Copy(), seenDCs)
 		p.cm = cm
 		return nil
 	})
-	sendErr = c.sendLocalPeerMsgs(ctx, d.recvCM, sesRun, msgCM)
-	if sendErr != nil {
-		sesRun.logf("%v", sendErr)
-	}
 	if err != nil {
 		sesRun.logf("confirm error: %v", err)
 		return sesRun, err
 	}
 
-	// Receive all CM messages
+	// Before sending CM, wait for any RS messages indicating disruption
+	// in solving DC-net.
 	rcv.DCs = nil
+	rcv.RSs = make([]*wire.MsgMixSecrets, 0, 1)
+	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvDCRS)
+	err = mp.Receive(rcvCtx, rcv)
+	rcvCtxCancel()
+	if err != nil {
+		return sesRun, err
+	}
+	// Start blame and reveal our own secrets if at least one RS is
+	// received.
+	if len(rcv.RSs) > 0 {
+		return sesRun, mixpool.ErrSecretsRevealed
+	}
+
+	// Broadcast CM messages.
+	sendErr = c.sendLocalPeerMsgs(ctx, d.recvCM, sesRun, msgCM)
+	if sendErr != nil {
+		sesRun.logf("%v", sendErr)
+	}
+
+	// Receive all CM messages, ignoring any more RS received in the run.
+	rcv.RSs = nil
 	rcv.CMs = make([]*wire.MsgMixConfirm, 0, len(prs))
 	rcvCtx, rcvCtxCancel = context.WithDeadline(ctx, d.recvCM)
 	err = mp.Receive(rcvCtx, rcv)
@@ -2017,7 +2037,7 @@ DCs:
 			sesRun.peers[idx].cm = cm
 		}
 	}
-	if err != nil {
+	if err != nil && !errors.Is(err, mixpool.ErrSecretsRevealed) {
 		return sesRun, err
 	}
 	if len(cms) != len(prs) {
