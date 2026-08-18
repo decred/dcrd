@@ -16,8 +16,8 @@ github.com/decred/dcrd/bech32 v1.1.4 h1:wFlLM7Oic0MlIhQZdCQhdIqVc4CNaQ0vNR9fgCoW
 github.com/decred/dcrd/bech32 v1.1.4/go.mod h1:jliqHZmCbVfT06Lh1mQywEKFVidRclbBJIUmwdoKhu0=
 github.com/decred/dcrd/blockchain/stake/v5 v5.0.2 h1:5SZwlt0oJRuj64MqSFyQItSvfnd6hEgkkx4LySK9Zxo=
 github.com/decred/dcrd/blockchain/stake/v5 v5.0.2/go.mod h1:h6Xw2ECYewEb27i8yVsjOKktVIIu0TTS6EKhqfxfnbA=
-github.com/decred/dcrd/blockchain/standalone/v2 v2.2.2 h1:mQA1cEzMS6EHbgV50wb2VFx4VQjNE8+n/B5BKvp5HWk=
-github.com/decred/dcrd/blockchain/standalone/v2 v2.2.2/go.mod h1:lkBXrIA42dLYG4nDKAf08RlAeO4c4FC5YeDh8if91Hc=
+github.com/decred/dcrd/blockchain/standalone/v2 v2.3.0 h1:AbHhFQE0paPmhRumRkoeRUTrWh0Gb0409exls+yU3VM=
+github.com/decred/dcrd/blockchain/standalone/v2 v2.3.0/go.mod h1:9r5PlToh/WNrP3UJ4mG7Hq1U2WQ6I0uu9qMCpsRw22s=
 github.com/decred/dcrd/blockchain/v5 v5.1.0 h1:Uo4I57Z1rqYEGNR0z+JZcUXExG8PAZwVBbvMjF6VJBU=
 github.com/decred/dcrd/blockchain/v5 v5.1.0/go.mod h1:ZrMZIQGFdxxyfKd9aiz00yVNRi5RB0MIAxFsalqHAt0=
 github.com/decred/dcrd/certgen v1.2.0 h1:FF6XXV//5q38/c6QbGQdR35ZJz0GPIkejsZZU3oHuBQ=
