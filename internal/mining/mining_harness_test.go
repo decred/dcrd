@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -392,23 +392,15 @@ func (p *fakeTxSource) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 
 // CountTotalSigOps returns the total number of signature operations for the
 // given transaction.
-func (p *fakeTxSource) CountTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int, error) {
+func (p *fakeTxSource) CountTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (uint32, error) {
 	isVote := txType == stake.TxTypeSSGen
-	isStakeBase := txType == stake.TxTypeSSGen
 	utxoView, err := p.fetchInputUtxos(tx, p.chain.isTreasuryAgendaActive)
 	if err != nil {
 		return 0, err
 	}
 
-	sigOps := blockchain.CountSigOps(tx, false, isVote,
+	return blockchain.CountTotalSigOps(tx, false, isVote, utxoView,
 		p.chain.isTreasuryAgendaActive)
-	p2shSigOps, err := blockchain.CountP2SHSigOps(tx, false, isStakeBase,
-		utxoView, p.chain.isTreasuryAgendaActive)
-	if err != nil {
-		return 0, err
-	}
-
-	return sigOps + p2shSigOps, nil
 }
 
 // fetchRedeemers returns all transactions that reference an outpoint for the
@@ -508,7 +500,7 @@ func (p *fakeTxSource) removeOrphanDoubleSpends(tx *dcrutil.Tx) {
 }
 
 // addTransaction adds the passed transaction to the fake tx source.
-func (p *fakeTxSource) addTransaction(tx *dcrutil.Tx, txType stake.TxType, height int64, fee int64, totalSigOps int) {
+func (p *fakeTxSource) addTransaction(tx *dcrutil.Tx, txType stake.TxType, height int64, fee int64, totalSigOps uint32) {
 	// Add the transaction to the pool and mark the referenced outpoints
 	// as spent by the pool.
 	txDesc := TxDesc{
@@ -1299,7 +1291,7 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 
 // CountTotalSigOps returns the total number of signature operations for the
 // given transaction.
-func (m *miningHarness) CountTotalSigOps(tx *dcrutil.Tx) (int, error) {
+func (m *miningHarness) CountTotalSigOps(tx *dcrutil.Tx) (uint32, error) {
 	txType := stake.DetermineTxType(tx.MsgTx())
 	return m.txSource.CountTotalSigOps(tx, txType)
 }
@@ -1459,7 +1451,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 					isAutoRevocationsEnabled, subsidySplitVariant)
 			},
 			CheckTSpendHasVotes:             chain.CheckTSpendHasVotes,
-			CountSigOps:                     blockchain.CountSigOps,
+			CountTotalSigOps:                blockchain.CountTotalSigOps,
 			FetchUtxoEntry:                  chain.FetchUtxoEntry,
 			FetchUtxoView:                   chain.FetchUtxoView,
 			FetchUtxoViewParentTemplate:     chain.FetchUtxoViewParentTemplate,

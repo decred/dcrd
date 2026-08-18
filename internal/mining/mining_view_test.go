@@ -94,7 +94,7 @@ func TestMiningView(t *testing.T) {
 		subject              *dcrutil.Tx
 		expectedAncestorFees int64
 		expectedSizeBytes    int64
-		expectedSigOps       int
+		expectedSigOps       uint32
 		ancestors            []*dcrutil.Tx
 		descendants          map[chainhash.Hash]*dcrutil.Tx
 		orderedAncestors     [][]*dcrutil.Tx

@@ -110,10 +110,12 @@ type Config struct {
 	// tspend has enough votes to be included in a block AFTER the specified block.
 	CheckTSpendHasVotes func(prevHash chainhash.Hash, tspend *dcrutil.Tx) error
 
-	// CountSigOps defines the function to use to count the number of signature
-	// operations for all transaction input and output scripts in the provided
-	// transaction.
-	CountSigOps func(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int
+	// CountTotalSigOps defines the function to use to count the total number of
+	// signature operations for the given transaction.  This includes all input
+	// and output scripts as well as signature operations in any redeemed
+	// pay-to-script-hash inputs.
+	CountTotalSigOps func(tx *dcrutil.Tx, isCoinBaseTx, isVoteTx bool,
+		view *blockchain.UtxoViewpoint, isTreasuryEnabled bool) (uint32, error)
 
 	// FetchUtxoEntry defines the function to use to load and return the requested
 	// unspent transaction output from the point of view of the main chain tip.
@@ -224,7 +226,7 @@ type TxDesc struct {
 	Fee int64
 
 	// TotalSigOps is the total signature operations for this transaction.
-	TotalSigOps int
+	TotalSigOps uint32
 
 	// TxSize is the size of the transaction.
 	TxSize int64
@@ -240,7 +242,7 @@ type TxAncestorStats struct {
 	SizeBytes int64
 
 	// TotalSigOps is the total number of signature operations of all ancestors.
-	TotalSigOps int
+	TotalSigOps uint32
 
 	// NumAncestors is the total number of ancestors for a given transaction.
 	NumAncestors int
@@ -421,7 +423,7 @@ type BlockTemplate struct {
 
 	// SigOpCounts contains the number of signature operations each
 	// transaction in the generated template performs.
-	SigOpCounts []int64
+	SigOpCounts []uint64
 
 	// Height is the height at which the block template connects to the main
 	// chain.
@@ -879,7 +881,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64,
 		bt := &BlockTemplate{
 			Block:           &block,
 			Fees:            []int64{0},
-			SigOpCounts:     []int64{0},
+			SigOpCounts:     []uint64{0},
 			Height:          int64(tipHeader.Height),
 			ValidPayAddress: miningAddress != nil,
 		}
@@ -992,12 +994,18 @@ func (g *BlkTmplGenerator) createRevocationFromTicket(ticketHash *chainhash.Hash
 	}
 	revocationTx := dcrutil.NewTx(revocationMsgTx)
 	revocationTx.SetTree(wire.TxTreeStake)
+
+	totalSigOps, err := g.cfg.CountTotalSigOps(revocationTx, false, false,
+		blockUtxos, isTreasuryEnabled)
+	if err != nil {
+		return nil, err
+	}
+
 	txDesc := &TxDesc{
-		Tx:   revocationTx,
-		Type: stake.TxTypeSSRtx,
-		TotalSigOps: g.cfg.CountSigOps(revocationTx, false, false,
-			isTreasuryEnabled),
-		TxSize: int64(revocationMsgTx.SerializeSize()),
+		Tx:          revocationTx,
+		Type:        stake.TxTypeSSRtx,
+		TotalSigOps: totalSigOps,
+		TxSize:      int64(revocationMsgTx.SerializeSize()),
 	}
 
 	return txDesc, nil
@@ -1316,8 +1324,8 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*Bloc
 	// the coinbase fee which will be updated later.
 	txFees := make([]int64, 0, len(sourceTxns))
 	txFeesMap := make(map[chainhash.Hash]int64)
-	txSigOpCounts := make([]int64, 0, len(sourceTxns))
-	txSigOpCountsMap := make(map[chainhash.Hash]int64)
+	txSigOpCounts := make([]uint64, 0, len(sourceTxns))
+	txSigOpCountsMap := make(map[chainhash.Hash]uint64)
 	txFees = append(txFees, -1) // Updated once known
 
 	log.Debugf("Considering %d transactions for inclusion to new block",
@@ -1443,7 +1451,7 @@ mempoolLoop:
 	// trees if they fail one of the stake checks below the priorityQueue
 	// pop loop. This is buggy, but not catastrophic behaviour. A future
 	// release should fix it. TODO
-	blockSigOps := int64(0)
+	blockSigOps := uint64(0)
 	totalFees := int64(0)
 
 	numSStx := 0
@@ -1693,8 +1701,8 @@ nextPriorityQueueItem:
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(prioItem.txDesc.TotalSigOps)
-		numSigOpsBundle := numSigOps + int64(ancestorStats.TotalSigOps)
+		numSigOps := uint64(prioItem.txDesc.TotalSigOps)
+		numSigOpsBundle := numSigOps + uint64(ancestorStats.TotalSigOps)
 		if blockSigOps+numSigOpsBundle < blockSigOps ||
 			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
@@ -1778,7 +1786,7 @@ nextPriorityQueueItem:
 			// template.
 			blockTxns = append(blockTxns, bundledTx)
 			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
-			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps)
+			bundledTxSigOps := uint64(bundledTxDesc.TotalSigOps)
 			blockSigOps += bundledTxSigOps
 
 			// Accumulate the SStxs in the block, because only a certain number
@@ -2058,16 +2066,19 @@ nextPriorityQueueItem:
 		g.cfg.ChainParams, isTreasuryEnabled, subsidySplitVariant)
 	coinbaseTx.SetTree(wire.TxTreeRegular)
 
-	numCoinbaseSigOps := int64(g.cfg.CountSigOps(coinbaseTx, true,
-		false, isTreasuryEnabled))
+	numCoinbaseSigOps, err := g.cfg.CountTotalSigOps(coinbaseTx, true, false,
+		blockUtxos, isTreasuryEnabled)
+	if err != nil {
+		log.Debug(err)
+		return nil, err
+	}
 	blockSize += uint32(coinbaseTx.MsgTx().SerializeSize())
-	blockSigOps += numCoinbaseSigOps
+	blockSigOps += uint64(numCoinbaseSigOps)
 	txFeesMap[*coinbaseTx.Hash()] = 0
-	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
+	txSigOpCountsMap[*coinbaseTx.Hash()] = uint64(numCoinbaseSigOps)
 	if treasuryBase != nil {
 		txFeesMap[*treasuryBase.Hash()] = 0
-		n := int64(g.cfg.CountSigOps(treasuryBase, true, false, isTreasuryEnabled))
-		txSigOpCountsMap[*treasuryBase.Hash()] = n
+		txSigOpCountsMap[*treasuryBase.Hash()] = 0
 	}
 
 	// Build tx lists for regular tx.
@@ -2129,7 +2140,7 @@ nextPriorityQueueItem:
 		totalFees /= int64(g.cfg.ChainParams.TicketsPerBlock)
 	}
 
-	txSigOpCounts = append(txSigOpCounts, numCoinbaseSigOps)
+	txSigOpCounts = append(txSigOpCounts, uint64(numCoinbaseSigOps))
 
 	// Now that the actual transactions have been selected, update the
 	// block size for the real transaction count and coinbase value with
