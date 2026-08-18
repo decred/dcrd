@@ -18,8 +18,8 @@ github.com/decred/dcrd/blockchain/stake/v5 v5.0.2 h1:5SZwlt0oJRuj64MqSFyQItSvfnd
 github.com/decred/dcrd/blockchain/stake/v5 v5.0.2/go.mod h1:h6Xw2ECYewEb27i8yVsjOKktVIIu0TTS6EKhqfxfnbA=
 github.com/decred/dcrd/blockchain/standalone/v2 v2.3.0 h1:AbHhFQE0paPmhRumRkoeRUTrWh0Gb0409exls+yU3VM=
 github.com/decred/dcrd/blockchain/standalone/v2 v2.3.0/go.mod h1:9r5PlToh/WNrP3UJ4mG7Hq1U2WQ6I0uu9qMCpsRw22s=
-github.com/decred/dcrd/blockchain/v5 v5.1.0 h1:Uo4I57Z1rqYEGNR0z+JZcUXExG8PAZwVBbvMjF6VJBU=
-github.com/decred/dcrd/blockchain/v5 v5.1.0/go.mod h1:ZrMZIQGFdxxyfKd9aiz00yVNRi5RB0MIAxFsalqHAt0=
+github.com/decred/dcrd/blockchain/v5 v5.1.1 h1:aYBkE8R71gUuUGvWSUYo9U46PXYYwod4iYJmyTSNJ9c=
+github.com/decred/dcrd/blockchain/v5 v5.1.1/go.mod h1:Rl+oaUJuCqSkHEZkNKuIWTKPuVR8NUejSK21OJLH2Cw=
 github.com/decred/dcrd/certgen v1.2.0 h1:FF6XXV//5q38/c6QbGQdR35ZJz0GPIkejsZZU3oHuBQ=
 github.com/decred/dcrd/certgen v1.2.0/go.mod h1:LRh6dF2WPQeDA6QQSZE+SfK7AL6FuFtCRDHZf8DyGzg=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.5 h1:GwzXLsZoemdDxFdtj3GdW25Z+NXdN6nD3OjVtA+UwiE=
@@ -44,8 +44,8 @@ github.com/decred/dcrd/dcrec v1.0.1 h1:gDzlndw0zYxM5BlaV17d7ZJV6vhRe9njPBFeg4Db2
 github.com/decred/dcrd/dcrec v1.0.1/go.mod h1:CO+EJd8eHFb8WHa84C7ZBkXsNUIywaTHb+UAuI5uo6o=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4 h1:xmmdtnGxF/Od2doiP56zBv5a3LgJ3PA6mlx3Luf622I=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.4/go.mod h1:07Ke2V+uJkG72M1Eiek8CF6NUB3XPlZ38cIit57R0UU=
-github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvwDRwnI3hwNaAHRnc=
-github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 h1:5RVFMOWjMyRy8cARdy79nAmgYw3hK/4HUq48LQ6Wwqo=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
 github.com/decred/dcrd/dcrjson/v4 v4.2.0 h1:VZOitxS5/J1Gr8V/rUcVnvbtTvijxrVy7i2A3nu9wto=
 github.com/decred/dcrd/dcrjson/v4 v4.2.0/go.mod h1:1YuURV3cVmko3lmBlkKc6Y2iHwHJJXATdiLULBS9D+Q=
 github.com/decred/dcrd/dcrutil/v4 v4.0.3 h1:uUgSBB4ZFHeKQFrdUgKv3PvVJ3YpBpFeXMgXZsa0790=
