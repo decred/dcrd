@@ -141,6 +141,19 @@ var (
 	// block962928Hash is the hash of the checkpoint used to activate maximum
 	// difficulty semantics on the version 3 test network.
 	block962928Hash = mustParseHash("0000004fd1b267fd39111d456ff557137824538e6f6776168600e56002e23b93")
+
+	// sbssViolations are utxos that were valid under old consensus rules but
+	// are no longer valid.  However, they are now part of the historical main
+	// chain and therefore must be allowed to prevent them from being rejected
+	// during initial sync.
+	sbssViolations = map[int64]*chainhash.Hash{
+		1106817: mustParseHash("0875ecdc5f12c8aa6ee0d54331fd5b5e786639882a3adb09882de5e3b939613b"),
+		1106831: mustParseHash("714e71358937cd33480fd2900853d43ea3440ca67b38bacdfeaeb0c37c80ee27"),
+		1106837: mustParseHash("aeba09a4efa334e3c13e68f27f40bd37cda7643c263f88d69f38a33c2cdacd18"),
+		1106854: mustParseHash("17228266d9d6dd7084aa2e479319aca6d755c2a9d2dbb3cf28c8151470c7a439"),
+		1106860: mustParseHash("20d6d3ed1b609f03969474dca1f452c25e035766457dfd58061f9b9270fc4e6d"),
+		1107195: mustParseHash("5d2e1898fe0c631cb795b1906fb3cf8d9772f1826be8dea64dd3ab85ac0ab2d3"),
+	}
 )
 
 // voteBitsApproveParent returns whether or not the passed vote bits indicate
@@ -3154,6 +3167,19 @@ func checkTreasurySpendInputs(msgTx *wire.MsgTx) error {
 	return nil
 }
 
+// isSBSSpendViolation returns whether or not the utxo at the given height is
+// one that was valid under old consensus rules but is no longer valid and would
+// therefore be incorrectly rejected during initial sync.
+func isSBSSpendViolation(params *chaincfg.Params, txHeight int64, utxoHash *chainhash.Hash) bool {
+	if !isMainNet(params) {
+		return false
+	}
+	if badHash, ok := sbssViolations[txHeight]; ok && *utxoHash == *badHash {
+		return true
+	}
+	return false
+}
+
 // CheckTransactionInputs performs a series of checks on the inputs to a
 // transaction to ensure they are valid.  An example of some of the checks
 // include verifying all inputs exist, ensuring the coinbase seasoning
@@ -3272,9 +3298,9 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 		}
 	}
 
-	// -------------------------------------------------------------------
-	// Decred general transaction testing (and a few stake exceptions).
-	// -------------------------------------------------------------------
+	// ---------------------------------------------------------
+	// General transaction testing (and a few stake exceptions).
+	// ---------------------------------------------------------
 
 	// sumTotalAtomIn is a convenience func that adds the provided amount to the
 	// total sum of all inputs while ensuring that the accumulator does not
@@ -3304,6 +3330,10 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 
 		return nil
 	}
+
+	isTreasuryAdd := stake.IsTAdd(msgTx)
+	isStakeTx := isTicket || isVote || isRevocation || isTreasuryAdd ||
+		isTreasurySpend || isTreasuryBase
 
 	txHash := tx.Hash()
 	for idx, txIn := range msgTx.TxIn {
@@ -3341,6 +3371,17 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache,
 			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
 				"either does not exist or has already been spent", txInOutpoint,
 				txHash, idx)
+			return 0, ruleError(ErrMissingTxOut, str)
+		}
+
+		// Stake transactions are never allowed to spend transactions from the
+		// regular or stake tree of the same block.
+		if isStakeTx && utxoEntry.BlockHeight() == txHeight &&
+			!isSBSSpendViolation(chainParams, txHeight, &txInOutpoint.Hash) {
+
+			str := fmt.Sprintf("stake transaction input %s:%d tried to spend "+
+				"output %v at same height %d", txHash, idx, txInOutpoint,
+				txHeight)
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
@@ -4199,6 +4240,15 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	err = view.fetchInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
+	}
+
+	// Add utxo entries that were valid under old consensus rules but are no
+	// longer valid and would therefore cause the block to be incorrectly
+	// rejected during initial sync.
+	for idx, tx := range block.Transactions() {
+		if isSBSSpendViolation(b.chainParams, node.height, tx.Hash()) {
+			view.AddTxOut(tx, 0, node.height, uint32(idx), isTreasuryEnabled)
+		}
 	}
 
 	// Determine which subsidy split variant to use depending on the agendas
