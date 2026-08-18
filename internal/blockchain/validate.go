@@ -434,7 +434,6 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 		isCoinBase = standalone.IsCoinBaseTx(tx, isTreasuryEnabled)
 	}
 
-	// Take action on type.
 	switch {
 	case isVote:
 		// Check script length of stake base signature.
@@ -454,10 +453,10 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 			return ruleError(ErrBadStakebaseScrVal, str)
 		}
 
-		// The ticket reference hash in an SSGen tx must not be null.
+		// The referenced ticket in a vote must not be null.
 		ticketHash := &tx.TxIn[1].PreviousOutPoint
 		if isNullOutpoint(ticketHash) {
-			str := "vote ticket input refers to previous output that is null"
+			const str = "vote ticket input refers to null previous output"
 			return ruleError(ErrBadTxInput, str)
 		}
 
@@ -470,6 +469,13 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags Agen
 			str := fmt.Sprintf("revocation transaction version is %d instead "+
 				"of %d", tx.Version, stake.TxVersionAutoRevocations)
 			return ruleError(ErrInvalidRevocationTxVersion, str)
+		}
+
+		// The referenced ticket in a revocation must not be null.
+		ticketHash := &tx.TxIn[0].PreviousOutPoint
+		if isNullOutpoint(ticketHash) {
+			const str = "revocation ticket input refers to null previous output"
+			return ruleError(ErrBadTxInput, str)
 		}
 
 	case isCoinBase:
