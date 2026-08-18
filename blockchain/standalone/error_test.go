@@ -23,6 +23,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrNoTxOutputs, "ErrNoTxOutputs"},
 		{ErrTxTooBig, "ErrTxTooBig"},
 		{ErrBadTxOutValue, "ErrBadTxOutValue"},
+		{ErrFraudAmountIn, "ErrFraudAmountIn"},
 		{ErrDuplicateTxInputs, "ErrDuplicateTxInputs"},
 	}
 
