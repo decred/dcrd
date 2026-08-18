@@ -1614,7 +1614,8 @@ func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
 	_, prevBestHeaderHeight := chain.BestHeader()
 
 	// Process all of the received headers.
-	for _, header := range headers {
+	for i, header := range headers {
+		headerHash := &headerHashes[i]
 		err := chain.ProcessBlockHeader(header)
 		if err != nil {
 			// Update the sync height when the sync peer fails to process any
@@ -1631,10 +1632,16 @@ func (m *SyncManager) OnHeaders(peer *Peer, headersMsg *wire.MsgHeaders) {
 			// because they were already verified to connect above.
 
 			log.Debugf("Failed to process block header %s from peer %s: %v -- "+
-				"disconnecting", header.BlockHash(), peer, err)
+				"disconnecting", headerHash, peer, err)
 			peer.Disconnect()
 			return
 		}
+
+		// Add the block to the cache of known inventory for the peer.  This
+		// helps avoid sending blocks to the peer that it is already known to
+		// have.
+		invVect := wire.NewInvVect(wire.InvTypeBlock, headerHash)
+		peer.AddKnownInventory(invVect)
 	}
 
 	// All of the headers were either accepted or already known valid at this
