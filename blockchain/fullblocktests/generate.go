@@ -1968,7 +1968,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		b.AddSTransaction(ticket)
 		b.Header.FreshStake++
 	})
-	rejected(ErrImmatureSpend)
+	rejected(ErrMissingTxOut)
 
 	// Create block with an invalid stake transaction signature script.
 	//
@@ -2095,7 +2095,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		b.AddSTransaction(ticket)
 		b.Header.FreshStake++
 	})
-	rejected(ErrImmatureSpend)
+	rejected(ErrMissingTxOut)
 
 	// Create block with a malformed outputs order for a ticket purchase.
 	//
