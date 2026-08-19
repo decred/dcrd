@@ -2,18 +2,18 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package field10x26
 
 import (
 	"math/big"
 	"testing"
 )
 
-// BenchmarkFieldNormalize benchmarks how long it takes the internal field
-// to perform normalization (which includes modular reduction) with [FieldVal].
-func BenchmarkFieldNormalize(b *testing.B) {
+// BenchmarkElementNormalize benchmarks how long it takes the internal field
+// to perform normalization (which includes modular reduction) with [Element].
+func BenchmarkElementNormalize(b *testing.B) {
 	// The function is constant time so any value is fine.
-	f := &FieldVal{n: [10]uint32{
+	e := &Element{n: [10]uint32{
 		0x000148f6, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff,
 		0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x00000007,
 	}}
@@ -21,7 +21,7 @@ func BenchmarkFieldNormalize(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		f.Normalize()
+		e.Normalize()
 	}
 }
 
@@ -40,18 +40,18 @@ func BenchmarkBigIntNegateModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldNegate benchmarks calculating the additive inverse of an
-// unsigned 256-bit big-endian integer modulo the field prime with [FieldVal].
-func BenchmarkFieldNegate(b *testing.B) {
+// BenchmarkElementNegate benchmarks calculating the additive inverse of an
+// unsigned 256-bit big-endian integer modulo the field prime with [Element].
+func BenchmarkElementNegate(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(valHex)
+	e := mustElement(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var result FieldVal
-		_ = result.NegateVal(f, 1)
+		var result Element
+		_ = result.NegateVal(e, 1)
 	}
 }
 
@@ -71,85 +71,85 @@ func BenchmarkBigIntAddModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldAdd benchmarks adding two unsigned 256-bit big-endian integers
-// modulo the field prime with [FieldVal].
-func BenchmarkFieldAdd(b *testing.B) {
+// BenchmarkElementAdd benchmarks adding two unsigned 256-bit big-endian
+// integers modulo the field prime with [Element].
+func BenchmarkElementAdd(b *testing.B) {
 	// The function is constant time so any values are fine.
 	f1Hex := "d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"
 	f2Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f1 := mustFieldVal(f1Hex)
-	f2 := mustFieldVal(f2Hex)
+	f1 := mustElement(f1Hex)
+	f2 := mustElement(f2Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var sum FieldVal
+		var sum Element
 		sum.Add2(f1, f2)
 	}
 }
 
-// BenchmarkFieldMulBy2 benchmarks multiplying an unsigned 256-bit big-endian
-// integer by 2 with [FieldVal.MulBy2].
-func BenchmarkFieldMulBy2(b *testing.B) {
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+// BenchmarkElementMulBy2 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 2 with [Element.MulBy2].
+func BenchmarkElementMulBy2(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		f.MulBy2()
+		e.MulBy2()
 	}
 }
 
-// BenchmarkFieldMulBy3 benchmarks multiplying an unsigned 256-bit big-endian
-// integer by 3 with [FieldVal.MulBy3].
-func BenchmarkFieldMulBy3(b *testing.B) {
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+// BenchmarkElementMulBy3 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 3 with [Element.MulBy3].
+func BenchmarkElementMulBy3(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		f.MulBy3()
+		e.MulBy3()
 	}
 }
 
-// BenchmarkFieldMulBy4 benchmarks multiplying an unsigned 256-bit big-endian
-// integer by 4 with [FieldVal.MulBy4].
-func BenchmarkFieldMulBy4(b *testing.B) {
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+// BenchmarkElementMulBy4 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 4 with [Element.MulBy4].
+func BenchmarkElementMulBy4(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		f.MulBy4()
+		e.MulBy4()
 	}
 }
 
-// BenchmarkFieldMulBy8 benchmarks multiplying an unsigned 256-bit big-endian
-// integer by 8 with [FieldVal.MulBy8].
-func BenchmarkFieldMulBy8(b *testing.B) {
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+// BenchmarkElementMulBy8 benchmarks multiplying an unsigned 256-bit big-endian
+// integer by 8 with [Element.MulBy8].
+func BenchmarkElementMulBy8(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		f.MulBy8()
+		e.MulBy8()
 	}
 }
 
-// BenchmarkFieldMulInt benchmarks multiplying an unsigned 256-bit big-endian
-// integer by small integers with [FieldVal.MulInt].
-func BenchmarkFieldMulInt(b *testing.B) {
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+// BenchmarkElementMulInt benchmarks multiplying an unsigned 256-bit big-endian
+// integer by small integers with [Element.MulInt].
+func BenchmarkElementMulInt(b *testing.B) {
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		f.MulInt(2)
+		e.MulInt(2)
 	}
 }
 
@@ -169,19 +169,19 @@ func BenchmarkBigIntMulModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldMul benchmarks multiplying two unsigned 256-bit big-endian
-// integers modulo the field prime with [FieldVal].
-func BenchmarkFieldMul(b *testing.B) {
+// BenchmarkElementMul benchmarks multiplying two unsigned 256-bit big-endian
+// integers modulo the field prime with [Element].
+func BenchmarkElementMul(b *testing.B) {
 	// The function is constant time so any values are fine.
 	f1Hex := "d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"
 	f2Hex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f1 := mustFieldVal(f1Hex)
-	f2 := mustFieldVal(f2Hex)
+	f1 := mustElement(f1Hex)
+	f2 := mustElement(f2Hex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var prod FieldVal
+		var prod Element
 		prod.Mul2(f1, f2)
 	}
 }
@@ -199,18 +199,18 @@ func BenchmarkBigIntSqrtModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
-// 256-bit big-endian integer modulo the field prime with [FieldVal].
-func BenchmarkFieldSqrt(b *testing.B) {
+// BenchmarkElementSqrt benchmarks calculating the square root of an unsigned
+// 256-bit big-endian integer modulo the field prime with [Element].
+func BenchmarkElementSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(valHex)
+	e := mustElement(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var result FieldVal
-		_ = result.SquareRootVal(f)
+		var result Element
+		_ = result.SquareRootVal(e)
 	}
 }
 
@@ -228,18 +228,18 @@ func BenchmarkBigIntSquareModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldSquare benchmarks squaring a 256-bit big-endian integer modulo
-// the field prime with [FieldVal].
-func BenchmarkFieldSquare(b *testing.B) {
+// BenchmarkElementSquare benchmarks squaring a 256-bit big-endian integer
+// modulo the field prime with [Element].
+func BenchmarkElementSquare(b *testing.B) {
 	// The function is constant time so any values are fine.
-	fHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(fHex)
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	e := mustElement(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var sq FieldVal
-		sq.SquareVal(f)
+		var sq Element
+		sq.SquareVal(e)
 	}
 }
 
@@ -257,17 +257,17 @@ func BenchmarkBigIntInverseModP(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldInverse calculating the multiplicative inverse of an unsigned
-// 256-bit big-endian integer modulo the field prime with [FieldVal].
-func BenchmarkFieldInverse(b *testing.B) {
+// BenchmarkElementInverse calculating the multiplicative inverse of an unsigned
+// 256-bit big-endian integer modulo the field prime with [Element].
+func BenchmarkElementInverse(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(valHex)
+	e := mustElement(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		f.Inverse()
+		e.Inverse()
 	}
 }
 
@@ -290,17 +290,17 @@ func BenchmarkBigIntIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
+// BenchmarkElementIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
 // is greater than or equal to the field prime minus the group order with the
 // specialized type.
-func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
+func BenchmarkElementIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := mustFieldVal(valHex)
+	e := mustElement(valHex)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = f.IsGtOrEqPrimeMinusOrder()
+		_ = e.IsGtOrEqPrimeMinusOrder()
 	}
 }
