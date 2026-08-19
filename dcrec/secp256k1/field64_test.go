@@ -906,9 +906,12 @@ func TestField64MulInt(t *testing.T) {
 	}
 }
 
-// TestField64Mul ensures that multiplying two field values via Mul and Mul2
-// works as expected.
-func TestField64Mul(t *testing.T) {
+// testField64Mul ensures that multiplying two field values via [Field64Val.Mul]
+// and [Field64Val.Mul2] works as expected.  This unexported version exists so
+// it can be invoked with different run-time achitecture variants.
+func testField64Mul(t *testing.T) {
+	t.Helper()
+
 	tests := []struct {
 		name     string // test description
 		in1      string // first hex encoded value
@@ -1006,9 +1009,18 @@ func TestField64Mul(t *testing.T) {
 	}
 }
 
-// TestField64Square ensures that squaring field values via Square and SquareVal
-// works as expected.
-func TestField64Square(t *testing.T) {
+// TestField64Mul ensures that multiplying two field values via [Field64Val.Mul]
+// and [Field64Val.Mul2] works as expected.
+func TestField64Mul(t *testing.T) {
+	testField64Mul(t)
+}
+
+// testField64Square ensures that squaring field values via [Field64Val.Square]
+// and [Field64.SquareVal] works as expected.  This unexported version exists so
+// it can be invoked with different run-time achitecture variants.
+func testField64Square(t *testing.T) {
+	t.Helper()
+
 	tests := []struct {
 		name     string // test description
 		in       string // hex encoded value
@@ -1069,6 +1081,12 @@ func TestField64Square(t *testing.T) {
 			continue
 		}
 	}
+}
+
+// TestField64Square ensures that squaring field values via [Field64Val.Square]
+// and [Field64.SquareVal] works as expected.
+func TestField64Square(t *testing.T) {
+	testField64Square(t)
 }
 
 // TestField64SquareRoot ensures that calculating the square root of field values
