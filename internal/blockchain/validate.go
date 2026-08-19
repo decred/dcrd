@@ -142,10 +142,10 @@ var (
 	// difficulty semantics on the version 3 test network.
 	block962928Hash = mustParseHash("0000004fd1b267fd39111d456ff557137824538e6f6776168600e56002e23b93")
 
-	// sbssViolations are utxos that were valid under old consensus rules but
-	// are no longer valid.  However, they are now part of the historical main
-	// chain and therefore must be allowed to prevent them from being rejected
-	// during initial sync.
+	// sbssViolations are utxos on the main network that were valid under old
+	// consensus rules but are no longer valid.  However, they are now part of
+	// the historical main chain and therefore must be allowed to prevent them
+	// from being rejected during initial sync.
 	sbssViolations = map[int64]*chainhash.Hash{
 		1106817: mustParseHash("0875ecdc5f12c8aa6ee0d54331fd5b5e786639882a3adb09882de5e3b939613b"),
 		1106831: mustParseHash("714e71358937cd33480fd2900853d43ea3440ca67b38bacdfeaeb0c37c80ee27"),
@@ -153,6 +153,14 @@ var (
 		1106854: mustParseHash("17228266d9d6dd7084aa2e479319aca6d755c2a9d2dbb3cf28c8151470c7a439"),
 		1106860: mustParseHash("20d6d3ed1b609f03969474dca1f452c25e035766457dfd58061f9b9270fc4e6d"),
 		1107195: mustParseHash("5d2e1898fe0c631cb795b1906fb3cf8d9772f1826be8dea64dd3ab85ac0ab2d3"),
+	}
+
+	// sbssViolationsTestnet3 are utxos on the version 3 testnet that were valid
+	// under old consensus rules but are no longer valid.  However, they are now
+	// part of the historical main chain and therefore must be allowed to
+	// prevent them from being rejected during initial sync.
+	sbssViolationsTestnet3 = map[int64]*chainhash.Hash{
+		1980161: mustParseHash("451b6eed1a777bc5bbb5c1dbe10a9e444cbeb7d863adb75fc6b7a676b3dcbb58"),
 	}
 )
 
@@ -3171,11 +3179,15 @@ func checkTreasurySpendInputs(msgTx *wire.MsgTx) error {
 // one that was valid under old consensus rules but is no longer valid and would
 // therefore be incorrectly rejected during initial sync.
 func isSBSSpendViolation(params *chaincfg.Params, txHeight int64, utxoHash *chainhash.Hash) bool {
-	if !isMainNet(params) {
-		return false
-	}
-	if badHash, ok := sbssViolations[txHeight]; ok && *utxoHash == *badHash {
-		return true
+	switch params.Net {
+	case wire.MainNet:
+		if h, ok := sbssViolations[txHeight]; ok && *utxoHash == *h {
+			return true
+		}
+	case wire.TestNet3:
+		if h, ok := sbssViolationsTestnet3[txHeight]; ok && *utxoHash == *h {
+			return true
+		}
 	}
 	return false
 }
