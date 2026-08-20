@@ -665,6 +665,9 @@ type MixPooler interface {
 
 	// Message searches the mixing pool for a message by its hash.
 	Message(query *chainhash.Hash) (mixing.Message, error)
+
+	// Epoch returns the duration between mix epochs.
+	Epoch() time.Duration
 }
 
 // TxIndexer provides an interface for retrieving details for a given
