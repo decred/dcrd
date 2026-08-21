@@ -18,8 +18,8 @@
 // changes in the newer versions of Go that are disabled by default due to not
 // being strictly backwards compatible will break the existing code.
 
-//go:build go1.25
+//go:build go1.26
 
-//go:debug default=go1.25
+//go:debug default=go1.26
 
 package main
