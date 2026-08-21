@@ -27,6 +27,11 @@ linters:
     - unconvert
     - unused
     - usetesting
+  exclusions:
+    rules:
+      - linters:
+        - govet
+        text: 'Constant reflect\.Ptr should be inlined'
   settings:
     staticcheck:
       checks:

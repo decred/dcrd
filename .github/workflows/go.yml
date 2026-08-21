@@ -57,5 +57,5 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           install-mode: "goinstall"
-          version: 8f3b0c7ed018e57905fbd873c697e0b1ede605a5 # v2.11.4
+          version: 6d2288e072e6f9c9bca28180cae9ce58a049c912 # v2.13.1
           working-directory: ${{ matrix.module_dirs }}
