@@ -127,7 +127,7 @@ https://decred.org/downloads/
 
 <details><summary><b>Install Dependencies</b></summary>
 
-- **Go 1.25 or 1.26**
+- **Go 1.26 or 1.27**
 
   Installation instructions can be found here: https://golang.org/doc/install.
   Ensure Go was installed properly and is a supported version:
