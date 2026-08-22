@@ -24,7 +24,7 @@ digraph {
 	gcs [label="gcs/v4" fillcolor=gold]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	lru [label="container/lru" fillcolor=royalblue3]
-	peer [label="peer/v3" fillcolor=khaki]
+	peer [label="peer/v4" fillcolor=khaki]
 	rpcclient [label="rpcclient/v8" fillcolor=mediumseagreen]
 	addrmgr [label="addrmgr/v3" fillcolor=lightsalmon]
 	blockchain [label="blockchain/v5" fillcolor=orchid]
