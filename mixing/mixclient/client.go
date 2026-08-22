@@ -1461,7 +1461,10 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 	freshGen := sesRun.freshGen
 	err = c.forLocalPeers(ctx, sesRun, func(p *peer) error {
 		if freshGen {
-			p.genDicemixKeys()
+			err := p.genDicemixKeys()
+			if err != nil {
+				return err
+			}
 		}
 
 		if p.ke == nil {
