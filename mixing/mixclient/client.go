@@ -2184,10 +2184,6 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 			if len(fp.Roots) != len(a)-1 {
 				continue
 			}
-			roots := make([]*big.Int, 0, sesRun.mtot)
-			if len(fp.Roots) <= len(roots) {
-				continue
-			}
 
 			for i := range fp.Roots {
 				root := new(big.Int).SetBytes(fp.Roots[i])
