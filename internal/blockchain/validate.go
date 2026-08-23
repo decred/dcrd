@@ -1920,15 +1920,12 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 // The flags modify the behavior of this function as follows:
 //
 // BFFastAdd:
-//   - The max block size is not checked
-//   - The calculated merkle root(s) of the transaction trees are not checked
-//     against the associated entries in the header
 //   - Transactions are not checked to see if they are finalized
 //   - The included votes, revocations, and treasury spend transactions are
 //     not verified to be allowed
 //
-// The flags are also passed to checkBlockHeaderContext.  See its documentation
-// for how the flags modify its behavior.
+// The flags are also passed to [BlockChain.checkBlockHeaderContext].  See its
+// documentation for how the flags modify its behavior.
 func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
@@ -2214,26 +2211,26 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		}
 	}
 
+	// A block must not exceed the maximum allowed size as defined by the
+	// network parameters and the current status of any consensus votes to
+	// change it when serialized.
+	maxBlockSize := b.maxBlockSize(prevNode)
+	serializedSize := int64(block.MsgBlock().Header.Size)
+	if serializedSize > maxBlockSize {
+		str := fmt.Sprintf("serialized block is too big - got %d, max %d",
+			serializedSize, maxBlockSize)
+		return ruleError(ErrBlockTooBig, str)
+	}
+
+	// The calculated merkle root(s) of the transaction trees must match the
+	// associated entries in the header.
+	err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
+	if err != nil {
+		return err
+	}
+
 	fastAdd := flags&BFFastAdd == BFFastAdd
 	if !fastAdd {
-		// A block must not exceed the maximum allowed size as defined by the
-		// network parameters and the current status of any hard fork votes to
-		// change it when serialized.
-		maxBlockSize := b.maxBlockSize(prevNode)
-		serializedSize := int64(block.MsgBlock().Header.Size)
-		if serializedSize > maxBlockSize {
-			str := fmt.Sprintf("serialized block is too big - got %d, max %d",
-				serializedSize, maxBlockSize)
-			return ruleError(ErrBlockTooBig, str)
-		}
-
-		// The calculated merkle root(s) of the transaction trees must match
-		// the associated entries in the header.
-		err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
-		if err != nil {
-			return err
-		}
-
 		// Switch to using the past median time of the block prior to the block
 		// being checked for all checks related to lock times once the stake
 		// vote for the agenda is active.
