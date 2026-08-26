@@ -1408,7 +1408,7 @@ func CreateRevocationFromTicket(ticketHash *chainhash.Hash,
 	feeApplied := false
 	for i, payToHash := range payToHashes {
 		// Ensure amount is in the valid range for monetary amounts.
-		if amounts[i] <= 0 || amounts[i] > dcrutil.MaxAmount {
+		if amounts[i] < 0 || amounts[i] > dcrutil.MaxAmount {
 			str := fmt.Sprintf("invalid output amount: %v (min: 0, max: %v)",
 				amounts[i], dcrutil.MaxAmount)
 			return nil, stakeRuleError(ErrSStxBadCommitAmount, str)

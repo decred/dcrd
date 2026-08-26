@@ -1522,6 +1522,23 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 	autoRevocationsTxFee := dcrutil.Amount(0)
 	autoRevocationsTxVersion := TxVersionAutoRevocations
 
+	// Ticket commitment with a zero commitment amount.
+	ticketOutZeroCommitment := &MinimalOutput{
+		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbb000" +
+			"00000000000000058"),
+		Value:   0,
+		Version: 0,
+	}
+	ticketMinOutsZeroCommitment := []*MinimalOutput{
+		ticketOut1,
+		ticketOutZeroCommitment,
+		ticketOut3,
+		ticketOut4,
+		ticketOut5,
+	}
+	zeroCommitmentRevocationTxHash := mustParseHash("9a2e88b9f6703e6fa941cb390" +
+		"34fb88a7a57714ca264309e5b79ecc6f8beec5a")
+
 	// Invalid script version.
 	ticketOutInvalidScriptVersion := &MinimalOutput{
 		PkScript: hexToBytes("6a1e86c6da62556f5e21fbce3564b7374724d65f0cbb51c66d0" +
@@ -1585,6 +1602,14 @@ func TestCreateRevocationFromTicket(t *testing.T) {
 		revocationTxVersion: revocationTxVersion,
 		prevHeaderBytes:     prevHeaderBytes,
 		wantTxHash:          *revocationHash,
+	}, {
+		name:                "valid with zero commitment amount",
+		ticketHash:          ticketHash,
+		ticketMinOuts:       ticketMinOutsZeroCommitment,
+		revocationTxFee:     revocationTxFee,
+		revocationTxVersion: revocationTxVersion,
+		prevHeaderBytes:     prevHeaderBytes,
+		wantTxHash:          *zeroCommitmentRevocationTxHash,
 	}, {
 		name: "valid with P2SH and P2PKH outputs (auto revocations " +
 			"enabled",
