@@ -680,13 +680,6 @@ func checkProofOfStake(block *dcrutil.Block, minStakeDiff int64) error {
 	return nil
 }
 
-// CheckProofOfStake ensures that all ticket purchases in the block pay at least
-// the amount required by the block header stake bits which indicate the target
-// stake difficulty (aka ticket price) as claimed.
-func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
-	return checkProofOfStake(block, posLimit)
-}
-
 // standaloneToChainRuleError attempts to convert the passed error from a
 // [standalone.RuleError] to a [RuleError] with the equivalent error kind.  The
 // error is simply passed through without modification if it is not a
