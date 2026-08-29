@@ -22,7 +22,7 @@ func BenchmarkField64MulAMD64(b *testing.B) {
 			field64MulGeneric(&r, &a, &c)
 		}
 	})
-	if field64UseADX {
+	if field64UseBMI2AndADX {
 		b.Run("MULX/ADX", func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -46,7 +46,7 @@ func BenchmarkField64SquareAMD64(b *testing.B) {
 			field64SquareGeneric(&r, &a)
 		}
 	})
-	if field64UseADX {
+	if field64UseBMI2AndADX {
 		b.Run("MULX/ADX", func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()

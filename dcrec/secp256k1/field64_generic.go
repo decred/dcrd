@@ -6,16 +6,18 @@
 
 package secp256k1
 
+import "github.com/decred/dcrd/dcrec/secp256k1/v4/internal/arith"
+
 // field64Mul sets r = a * b (mod p).
 func field64Mul(r *[4]uint64, a, b *[4]uint64) {
 	var product [8]uint64
-	field64Mul512(&product, a, b)
+	arith.Mul512(&product, a, b)
 	field64Reduce512(r, &product)
 }
 
 // field64Square sets r = a^2 (mod p).
 func field64Square(r *[4]uint64, a *[4]uint64) {
 	var product [8]uint64
-	field64Square512(&product, a)
+	arith.Square512(&product, a)
 	field64Reduce512(r, &product)
 }
