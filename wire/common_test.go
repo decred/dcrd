@@ -166,7 +166,7 @@ func TestElementWire(t *testing.T) {
 		// Read from wire format.
 		rbuf := bytes.NewReader(test.buf)
 		val := test.in
-		if reflect.ValueOf(test.in).Kind() != reflect.Ptr {
+		if reflect.ValueOf(test.in).Kind() != reflect.Pointer {
 			val = reflect.New(reflect.TypeOf(test.in)).Interface()
 		}
 		err = readElement(rbuf, val)
@@ -175,7 +175,7 @@ func TestElementWire(t *testing.T) {
 			continue
 		}
 		ival := val
-		if reflect.ValueOf(test.in).Kind() != reflect.Ptr {
+		if reflect.ValueOf(test.in).Kind() != reflect.Pointer {
 			ival = reflect.Indirect(reflect.ValueOf(val)).Interface()
 		}
 		if !reflect.DeepEqual(ival, test.in) {
@@ -187,7 +187,7 @@ func TestElementWire(t *testing.T) {
 		// Read from wire format again, but this time with a one byte reader.
 		obr := iotest.OneByteReader(bytes.NewReader(test.buf))
 		val = test.in
-		if reflect.ValueOf(test.in).Kind() != reflect.Ptr {
+		if reflect.ValueOf(test.in).Kind() != reflect.Pointer {
 			val = reflect.New(reflect.TypeOf(test.in)).Interface()
 		}
 		err = readElement(obr, val)
@@ -196,7 +196,7 @@ func TestElementWire(t *testing.T) {
 			continue
 		}
 		ival = val
-		if reflect.ValueOf(test.in).Kind() != reflect.Ptr {
+		if reflect.ValueOf(test.in).Kind() != reflect.Pointer {
 			ival = reflect.Indirect(reflect.ValueOf(val)).Interface()
 		}
 		if !reflect.DeepEqual(ival, test.in) {
@@ -263,7 +263,7 @@ func TestElementWireErrors(t *testing.T) {
 		// Decode from wire format.
 		r := newFixedReader(test.max, nil)
 		val := test.in
-		if reflect.ValueOf(test.in).Kind() != reflect.Ptr {
+		if reflect.ValueOf(test.in).Kind() != reflect.Pointer {
 			val = reflect.New(reflect.TypeOf(test.in)).Interface()
 		}
 		err = readElement(r, val)

@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -177,7 +177,7 @@ func TestAssignField(t *testing.T) {
 
 		// Indirect through to the base types to ensure their values
 		// are the same.
-		for dst.Kind() == reflect.Ptr {
+		for dst.Kind() == reflect.Pointer {
 			dst = dst.Elem()
 		}
 		if !reflect.DeepEqual(dst.Interface(), test.expected) {
