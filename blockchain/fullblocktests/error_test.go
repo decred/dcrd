@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Decred developers
+// Copyright (c) 2022-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -67,6 +67,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBadNumPayees, "ErrBadNumPayees"},
 		{ErrMismatchedPayeeHash, "ErrMismatchedPayeeHash"},
 		{ErrBadPayeeValue, "ErrBadPayeeValue"},
+		{ErrInvalidRevokeInput, "ErrInvalidRevokeInput"},
 		{ErrTxSStxOutSpend, "ErrTxSStxOutSpend"},
 		{ErrRegTxCreateStakeOut, "ErrRegTxCreateStakeOut"},
 		{ErrInvalidFinalState, "ErrInvalidFinalState"},

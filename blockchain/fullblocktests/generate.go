@@ -2857,12 +2857,33 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.AssertTipNumRevocations(2)
 	rejected(ErrInvalidSSRtx)
 
+	// Create block that has a revocation that references the wrong output
+	// index of the associated ticket.
+	//
+	//   ... -> brt1(24)
+	//                  \-> brt7(25)
+	g.SetTip("brt1")
+	g.NextBlock("brt7", outs[25], ticketOuts[25], func(b *wire.MsgBlock) {
+		g.AssertBlockRevocationTx(b, 10)
+
+		// Modify the revocation to reference the ticket change output
+		// instead of the required ticket submission output.  The change
+		// output still exists in the utxo set, so the input existence
+		// checks pass and the wrong index condition itself causes the
+		// rejection.
+		const ticketChangeOutputIdx = 2
+		prevOut := &b.STransactions[10].TxIn[0].PreviousOutPoint
+		prevOut.Index = ticketChangeOutputIdx
+	})
+	g.AssertTipNumRevocations(1)
+	rejected(ErrInvalidRevokeInput)
+
 	// Create block that contains a revocation due to previous missed vote.
 	//
-	//   ... -> brt1(24) -> brt7(25)
+	//   ... -> brt1(24) -> brt8(25)
 	g.SetTip("brt1")
-	g.NextBlock("brt7", outs[25], ticketOuts[25])
-	brt7Tx1Out := chaingen.MakeSpendableOut(g.Tip(), 1, 0)
+	g.NextBlock("brt8", outs[25], ticketOuts[25])
+	brt8Tx1Out := chaingen.MakeSpendableOut(g.Tip(), 1, 0)
 	g.AssertTipNumRevocations(1)
 	accepted()
 
@@ -2873,9 +2894,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Create block that disapproves the regular transaction tree of the prev
 	// block and tries to spend a transaction from it.
 	//
-	//   ... -> brt7(25)
+	//   ... -> brt8(25)
 	//                  \-> bdt1(26)
-	g.NextBlock("bdt1", &brt7Tx1Out, ticketOuts[26], func(b *wire.MsgBlock) {
+	g.NextBlock("bdt1", &brt8Tx1Out, ticketOuts[26], func(b *wire.MsgBlock) {
 		b.Header.VoteBits &^= voteBitYes
 		for i := 0; i < 5; i++ {
 			g.ReplaceVoteBitsN(i, voteBitNo)(b)
@@ -2889,22 +2910,22 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// regular transaction tree of a block that will be disapproved via a side
 	// chain.
 	//
-	//   ... -> brt7(25) -> bdt2(26) -> bdt3(27)
-	g.SetTip("brt7")
-	g.NextBlock("bdt2", &brt7Tx1Out, ticketOuts[26])
+	//   ... -> brt8(25) -> bdt2(26) -> bdt3(27)
+	g.SetTip("brt8")
+	g.NextBlock("bdt2", &brt8Tx1Out, ticketOuts[26])
 	accepted()
 
 	g.NextBlock("bdt3", outs[27], ticketOuts[27])
 	accepted()
 
-	// Create a fork from brt7 that contains a couple of subsequent valid blocks
+	// Create a fork from brt8 that contains a couple of subsequent valid blocks
 	// that disapprove the regular transaction tree of the previous blocks and
 	// extend it to force a reorg to the chain that contains the disapproving
 	// blocks.
 	//
-	//   ... -> brt7(25) -> bdt2(26) -> bdt3(27)
+	//   ... -> brt8(25) -> bdt2(26) -> bdt3(27)
 	//                  \-> bdt4(26) -> bdt5(27) -> bdt6(28)
-	g.SetTip("brt7")
+	g.SetTip("brt8")
 	g.NextBlock("bdt4", outs[26], ticketOuts[26], func(b *wire.MsgBlock) {
 		b.Header.VoteBits &^= voteBitYes
 		for i := 0; i < 5; i++ {
@@ -2929,7 +2950,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Extend the original bdt3 fork in order to make the first chain longer and
 	// force a reorg that removes the disapproving blocks.
 	//
-	//   ... -> brt7(25) -> bdt2(26) -> bdt3(27) -> bdt7(28) -> bdt8(29)
+	//   ... -> brt8(25) -> bdt2(26) -> bdt3(27) -> bdt7(28) -> bdt8(29)
 	//                  \-> bdt4(26) -> bdt5(27) -> bdt6(28)
 	g.SetTip("bdt3")
 	g.NextBlock("bdt7", outs[28], ticketOuts[28])

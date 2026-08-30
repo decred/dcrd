@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2022 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -125,6 +125,8 @@ func fullBlockTestErrToLocalErr(t *testing.T, kind fullblocktests.ErrorKind) Err
 		return ErrMismatchedPayeeHash
 	case fullblocktests.ErrBadPayeeValue:
 		return ErrBadPayeeValue
+	case fullblocktests.ErrInvalidRevokeInput:
+		return ErrInvalidRevokeInput
 	case fullblocktests.ErrTxSStxOutSpend:
 		return ErrTxSStxOutSpend
 	case fullblocktests.ErrRegTxCreateStakeOut:
