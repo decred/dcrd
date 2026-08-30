@@ -228,6 +228,10 @@ const (
 	// amount required by the commitment.
 	ErrBadPayeeValue = ErrorKind("ErrBadPayeeValue")
 
+	// ErrInvalidRevokeInput indicates that an input to a revocation transaction
+	// is either not a stake ticket submission or is not a supported version.
+	ErrInvalidRevokeInput = ErrorKind("ErrInvalidRevokeInput")
+
 	// ErrTxSStxOutSpend indicates that a non SSGen or SSRtx tx attempted to
 	// spend an OP_SSTX tagged output from an SStx.
 	ErrTxSStxOutSpend = ErrorKind("ErrTxSStxOutSpend")
