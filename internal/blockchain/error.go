@@ -389,10 +389,6 @@ const (
 	// more than it is allowed.
 	ErrBadStakebaseValue = ErrorKind("ErrBadStakebaseValue")
 
-	// ErrStakeFees indicates an error with the fees found in the stake
-	// transaction tree.
-	ErrStakeFees = ErrorKind("ErrStakeFees")
-
 	// ErrNoStakeTx indicates there were no stake transactions found in a
 	// block after stake validation height.
 	ErrNoStakeTx = ErrorKind("ErrNoStakeTx")
