@@ -1867,12 +1867,49 @@ func TestAutoRevocations(t *testing.T) {
 	// ticket revocations agenda is active.
 	g.RejectTipBlock(ErrRegTxCreateStakeOut)
 
+	// Create a block that misses a vote and contains a revocation that
+	// references an output other than the ticket submission output.
+	//
+	//   ...
+	//      \-> b4(0)
+	g.SetTip(startTip)
+	g.NextBlock("b4", outs[0], ticketOuts[0], g.ReplaceWithNVotes(4),
+		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions,
+		func(b *wire.MsgBlock) {
+			for _, stx := range b.STransactions {
+				if !stake.IsSSRtx(stx) {
+					continue
+				}
+
+				// Ensure the revocation references the ticket submission
+				// output before this test modifies it.
+				prevOut := &stx.TxIn[0].PreviousOutPoint
+				if prevOut.Index != 0 {
+					t.Fatalf("expected revocation to reference the ticket "+
+						"submission output, got output %d", prevOut.Index)
+				}
+
+				// Modify the ticket input to reference the ticket change
+				// output and return so that only a single revocation
+				// transaction is modified.
+				prevOut.Index = 2
+				return
+			}
+		})
+	g.AssertTipNumRevocations(1)
+	// Note that the revocation references the change output of the ticket
+	// at output index 2 rather than the commitment output at index 1 since
+	// the commitment output is an OP_RETURN output that is never part of
+	// the utxo set, which would result in a missing utxo error before the
+	// input index check.
+	g.RejectTipBlock(ErrInvalidRevokeInput)
+
 	// Create a valid block that misses multiple votes and contains revocation
 	// transactions for those votes.
 	//
-	//   ... -> b4(0)
+	//   ... -> b5(0)
 	g.SetTip(startTip)
-	g.NextBlock("b4", outs[0], ticketOuts[0], g.ReplaceWithNVotes(3),
+	g.NextBlock("b5", outs[0], ticketOuts[0], g.ReplaceWithNVotes(3),
 		g.CreateRevocationsForMissedTickets(), replaceAutoRevocationsVersions)
 	g.AssertTipNumRevocations(2)
 	g.AcceptTipBlock()
@@ -1906,7 +1943,7 @@ func TestAutoRevocations(t *testing.T) {
 	}
 
 	// Invalidate the previously connected block so that it is disconnected.
-	g.InvalidateBlockAndExpectTip("b4", nil, startTip)
+	g.InvalidateBlockAndExpectTip("b5", nil, startTip)
 
 	// Validate that the revocations from the disconnected block are now back in
 	// the live ticket treap in the ticket database.
