@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2023 The Decred developers
+// Copyright (c) 2016-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1693,7 +1693,7 @@ func (b *BlockChain) initChainState(ctx context.Context,
 
 		// Load all of the block index entries from the database and construct
 		// the block index.
-		newRulesStartTime := newDeploymentsStartTime(dbTx, b.chainParams)
+		newRulesStartTime = newDeploymentsStartTime(dbTx, b.chainParams)
 		err = loadBlockIndex(dbTx, &b.chainParams.GenesisHash, b.index,
 			newRulesStartTime)
 		if err != nil {
