@@ -809,35 +809,43 @@ func (p *Pool) activeInEpoch(epoch uint64) map[[33]byte]activePeer {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	var epochKEs []*wire.MsgMixKeyExchange
-	for _, e := range p.pool {
-		ke, ok := e.msg.(*wire.MsgMixKeyExchange)
-		if !ok {
-			continue
-		}
-		if ke.Epoch != epoch {
-			continue
-		}
-		epochKEs = append(epochKEs, ke)
+	type idPair struct {
+		peerID    idPubKey
+		sessionID [32]byte
 	}
-	kes := make([]*wire.MsgMixKeyExchange, 0, len(epochKEs))
-NextKE:
-	for _, ke := range epochKEs {
-		for _, msgHash := range p.messagesByIdentity[ke.Identity] {
-			e := p.pool[msgHash]
-			if e.msgtype == msgtypeCT && e.sid == ke.SessionID {
-				kes = append(kes, ke)
-				continue NextKE
+
+	// Gather all of the KE messages of the epoch, and create a peer/session
+	// idPair for every CT message of the epoch.
+	var epochKEs []*wire.MsgMixKeyExchange
+	idPairs := make(map[idPair]struct{})
+	for _, e := range p.pool {
+		switch e.msgtype {
+		case msgtypeKE:
+			ke, ok := e.msg.(*wire.MsgMixKeyExchange)
+			if !ok || ke.Epoch != epoch {
+				continue
 			}
+			epochKEs = append(epochKEs, ke)
+
+		case msgtypeCT:
+			idPairs[idPair{
+				peerID:    *(*idPubKey)(e.msg.Pub()),
+				sessionID: e.sid,
+			}] = struct{}{}
 		}
 	}
 
-	// TODO: sorting the key exchanges by identity and subslicing would be
-	// more memory efficient.
-	activeKEs := make(map[[33]byte][]*wire.MsgMixKeyExchange)
-	for _, ke := range kes {
+	// Select only KE messages of peers that formed a session, as indicated by
+	// the existence of an idPair.
+	activeKEs := make(map[idPubKey][]*wire.MsgMixKeyExchange)
+	for _, ke := range epochKEs {
+		ids := idPair{peerID: ke.Identity, sessionID: ke.SessionID}
+		if _, ok := idPairs[ids]; !ok {
+			continue
+		}
 		activeKEs[ke.Identity] = append(activeKEs[ke.Identity], ke)
 	}
+
 	active := make(map[idPubKey]activePeer)
 	for _, pr := range p.prs {
 		if kes, ok := activeKEs[pr.Identity]; ok {
