@@ -375,9 +375,38 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, agenda *consensusAg
 			}
 
 		case ThresholdLockedIn:
-			// The new rule becomes active when its previous state
-			// was locked in.
+			// The new rule becomes active when its previous state was locked
+			// in.
 			stateTuple.State = ThresholdActive
+
+			// Cache the resolved activation point as an anchor when it is the
+			// first one discovered.
+			//
+			// Note that only the first discovered activation is cached even
+			// though it is possible for multiple competing side chain blocks to
+			// become the parent of a block where an agenda activates.  In that
+			// case, only storing the first discovered activation means it is
+			// theoretically possible to cache an anchor that won't ultimately
+			// be useful since it would be for an abandoned side chain.  This
+			// does not cause a correctness issue.  The only effect it would
+			// have is that fast paths would not be able to take advantage of
+			// the anchor and therefore have to fall back to the slower
+			// threshold state cache determination instead.
+			//
+			// This tradeoff is deemed acceptable because:
+			//
+			// - the first one discovered is the most likely to win
+			// - the scenario is exceedingly rare
+			// - it would add significant cost and complexity to allow the
+			//   anchor to move around because this code path will only ever run
+			//   once per discovered activation due to the threshold state
+			//   cache.
+			if agenda.activeAnchor == nil {
+				agenda.activeAnchor = &activeAnchorState{
+					anchor:   prevNode,
+					choiceID: stateTuple.ChoiceID,
+				}
+			}
 
 		// Nothing to do if the previous state is active or failed since
 		// they are both terminal states.
@@ -408,6 +437,16 @@ func (b *BlockChain) agendaState(prevNode *blockNode, agenda *consensusAgenda) T
 	if agenda.forcedState != nil {
 		return *agenda.forcedState
 	}
+
+	// Use the previously cached anchor when it exists and is actually an
+	// ancestor of the queried block (which includes the anchor block itself).
+	if anchorState := agenda.activeAnchor; anchorState != nil {
+		anchor := anchorState.anchor
+		if anchor != nil && anchor.IsAncestorOf(prevNode) {
+			return newThresholdState(ThresholdActive, anchorState.choiceID)
+		}
+	}
+
 	return b.nextThresholdState(prevNode, agenda)
 }
 

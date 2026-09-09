@@ -233,6 +233,13 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	return &tuple, nil
 }
 
+// activeAnchorState houses the parent of the block at which an agenda activated
+// along with the winning choice id.
+type activeAnchorState struct {
+	anchor   *blockNode
+	choiceID string
+}
+
 // consensusAgenda houses information about the state of a consensus rule change
 // agenda.
 type consensusAgenda struct {
@@ -244,6 +251,17 @@ type consensusAgenda struct {
 	// forced choice or a required agenda is created by default because it has
 	// no associated deployment in the chain parameters.
 	forcedState *ThresholdStateTuple
+
+	// activeAnchor is a cached anchor point that corresponds to the parent of
+	// the block at which the agenda activated.
+	//
+	// It is set when the associated agenda has been determined to be active
+	// when tallying votes in a full-context path.
+	//
+	// It will not be set when a forced state is specified (aka not nil).
+	//
+	// It is protected by the chain state mutex.
+	activeAnchor *activeAnchorState
 
 	// deployment optionally houses information about the associated consensus
 	// rule change deployment.  It will only be set when the associated details
