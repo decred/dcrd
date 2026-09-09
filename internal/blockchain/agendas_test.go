@@ -241,7 +241,7 @@ func TestDeploymentParamsValidation(t *testing.T) {
 			test.munger(params)
 		}
 
-		_, err := makeAgendas(params)
+		_, err := makeAgendas(params, makeHistoricalAgendas())
 		if !errors.Is(err, test.err) {
 			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
 				test.err)
@@ -492,6 +492,7 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -865,6 +866,7 @@ func testHeaderCommitmentsDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1006,6 +1008,7 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1130,6 +1133,7 @@ func testExplicitVerUpgradesDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1248,6 +1252,7 @@ func testAutoRevocationsDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1359,6 +1364,7 @@ func testSubsidySplitDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1509,6 +1515,7 @@ func testBlake3PowDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1639,6 +1646,7 @@ func testSubsidySplitR2Deployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
@@ -1747,6 +1755,7 @@ func testMaxTreasurySpendDeployment(t *testing.T, params *chaincfg.Params) {
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
+	removeHistoricalConsensusChange(t, bc, voteID)
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {

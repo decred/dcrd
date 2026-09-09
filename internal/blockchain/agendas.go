@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/wire"
 )
 
 // requiredAgendaIDs identifies IDs for all agendas that influence consensus
@@ -45,6 +46,145 @@ var requiredAgendaIDs = map[string]struct{}{
 	chaincfg.VoteIDBlake3Pow:               {},
 	chaincfg.VoteIDChangeSubsidySplitR2:    {},
 	chaincfg.VoteIDMaxTreasurySpend:        {},
+}
+
+// historicalAgenda defines the result of a historical consensus rule change
+// vote that is now an established fact of the chain.
+type historicalAgenda map[string]historicalActivationState
+
+// makeHistoricalAgendas returns a map that defines the result of historical
+// consensus rule change votes that are now established facts of the chain.
+//
+// Note that the anchor height and hash identify the parent of the historical
+// block at which a definitive result was determined.  This differs from the
+// actual block height and hash published in DCPs, which identify the historical
+// block itself rather than its parent.  It is important to use the parent as
+// the anchor because successful rule changes require all descendants of the
+// parent to be validated under the new rules, including the exact historical
+// block in the main chain at which the rules activated as well as any side
+// chain blocks at that same height.
+func makeHistoricalAgendas() map[wire.CurrencyNet]historicalAgenda {
+	return map[wire.CurrencyNet]historicalAgenda{
+		wire.MainNet: {
+			chaincfg.VoteIDSDiffAlgorithm: {
+				anchorHeight: 149247,
+				anchorHash:   *mustParseHash("0000000000000139582d056bc20bb352f4e9b248acbb202724f46000e59c9f75"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDLNSupport: {
+				anchorHeight: 149247,
+				anchorHash:   *mustParseHash("0000000000000139582d056bc20bb352f4e9b248acbb202724f46000e59c9f75"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDLNFeatures: {
+				anchorHeight: 189567,
+				anchorHash:   *mustParseHash("000000000000005ca2ebe4ef0649128e1cd16d063f80c884cbd865d3af2300ae"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDFixLNSeqLocks: {
+				anchorHeight: 342783,
+				anchorHash:   *mustParseHash("000000000000000017c053b63c7ae9bb8e73ee1c13ef3da493042a7a05d7401c"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDHeaderCommitments: {
+				anchorHeight: 431487,
+				anchorHash:   *mustParseHash("0000000000000000225b8f795704d4ebc484fad4ab09eec615fb44b4a95c3c26"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDTreasury: {
+				anchorHeight: 552447,
+				anchorHash:   *mustParseHash("000000000000000012d3e57c450f632a9877a28534dbffbf85d41a78aadb9acb"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDRevertTreasuryPolicy: {
+				anchorHeight: 657279,
+				anchorHash:   *mustParseHash("00000000000000000669da8bbb90dad39a2fd889cbdda00bf259776af822fcaa"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDExplicitVersionUpgrades: {
+				anchorHeight: 657279,
+				anchorHash:   *mustParseHash("00000000000000000669da8bbb90dad39a2fd889cbdda00bf259776af822fcaa"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDAutoRevocations: {
+				anchorHeight: 657279,
+				anchorHash:   *mustParseHash("00000000000000000669da8bbb90dad39a2fd889cbdda00bf259776af822fcaa"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDChangeSubsidySplit: {
+				anchorHeight: 657279,
+				anchorHash:   *mustParseHash("00000000000000000669da8bbb90dad39a2fd889cbdda00bf259776af822fcaa"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDBlake3Pow: {
+				anchorHeight: 794367,
+				anchorHash:   *mustParseHash("0000000000000000c293d8c67409d05e960447ea25cdaf770e864d995c764ef0"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDChangeSubsidySplitR2: {
+				anchorHeight: 794367,
+				anchorHash:   *mustParseHash("0000000000000000c293d8c67409d05e960447ea25cdaf770e864d995c764ef0"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDMaxTreasurySpend: {
+				anchorHeight: 1052415,
+				anchorHash:   *mustParseHash("bc1b84dcfd532a01fbd42470d0668fcdbc7e6e4e9108218f55025d9e565dfaea"),
+				choiceID:     "yes",
+			},
+		},
+		wire.TestNet3: {
+			chaincfg.VoteIDFixLNSeqLocks: {
+				anchorHeight: 136847,
+				anchorHash:   *mustParseHash("0000000004232de037b11ee39641910ae0fd0becb968f76f20a40cb7fa64f475"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDHeaderCommitments: {
+				anchorHeight: 323327,
+				anchorHash:   *mustParseHash("0000002438f7146f7dbfea248b4c94c4c35a8c714442a589110f4c7513a6b26a"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDTreasury: {
+				anchorHeight: 560207,
+				anchorHash:   *mustParseHash("0000004f5b6cefb4b5c0ae9dd7a92a431c2de697d22aed9215fe595ac8c1ec23"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDRevertTreasuryPolicy: {
+				anchorHeight: 867647,
+				anchorHash:   *mustParseHash("0000000036af134886ea61aecea318c1f18f349d3acbf2a8c40ced62854b057b"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDExplicitVersionUpgrades: {
+				anchorHeight: 867647,
+				anchorHash:   *mustParseHash("0000000036af134886ea61aecea318c1f18f349d3acbf2a8c40ced62854b057b"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDAutoRevocations: {
+				anchorHeight: 867647,
+				anchorHash:   *mustParseHash("0000000036af134886ea61aecea318c1f18f349d3acbf2a8c40ced62854b057b"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDChangeSubsidySplit: {
+				anchorHeight: 877727,
+				anchorHash:   *mustParseHash("000000000000e9528cd8a67898b2c02c854c825a3d09c0d83296f051d8c2adac"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDBlake3Pow: {
+				anchorHeight: 1170047,
+				anchorHash:   *mustParseHash("000000b396bfeaa6ae6fa9e3cee441d7215191630bdaa9b979a872985caed727"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDChangeSubsidySplitR2: {
+				anchorHeight: 1170047,
+				anchorHash:   *mustParseHash("000000b396bfeaa6ae6fa9e3cee441d7215191630bdaa9b979a872985caed727"),
+				choiceID:     "yes",
+			},
+			chaincfg.VoteIDMaxTreasurySpend: {
+				anchorHeight: 1805087,
+				anchorHash:   *mustParseHash("f3e25c6c40baaed62b27ad4f8c0ed6be89bc6890b415089e33acf7783ded248d"),
+				choiceID:     "yes",
+			},
+		},
+	}
 }
 
 // deploymentInfo houses information about the state of a consensus rule change
@@ -233,6 +373,22 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	return &tuple, nil
 }
 
+// historicalActivationState houses information about hard-coded historical
+// agenda activations.
+type historicalActivationState struct {
+	// anchorHeight is the height of the parent of the historical block at which
+	// the agenda activated.
+	anchorHeight int64
+
+	// anchorHash is the hash of the parent of the historical block at which
+	// the agenda activated.
+	anchorHash chainhash.Hash
+
+	// choiceID is the ID of the specific winning choice for the associated
+	// agenda.
+	choiceID string
+}
+
 // activeAnchorState houses the parent of the block at which an agenda activated
 // along with the winning choice id.
 type activeAnchorState struct {
@@ -252,11 +408,20 @@ type consensusAgenda struct {
 	// no associated deployment in the chain parameters.
 	forcedState *ThresholdStateTuple
 
+	// historicalState optionally specifies hard-coded information about the
+	// historical activation of the agenda.  It only applies when it is not nil.
+	//
+	// It is only set when the hard-coded historical vote results include the
+	// necessary data for the agenda on the network and no forced state is
+	// specified (aka is nil).
+	historicalState *historicalActivationState
+
 	// activeAnchor is a cached anchor point that corresponds to the parent of
 	// the block at which the agenda activated.
 	//
 	// It is set when the associated agenda has been determined to be active
-	// when tallying votes in a full-context path.
+	// either when it is resolved via the historical state or discovered when
+	// tallying votes in a full-context path.
 	//
 	// It will not be set when a forced state is specified (aka not nil).
 	//
@@ -281,7 +446,7 @@ type consensusAgenda struct {
 // It also returns an appropriate error when any additional sanity checks fail.
 // For example, duplicate deployment IDs are rejected and forced choices in the
 // chain params are disallowed on the main network.
-func makeAgendas(params *chaincfg.Params) (map[string]*consensusAgenda, error) {
+func makeAgendas(params *chaincfg.Params, historicalAgendas map[wire.CurrencyNet]historicalAgenda) (map[string]*consensusAgenda, error) {
 	// Create an agenda for each deployment specified in the chain params.
 	agendas := make(map[string]*consensusAgenda)
 	for version, deployments := range params.Deployments {
@@ -343,6 +508,67 @@ func makeAgendas(params *chaincfg.Params) (map[string]*consensusAgenda, error) {
 		}
 	}
 
+	// Add historical consensus change details to the agendas map.
+	//
+	// This currently requires an associated deployment.
+	//
+	// Ideally, a historical agenda should be able to stand in for a deployment
+	// entirely in addition to working alongside one when present.  However, the
+	// ability to query state changes and vote information via
+	// [BlockChain.StateLastChangedHeight], [BlockChain.NextThresholdState], and
+	// [BlockChain.GetVoteCounts] currently depend on agendas having an
+	// associated deployment.  They would need to be modified to support missing
+	// deployment information first in order to allow an agenda to provide only
+	// historical state with no associated deployment.
+	for id, histAgenda := range historicalAgendas[params.Net] {
+		info, ok := agendas[id]
+		if !ok {
+			str := fmt.Sprintf("agenda ID %s for historical consensus "+
+				"change does not exist", id)
+			return nil, contextError(ErrUnknownAgendaID, str)
+		}
+
+		if info.forcedState != nil {
+			str := fmt.Sprintf("agenda ID %s has both a forced choice and a "+
+				"historical state configured", id)
+			return nil, contextError(ErrHistoricalForcedChoice, str)
+		}
+
+		// Find the specified winning choice ID within the associated deployment
+		// vote choices.  The choice must not be the abstain choice because
+		// agendas for historical consensus changes must have resolved to either
+		// an active or failed state.
+		var winningChoice *chaincfg.Choice
+		for choiceIdx := range info.deployment.deployment.Vote.Choices {
+			choice := &info.deployment.deployment.Vote.Choices[choiceIdx]
+			if choice.Id == histAgenda.choiceID {
+				winningChoice = choice
+				break
+			}
+		}
+		if winningChoice == nil {
+			str := fmt.Sprintf("deployment ID %s has a historical state with "+
+				"unknown winning choice %q", id, histAgenda.choiceID)
+			return nil, contextError(ErrUnknownDeploymentChoice, str)
+		}
+		if winningChoice.IsAbstain {
+			str := fmt.Sprintf("deployment ID %s historical state choice %q "+
+				"is of invalid type abstain", id, histAgenda.choiceID)
+			return nil, contextError(ErrDeploymentChoiceAbstain, str)
+		}
+
+		// Only add changes that passed to historical activations.
+		if winningChoice.IsNo {
+			continue
+		}
+
+		info.historicalState = &historicalActivationState{
+			anchorHeight: histAgenda.anchorHeight,
+			anchorHash:   histAgenda.anchorHash,
+			choiceID:     winningChoice.Id,
+		}
+	}
+
 	// Create an agenda with a default forced state and nil deployment for each
 	// required agenda that does not have an associated deployment specified in
 	// the chain params.
@@ -363,6 +589,93 @@ func makeAgendas(params *chaincfg.Params) (map[string]*consensusAgenda, error) {
 	}
 
 	return agendas, nil
+}
+
+// agendaActiveInfo houses whether or not a positional agenda state query result
+// is valid and, when it is, whether or not the agenda is active.
+type agendaActiveInfo struct {
+	isValid  bool
+	isActive bool
+}
+
+// isAgendaActivePositional attempts to determine whether or not an agenda is
+// active for the block AFTER the given block node using only information
+// available that depends on its position within the block chain and the headers
+// of all ancestors.  It does not, and must not, rely on having the full block
+// data of any ancestors available or deployment details associated with the
+// agenda.
+//
+// It is not always possible to determine whether an agenda is active since it
+// might depend on votes in ancestor blocks.  The valid flag in the returned
+// struct indicates whether or not the active flag is safe to use.
+//
+// The result can be determined in the following circumstances:
+//
+//   - The agenda is forced active
+//   - The parent of the activation block is a historical fact
+//   - The activation has been opportunistically discovered while tallying votes
+//     in a full-context path
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isAgendaActivePositional(prevNode *blockNode, agenda *consensusAgenda) agendaActiveInfo {
+	// Agendas are never active for the genesis block.
+	if prevNode == nil {
+		return agendaActiveInfo{isValid: true, isActive: false}
+	}
+
+	// Forced states are independent of chain position and take precedence.
+	if state := agenda.forcedState; state != nil {
+		isActive := state.State == ThresholdActive
+		return agendaActiveInfo{isValid: true, isActive: isActive}
+	}
+
+	// The deployment is definitively known to be inactive when the activation
+	// height is a known historical fact and the queried block is before the
+	// activation anchor.
+	//
+	// The historical state identifies the parent of the block where the agenda
+	// activated and the queried block height is one more than the provided
+	// parent node, so the comparison is intentionally exclusive.
+	hs := agenda.historicalState
+	if hs != nil && prevNode.height < hs.anchorHeight {
+		return agendaActiveInfo{isValid: true, isActive: false}
+	}
+
+	// Use the previously cached anchor when it exists and is actually an
+	// ancestor of the queried block (which includes the anchor block itself).
+	//
+	// The anchor may have been determined based on a known historical fact
+	// below or discovered opportunistically when tallying votes in a
+	// full-context path.
+	if anchorState := agenda.activeAnchor; anchorState != nil {
+		anchor := anchorState.anchor
+		if anchor != nil && anchor.IsAncestorOf(prevNode) {
+			return agendaActiveInfo{isValid: true, isActive: true}
+		}
+	}
+
+	// Attempt to resolve a known historical activation anchor using the
+	// ancestry of the queried block itself.
+	//
+	// It is highly likely that future calls will involve descendants of this
+	// anchor once it is resolved as opposed to blocks on entirely unrelated
+	// side chains.
+	//
+	// Unrelated side chains are handled correctly because the cached anchor is
+	// only used when it is an ancestor of the queried block and the anchor is
+	// only set when its hash matches the historical anchor hash.
+	if hs != nil && prevNode.height >= hs.anchorHeight {
+		anchor := prevNode.Ancestor(hs.anchorHeight)
+		if anchor != nil && anchor.hash == hs.anchorHash {
+			agenda.activeAnchor = &activeAnchorState{
+				anchor:   anchor,
+				choiceID: hs.choiceID,
+			}
+			return agendaActiveInfo{isValid: true, isActive: true}
+		}
+	}
+
+	return agendaActiveInfo{isValid: false}
 }
 
 // isAgendaActive attempts to determine whether or not an agenda is active
@@ -388,6 +701,14 @@ func (b *BlockChain) isAgendaActive(prevNode *blockNode, agendaID string) (bool,
 	// Agendas are never active for the genesis block.
 	if prevNode == nil {
 		return false, nil
+	}
+
+	// Attempt to determine the status of the agenda via the faster positional
+	// path which includes making use of things such as forced active agendas,
+	// cached anchor points and hard-coded historical activation points.
+	info := b.isAgendaActivePositional(prevNode, agenda)
+	if info.isValid {
+		return info.isActive, nil
 	}
 
 	// Determine the status by tallying votes.

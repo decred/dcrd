@@ -380,7 +380,13 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, agenda *consensusAg
 			stateTuple.State = ThresholdActive
 
 			// Cache the resolved activation point as an anchor when it is the
-			// first one discovered.
+			// first one discovered and there is not a hard-coded historical
+			// activation point.
+			//
+			// The anchor is not set here in the historical activation case
+			// because it has separate handling.  In practice, it should have
+			// already been discovered by the time this path runs anyway, but be
+			// explicit to make the semantics clear and to increase robustness.
 			//
 			// Note that only the first discovered activation is cached even
 			// though it is possible for multiple competing side chain blocks to
@@ -401,7 +407,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, agenda *consensusAg
 			//   anchor to move around because this code path will only ever run
 			//   once per discovered activation due to the threshold state
 			//   cache.
-			if agenda.activeAnchor == nil {
+			if agenda.activeAnchor == nil && agenda.historicalState == nil {
 				agenda.activeAnchor = &activeAnchorState{
 					anchor:   prevNode,
 					choiceID: stateTuple.ChoiceID,
@@ -440,6 +446,9 @@ func (b *BlockChain) agendaState(prevNode *blockNode, agenda *consensusAgenda) T
 
 	// Use the previously cached anchor when it exists and is actually an
 	// ancestor of the queried block (which includes the anchor block itself).
+	//
+	// The anchor may have been determined based on a known historical fact or
+	// discovered opportunistically when tallying votes to determine the state.
 	if anchorState := agenda.activeAnchor; anchorState != nil {
 		anchor := anchorState.anchor
 		if anchor != nil && anchor.IsAncestorOf(prevNode) {
