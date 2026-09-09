@@ -14,6 +14,39 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 )
 
+// requiredAgendaIDs identifies IDs for all agendas that influence consensus
+// behavior.
+//
+// Any agenda IDs in this list that do not also have an associated deployment in
+// the network chain parameters will have an associated default consensus agenda
+// created such that the agenda will always be inactive for the main network and
+// active (with an empty choice) for all other networks.
+//
+// The primary motivation is to allow the simulation network and new versions of
+// test networks that explicitly want to avoid requiring an agenda vote to use
+// newer consensus rules by default.
+//
+// The behavior for the non-main network case is similar to, but slightly
+// different than, a deployment with a forced choice of active.  Both scenarios
+// ultimately result in an agenda always being considered active without a vote,
+// but an explicitly forced choice requires entries in the network chain params
+// of every network even though they never had a deployment vote for the change.
+var requiredAgendaIDs = map[string]struct{}{
+	chaincfg.VoteIDMaxBlockSize:            {},
+	chaincfg.VoteIDSDiffAlgorithm:          {},
+	chaincfg.VoteIDLNFeatures:              {},
+	chaincfg.VoteIDFixLNSeqLocks:           {},
+	chaincfg.VoteIDHeaderCommitments:       {},
+	chaincfg.VoteIDTreasury:                {},
+	chaincfg.VoteIDRevertTreasuryPolicy:    {},
+	chaincfg.VoteIDExplicitVersionUpgrades: {},
+	chaincfg.VoteIDAutoRevocations:         {},
+	chaincfg.VoteIDChangeSubsidySplit:      {},
+	chaincfg.VoteIDBlake3Pow:               {},
+	chaincfg.VoteIDChangeSubsidySplitR2:    {},
+	chaincfg.VoteIDMaxTreasurySpend:        {},
+}
+
 // deploymentInfo houses information about the state of a consensus rule change
 // deployment.
 type deploymentInfo struct {
@@ -205,8 +238,11 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 type consensusAgenda struct {
 	// forcedState optionally specifies a threshold state to use instead of
 	// determining the state via other means, such as tallying votes for a
-	// deployment.  This only applies when it is not nil and is only populated
-	// when the associated chain parameters specify a forced choice.
+	// deployment.  This only applies when it is not nil.
+	//
+	// It is only populated when the associated chain parameters specify a
+	// forced choice or a required agenda is created by default because it has
+	// no associated deployment in the chain parameters.
 	forcedState *ThresholdStateTuple
 
 	// deployment optionally houses information about the associated consensus
@@ -286,6 +322,25 @@ func makeAgendas(params *chaincfg.Params) (map[string]*consensusAgenda, error) {
 				}
 			}
 			agendas[id] = agenda
+		}
+	}
+
+	// Create an agenda with a default forced state and nil deployment for each
+	// required agenda that does not have an associated deployment specified in
+	// the chain params.
+	for id := range requiredAgendaIDs {
+		if _, ok := agendas[id]; ok {
+			continue
+		}
+
+		var forcedState ThresholdStateTuple
+		if isMainNet(params) {
+			forcedState = newThresholdState(ThresholdDefined, "")
+		} else {
+			forcedState = newThresholdState(ThresholdActive, "")
+		}
+		agendas[id] = &consensusAgenda{
+			forcedState: &forcedState,
 		}
 	}
 
@@ -373,10 +428,6 @@ func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn i
 // vote that only took place on an earlier version of the test network has
 // passed and is now active from the point of view of the passed block node.
 //
-// CAUTION: This method has slightly different semantics than the other similar
-// agenda query methods in that it returns true for networks other than the main
-// network when there is no defined deployment for the network.
-//
 // The original test network where the vote took place has since been replaced
 // with a newer version that already has the larger size specified as the
 // default and no associated vote.  Therefore, in practice, only the simulation
@@ -389,16 +440,7 @@ func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn i
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isMaxBlockSizeAgendaActive(prevNode *blockNode) (bool, error) {
-	// Treat the agenda as active for non-main networks when voting is not
-	// enabled for the current network.
-	//
-	// This ideally should be handled in a more general way.  It is retained in
-	// this form for now to avoid changing the current semantics.
 	const agendaID = chaincfg.VoteIDMaxBlockSize
-	if _, ok := b.agendas[agendaID]; !ok {
-		return !isMainNet(b.chainParams), nil
-	}
-
 	return b.isAgendaActive(prevNode, agendaID)
 }
 
@@ -413,16 +455,7 @@ func (b *BlockChain) isMaxBlockSizeAgendaActive(prevNode *blockNode) (bool, erro
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSDiffAlgoAgendaActive(prevNode *blockNode) (bool, error) {
-	// Treat the agenda as active when voting is not enabled for the current
-	// network.
-	//
-	// This ideally should be handled in a more general way.  It is retained in
-	// this form for now to avoid changing the current semantics.
 	const agendaID = chaincfg.VoteIDSDiffAlgorithm
-	if _, ok := b.agendas[agendaID]; !ok {
-		return true, nil
-	}
-
 	return b.isAgendaActive(prevNode, agendaID)
 }
 
