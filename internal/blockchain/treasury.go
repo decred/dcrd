@@ -844,6 +844,8 @@ func (b *BlockChain) maxTreasuryExpenditureDCP0013(preTVINode *blockNode) (int64
 // to the returned amount.
 //
 // The passed node MUST correspond to a node immediately prior to a TVI block.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) maxTreasuryExpenditure(preTVINode *blockNode) (int64, error) {
 	isDCP0013Active, err := b.isMaxTreasurySpendAgendaActive(preTVINode)
 	if err != nil {
@@ -866,7 +868,12 @@ func (b *BlockChain) maxTreasuryExpenditure(preTVINode *blockNode) (int64, error
 // MaxTreasuryExpenditure is the maximum amount of funds that can be spent from
 // the treasury by a set of treasury spends for a block that extends the given
 // block hash.  It will return 0 if it is called on an invalid TVI.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64, error) {
+	b.chainLock.Lock()
+	defer b.chainLock.Unlock()
+
 	preTVINode := b.index.LookupNode(preTVIBlock)
 	if preTVINode == nil {
 		return 0, unknownBlockError(preTVIBlock)
@@ -888,7 +895,7 @@ func (b *BlockChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64,
 //
 // The expenditure check is performed against the balance at preTVINode.
 //
-// This function must be called with the block index read lock held.
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkTSpendsExpenditure(preTVINode *blockNode, totalTSpendAmount int64) error {
 	if totalTSpendAmount == 0 {
 		// Nothing to do.

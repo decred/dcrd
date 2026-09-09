@@ -958,8 +958,8 @@ func NewUtxoViewpoint(cache UtxoCacher) *UtxoViewpoint {
 //
 // This function is safe for concurrent access however the returned view is NOT.
 func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*UtxoViewpoint, error) {
-	b.chainLock.RLock()
-	defer b.chainLock.RUnlock()
+	b.chainLock.Lock()
+	defer b.chainLock.Unlock()
 
 	// The genesis block does not have any spendable transactions, so there
 	// can't possibly be any details about it.  This is also necessary

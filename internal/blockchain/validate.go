@@ -343,6 +343,8 @@ func (flags AgendaFlags) IsSubsidySplitR2Enabled() bool {
 
 // determineCheckTxFlags returns the flags to use when checking transactions
 // based on the agendas that are active as of the block AFTER the given node.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) determineCheckTxFlags(prevNode *blockNode) (AgendaFlags, error) {
 	// Determine if the treasury agenda is active as of the block being checked.
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
@@ -1067,7 +1069,7 @@ func (b *BlockChain) isOldBlockVersionByMajority(header *wire.BlockHeader, block
 // rules.  These checks do not, and must not, rely on having the full block data
 // of all ancestors available.
 //
-// This function is safe for concurrent access.
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkDifficultyPositional(header *wire.BlockHeader, prevNode *blockNode) error {
 	// -------------------------------------------------------------------------
 	// The ability to determine whether or not the blake3 proof of work agenda
@@ -1237,7 +1239,7 @@ func (b *BlockChain) checkDifficultyPositional(header *wire.BlockHeader, prevNod
 //   - BFFastAdd: All checks except those involving comparing the header against
 //     the checkpoints and expected height are not performed.
 //
-// This function MUST be called with the chain state lock held (for reads).
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
@@ -1345,7 +1347,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 // The flags modify the behavior of this function as follows:
 //   - BFFastAdd: The transactions are not checked to see if they are expired.
 //
-// This function MUST be called with the chain state lock held (for reads).
+// This function is safe for concurrent access.
 func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
@@ -1386,8 +1388,10 @@ func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *bl
 // not, rely on having the full block data of all ancestors available.
 //
 // The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to checkBlockHeaderPositional and
-// checkBlockDataPositional.
+// are needed to pass along to [BlockChain.checkBlockHeaderPositional] and
+// [BlockChain.checkBlockDataPositional].
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
@@ -1421,6 +1425,8 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 // The flags modify the behavior of this function as follows:
 //   - BFNoPoWCheck: The check to ensure the block hash is less than the target
 //     difficulty is not performed.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkProofOfWorkContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
 	// Nothing to do when the flag to avoid proof of work checks is set.
 	if flags&BFNoPoWCheck == BFNoPoWCheck {
@@ -1926,6 +1932,8 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 //
 // The flags are also passed to [BlockChain.checkBlockHeaderContext].  See its
 // documentation for how the flags modify its behavior.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
@@ -3797,6 +3805,8 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 //
 // It returns the total fees paid by the transactions or 0 when the error is not
 // nil.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 	node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint,
 	stxos *[]spentTxOut, stakeTree bool,
@@ -4030,6 +4040,8 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount,
 // executing transaction scripts to enforce the consensus rules. This includes
 // any flags required as the result of any agendas that have passed and become
 // active.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.ScriptFlags, error) {
 	scriptFlags := txscript.ScriptVerifyCleanStack |
 		txscript.ScriptVerifyCheckLockTimeVerify
@@ -4062,8 +4074,10 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // not been mined before and that it doesn't overspend the treasury. This
 // function assumes that the treasury agenda is enabled.
 //
-// The caller MUST have already have already called [checkTreasurySpendInputs]
-// on all treasury spends in the block and prior to calling this method.
+// The caller MUST have already called [checkTreasurySpendInputs] on all
+// treasury spends in the block and prior to calling this method.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) error {
 	blockHeight := prevNode.height + 1
 	isTVI := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
