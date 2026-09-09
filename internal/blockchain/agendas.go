@@ -202,7 +202,7 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	if forcedChoice.IsNo {
 		state = ThresholdFailed
 	}
-	tuple := newThresholdState(state, forcedChoice)
+	tuple := newThresholdState(state, forcedChoiceID)
 	return &tuple, nil
 }
 

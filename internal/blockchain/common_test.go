@@ -1010,7 +1010,7 @@ func (g *chaingenHarness) TestThresholdState(id string, state ThresholdState) {
 // TestThresholdStateChoice queries the threshold state from the current tip
 // block associated with the harness generator and expects the returned state
 // and choice to match the provided value.
-func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdState, choice *chaincfg.Choice) {
+func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdState, choiceID string) {
 	g.t.Helper()
 
 	tipHash := g.Tip().BlockHash()
@@ -1027,17 +1027,10 @@ func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdSta
 			"state for %s -- got %v, want %v", g.TipName(), tipHash, tipHeight,
 			id, s.State, state)
 	}
-	if !reflect.DeepEqual(s.Choice, choice) {
-		gotChoiceID, wantChoiceID := "<nil>", "<nil>"
-		if s.Choice != nil {
-			gotChoiceID = s.Choice.Id
-		}
-		if choice != nil {
-			wantChoiceID = choice.Id
-		}
+	if s.ChoiceID != choiceID {
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected choice for %s -- "+
-			"got %v, want %v", g.TipName(), tipHash, tipHeight, id, gotChoiceID,
-			wantChoiceID)
+			"got %v, want %v", g.TipName(), tipHash, tipHeight, id, s.ChoiceID,
+			choiceID)
 	}
 }
 
