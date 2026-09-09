@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022 The Decred developers
+// Copyright (c) 2017-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -39,7 +39,9 @@ func isStakeBaseTx(tx *wire.MsgTx) bool {
 // calcSequenceLock computes the relative lock times for the passed transaction
 // from the point of view of the block node passed in as the first argument.
 //
-// See the CalcSequenceLock comments for more details.
+// See the [BlockChain.CalcSequenceLock] comments for more details.
+//
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *UtxoViewpoint, isActive bool) (*SequenceLock, error) {
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {

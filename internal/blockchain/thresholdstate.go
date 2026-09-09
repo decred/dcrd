@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2025 The Decred developers
+// Copyright (c) 2017-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -813,6 +813,8 @@ func (b *BlockChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool,
 // isBlake3PowAgendaForcedActive returns whether or not the agenda to change the
 // proof of work hash function to blake3, as defined in DCP0011, is forced
 // active by the chain parameters.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) isBlake3PowAgendaForcedActive() bool {
 	const deploymentID = chaincfg.VoteIDBlake3Pow
 	deployment, ok := b.deploymentData[deploymentID]
