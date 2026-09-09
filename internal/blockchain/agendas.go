@@ -349,6 +349,39 @@ func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn i
 	return isActive, err
 }
 
+// isMaxBlockSizeAgendaActive returns whether or not the max block size agenda
+// vote that only took place on an earlier version of the test network has
+// passed and is now active from the point of view of the passed block node.
+//
+// CAUTION: This method has slightly different semantics than the other similar
+// agenda query methods in that it returns true for networks other than the main
+// network when there is no defined deployment for the network.
+//
+// The original test network where the vote took place has since been replaced
+// with a newer version that already has the larger size specified as the
+// default and no associated vote.  Therefore, in practice, only the simulation
+// and regression networks can currently have this active.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isMaxBlockSizeAgendaActive(prevNode *blockNode) (bool, error) {
+	// Treat the agenda as active for non-main networks when voting is not
+	// enabled for the current network.
+	//
+	// This ideally should be handled in a more general way.  It is retained in
+	// this form for now to avoid changing the current semantics.
+	const deploymentID = chaincfg.VoteIDMaxBlockSize
+	if _, ok := b.deploymentData[deploymentID]; !ok {
+		return !isMainNet(b.chainParams), nil
+	}
+
+	return b.isAgendaActive(prevNode, deploymentID)
+}
+
 // isSDiffAlgoAgendaActive returns whether or not the stake difficulty algorithm
 // agenda vote defined in DCP0001 has passed and is now active from the point of
 // view of the passed block node.
