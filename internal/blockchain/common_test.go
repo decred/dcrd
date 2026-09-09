@@ -177,14 +177,15 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	index.bestHeader = node
 	index.AddNode(node)
 
-	// Generate a deployment ID map from the provided params.
-	deploymentData, err := extractDeployments(params)
+	// Make agendas from the provided params while validating the deployments
+	// conform to the required semantics.
+	agendas, err := makeAgendas(params)
 	if err != nil {
 		panic(err)
 	}
 
 	return &BlockChain{
-		deploymentData:                deploymentData,
+		agendas:                       agendas,
 		chainParams:                   params,
 		index:                         index,
 		bestChain:                     newChainView(node),

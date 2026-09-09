@@ -142,7 +142,7 @@ type BlockChain struct {
 	assumeValid              chainhash.Hash
 	allowOldForks            bool
 	expectedBlocksInTwoWeeks int64
-	deploymentData           map[string]deploymentInfo
+	agendas                  map[string]*consensusAgenda
 	minKnownWork             *uint256.Uint256
 	minTestNetTarget         *big.Int
 	minTestNetDiffBits       uint32
@@ -2129,10 +2129,10 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
 
-	// Generate a deployment ID map from the provided params while validating
-	// they conform to the required semantics.
+	// Make agendas from the provided params while validating the deployments
+	// conform to the required semantics.
 	params := config.ChainParams
-	deploymentData, err := extractDeployments(params)
+	agendas, err := makeAgendas(params)
 	if err != nil {
 		return nil, err
 	}
@@ -2190,7 +2190,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		assumeValid:                   config.AssumeValid,
 		allowOldForks:                 allowOldForks,
 		expectedBlocksInTwoWeeks:      expectedBlksInTwoWeeks,
-		deploymentData:                deploymentData,
+		agendas:                       agendas,
 		minKnownWork:                  minKnownWork,
 		minTestNetTarget:              minTestNetTarget,
 		minTestNetDiffBits:            minTestNetDiffBits,

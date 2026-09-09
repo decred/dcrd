@@ -241,7 +241,7 @@ func TestDeploymentParamsValidation(t *testing.T) {
 			test.munger(params)
 		}
 
-		_, err := extractDeployments(params)
+		_, err := makeAgendas(params)
 		if !errors.Is(err, test.err) {
 			t.Fatalf("%q: unexpected err -- got %v, want %v", test.name, err,
 				test.err)

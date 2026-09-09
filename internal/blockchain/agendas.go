@@ -24,12 +24,6 @@ type deploymentInfo struct {
 	// rule change vote.
 	deployment *chaincfg.ConsensusDeployment
 
-	// forcedState optionally specifies a threshold state to use instead of
-	// determining the state via the normal means of tallying votes.  This only
-	// applies when it is not nil and is only populated when the associated
-	// chain parameters specify a forced choice.
-	forcedState *ThresholdStateTuple
-
 	// cache is used to efficiently keep track of the threshold state for the
 	// deployment.
 	//
@@ -206,21 +200,42 @@ func determineForcedThresholdState(deployment *chaincfg.ConsensusDeployment) (*T
 	return &tuple, nil
 }
 
-// extractDeployments returns a map of all deployment IDs within the provided
-// params to a deployment info structure populated with the associated details.
+// consensusAgenda houses information about the state of a consensus rule change
+// agenda.
+type consensusAgenda struct {
+	// forcedState optionally specifies a threshold state to use instead of
+	// determining the state via other means, such as tallying votes for a
+	// deployment.  This only applies when it is not nil and is only populated
+	// when the associated chain parameters specify a forced choice.
+	forcedState *ThresholdStateTuple
+
+	// deployment optionally houses information about the associated consensus
+	// rule change deployment.  It will only be set when the associated details
+	// are specified by the chain parameters and there is not a forced state.
+	deployment *deploymentInfo
+}
+
+// makeAgendas returns a map of consensus rule change agendas populated with
+// details used to determine the status of each agenda.
+//
+// The returned map will contain an agenda for every deployment specified in the
+// provided chain params for the network.  Each agenda added as a result of a
+// deployment that does not also have a forced state specified will have the
+// [consensusAgenda.deployment] field populated with the relevant details
+// extracted from the associated deployment.
 //
 // It also returns an appropriate error when any additional sanity checks fail.
-// For example, duplicate deployment IDs are rejected and forced choices are
-// disallowed on the main network.
-func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, error) {
-	// Generate a deployment ID map from the provided params.
-	deploymentData := make(map[string]deploymentInfo)
+// For example, duplicate deployment IDs are rejected and forced choices in the
+// chain params are disallowed on the main network.
+func makeAgendas(params *chaincfg.Params) (map[string]*consensusAgenda, error) {
+	// Create an agenda for each deployment specified in the chain params.
+	agendas := make(map[string]*consensusAgenda)
 	for version, deployments := range params.Deployments {
 		var usedMaskBits uint16
 		for i := range deployments {
 			deployment := &deployments[i]
 			id := deployment.Vote.Id
-			if _, ok := deploymentData[id]; ok {
+			if _, ok := agendas[id]; ok {
 				str := fmt.Sprintf("deployment ID %s exists in more than one "+
 					"deployment", id)
 				return nil, contextError(ErrDuplicateDeployment, str)
@@ -258,18 +273,23 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 				return nil, contextError(ErrForcedMainNetChoice, str)
 			}
 
-			deploymentData[id] = deploymentInfo{
-				version:     version,
-				deployment:  deployment,
+			agenda := &consensusAgenda{
 				forcedState: forcedState,
-				cache: &thresholdStateCache{
-					entries: make(map[chainhash.Hash]ThresholdStateTuple),
-				},
 			}
+			if forcedState == nil {
+				agenda.deployment = &deploymentInfo{
+					version:    version,
+					deployment: deployment,
+					cache: &thresholdStateCache{
+						entries: make(map[chainhash.Hash]ThresholdStateTuple),
+					},
+				}
+			}
+			agendas[id] = agenda
 		}
 	}
 
-	return deploymentData, nil
+	return agendas, nil
 }
 
 // isAgendaActive attempts to determine whether or not an agenda is active
@@ -285,11 +305,11 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 // previous node since it is the only block that has no predecessor.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) isAgendaActive(prevNode *blockNode, deploymentID string) (bool, error) {
-	deployment, ok := b.deploymentData[deploymentID]
+func (b *BlockChain) isAgendaActive(prevNode *blockNode, agendaID string) (bool, error) {
+	agenda, ok := b.agendas[agendaID]
 	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
+		str := fmt.Sprintf("agenda ID %s does not exist", agendaID)
+		return false, contextError(ErrUnknownAgendaID, str)
 	}
 
 	// Agendas are never active for the genesis block.
@@ -303,7 +323,7 @@ func (b *BlockChain) isAgendaActive(prevNode *blockNode, deploymentID string) (b
 	// examined here.  This assumes there is only one possible passing choice
 	// that makes the agenda active.  Consequently, this function is not
 	// suitable for agendas with more than one possible passing choice.
-	state := b.deploymentState(prevNode, &deployment)
+	state := b.agendaState(prevNode, agenda)
 	return state.State == ThresholdActive, nil
 }
 
@@ -374,12 +394,12 @@ func (b *BlockChain) isMaxBlockSizeAgendaActive(prevNode *blockNode) (bool, erro
 	//
 	// This ideally should be handled in a more general way.  It is retained in
 	// this form for now to avoid changing the current semantics.
-	const deploymentID = chaincfg.VoteIDMaxBlockSize
-	if _, ok := b.deploymentData[deploymentID]; !ok {
+	const agendaID = chaincfg.VoteIDMaxBlockSize
+	if _, ok := b.agendas[agendaID]; !ok {
 		return !isMainNet(b.chainParams), nil
 	}
 
-	return b.isAgendaActive(prevNode, deploymentID)
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // isSDiffAlgoAgendaActive returns whether or not the stake difficulty algorithm
@@ -398,12 +418,12 @@ func (b *BlockChain) isSDiffAlgoAgendaActive(prevNode *blockNode) (bool, error) 
 	//
 	// This ideally should be handled in a more general way.  It is retained in
 	// this form for now to avoid changing the current semantics.
-	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
-	if _, ok := b.deploymentData[deploymentID]; !ok {
+	const agendaID = chaincfg.VoteIDSDiffAlgorithm
+	if _, ok := b.agendas[agendaID]; !ok {
 		return true, nil
 	}
 
-	return b.isAgendaActive(prevNode, deploymentID)
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // isLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
@@ -417,8 +437,8 @@ func (b *BlockChain) isSDiffAlgoAgendaActive(prevNode *blockNode) (bool, error) 
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDLNFeatures
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDLNFeatures
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
@@ -441,8 +461,8 @@ func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, e
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDHeaderCommitments
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDHeaderCommitments
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsHeaderCommitmentsAgendaActive returns whether or not the header commitments
@@ -470,8 +490,8 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 		return false, nil
 	}
 
-	const deploymentID = chaincfg.VoteIDTreasury
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDTreasury
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
@@ -494,8 +514,8 @@ func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, err
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDRevertTreasuryPolicy
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDRevertTreasuryPolicy
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsRevertTreasuryPolicyActive returns whether or not the revert treasury
@@ -518,8 +538,8 @@ func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (boo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDExplicitVersionUpgrades
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDExplicitVersionUpgrades
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsExplicitVerUpgradesAgendaActive returns whether or not the explicit version
@@ -542,8 +562,8 @@ func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash)
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDAutoRevocations
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDAutoRevocations
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsAutoRevocationsAgendaActive returns whether or not the automatic ticket
@@ -566,8 +586,8 @@ func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDChangeSubsidySplit
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDChangeSubsidySplit
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsSubsidySplitAgendaActive returns whether or not the agenda to change the
@@ -581,17 +601,17 @@ func (b *BlockChain) IsSubsidySplitAgendaActive(prevHash *chainhash.Hash) (bool,
 
 // isBlake3PowAgendaForcedActive returns whether or not the agenda to change the
 // proof of work hash function to blake3, as defined in DCP0011, is forced
-// active by the chain parameters.
+// active.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) isBlake3PowAgendaForcedActive() bool {
-	const deploymentID = chaincfg.VoteIDBlake3Pow
-	deployment, ok := b.deploymentData[deploymentID]
+	const agendaID = chaincfg.VoteIDBlake3Pow
+	agenda, ok := b.agendas[agendaID]
 	if !ok {
 		return false
 	}
 
-	state := deployment.forcedState
+	state := agenda.forcedState
 	return state != nil && state.State == ThresholdActive
 }
 
@@ -606,8 +626,8 @@ func (b *BlockChain) isBlake3PowAgendaForcedActive() bool {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isBlake3PowAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDBlake3Pow
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDBlake3Pow
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsBlake3PowAgendaActive returns whether or not the agenda to change the proof
@@ -630,8 +650,8 @@ func (b *BlockChain) IsBlake3PowAgendaActive(prevHash *chainhash.Hash) (bool, er
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitR2AgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDChangeSubsidySplitR2
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDChangeSubsidySplitR2
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsSubsidySplitR2AgendaActive returns whether or not the agenda to change the
@@ -655,8 +675,8 @@ func (b *BlockChain) IsSubsidySplitR2AgendaActive(prevHash *chainhash.Hash) (boo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isMaxTreasurySpendAgendaActive(prevNode *blockNode) (bool, error) {
-	const deploymentID = chaincfg.VoteIDMaxTreasurySpend
-	return b.isAgendaActive(prevNode, deploymentID)
+	const agendaID = chaincfg.VoteIDMaxTreasurySpend
+	return b.isAgendaActive(prevNode, agendaID)
 }
 
 // IsMaxTreasurySpendAgendaActive returns whether or not the agenda to change
