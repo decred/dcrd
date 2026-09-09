@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2023 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -857,29 +857,17 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) int64
 // difficulty retarget rules.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) int64 {
-	// Determine the correct deployment details for the new stake difficulty
-	// algorithm consensus vote or treat it as active when voting is not enabled
-	// for the current network.
-	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		return b.calcNextRequiredStakeDifficultyV2(curNode)
+func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64, error) {
+	// Choose the stake difficulty algorithm based on the result of the vote
+	// for the stake difficulty algorithm agenda.
+	isActive, err := b.isSDiffAlgoAgendaActive(curNode)
+	if err != nil {
+		return 0, err
 	}
-
-	// Use the new stake difficulty algorithm if the stake vote for the new
-	// algorithm agenda is active.
-	//
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active
-	// for the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(curNode, &deployment)
-	if state.State == ThresholdActive {
-		return b.calcNextRequiredStakeDifficultyV2(curNode)
+	if isActive {
+		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
 	}
-
-	// Use the old stake difficulty algorithm in any other case.
-	return b.calcNextRequiredStakeDifficultyV1(curNode)
+	return b.calcNextRequiredStakeDifficultyV1(curNode), nil
 }
 
 // CalcNextRequiredStakeDifficulty calculates the required stake difficulty for
@@ -894,9 +882,9 @@ func (b *BlockChain) CalcNextRequiredStakeDifficulty(hash *chainhash.Hash) (int6
 	}
 
 	b.chainLock.Lock()
-	nextDiff := b.calcNextRequiredStakeDifficulty(node)
+	nextDiff, err := b.calcNextRequiredStakeDifficulty(node)
 	b.chainLock.Unlock()
-	return nextDiff, nil
+	return nextDiff, err
 }
 
 // estimateNextStakeDifficultyV1 estimates the next stake difficulty by
@@ -1345,30 +1333,17 @@ func (b *BlockChain) estimateNextStakeDifficultyV2(curNode *blockNode, newTicket
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets int64, useMaxTickets bool) (int64, error) {
-	// Determine the correct deployment details for the new stake difficulty
-	// algorithm consensus vote or treat it as active when voting is not enabled
-	// for the current network.
-	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
+	// Choose the stake difficulty algorithm based on the result of the vote
+	// for the stake difficulty algorithm agenda.
+	isActive, err := b.isSDiffAlgoAgendaActive(curNode)
+	if err != nil {
+		return 0, err
 	}
-
-	// Use the new stake difficulty algorithm if the stake vote for the new
-	// algorithm agenda is active.
-	//
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active
-	// for the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(curNode, &deployment)
-	if state.State == ThresholdActive {
+	if isActive {
 		return b.estimateNextStakeDifficultyV2(curNode, newTickets,
 			useMaxTickets)
 	}
-
-	// Use the old stake difficulty algorithm in any other case.
-	return b.estimateNextStakeDifficultyV1(curNode, newTickets,
-		useMaxTickets)
+	return b.estimateNextStakeDifficultyV1(curNode, newTickets, useMaxTickets)
 }
 
 // EstimateNextStakeDifficulty estimates the next stake difficulty by pretending

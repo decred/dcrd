@@ -349,6 +349,30 @@ func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn i
 	return isActive, err
 }
 
+// isSDiffAlgoAgendaActive returns whether or not the stake difficulty algorithm
+// agenda vote defined in DCP0001 has passed and is now active from the point of
+// view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isSDiffAlgoAgendaActive(prevNode *blockNode) (bool, error) {
+	// Treat the agenda as active when voting is not enabled for the current
+	// network.
+	//
+	// This ideally should be handled in a more general way.  It is retained in
+	// this form for now to avoid changing the current semantics.
+	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
+	if _, ok := b.deploymentData[deploymentID]; !ok {
+		return true, nil
+	}
+
+	return b.isAgendaActive(prevNode, deploymentID)
+}
+
 // isLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
 // as defined in DCP0002 and DCP0003 has passed and is now active from the point
 // of view of the passed block node.
