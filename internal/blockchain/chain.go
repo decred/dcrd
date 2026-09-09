@@ -1602,31 +1602,30 @@ func (b *BlockChain) BestSnapshot() *BestState {
 // maxBlockSize returns the maximum permitted block size for the block
 // AFTER the given node.
 //
-// This function MUST be called with the chain state lock held (for reads).
-func (b *BlockChain) maxBlockSize(prevNode *blockNode) int64 {
-	// Determine the correct deployment details for the block size consensus
-	// vote or treat it as inactive when voting is not enabled for the current
-	// network.
-	const deploymentID = chaincfg.VoteIDMaxBlockSize
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		return int64(b.chainParams.MaximumBlockSizes[0])
-	}
-
-	// Return the larger block size if the stake vote for the max block size
-	// increase agenda is active.
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
+	// Choose the block size based on the result of the vote.
 	//
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active
-	// for the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	if state.State == ThresholdActive {
-		return int64(b.chainParams.MaximumBlockSizes[1])
+	// The vote only took place on an earlier version of the test network which
+	// has since been replaced with a newer version that already has the larger
+	// size specified as the default and no associated vote.  Therefore, in
+	// practice, only the simulation and regression networks can currently have
+	// this active.
+	//
+	// Also, since agendas that have no associated deployment information are
+	// considered active by default for non-main networks, this includes an
+	// additional guard to ensure the chain params actually have a larger block
+	// size to select from and falls back to an unchanged max block size
+	// otherwise.
+	isActive, err := b.isMaxBlockSizeAgendaActive(prevNode)
+	if err != nil {
+		return 0, err
 	}
-
-	// The max block size is not changed in any other cases.
-	maxSize := int64(b.chainParams.MaximumBlockSizes[0])
-	return maxSize
+	maxSizes := b.chainParams.MaximumBlockSizes
+	if isActive && len(maxSizes) > 1 {
+		return int64(maxSizes[1]), nil
+	}
+	return int64(maxSizes[0]), nil
 }
 
 // MaxBlockSize returns the maximum permitted block size for the block AFTER
@@ -1640,9 +1639,9 @@ func (b *BlockChain) MaxBlockSize(hash *chainhash.Hash) (int64, error) {
 	}
 
 	b.chainLock.Lock()
-	maxSize := b.maxBlockSize(node)
+	maxSize, err := b.maxBlockSize(node)
 	b.chainLock.Unlock()
-	return maxSize, nil
+	return maxSize, err
 }
 
 // HeaderByHash returns the block header identified by the given hash or an

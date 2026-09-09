@@ -2219,7 +2219,10 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	// A block must not exceed the maximum allowed size as defined by the
 	// network parameters and the current status of any consensus votes to
 	// change it when serialized.
-	maxBlockSize := b.maxBlockSize(prevNode)
+	maxBlockSize, err := b.maxBlockSize(prevNode)
+	if err != nil {
+		return err
+	}
 	serializedSize := int64(block.MsgBlock().Header.Size)
 	if serializedSize > maxBlockSize {
 		str := fmt.Sprintf("serialized block is too big - got %d, max %d",
