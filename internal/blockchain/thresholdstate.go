@@ -176,8 +176,11 @@ func nextDeploymentVersion(params *chaincfg.Params, version uint32) uint32 {
 // block AFTER the given node and deployment.  The cache is used to ensure the
 // threshold states for previous windows are only calculated once.
 //
+// It must not be called with an agenda that does not have any deployment
+// details populated.
+//
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploymentInfo) ThresholdStateTuple {
+func (b *BlockChain) nextThresholdState(prevNode *blockNode, agenda *consensusAgenda) ThresholdStateTuple {
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
 	ruleChangeInterval := b.chainParams.RuleChangeActivationInterval
@@ -196,6 +199,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 
 	// Iterate backwards through each of the previous confirmation windows
 	// to find the most recently cached threshold state.
+	deployment := agenda.deployment
 	beginTime := deployment.deployment.StartTime
 	cache := deployment.cache
 	var neededStates []*blockNode
@@ -389,9 +393,9 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 	return stateTuple
 }
 
-// deploymentState returns the current rule change threshold for a given
-// deployment.  The threshold is evaluated from the point of view of the block
-// node passed in as the first argument to this method.
+// agendaState returns the current rule change threshold for a given agenda.
+// The threshold is evaluated from the point of view of the block node passed in
+// as the first argument to this method.
 //
 // It is important to note that, as the variable name indicates, this function
 // expects the block node prior to the block for which the deployment state is
@@ -399,20 +403,20 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 // AFTER the passed node.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) deploymentState(prevNode *blockNode, deployment *deploymentInfo) ThresholdStateTuple {
-	if deployment.forcedState != nil {
-		return *deployment.forcedState
+func (b *BlockChain) agendaState(prevNode *blockNode, agenda *consensusAgenda) ThresholdStateTuple {
+	// Forced states take precedence.
+	if agenda.forcedState != nil {
+		return *agenda.forcedState
 	}
-
-	return b.nextThresholdState(prevNode, deployment)
+	return b.nextThresholdState(prevNode, agenda)
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
-// agenda last changed state.  The function will return nil if the state has
-// never changed.
+// last changed state.  The function will return nil if the state has never
+// changed.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInfo) *blockNode {
+func (b *BlockChain) stateLastChanged(node *blockNode, agenda *consensusAgenda) *blockNode {
 	// No state changes are possible if the chain is not yet past stake
 	// validation height and had a full interval to change.
 	confirmationInterval := int64(b.chainParams.RuleChangeActivationInterval)
@@ -424,7 +428,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 	// Determine the current state.  Notice that nextThresholdState always
 	// calculates the state for the block after the provided one, so use the
 	// parent to get the state for the requested block.
-	curState := b.nextThresholdState(node.parent, deployment)
+	curState := b.nextThresholdState(node.parent, agenda)
 
 	// Determine the first block of the current confirmation interval in order
 	// to determine block at which the state possibly changed.  Since the state
@@ -437,7 +441,7 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 		// As previously mentioned, nextThresholdState always calculates the
 		// state for the block after the provided one, so use the parent to get
 		// the state of the block itself.
-		state := b.nextThresholdState(node.parent, deployment)
+		state := b.nextThresholdState(node.parent, agenda)
 
 		if state.State != curState.State {
 			return priorStateChangeNode
@@ -452,10 +456,10 @@ func (b *BlockChain) stateLastChanged(node *blockNode, deployment *deploymentInf
 	return nil
 }
 
-// StateLastChangedHeight returns the height at which the provided consensus
-// deployment agenda last changed state.  Note that, unlike the
-// NextThresholdState function, this function returns the information as of the
-// passed block hash.
+// StateLastChangedHeight returns the height at which the threshold state for
+// the provided consensus deployment last changed state.  Note that, unlike the
+// [BlockChain.NextThresholdState] function, this function returns the
+// information as of the passed block hash.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID string) (int64, error) {
@@ -464,21 +468,26 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, deploymentID s
 		return 0, unknownBlockError(hash)
 	}
 
-	// Determine the deployment details for the provided deployment id.
-	deployment, ok := b.deploymentData[deploymentID]
+	agenda, ok := b.agendas[deploymentID]
 	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return 0, contextError(ErrUnknownDeploymentID, str)
+		str := fmt.Sprintf("agenda ID %s does not exist", deploymentID)
+		return 0, contextError(ErrUnknownAgendaID, str)
 	}
-	if deployment.forcedState != nil {
+	if agenda.forcedState != nil {
 		// The state change height is 1 since the genesis block never
 		// experiences changes regardless of consensus rule changes.
 		return 1, nil
 	}
 
+	if agenda.deployment == nil {
+		str := fmt.Sprintf("agenda ID %s does not have associated deployment "+
+			"information", deploymentID)
+		return 0, contextError(ErrUnknownDeploymentID, str)
+	}
+
 	// Find the node at which the current state changed.
 	b.chainLock.Lock()
-	stateNode := b.stateLastChanged(node, &deployment)
+	stateNode := b.stateLastChanged(node, agenda)
 	b.chainLock.Unlock()
 
 	var height int64
@@ -498,14 +507,23 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, deploymentID strin
 		return ThresholdStateTuple{}, unknownBlockError(hash)
 	}
 
-	deployment, ok := b.deploymentData[deploymentID]
+	agenda, ok := b.agendas[deploymentID]
 	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		str := fmt.Sprintf("agenda ID %s does not exist", deploymentID)
+		return ThresholdStateTuple{}, contextError(ErrUnknownAgendaID, str)
+	}
+	if agenda.forcedState != nil {
+		return *agenda.forcedState, nil
+	}
+
+	if agenda.deployment == nil {
+		str := fmt.Sprintf("agenda ID %s does not have associated deployment "+
+			"information", deploymentID)
 		return ThresholdStateTuple{}, contextError(ErrUnknownDeploymentID, str)
 	}
 
 	b.chainLock.Lock()
-	state := b.deploymentState(node, &deployment)
+	state := b.agendaState(node, agenda)
 	b.chainLock.Unlock()
 	return state, nil
 }

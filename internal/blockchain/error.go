@@ -635,8 +635,11 @@ const (
 	ErrNoMissedTicketRevocation = ErrorKind("ErrNoMissedTicketRevocation")
 
 	// -----------------------------------------------------------------
-	// Errors related to deployment validation.
+	// Errors related to agenda and deployment validation.
 	// -----------------------------------------------------------------
+
+	// ErrUnknownAgendaID indicates an agenda id does not exist.
+	ErrUnknownAgendaID = ErrorKind("ErrUnknownAgendaID")
 
 	// ErrUnknownDeploymentID indicates a deployment id does not exist.
 	ErrUnknownDeploymentID = ErrorKind("ErrUnknownDeploymentID")

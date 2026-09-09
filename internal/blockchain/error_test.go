@@ -159,6 +159,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalidRevocationTxVersion, "ErrInvalidRevocationTxVersion"},
 		{ErrNoExpiredTicketRevocation, "ErrNoExpiredTicketRevocation"},
 		{ErrNoMissedTicketRevocation, "ErrNoMissedTicketRevocation"},
+		{ErrUnknownAgendaID, "ErrUnknownAgendaID"},
 		{ErrUnknownDeploymentID, "ErrUnknownDeploymentID"},
 		{ErrUnknownDeploymentVersion, "ErrUnknownDeploymentVersion"},
 		{ErrDuplicateDeployment, "ErrDuplicateDeployment"},
