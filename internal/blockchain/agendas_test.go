@@ -249,6 +249,97 @@ func TestDeploymentParamsValidation(t *testing.T) {
 	}
 }
 
+// TestMaxBlockSizeChoice ensures that the maximum block size is chosen based on
+// the available options in the chain params per the state of the agenda as
+// expected.
+func TestMaxBlockSizeChoice(t *testing.T) {
+	withDeployment := chaincfg.RegNetParams()
+	withoutDeployment := chaincfg.RegNetParams()
+	removeDeployment(t, withoutDeployment, chaincfg.VoteIDMaxBlockSize)
+	tests := []struct {
+		name        string           // test description
+		params      *chaincfg.Params // base chain params
+		maxSizes    []int            // max block sizes override
+		forceActive bool             // force the agenda active in the params
+		wantSize    int              // expected max block size
+	}{{
+		// Defaults to inactive when there is no deployment specified and the
+		// params are for the main network.  Adds a synthetic second max block
+		// size option versus the real main network parameters to ensure the
+		// default behavior for the main network is correct.
+		name:     "mainnet is never active",
+		params:   chaincfg.MainNetParams(),
+		maxSizes: []int{393216, 1000000},
+		wantSize: 393216,
+	}, {
+		// Defaults to newer block size when there is no deployment specified
+		// for non-main networks, but clamps to the first entry if there is no
+		// second entry specified in the max block sizes in the chain params.
+		name:     "no deployment with one entry",
+		params:   withoutDeployment,
+		maxSizes: []int{1000000},
+		wantSize: 1000000,
+	}, {
+		// Defaults to newer block size (second entry) when there is no
+		// deployment specified for non-main networks.
+		name:     "no deployment with two entries",
+		params:   withoutDeployment,
+		maxSizes: []int{1000000, 1310720},
+		wantSize: 1310720,
+	}, {
+		name:     "deployment inactive with one entry",
+		params:   withDeployment,
+		maxSizes: []int{1000000},
+		wantSize: 1000000,
+	}, {
+		name:     "deployment inactive with two entries",
+		params:   withDeployment,
+		maxSizes: []int{1000000, 1310720},
+		wantSize: 1000000,
+	}, {
+		name:        "deployment active with one entry",
+		params:      withDeployment,
+		maxSizes:    []int{1000000},
+		forceActive: true,
+		wantSize:    1000000,
+	}, {
+		name:        "deployment active with two entries",
+		params:      withDeployment,
+		maxSizes:    []int{1000000, 1310720},
+		forceActive: true,
+		wantSize:    1310720,
+	}}
+
+	for _, test := range tests {
+		// Clone the parameters so they can be mutated, override the maximum
+		// block sizes to choose from, and force the agenda active when
+		// specified by the test.
+		params := cloneParams(test.params)
+		params.MaximumBlockSizes = test.maxSizes
+		if test.forceActive {
+			forceDeploymentResult(t, params, chaincfg.VoteIDMaxBlockSize, "yes")
+		}
+
+		// Construct a synthetic block chain with the modified parameters.
+		bc := newFakeChain(params)
+		fakeNodes := chainedFakeNodes(bc.bestChain.Genesis(), 10)
+		for _, node := range fakeNodes {
+			bc.index.AddNode(node)
+		}
+
+		// Ensure the expected max block size is reported.
+		gotSize, err := bc.MaxBlockSize(&fakeNodes[1].hash)
+		if err != nil {
+			t.Errorf("%q: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotSize != int64(test.wantSize) {
+			t.Errorf("%q: mismatched size - got %d, want %d", test.name,
+				gotSize, test.wantSize)
+		}
+	}
+}
+
 // testLNFeaturesDeployment ensures the deployment of the LN features agenda
 // activates the expected changes for the provided network parameters.
 func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {

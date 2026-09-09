@@ -14,6 +14,7 @@ import (
 	"math"
 	"math/bits"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -505,6 +506,27 @@ func findDeploymentAllYesChoices(t *testing.T, params *chaincfg.Params, voteIDs 
 	}
 
 	t.Fatal("unable to find deployment for any of the provided vote IDs")
+	panic("unreachable")
+}
+
+// removeDeployment removes the deployment associated with the provided vote ID
+// from the deployments of the provided parameters or fails with a fatal test
+// error when not found.
+func removeDeployment(t *testing.T, params *chaincfg.Params, voteID string) {
+	t.Helper()
+
+	// Find the correct deployment for the passed vote ID.
+	for version, deployments := range params.Deployments {
+		for i, deployment := range deployments {
+			if deployment.Vote.Id == voteID {
+				s := slices.Delete(deployments, i, i+1)
+				params.Deployments[version] = s
+				return
+			}
+		}
+	}
+
+	t.Fatalf("unable to find deployment for id %q", voteID)
 	panic("unreachable")
 }
 
