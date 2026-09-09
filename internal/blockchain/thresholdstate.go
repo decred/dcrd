@@ -72,19 +72,18 @@ type ThresholdStateTuple struct {
 	// State contains the current ThresholdState.
 	State ThresholdState
 
-	// Choice is the specific choice that received the majority vote for the
+	// ChoiceID is the specific choice that received the majority vote for the
 	// ThresholdLockedIn and ThresholdActive states.
 	//
 	// IMPORTANT: It will only be set to the majority no choice for the
 	// ThresholdFailed state if the vote failed as the result of a majority no
-	// vote.  Otherwise, it will be nil for the ThresholdFailed state if the
-	// vote failed due to the voting period expiring before any majority is
-	// reached.  This distinction allows callers to differentiate between a vote
-	// failing due to a majority no vote versus due to expiring, but it does
-	// mean the caller must check for nil before using it for the state.
+	// vote.  Otherwise, it will be an empty string for the ThresholdFailed
+	// state if the vote failed due to the voting period expiring before any
+	// majority is reached.  This distinction allows callers to differentiate
+	// between a vote failing due to a majority no vote versus due to expiring.
 	//
-	// It is nil for all other states.
-	Choice *chaincfg.Choice
+	// It is an empty string for all other states.
+	ChoiceID string
 }
 
 // thresholdStateTupleStrings is a map of ThresholdState values back to their
@@ -101,8 +100,8 @@ var thresholdStateTupleStrings = map[ThresholdState]string{
 // String returns the ThresholdStateTuple as a human-readable tuple.
 func (t ThresholdStateTuple) String() string {
 	if s := thresholdStateTupleStrings[t.State]; s != "" {
-		if t.Choice != nil {
-			return fmt.Sprintf("%v (choice: %v)", s, t.Choice.Id)
+		if t.ChoiceID != "" {
+			return fmt.Sprintf("%v (choice: %v)", s, t.ChoiceID)
 		}
 		return fmt.Sprintf("%v", s)
 	}
@@ -110,8 +109,8 @@ func (t ThresholdStateTuple) String() string {
 }
 
 // newThresholdState returns an initialized ThresholdStateTuple.
-func newThresholdState(state ThresholdState, choice *chaincfg.Choice) ThresholdStateTuple {
-	return ThresholdStateTuple{State: state, Choice: choice}
+func newThresholdState(state ThresholdState, choiceID string) ThresholdStateTuple {
+	return ThresholdStateTuple{State: state, ChoiceID: choiceID}
 }
 
 // thresholdStateCache provides a type to cache the threshold states of each
@@ -185,7 +184,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 	confirmationWindow := int64(ruleChangeInterval)
 	svh := b.chainParams.StakeValidationHeight
 	if prevNode == nil || prevNode.height+1 < svh+confirmationWindow {
-		return newThresholdState(ThresholdDefined, nil)
+		return newThresholdState(ThresholdDefined, "")
 	}
 
 	// Get the ancestor that is the last block of the previous confirmation
@@ -214,7 +213,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 		// The state is simply defined if the start time hasn't been reached
 		// yet.
 		if uint64(medianTime.Unix()) < beginTime {
-			cache.Update(prevNode.hash, newThresholdState(ThresholdDefined, nil))
+			cache.Update(prevNode.hash, newThresholdState(ThresholdDefined, ""))
 			break
 		}
 
@@ -229,7 +228,7 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 
 	// Start with the threshold state for the most recent confirmation
 	// window that has a cached state.
-	stateTuple := newThresholdState(ThresholdDefined, nil)
+	stateTuple := newThresholdState(ThresholdDefined, "")
 	if prevNode != nil {
 		var ok bool
 		stateTuple, ok = cache.Lookup(prevNode.hash)
@@ -361,12 +360,12 @@ func (b *BlockChain) nextThresholdState(prevNode *blockNode, deployment *deploym
 				switch {
 				case !choice.IsNo:
 					stateTuple.State = ThresholdLockedIn
-					stateTuple.Choice = choice
+					stateTuple.ChoiceID = choice.Id
 					break nextChoice
 
 				case choice.IsNo:
 					stateTuple.State = ThresholdFailed
-					stateTuple.Choice = choice
+					stateTuple.ChoiceID = choice.Id
 					break nextChoice
 				}
 			}
