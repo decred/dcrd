@@ -7,6 +7,7 @@ package blockchain
 import (
 	"errors"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -319,6 +320,168 @@ func TestMakeAgendasDefaultRequiredAgendas(t *testing.T) {
 	// networks set them active.
 	check(chaincfg.MainNetParams(), newThresholdState(ThresholdDefined, ""))
 	check(chaincfg.RegNetParams(), newThresholdState(ThresholdActive, ""))
+}
+
+// TestIsAgendaActivePositional ensures [BlockChain.isAgendaActivePositional]
+// returns the expected results for a variety of scenarios including the genesis
+// block, forced states, and historical states.  Historical states are tested
+// before, exactly at, and after the anchor along with side chains that do and
+// do not descend from the anchor.
+func TestIsAgendaActivePositional(t *testing.T) {
+	// Construct a synthetic block chain with a block index consisting of
+	// the following structure:
+	//
+	// 	genesis -> 1 -> 2 -> ... -> 9 -> 10  -> 11  -> 12  -> 13
+	// 	                             |      \-> 11a -> 12a
+	// 	                             \-> 10b -> 11b -> 12b
+	bc := newFakeChain(chaincfg.RegNetParams())
+	branch0 := chainedFakeNodes(bc.bestChain.Genesis(), 13)
+	branch1 := chainedFakeNodes(branch0[9], 2)
+	branch2 := chainedFakeNodes(branch0[8], 3)
+	for _, node := range slices.Concat(branch0, branch1, branch2) {
+		bc.index.AddNode(node)
+	}
+	bc.bestChain.SetTip(branchTip(branch0))
+
+	// Create agendas with and without historical and forced states as well as
+	// one that already has a cached anchor.
+	historicalAnchorNode := branch0[9]
+	withHistoricalState := &consensusAgenda{
+		historicalState: &historicalActivationState{
+			anchorHeight: historicalAnchorNode.height,
+			anchorHash:   historicalAnchorNode.hash,
+			choiceID:     "yes",
+		},
+	}
+	withHistoricalStateWrongHash := &consensusAgenda{
+		historicalState: &historicalActivationState{
+			anchorHeight: historicalAnchorNode.height,
+			anchorHash:   branch0[0].hash,
+			choiceID:     "yes",
+		},
+	}
+	withCachedAnchor := &consensusAgenda{
+		activeAnchor: &activeAnchorState{
+			anchor:   historicalAnchorNode,
+			choiceID: "yes",
+		},
+	}
+	thresholdDefined := newThresholdState(ThresholdDefined, "")
+	thresholdActive := newThresholdState(ThresholdActive, "yes")
+	thresholdFailed := newThresholdState(ThresholdFailed, "")
+	withForcedStateDefined := &consensusAgenda{forcedState: &thresholdDefined}
+	withForcedStateActive := &consensusAgenda{forcedState: &thresholdActive}
+	withForcedStateFailed := &consensusAgenda{forcedState: &thresholdFailed}
+
+	// The test cases are intentionally run in order.  The historical anchor is
+	// discovered by the "historical state exact anchor conclusive" case and
+	// subsequently used by the cases that test behavior with a cached anchor.
+	tests := []struct {
+		name   string
+		node   *blockNode
+		agenda *consensusAgenda
+		want   agendaActiveInfo
+	}{{
+		name:   "genesis block always inactive (with historical)",
+		agenda: withHistoricalState,
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		name:   "genesis block always inactive even when forced active",
+		agenda: withForcedStateActive,
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		name:   "forced defined",
+		agenda: withForcedStateDefined,
+		node:   branch0[0],
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		name:   "forced active",
+		agenda: withForcedStateActive,
+		node:   branch0[0],
+		want:   agendaActiveInfo{isValid: true, isActive: true},
+	}, {
+		name:   "forced failed",
+		agenda: withForcedStateFailed,
+		node:   branch0[0],
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		name:   "no historical state inconclusive (no anchor)",
+		agenda: &consensusAgenda{},
+		node:   branchTip(branch0),
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		name:   "no historical state cached anchor main chain descendant",
+		agenda: withCachedAnchor,
+		node:   branchTip(branch0),
+		want:   agendaActiveInfo{isValid: true, isActive: true},
+	}, {
+		name:   "no historical state cached anchor inconclusive side chain",
+		agenda: withCachedAnchor,
+		node:   branchTip(branch2),
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		name:   "historical state with wrong hash inconclusive",
+		agenda: withHistoricalStateWrongHash,
+		node:   historicalAnchorNode,
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		// Side chains after the anchor height are inconclusive and do not set
+		// the anchor.
+		name:   "historical state inconclusive side chain",
+		agenda: withHistoricalState,
+		node:   branchTip(branch2),
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		name:   "historical state before anchor height (no anchor)",
+		agenda: withHistoricalState,
+		node:   branch0[0],
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		// Side chains at the exact anchor height are inconclusive and do not
+		// set the anchor.
+		name:   "historical state exact anchor height side chain (no anchor)",
+		agenda: withHistoricalState,
+		node:   branch2[0],
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		// The exact historical anchor is conclusive and sets the anchor.
+		name:   "historical state exact anchor conclusive",
+		agenda: withHistoricalState,
+		node:   historicalAnchorNode,
+		want:   agendaActiveInfo{isValid: true, isActive: true},
+	}, {
+		// Blocks before the anchor height are still known inactive after the
+		// anchor is set.
+		name:   "historical state before anchor height (with anchor)",
+		agenda: withHistoricalState,
+		node:   branch0[0],
+		want:   agendaActiveInfo{isValid: true, isActive: false},
+	}, {
+		// Side chains at the exact anchor height are still inconclusive after
+		// the anchor is set.
+		name:   "historical state exact anchor height side chain (with anchor)",
+		agenda: withHistoricalState,
+		node:   branch2[0],
+		want:   agendaActiveInfo{isValid: false, isActive: false},
+	}, {
+		name:   "historical state main chain anchor descendant",
+		agenda: withHistoricalState,
+		node:   branchTip(branch0),
+		want:   agendaActiveInfo{isValid: true, isActive: true},
+	}, {
+		name:   "historical state side chain anchor descendant",
+		agenda: withHistoricalState,
+		node:   branchTip(branch1),
+		want:   agendaActiveInfo{isValid: true, isActive: true},
+	}}
+
+	for _, test := range tests {
+		info := bc.isAgendaActivePositional(test.node, test.agenda)
+		if info != test.want {
+			t.Errorf("%q: unexpected result -- got %+v, want %+v", test.name,
+				info, test.want)
+		}
+	}
 }
 
 // TestMaxBlockSizeChoice ensures that the maximum block size is chosen based on
