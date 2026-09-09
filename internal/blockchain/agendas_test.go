@@ -249,6 +249,78 @@ func TestDeploymentParamsValidation(t *testing.T) {
 	}
 }
 
+// TestMakeAgendasDefaultRequiredAgendas ensures [makeAgendas] creates the
+// required default agendas with the expected states when no deployments are
+// specified for them in the chain params.
+func TestMakeAgendasDefaultRequiredAgendas(t *testing.T) {
+	// expectedAgendaIDs are the required agendas that must be present in the
+	// agenda map returned by [makeAgendas].
+	expectedAgendaIDs := []string{chaincfg.VoteIDMaxBlockSize,
+		chaincfg.VoteIDSDiffAlgorithm,
+		chaincfg.VoteIDLNFeatures,
+		chaincfg.VoteIDFixLNSeqLocks,
+		chaincfg.VoteIDHeaderCommitments,
+		chaincfg.VoteIDTreasury,
+		chaincfg.VoteIDRevertTreasuryPolicy,
+		chaincfg.VoteIDExplicitVersionUpgrades,
+		chaincfg.VoteIDAutoRevocations,
+		chaincfg.VoteIDChangeSubsidySplit,
+		chaincfg.VoteIDBlake3Pow,
+		chaincfg.VoteIDChangeSubsidySplitR2,
+		chaincfg.VoteIDMaxTreasurySpend,
+	}
+
+	// removeDeployments removes all deployments from the specified parameters.
+	removeDeployments := func(params *chaincfg.Params) {
+		params.Deployments = nil
+	}
+
+	// check removes the deployments from the passed parameters, makes agendas
+	// for them, and then asserts that all of the required agendas exist and
+	// have the provided forced state.
+	check := func(params *chaincfg.Params, wantState ThresholdStateTuple) {
+		t.Helper()
+
+		// Remove all deployments from the provided chain parameters and then
+		// make agendas for them.
+		removeDeployments(params)
+		agendas, err := makeAgendas(params, nil)
+		if err != nil {
+			t.Fatalf("failed to make agendas: %v", err)
+		}
+
+		// Ensure the expected number of agendas exist.
+		if len(agendas) != len(expectedAgendaIDs) {
+			t.Errorf("unexpected number of agendas -- got %d, want %d",
+				len(agendas), len(expectedAgendaIDs))
+			return
+		}
+
+		// Ensure each required agenda exists and has the desired state.
+		for _, id := range expectedAgendaIDs {
+			agenda, ok := agendas[id]
+			if !ok {
+				t.Errorf("agenda id %s: missing required default agenda", id)
+				continue
+			}
+
+			if agenda.forcedState == nil {
+				t.Errorf("agenda id %s: missing forced state", id)
+				continue
+			}
+			if *agenda.forcedState != wantState {
+				t.Errorf("agenda id %s: unexpected forced state -- got %v, "+
+					"want %v", id, *agenda.forcedState, wantState)
+			}
+		}
+	}
+
+	// Ensure the main network sets created agendas to defined and non-main
+	// networks set them active.
+	check(chaincfg.MainNetParams(), newThresholdState(ThresholdDefined, ""))
+	check(chaincfg.RegNetParams(), newThresholdState(ThresholdActive, ""))
+}
+
 // TestMaxBlockSizeChoice ensures that the maximum block size is chosen based on
 // the available options in the chain params per the state of the agenda as
 // expected.
