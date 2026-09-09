@@ -272,6 +272,41 @@ func extractDeployments(params *chaincfg.Params) (map[string]deploymentInfo, err
 	return deploymentData, nil
 }
 
+// isAgendaActive attempts to determine whether or not an agenda is active
+// for the block AFTER the given block node.
+//
+// Its goal is to consolidate the logic that is the same for all agendas which
+// only have a single valid passing choice that makes the agenda active.
+// Consequently, it is not suitable for agendas that have more than one possible
+// passing winning choice.
+//
+// Note that valid agendas will always return false for the genesis block since
+// agendas are never active for it.  The genesis block is determined by a nil
+// previous node since it is the only block that has no predecessor.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isAgendaActive(prevNode *blockNode, deploymentID string) (bool, error) {
+	deployment, ok := b.deploymentData[deploymentID]
+	if !ok {
+		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+		return false, contextError(ErrUnknownDeploymentID, str)
+	}
+
+	// Agendas are never active for the genesis block.
+	if prevNode == nil {
+		return false, nil
+	}
+
+	// Determine the status by tallying votes.
+	//
+	// NOTE: The choice field of the return threshold state is intentionally not
+	// examined here.  This assumes there is only one possible passing choice
+	// that makes the agenda active.  Consequently, this function is not
+	// suitable for agendas with more than one possible passing choice.
+	state := b.deploymentState(prevNode, &deployment)
+	return state.State == ThresholdActive, nil
+}
+
 // isActiveFn represents a function used to determine whether or not an agenda
 // is active from the point of view of the passed block node.
 //
@@ -325,20 +360,8 @@ func (b *BlockChain) isAgendaActiveByHash(prevHash *chainhash.Hash, isActiveFn i
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the LN features consensus
-	// vote as defined in DCP0002 and DCP0003.
 	const deploymentID = chaincfg.VoteIDLNFeatures
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
@@ -361,20 +384,8 @@ func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, e
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the header commitments
-	// consensus vote as defined in DCP0005.
 	const deploymentID = chaincfg.VoteIDHeaderCommitments
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsHeaderCommitmentsAgendaActive returns whether or not the header commitments
@@ -402,20 +413,8 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 		return false, nil
 	}
 
-	// Determine the correct deployment details for the decentralized treasury
-	// consensus vote as defined in DCP0006.
 	const deploymentID = chaincfg.VoteIDTreasury
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
@@ -438,20 +437,8 @@ func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, err
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isRevertTreasuryPolicyActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the revert treasury
-	// expenditure policy consensus vote as defined in DCP0007.
 	const deploymentID = chaincfg.VoteIDRevertTreasuryPolicy
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsRevertTreasuryPolicyActive returns whether or not the revert treasury
@@ -474,20 +461,8 @@ func (b *BlockChain) IsRevertTreasuryPolicyActive(prevHash *chainhash.Hash) (boo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isExplicitVerUpgradesAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the explicit version
-	// upgrades consensus vote as defined in DCP0008.
 	const deploymentID = chaincfg.VoteIDExplicitVersionUpgrades
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsExplicitVerUpgradesAgendaActive returns whether or not the explicit version
@@ -510,20 +485,8 @@ func (b *BlockChain) IsExplicitVerUpgradesAgendaActive(prevHash *chainhash.Hash)
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isAutoRevocationsAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the automatic ticket
-	// revocations consensus vote as defined in DCP0009.
 	const deploymentID = chaincfg.VoteIDAutoRevocations
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsAutoRevocationsAgendaActive returns whether or not the automatic ticket
@@ -546,20 +509,8 @@ func (b *BlockChain) IsAutoRevocationsAgendaActive(prevHash *chainhash.Hash) (bo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the block reward subsidy
-	// split change consensus vote as defined in DCP0010.
 	const deploymentID = chaincfg.VoteIDChangeSubsidySplit
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsSubsidySplitAgendaActive returns whether or not the agenda to change the
@@ -599,17 +550,7 @@ func (b *BlockChain) isBlake3PowAgendaForcedActive() bool {
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isBlake3PowAgendaActive(prevNode *blockNode) (bool, error) {
 	const deploymentID = chaincfg.VoteIDBlake3Pow
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsBlake3PowAgendaActive returns whether or not the agenda to change the proof
@@ -632,20 +573,8 @@ func (b *BlockChain) IsBlake3PowAgendaActive(prevHash *chainhash.Hash) (bool, er
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isSubsidySplitR2AgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the block reward subsidy
-	// split change consensus vote as defined in DCP0012.
 	const deploymentID = chaincfg.VoteIDChangeSubsidySplitR2
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined
-	// here because there is only one possible choice that can be active for
-	// the agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsSubsidySplitR2AgendaActive returns whether or not the agenda to change the
@@ -669,20 +598,8 @@ func (b *BlockChain) IsSubsidySplitR2AgendaActive(prevHash *chainhash.Hash) (boo
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isMaxTreasurySpendAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment details for the max treasury spend
-	// consensus vote as defined in DCP0013.
 	const deploymentID = chaincfg.VoteIDMaxTreasurySpend
-	deployment, ok := b.deploymentData[deploymentID]
-	if !ok {
-		str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
-		return false, contextError(ErrUnknownDeploymentID, str)
-	}
-
-	// NOTE: The choice field of the return threshold state is not examined here
-	// because there is only one possible choice that can be active for the
-	// agenda, which is yes, so there is no need to check it.
-	state := b.deploymentState(prevNode, &deployment)
-	return state.State == ThresholdActive, nil
+	return b.isAgendaActive(prevNode, deploymentID)
 }
 
 // IsMaxTreasurySpendAgendaActive returns whether or not the agenda to change
