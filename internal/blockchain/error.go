@@ -710,13 +710,18 @@ const (
 	// choice that is marked as the no choice.
 	ErrDeploymentTooManyNo = ErrorKind("ErrDeploymentTooManyNo")
 
-	// ErrDeploymentChoiceAbstain indicates the forced choice id for a
-	// deployment is the unusable abstaining choice.
+	// ErrDeploymentChoiceAbstain indicates the forced choice id or historical
+	// consensus change result for a deployment is the unusable abstaining
+	// choice.
 	ErrDeploymentChoiceAbstain = ErrorKind("ErrDeploymentChoiceAbstain")
 
 	// ErrForcedMainNetChoice indicates a forced choice id is configured for a
 	// deployment on the main network.
 	ErrForcedMainNetChoice = ErrorKind("ErrForcedMainNetChoice")
+
+	// ErrHistoricalForcedChoice indicates a forced choice id is configured for
+	// a deployment that also has historical state.
+	ErrHistoricalForcedChoice = ErrorKind("ErrHistoricalForcedChoice")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

@@ -2132,7 +2132,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Make agendas from the provided params while validating the deployments
 	// conform to the required semantics.
 	params := config.ChainParams
-	agendas, err := makeAgendas(params)
+	agendas, err := makeAgendas(params, makeHistoricalAgendas())
 	if err != nil {
 		return nil, err
 	}

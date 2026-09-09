@@ -179,7 +179,7 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 
 	// Make agendas from the provided params while validating the deployments
 	// conform to the required semantics.
-	agendas, err := makeAgendas(params)
+	agendas, err := makeAgendas(params, makeHistoricalAgendas())
 	if err != nil {
 		panic(err)
 	}
@@ -565,6 +565,24 @@ func forceDeploymentResult(t *testing.T, params *chaincfg.Params, voteID, choice
 
 	_, deployment := findDeployment(t, params, voteID)
 	deployment.ForcedChoiceID = choiceID
+}
+
+// removeHistoricalConsensusChange modifies the passed chain to remove any
+// historical consensus change information for the given agenda ID when it
+// exists.
+func removeHistoricalConsensusChange(t *testing.T, chain *BlockChain, agendaID string) {
+	t.Helper()
+
+	historicalAgendas := makeHistoricalAgendas()
+	if ha, ok := historicalAgendas[chain.chainParams.Net]; ok {
+		delete(ha, agendaID)
+	}
+	agendas, err := makeAgendas(chain.chainParams, historicalAgendas)
+	if err != nil {
+		t.Fatalf("failed to make agendas without historical consensus change "+
+			"for agenda %q: %v", agendaID, err)
+	}
+	chain.agendas = agendas
 }
 
 // chaingenHarness provides a test harness which encapsulates a test instance, a

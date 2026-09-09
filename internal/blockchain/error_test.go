@@ -177,6 +177,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrDeploymentTooManyNo, "ErrDeploymentTooManyNo"},
 		{ErrDeploymentChoiceAbstain, "ErrDeploymentChoiceAbstain"},
 		{ErrForcedMainNetChoice, "ErrForcedMainNetChoice"},
+		{ErrHistoricalForcedChoice, "ErrHistoricalForcedChoice"},
 	}
 
 	t.Logf("Running %d tests", len(tests))
