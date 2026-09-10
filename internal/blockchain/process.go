@@ -485,16 +485,30 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 		}
 	}
 
+	// The block must pass all preconditions that are required before any
+	// further validation of the block data.  Notably, the header must commit to
+	// the block data to ensure the data being validated is actually the data
+	// for the claimed header.
+	//
+	// Until [BlockChain.checkBlockContext] succeeds, it is only safe to
+	// attribute failures to the block hash when these checks pass and the
+	// returned flag indicates the data commitment has definitively been proven.
+	dataCommitProven, err := b.checkBlockDataPreconditions(block, node.parent)
+	if err != nil {
+		return 0, err
+	}
+
 	// Perform preliminary sanity checks on the block and its transactions.
 	// This is done prior to any attempts to accept the block data and connect
 	// the block to quickly eliminate blocks that are obviously incorrect and
 	// significantly increase the cost to attackers.
-	err := checkBlockDataSanity(block, b.chainParams)
+	err = checkBlockDataSanity(block, b.chainParams)
 	if err != nil {
 		// Mark the block as having failed validation and all of its descendants
-		// as having an invalid ancestor when it violates a consensus rule.
+		// as having an invalid ancestor when it violates a consensus rule and
+		// the data commitment has definitively been proven.
 		var rErr RuleError
-		if errors.As(err, &rErr) {
+		if dataCommitProven && errors.As(err, &rErr) {
 			b.index.MarkBlockFailedValidation(node)
 		}
 		return 0, err
@@ -523,9 +537,10 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 	linkedNodes, err := b.maybeAcceptBlockData(node, block, flags)
 	if err != nil {
 		// Mark the block as having failed validation and all of its descendants
-		// as having an invalid ancestor when it violates a consensus rule.
+		// as having an invalid ancestor when it violates a consensus rule and
+		// the data commitment has definitively been proven.
 		var rErr RuleError
-		if errors.As(err, &rErr) {
+		if dataCommitProven && errors.As(err, &rErr) {
 			b.index.MarkBlockFailedValidation(node)
 		}
 		return 0, err

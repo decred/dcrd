@@ -894,28 +894,22 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 			"any transactions")
 	}
 
-	// A block must not exceed the maximum allowed block payload when
-	// serialized.
+	// A block must not exceed the maximum allowed block payload when serialized
+	// and the block header must commit to the actual block size.
 	//
-	// This is a quick and context-free sanity check of the maximum block
-	// size according to the wire protocol.  Even though the wire protocol
-	// already prevents blocks bigger than this limit, there are other
-	// methods of receiving a block that might not have been checked
-	// already.  A separate block size is enforced later that takes into
-	// account the network-specific block size and the results of block
-	// size votes.  Typically that block size is more restrictive than this
-	// one.
+	// This is a quick and context-free sanity check of the maximum block size
+	// according to the wire protocol.  A separate consensus-specific block size
+	// is enforced later that takes into account the network-specific block size
+	// and the results of block size votes.  Typically that block size is more
+	// restrictive than this one.
 	serializedSize := msgBlock.SerializeSize()
-	if serializedSize > wire.MaxBlockPayload {
-		str := fmt.Sprintf("serialized block is too big - got %d, "+
-			"max %d", serializedSize, wire.MaxBlockPayload)
-		return ruleError(ErrBlockTooBig, str)
+	if err := checkBlockSizeSanity(int64(serializedSize)); err != nil {
+		return err
 	}
 	header := &msgBlock.Header
 	if header.Size != uint32(serializedSize) {
 		str := fmt.Sprintf("serialized block is not size indicated in "+
-			"header - got %d, expected %d", header.Size,
-			serializedSize)
+			"header - got %d, expected %d", header.Size, serializedSize)
 		return ruleError(ErrWrongBlockSize, str)
 	}
 
@@ -1855,26 +1849,90 @@ func checkTicketRedeemers(voteTicketHashes, revocationTicketHashes, winners,
 	return nil
 }
 
+// checkBlockSizeSanity validates the provided serialized block does not exceed
+// the maximum block size according to the wire protocol.  Even though the wire
+// protocol already prevents blocks bigger than this limit, there are other
+// methods of receiving a block that might not have been checked already.
+//
+// This is NOT the same as the maximum block size allowed by consensus.
+//
+// The consensus block size limit is an independent value that is enforced
+// separately and takes into account the network-specific block size and the
+// results of block size votes.  Typically that block size is more restrictive
+// than this one.
+//
+// The purpose of this limit is to prevent DoS vectors before the context needed
+// to definitively determine the independent consensus block size limit is
+// available.
+//
+// This check is context free.
+func checkBlockSizeSanity(serializedSize int64) error {
+	if serializedSize > wire.MaxBlockPayload {
+		str := fmt.Sprintf("serialized block is too big - got %d, "+
+			"max %d", serializedSize, wire.MaxBlockPayload)
+		return ruleError(ErrBlockTooBig, str)
+	}
+
+	return nil
+}
+
+// merkleRootVariant defines the available variants for merkle root
+// calculations.
+type merkleRootVariant uint8
+
+const (
+	// mrvOriginal specifies the original merkle root semantics that were in
+	// effect at initial launch.  In particular, the normal merkle root field of
+	// the header commits to the regular transaction tree and the stake root
+	// (also referred to as the commitment root) field of the header commits to
+	// the stake transaction tree.
+	mrvOriginal merkleRootVariant = iota
+
+	// mrvDCP0005 specifies the updated merkle root semantics specified by
+	// DCP0005.  In particular, the merkle root field of the header commits to
+	// both the regular and stake transaction trees.
+	mrvDCP0005
+)
+
 // checkMerkleRoots validates the merkle root(s) in the block header match the
-// calculated value(s).
+// calculated value(s) according to the provided merkle root variant.  It panics
+// if an invalid variant is passed.
 //
-// Prior to the activation of the header commitments agenda, the regular
-// transaction tree must match the merkle root field and the stake transaction
-// tree must match the stake root field.
+// For [mrvOriginal], the regular transaction tree must match the merkle root
+// field and the stake transaction tree must match the stake root field.
 //
-// Conversely, when the header commitments agenda is active, the merkle root
-// field of the header is required to be the root of a merkle tree that has the
-// individual merkle roots of the two transaction trees as leaves.
+// For [mrvDCP0005], the merkle root field of the header is required to be the
+// root of a merkle tree that has the individual merkle roots of the two
+// transaction trees as leaves.
 //
-// This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode) error {
+// This function is safe for concurrent access.
+func checkMerkleRoots(block *wire.MsgBlock, variant merkleRootVariant) error {
 	header := &block.Header
 
-	hdrCommitmentsActive, err := b.isHeaderCommitmentsAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-	if hdrCommitmentsActive {
+	switch variant {
+	case mrvOriginal:
+		// Build merkle tree and ensure the calculated merkle root matches the
+		// entry in the block header.
+		wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(block.Transactions)
+		if header.MerkleRoot != wantMerkleRoot {
+			str := fmt.Sprintf("block merkle root is invalid - block header "+
+				"indicates %v, but calculated value is %v", header.MerkleRoot,
+				wantMerkleRoot)
+			return ruleError(ErrBadMerkleRoot, str)
+		}
+
+		// Build the stake tx tree merkle root too and check it.
+		wantStakeRoot := standalone.CalcTxTreeMerkleRoot(block.STransactions)
+		if header.StakeRoot != wantStakeRoot {
+			str := fmt.Sprintf("block stake merkle root is invalid - block "+
+				"header indicates %v, but calculated value is %v",
+				header.StakeRoot, wantStakeRoot)
+			return ruleError(ErrBadMerkleRoot, str)
+		}
+
+		return nil
+
+	case mrvDCP0005:
 		// Build the two merkle trees and use their calculated merkle roots as
 		// leaves to another merkle tree and ensure the final calculated merkle
 		// root matches the entry in the block header.
@@ -1890,28 +1948,121 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 		return nil
 	}
 
-	// Fall back to the old behavior.
+	panic(fmt.Sprintf("unknown merkle root algorithm specified - %d", variant))
+}
 
-	// Build merkle tree and ensure the calculated merkle root matches the
-	// entry in the block header.
-	wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(block.Transactions)
-	if header.MerkleRoot != wantMerkleRoot {
-		str := fmt.Sprintf("block merkle root is invalid - block header "+
-			"indicates %v, but calculated value is %v", header.MerkleRoot,
-			wantMerkleRoot)
-		return ruleError(ErrBadMerkleRoot, str)
+// checkBlockDataPreconditions performs checks that must be completed before any
+// further validation of the block data.  In particular, it ensures the
+// serialized block is within the applicable size limit and that its header
+// commits to the transaction data.  The returned boolean indicates whether or
+// not the data commitment is definitively known to be valid.
+//
+// These checks present a challenge by causing a circular dependency.  They must
+// be performed before further validation of the block data because failures in
+// uncommitted data cannot safely be attributed to the block header.  However,
+// before [blockIndex.CanValidate] is true, the active agendas required to apply
+// these checks cannot necessarily be determined because they depend on votes
+// contained in ancestor block data.
+//
+// Since the activation results of all currently relevant agendas are fixed
+// historical facts, the circular dependency is currently resolved by relying on
+// the well-known activation blocks for each supported network.
+//
+// Any future consensus changes that affect checks performed by this function
+// require great care to avoid introducing incorrect or exploitable behavior.
+// In particular, when a check depends on an agenda whose state cannot yet be
+// determined, this early validation path must conservatively account for every
+// consensus rule that could apply.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) checkBlockDataPreconditions(block *dcrutil.Block, prevNode *blockNode) (bool, error) {
+	// A block must not exceed the maximum allowed block payload when
+	// serialized.
+	//
+	// This is a quick and context-free sanity check of the maximum block size
+	// according to the wire protocol.  A separate consensus-specific block size
+	// is enforced later that takes into account the network-specific block size
+	// and the results of block size votes.  Typically that block size is more
+	// restrictive than this one.
+	msgBlock := block.MsgBlock()
+	serializedSize := msgBlock.SerializeSize()
+	if err := checkBlockSizeSanity(int64(serializedSize)); err != nil {
+		return false, err
 	}
 
-	// Build the stake tx tree merkle root too and check it.
-	wantStakeRoot := standalone.CalcTxTreeMerkleRoot(block.STransactions)
-	if header.StakeRoot != wantStakeRoot {
-		str := fmt.Sprintf("block stake merkle root is invalid - block header "+
-			"indicates %v, but calculated value is %v", header.StakeRoot,
-			wantStakeRoot)
-		return ruleError(ErrBadMerkleRoot, str)
+	// As described by the function comment, the ability to determine whether or
+	// not the header commitments agenda is active is not guaranteed here.  So,
+	// attempt to determine the agenda state from positional data.
+	//
+	// The positional agenda determination makes use of fixed historical facts
+	// which means that it will always resolve to a known state for the main and
+	// test networks.
+	//
+	// For other networks, it may or may not be able to determine the state and
+	// that case is handled below.
+	//
+	// When the agenda state can be definitively determined, validate the header
+	// commits to merkle root(s) of the transaction trees using the specific
+	// algorithm per the active status and return true to signal that the data
+	// is definitively known to be valid.
+	const agendaID = chaincfg.VoteIDHeaderCommitments
+	agendaInfo, err := b.isAgendaActivePositionalByID(prevNode, agendaID)
+	if err != nil {
+		return false, err
+	}
+	if agendaInfo.isValid {
+		merkleVariant := mrvOriginal
+		if agendaInfo.isActive {
+			merkleVariant = mrvDCP0005
+		}
+		if err := checkMerkleRoots(msgBlock, merkleVariant); err != nil {
+			return false, err
+		}
+
+		return true, nil
 	}
 
-	return nil
+	// The agenda status could not be definitively determined, so permit both
+	// possibilities and allow the contextual checks that happen later to ensure
+	// validity for the correct algorithm as determined by the agenda state.
+	//
+	// The false return indicates the data commitment is not definitively known
+	// to be valid.  That is, it is only provisionally valid when the error is
+	// nil.
+	err = checkMerkleRoots(msgBlock, mrvOriginal)
+	if err != nil {
+		err = checkMerkleRoots(msgBlock, mrvDCP0005)
+	}
+	return false, err
+}
+
+// checkMerkleRootsContext validates the merkle root(s) in the block header
+// match the calculated value(s).
+//
+// Prior to the activation of the header commitments agenda, the regular
+// transaction tree must match the merkle root field and the stake transaction
+// tree must match the stake root field.
+//
+// Conversely, when the header commitments agenda is active, the merkle root
+// field of the header is required to be the root of a merkle tree that has the
+// individual merkle roots of the two transaction trees as leaves.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) checkMerkleRootsContext(block *wire.MsgBlock, prevNode *blockNode) error {
+	// The expected merkle root(s) depend on the state of the header commitments
+	// agenda.  An earlier positional check ensures that they match at least one
+	// of the possible algorithms.  Ensure they actually match the correct
+	// algorithm now that the full context is available to determine the agenda
+	// status.
+	hdrCmtsActive, err := b.isHeaderCommitmentsAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	merkleVariant := mrvOriginal
+	if hdrCmtsActive {
+		merkleVariant = mrvDCP0005
+	}
+	return checkMerkleRoots(block, merkleVariant)
 }
 
 // checkBlockContext performs several validation checks on the block which
@@ -1955,6 +2106,16 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	header := &msgBlock.Header
 	err := b.checkBlockHeaderContext(header, prevNode, flags)
 	if err != nil {
+		return err
+	}
+
+	// The calculated merkle root(s) of the transaction trees must match the
+	// associated entries in the header.
+	//
+	// This check must happen prior to any further checks of the block data to
+	// ensure the block data being validated is actually the data for the
+	// claimed header.
+	if err := b.checkMerkleRootsContext(msgBlock, prevNode); err != nil {
 		return err
 	}
 
@@ -2235,13 +2396,6 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		str := fmt.Sprintf("serialized block is too big - got %d, max %d",
 			serializedSize, maxBlockSize)
 		return ruleError(ErrBlockTooBig, str)
-	}
-
-	// The calculated merkle root(s) of the transaction trees must match the
-	// associated entries in the header.
-	err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
-	if err != nil {
-		return err
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
@@ -4496,6 +4650,12 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 				"%s, but got %s", tip.hash, parentHash)
 		}
 		return ruleError(ErrInvalidTemplateParent, str)
+	}
+
+	// The block must pass all preconditions that are required before any
+	// further validation of the block data.
+	if _, err := b.checkBlockDataPreconditions(block, prevNode); err != nil {
+		return err
 	}
 
 	// Perform context-free sanity checks on the block and its transactions.

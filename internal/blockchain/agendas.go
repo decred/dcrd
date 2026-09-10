@@ -678,6 +678,29 @@ func (b *BlockChain) isAgendaActivePositional(prevNode *blockNode, agenda *conse
 	return agendaActiveInfo{isValid: false}
 }
 
+// isAgendaActivePositionalByID attempts to determine whether or not an agenda
+// is active for the block AFTER the given block node using only information
+// available that depends on its position within the block chain and having the
+// headers of all ancestors available.  It does not, and must not, rely on
+// having the full block data of all ancestors available or deployment details
+// associated with the agenda.
+//
+// See [BlockChain.isAgendaActivePositional] for more details.  This only
+// differs in that it is a convenience wrapper that looks up the agenda for the
+// given ID and returns an error if the provided ID is unknown.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isAgendaActivePositionalByID(prevNode *blockNode, agendaID string) (agendaActiveInfo, error) {
+	agenda, ok := b.agendas[agendaID]
+	if !ok {
+		str := fmt.Sprintf("agenda ID %s does not exist", agendaID)
+		return agendaActiveInfo{}, contextError(ErrUnknownAgendaID, str)
+	}
+
+	info := b.isAgendaActivePositional(prevNode, agenda)
+	return info, nil
+}
+
 // isAgendaActive attempts to determine whether or not an agenda is active
 // for the block AFTER the given block node.
 //

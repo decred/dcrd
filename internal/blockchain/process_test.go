@@ -220,6 +220,7 @@ func genSharedProcessTestBlocks(t *testing.T) *chaingen.Generator {
 	// Create a new database and chain instance needed to create the generator
 	// populated with the desired blocks.
 	params := chaincfg.RegNetParams()
+	forceDeploymentResult(t, params, chaincfg.VoteIDHeaderCommitments, "no")
 	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
