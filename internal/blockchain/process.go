@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2024 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -150,19 +150,13 @@ func (b *BlockChain) isAssumeValidAncestor(node *blockNode) bool {
 // them, so those fields are not included here.  This provides support for full
 // headers-first semantics.
 //
-// The flag for check header sanity allows the additional header sanity checks
-// to be skipped which is useful for the full block processing path which checks
-// the sanity of the entire block, including the header, before attempting to
-// accept its header in order to quickly eliminate blocks that are obviously
-// incorrect.
-//
 // In the case the block header is already known, the associated block node is
 // examined to determine if the block is already known to be invalid, in which
 // case an appropriate error will be returned.  Otherwise, the block node is
 // returned.
 //
 // This function MUST be called with the chain lock held (for writes).
-func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeaderSanity bool) (*blockNode, error) {
+func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader) (*blockNode, error) {
 	// Avoid validating the header again if its validation status is already
 	// known.  Invalid headers are never added to the block index, so if there
 	// is an entry for the block hash, the header itself is known to be valid.
@@ -178,11 +172,9 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeade
 	}
 
 	// Perform context-free sanity checks on the block header.
-	if checkHeaderSanity {
-		err := checkBlockHeaderSanity(header, b.timeSource, BFNone, b.chainParams)
-		if err != nil {
-			return nil, err
-		}
+	err := checkBlockHeaderSanity(header, b.timeSource, BFNone, b.chainParams)
+	if err != nil {
+		return nil, err
 	}
 
 	// Orphan headers are not allowed and this function should never be called
@@ -204,7 +196,7 @@ func (b *BlockChain) maybeAcceptBlockHeader(header *wire.BlockHeader, checkHeade
 
 	// The block header must pass all of the validation rules which depend on
 	// its position within the block chain.
-	err := b.checkBlockHeaderPositional(header, prevNode, BFNone)
+	err = b.checkBlockHeaderPositional(header, prevNode, BFNone)
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +248,7 @@ func (b *BlockChain) ProcessBlockHeader(header *wire.BlockHeader) error {
 	// index, validate it according to both context free and context dependent
 	// positional checks, and create a block index entry for it.
 	b.chainLock.Lock()
-	const checkHeaderSanity = true
-	_, err := b.maybeAcceptBlockHeader(header, checkHeaderSanity)
+	_, err := b.maybeAcceptBlockHeader(header)
 	if err != nil {
 		b.chainLock.Unlock()
 		return err
@@ -307,12 +298,11 @@ func (b *BlockChain) maybeAcceptBlockData(node *blockNode, block *dcrutil.Block,
 	b.index.PopulateTicketInfo(node, ticketInfo)
 
 	// The block must pass all of the validation rules which depend on the
-	// position of the block within the block chain.  Not that this only checks
+	// position of the block within the block chain.  Note that this only checks
 	// the block data, not including the header, because the header was already
 	// checked when it was accepted to the block index.
 	err := b.checkBlockDataPositional(block, node.parent, flags)
 	if err != nil {
-		b.index.MarkBlockFailedValidation(node)
 		return nil, err
 	}
 
@@ -477,39 +467,37 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 		}
 	}
 
-	// Perform preliminary sanity checks on the block and its transactions.
-	// This is done prior to any attempts to accept the block data and connect
-	// the block to quickly eliminate blocks that are obviously incorrect and
-	// significantly increase the cost to attackers.  Of particular note is that
-	// the checks include proof-of-work validation which means a significant
-	// amount of work must have been done in order to pass this check.
-	err := checkBlockSanity(block, b.timeSource, BFNone, b.chainParams)
-	if err != nil {
-		// When there is a block index entry for the block, which will be the
-		// case if the header was previously seen and passed all validation,
-		// mark it as having failed validation and all of its descendants as
-		// having an invalid ancestor.
-		if node != nil {
-			b.index.MarkBlockFailedValidation(node)
-		}
-		return 0, err
-	}
-
 	// Potentially accept the header to the block index when it does not already
 	// exist.
 	//
 	// This entails fully validating it according to both context independent
-	// and context dependent checks and creating a block index entry for it.
+	// and positional checks and creating a block index entry for it.
 	//
-	// Note that the header sanity checks are skipped because they were just
-	// performed above as part of the full block sanity checks.
+	// Of particular note is that the checks include proof-of-work validation
+	// which means a significant amount of work must have been done in order to
+	// add the header to the index and pass this check.
 	if node == nil {
-		const checkHeaderSanity = false
+		var err error
 		header := &block.MsgBlock().Header
-		node, err = b.maybeAcceptBlockHeader(header, checkHeaderSanity)
+		node, err = b.maybeAcceptBlockHeader(header)
 		if err != nil {
 			return 0, err
 		}
+	}
+
+	// Perform preliminary sanity checks on the block and its transactions.
+	// This is done prior to any attempts to accept the block data and connect
+	// the block to quickly eliminate blocks that are obviously incorrect and
+	// significantly increase the cost to attackers.
+	err := checkBlockDataSanity(block, b.chainParams)
+	if err != nil {
+		// Mark the block as having failed validation and all of its descendants
+		// as having an invalid ancestor when it violates a consensus rule.
+		var rErr RuleError
+		if errors.As(err, &rErr) {
+			b.index.MarkBlockFailedValidation(node)
+		}
+		return 0, err
 	}
 
 	// Enable skipping some of the more expensive validation checks when the
@@ -534,6 +522,12 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block) (int64, error) {
 	// are now eligible for validation.
 	linkedNodes, err := b.maybeAcceptBlockData(node, block, flags)
 	if err != nil {
+		// Mark the block as having failed validation and all of its descendants
+		// as having an invalid ancestor when it violates a consensus rule.
+		var rErr RuleError
+		if errors.As(err, &rErr) {
+			b.index.MarkBlockFailedValidation(node)
+		}
 		return 0, err
 	}
 
