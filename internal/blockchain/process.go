@@ -706,6 +706,7 @@ func (b *BlockChain) InvalidateBlock(hash *chainhash.Hash) error {
 	// all of its descendants as having an invalid ancestor when it is not part
 	// of the current best chain.
 	b.recentContextChecks.Delete(node.hash)
+	b.recentMerkleChecks.Delete(node.hash)
 	if !b.bestChain.Contains(node) {
 		b.index.MarkBlockFailedValidation(node)
 		b.chainLock.Lock()
@@ -833,6 +834,7 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 			}
 			b.index.unsetStatusFlags(n, statusValidateFailed|statusInvalidAncestor)
 			b.recentContextChecks.Delete(n.hash)
+			b.recentMerkleChecks.Delete(n.hash)
 		}
 
 		if b.index.canValidate(n) && n.workSum.GtEq(&curBestTip.workSum) {
@@ -884,6 +886,7 @@ func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
 		for n := finalNotKnownInvalidDescendant; n != vfNode; n = n.parent {
 			b.index.unsetStatusFlags(n, statusInvalidAncestor)
 			b.recentContextChecks.Delete(n.hash)
+			b.recentMerkleChecks.Delete(n.hash)
 			if b.index.canValidate(n) && n.workSum.GtEq(&curBestTip.workSum) {
 				b.index.addBestChainCandidate(n)
 			}

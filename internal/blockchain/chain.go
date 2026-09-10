@@ -48,6 +48,11 @@ const (
 	// contextCheckCacheSize is the number of recent successful contextual block
 	// check results to keep in memory.
 	contextCheckCacheSize = 25
+
+	// merkleCheckCacheSize is the number of recent blocks that have
+	// definitively proven the header commits to the received data for the block
+	// to keep in memory.
+	merkleCheckCacheSize = 25
 )
 
 // panicf is a convenience function that formats according to the given format
@@ -196,8 +201,12 @@ type BlockChain struct {
 	// recentContextChecks tracks recent blocks that have successfully passed
 	// all contextual checks and is primarily used as an optimization to avoid
 	// running the checks again when possible.
+	//
+	// recentMerkleChecks tracks recent blocks that have definitively proven the
+	// header commits to the received data for the block.
 	recentBlocks        *lru.Map[chainhash.Hash, *dcrutil.Block]
 	recentContextChecks *lru.Set[chainhash.Hash]
+	recentMerkleChecks  *lru.Set[chainhash.Hash]
 
 	// These fields house a cached view that represents a block that votes
 	// against its parent and therefore contains all changes as a result
@@ -2116,6 +2125,13 @@ func newRecentContextChecksCache() *lru.Set[chainhash.Hash] {
 	return lru.NewSet[chainhash.Hash](contextCheckCacheSize)
 }
 
+// newRecentMerkleChecksCache returns a new LRU cache for tracking recent
+// blocks that have definitively proven the header commits to the received data
+// for the block.
+func newRecentMerkleChecksCache() *lru.Set[chainhash.Hash] {
+	return lru.NewSet[chainhash.Hash](merkleCheckCacheSize)
+}
+
 // New returns a BlockChain instance using the provided configuration details.
 func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Enforce required config fields.
@@ -2207,6 +2223,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		bestChain:                     newChainView(nil),
 		recentBlocks:                  newRecentBlocksCache(),
 		recentContextChecks:           newRecentContextChecksCache(),
+		recentMerkleChecks:            newRecentMerkleChecksCache(),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),
