@@ -875,28 +875,19 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 	return nil
 }
 
-// checkBlockSanity performs some preliminary checks on a block to ensure it is
-// sane before continuing with block processing.  These checks are context
-// free.
-//
-// The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to checkBlockHeaderSanity.
-func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
-	msgBlock := block.MsgBlock()
-	header := &msgBlock.Header
-	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
-	if err != nil {
-		return err
-	}
-
+// checkBlockDataSanity performs some preliminary checks on a block and its
+// transactions to ensure it is sane before continuing with block processing.
+// These checks are context free.
+func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) error {
 	// All ticket purchases must meet the difficulty specified by the block
 	// header.
-	err = checkProofOfStake(block, chainParams.MinimumStakeDiff)
+	err := checkProofOfStake(block, chainParams.MinimumStakeDiff)
 	if err != nil {
 		return err
 	}
 
 	// A block must have at least one regular transaction.
+	msgBlock := block.MsgBlock()
 	numTx := len(msgBlock.Transactions)
 	if numTx == 0 {
 		return ruleError(ErrNoTransactions, "block does not contain "+
@@ -920,6 +911,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 			"max %d", serializedSize, wire.MaxBlockPayload)
 		return ruleError(ErrBlockTooBig, str)
 	}
+	header := &msgBlock.Header
 	if header.Size != uint32(serializedSize) {
 		str := fmt.Sprintf("serialized block is not size indicated in "+
 			"header - got %d, expected %d", header.Size,
@@ -978,9 +970,24 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	return nil
 }
 
-// CheckBlockSanity performs some preliminary checks on a block to ensure it is
-// sane before continuing with block processing.  These checks are context
-// free.
+// checkBlockSanity performs some preliminary checks on a block (both its header
+// and data) to ensure it is sane before continuing with block processing.
+// These checks are context free.
+//
+// The flags do not modify the behavior of this function directly, however they
+// are needed to pass along to [checkBlockHeaderSanity].
+func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
+	header := &block.MsgBlock().Header
+	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
+	if err != nil {
+		return err
+	}
+	return checkBlockDataSanity(block, chainParams)
+}
+
+// CheckBlockSanity performs some preliminary checks on a block (both its header
+// and data) to ensure it is sane before continuing with block processing.
+// These checks are context free.
 func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params) error {
 	return checkBlockSanity(block, timeSource, BFNone, chainParams)
 }

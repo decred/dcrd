@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 The Decred developers
+// Copyright (c) 2019-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -767,39 +767,24 @@ func TestProcessLogic(t *testing.T) {
 
 	// -------------------------------------------------------------------------
 	// Ensure that a block that has a context-free (aka sanity) failure is
-	// rejected as expected.
-	//
-	// Since invalid blocks that have not had their headers added separately are
-	// not added to the block index, attempting to process it again must return
-	// the specific failure reason as opposed to a known invalid block error.
-	//
-	// This also means that adding the header of a block that has been rejected
-	// due to a sanity error will succeed because the original failure is not
-	// tracked.  Thus, ensure that is the case and that processing the bad block
-	// again fails as expected and is marked as failed such that future attempts
-	// to either add the header or the block will fail due to being a known
-	// invalid block.
+	// rejected as expected.  Since the header is valid it will be added to the
+	// index and then end up marked as invalid, so attempting to process the
+	// header or block again is expected to return a known invalid block error.
 	//
 	//   ... -> bbm#
 	//              \-> b1bad
 	// -------------------------------------------------------------------------
 
 	g.RejectBlock("b1bad", ErrNotEnoughStake)
-	g.RejectBlock("b1bad", ErrNotEnoughStake)
-	g.ExpectBestInvalidHeader("bfbbadchild")
-
-	g.AcceptHeader("b1bad")
-	g.RejectBlock("b1bad", ErrNotEnoughStake)
-	g.ExpectBestInvalidHeader("b1bad")
 	g.RejectHeader("b1bad", ErrKnownInvalidBlock)
 	g.RejectBlock("b1bad", ErrKnownInvalidBlock)
+	g.ExpectBestInvalidHeader("b1bad")
 
 	// -------------------------------------------------------------------------
 	// Ensure that a block that has a positional failure is rejected as
-	// expected.  Since the header is valid and the block sanity checks pass,
-	// the header will be added to the index and then end up marked as invalid,
-	// so attempting to process the block again is expected to return a known
-	// invalid block error.
+	// expected.  Since the header is valid it will be added to the index and
+	// then end up marked as invalid, so attempting to process the block again
+	// is expected to return a known invalid block error.
 	//
 	//   ... -> bbm#
 	//              \-> b1bada
