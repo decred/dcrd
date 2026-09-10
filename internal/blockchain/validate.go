@@ -2019,6 +2019,18 @@ func (b *BlockChain) checkBlockDataPreconditions(block *dcrutil.Block, prevNode 
 			return false, err
 		}
 
+		// Mark the block header as having definitively been proven to commit to
+		// the data to avoid computing and checking again when processing in the
+		// typical case.
+		//
+		// This must only be set when the agenda state is definitively known.
+		//
+		// Since the cache is limited in size, it is technically possible that
+		// entries that would otherwise be useful are evicted.  The only effect
+		// in that case is having to validate the merkle roots again later.
+		blockHash := block.Hash()
+		b.recentMerkleChecks.Put(*blockHash)
+
 		return true, nil
 	}
 
@@ -2096,7 +2108,8 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	}
 
 	// No need to check the block again when it has already been checked.
-	if b.recentContextChecks.Contains(*block.Hash()) {
+	blockHash := block.Hash()
+	if b.recentContextChecks.Contains(*blockHash) {
 		return nil
 	}
 
@@ -2115,8 +2128,18 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	// This check must happen prior to any further checks of the block data to
 	// ensure the block data being validated is actually the data for the
 	// claimed header.
-	if err := b.checkMerkleRootsContext(msgBlock, prevNode); err != nil {
-		return err
+	//
+	// No need to check the merkle roots again when they have already been
+	// proven valid.
+	if !b.recentMerkleChecks.Contains(*blockHash) {
+		if err := b.checkMerkleRootsContext(msgBlock, prevNode); err != nil {
+			return err
+		}
+
+		// Mark the block header as having been definitively proven to commit to
+		// the data to avoid computing and checking the merkle roots again later
+		// during block processing.
+		b.recentMerkleChecks.Put(*blockHash)
 	}
 
 	// Create agenda flags for checking transactions based on which ones are
