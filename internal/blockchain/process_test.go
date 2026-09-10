@@ -220,6 +220,7 @@ func genSharedProcessTestBlocks(t *testing.T) *chaingen.Generator {
 	// Create a new database and chain instance needed to create the generator
 	// populated with the desired blocks.
 	params := chaincfg.RegNetParams()
+	forceDeploymentResult(t, params, chaincfg.VoteIDHeaderCommitments, "no")
 	g := newChaingenHarness(t, params)
 
 	// Shorter versions of useful params for convenience.
@@ -743,6 +744,17 @@ func TestProcessLogic(t *testing.T) {
 	//   ... bsv0 -> ... -> bsv# -> bbm0 -> ... -> bbm#
 	// -------------------------------------------------------------------------
 
+	// Ensure that block data which does not match a known valid header is
+	// rejected without marking the header invalid so the real data is still
+	// accepted afterwards.
+	//
+	//   ... -> bfb (mismatched data rejected, real data accepted)
+	{
+		bfb := g.BlockByName("bfb")
+		bfb.Transactions[0].Version++
+		g.RejectBlock("bfb", ErrBadMerkleRoot)
+		bfb.Transactions[0].Version--
+	}
 	g.AcceptBlock("bfb")
 	g.RejectBlock("bfb", ErrDuplicateBlock)
 	for i := uint16(0); i < coinbaseMaturity; i++ {
