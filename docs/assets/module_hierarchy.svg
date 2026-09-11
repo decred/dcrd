@@ -127,7 +127,7 @@
 <g id="node8" class="node">
 <title>types</title>
 <path fill="tomato" stroke="black" d="M702.78,-468C702.78,-468 596.88,-468 596.88,-468 590.88,-468 584.88,-462 584.88,-456 584.88,-456 584.88,-444 584.88,-444 584.88,-438 590.88,-432 596.88,-432 596.88,-432 702.78,-432 702.78,-432 708.78,-432 714.78,-438 714.78,-444 714.78,-444 714.78,-456 714.78,-456 714.78,-462 708.78,-468 702.78,-468"/>
-<text text-anchor="middle" x="649.83" y="-444.57" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types/v4</text>
+<text text-anchor="middle" x="649.83" y="-444.57" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types/v5</text>
 </g>
 <!-- dcrjson&#45;&gt;types -->
 <g id="edge23" class="edge">
