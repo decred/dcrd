@@ -2963,12 +2963,23 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Ticket input script tests.
 	// ---------------------------------------------------------------------
 
-	// Create block with a regular transaction that pays to a bare OP_TRUE
-	// script so a ticket purchase in the next block can spend it.
+	// Create block with a regular transaction that pays one output to a bare
+	// OP_TRUE script and another to a p2sh script with a nonzero script
+	// version so ticket purchases in the following blocks can spend them.
 	//
 	//   ... -> bdt8(29) -> bti1(30)
-	g.NextBlock("bti1", outs[30], ticketOuts[30],
-		replaceSpendScript(opTrueScript))
+	g.NextBlock("bti1", outs[30], ticketOuts[30], func(b *wire.MsgBlock) {
+		spendTx := b.Transactions[1]
+		p2shScript := spendTx.TxOut[0].PkScript
+		half := spendTx.TxOut[0].Value / 2
+		spendTx.TxOut[0].PkScript = opTrueScript
+		spendTx.TxOut[0].Value -= half
+		spendTx.AddTxOut(&wire.TxOut{
+			Value:    half,
+			Version:  1,
+			PkScript: p2shScript,
+		})
+	})
 	accepted()
 
 	// Create block with a ticket purchase that spends an output whose script is
@@ -2978,6 +2989,21 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	//                  \-> bti2(31)
 	g.NextBlock("bti2", nil, nil, func(b *wire.MsgBlock) {
 		spendOut := chaingen.MakeSpendableOut(g.Tip(), 1, 0)
+		ticketPrice := dcrutil.Amount(g.CalcNextRequiredStakeDifficulty())
+		ticket := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
+		b.AddSTransaction(ticket)
+		b.Header.FreshStake++
+	})
+	rejected(ErrTicketInputScript)
+
+	// Create block with a ticket purchase that spends an output whose script
+	// version is not zero.
+	//
+	//   ... -> bti1(30)
+	//                  \-> bti3(31)
+	g.SetTip("bti1")
+	g.NextBlock("bti3", nil, nil, func(b *wire.MsgBlock) {
+		spendOut := chaingen.MakeSpendableOut(g.Tip(), 1, 2)
 		ticketPrice := dcrutil.Amount(g.CalcNextRequiredStakeDifficulty())
 		ticket := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
 		b.AddSTransaction(ticket)
