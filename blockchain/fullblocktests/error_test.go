@@ -67,6 +67,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBadNumPayees, "ErrBadNumPayees"},
 		{ErrMismatchedPayeeHash, "ErrMismatchedPayeeHash"},
 		{ErrBadPayeeValue, "ErrBadPayeeValue"},
+		{ErrTicketInputScript, "ErrTicketInputScript"},
 		{ErrInvalidRevokeInput, "ErrInvalidRevokeInput"},
 		{ErrTxSStxOutSpend, "ErrTxSStxOutSpend"},
 		{ErrRegTxCreateStakeOut, "ErrRegTxCreateStakeOut"},

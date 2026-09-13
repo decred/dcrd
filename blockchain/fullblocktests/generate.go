@@ -2960,6 +2960,32 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	accepted()
 
 	// ---------------------------------------------------------------------
+	// Ticket input script tests.
+	// ---------------------------------------------------------------------
+
+	// Create block with a regular transaction that pays to a bare OP_TRUE
+	// script so a ticket purchase in the next block can spend it.
+	//
+	//   ... -> bdt8(29) -> bti1(30)
+	g.NextBlock("bti1", outs[30], ticketOuts[30],
+		replaceSpendScript(opTrueScript))
+	accepted()
+
+	// Create block with a ticket purchase that spends an output whose script is
+	// neither p2pkh nor p2sh.
+	//
+	//   ... -> bti1(30)
+	//                  \-> bti2(31)
+	g.NextBlock("bti2", nil, nil, func(b *wire.MsgBlock) {
+		spendOut := chaingen.MakeSpendableOut(g.Tip(), 1, 0)
+		ticketPrice := dcrutil.Amount(g.CalcNextRequiredStakeDifficulty())
+		ticket := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
+		b.AddSTransaction(ticket)
+		b.Header.FreshStake++
+	})
+	rejected(ErrTicketInputScript)
+
+	// ---------------------------------------------------------------------
 	// Large block re-org test.
 	// ---------------------------------------------------------------------
 
@@ -2969,9 +2995,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Ensure the tip the re-org test builds on is the best chain tip.
 	//
-	//   ... -> bdt8(29) -> ...
-	g.SetTip("bdt8")
-	spendableOutOffset := int32(30) // Next spendable offset.
+	//   ... -> bti1(30) -> ...
+	g.SetTip("bti1")
+	spendableOutOffset := int32(31) // Next spendable offset.
 
 	// Collect all of the spendable coinbase outputs from the previous
 	// collection point up to the current tip.

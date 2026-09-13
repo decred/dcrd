@@ -125,6 +125,8 @@ func fullBlockTestErrToLocalErr(t *testing.T, kind fullblocktests.ErrorKind) Err
 		return ErrMismatchedPayeeHash
 	case fullblocktests.ErrBadPayeeValue:
 		return ErrBadPayeeValue
+	case fullblocktests.ErrTicketInputScript:
+		return ErrTicketInputScript
 	case fullblocktests.ErrInvalidRevokeInput:
 		return ErrInvalidRevokeInput
 	case fullblocktests.ErrTxSStxOutSpend:
