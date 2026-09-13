@@ -1729,6 +1729,117 @@ func TestCheckTicketRedeemers(t *testing.T) {
 	}
 }
 
+// TestImmatureTicketSpend ensures that the transaction input checks reject a
+// vote or a revocation that spends a ticket before the required maturity and
+// accept it after.
+//
+// The block validation path cannot reach the maturity check.  The ticket
+// redeemer checks run first and only allow votes for winning tickets and
+// revocations for missed or expired tickets, and both conditions imply the
+// ticket is mature.  The mempool does not run the ticket redeemer checks, so
+// it relies on the maturity check directly.
+func TestImmatureTicketSpend(t *testing.T) {
+	t.Parallel()
+
+	// Create a test harness initialized with the genesis block as the tip,
+	// advance it to stake validation height, and add a block that purchases
+	// tickets.
+	//
+	//   ... -> bsv# -> b1
+	params := chaincfg.RegNetParams()
+	g := newChaingenHarness(t, params)
+	g.AdvanceToStakeValidationHeight()
+	outs := g.OldestCoinbaseOuts()
+	g.NextBlock("b1", nil, outs[1:])
+	g.AcceptTipBlock()
+
+	// Find a ticket purchased in the tip block.  It cannot be spent until the
+	// ticket maturity has passed.
+	tip := g.Tip()
+	var ticketTx *wire.MsgTx
+	var ticketIdx uint32
+	for i, stx := range tip.STransactions {
+		if stake.IsSStx(stx) {
+			ticketTx, ticketIdx = stx, uint32(i)
+			break
+		}
+	}
+	if ticketTx == nil {
+		t.Fatal("tip block does not contain a ticket purchase")
+	}
+
+	// Create a vote and a revocation that spend the ticket.  The vote is for
+	// the tip block because a vote in the next block votes on the tip.
+	voteTx := dcrutil.NewTx(g.CreateVoteTx(tip, ticketTx, tip.Header.Height,
+		ticketIdx))
+	revokeTx := dcrutil.NewTx(g.CreateRevocationTx(ticketTx, tip.Header.Height,
+		ticketIdx))
+
+	// Fetch a utxo view that contains the ticket outputs.  Both transactions
+	// spend the same ticket output, so one view serves both.
+	view, err := g.chain.FetchUtxoView(voteTx, true)
+	if err != nil {
+		t.Fatalf("unexpected error fetching utxo view: %v", err)
+	}
+
+	// A vote can spend the ticket submission output one block after the ticket
+	// maturity has passed.  A revocation has an additional maturity delay when
+	// automatic revocations are disabled.  Whether the ticket is actually
+	// eligible for revocation is enforced by the contextual ticket redeemer
+	// checks and is tested separately.
+	originHeight := int64(tip.Header.Height)
+	ticketMaturity := int64(params.TicketMaturity)
+	tests := []struct {
+		name            string
+		tx              *dcrutil.Tx
+		txHeight        int64
+		autoRevocations bool
+		wantErr         error
+	}{{
+		name:     "early vote",
+		tx:       voteTx,
+		txHeight: originHeight + ticketMaturity,
+		wantErr:  ErrImmatureTicketSpend,
+	}, {
+		name:     "vote at maturity",
+		tx:       voteTx,
+		txHeight: originHeight + ticketMaturity + 1,
+	}, {
+		name:     "early revocation",
+		tx:       revokeTx,
+		txHeight: originHeight + ticketMaturity + 1,
+		wantErr:  ErrImmatureTicketSpend,
+	}, {
+		name:     "revocation at maturity",
+		tx:       revokeTx,
+		txHeight: originHeight + ticketMaturity + 2,
+	}, {
+		name:            "early revocation (auto revocations enabled)",
+		tx:              revokeTx,
+		txHeight:        originHeight + ticketMaturity,
+		autoRevocations: true,
+		wantErr:         ErrImmatureTicketSpend,
+	}, {
+		name:            "revocation at maturity (auto revocations enabled)",
+		tx:              revokeTx,
+		txHeight:        originHeight + ticketMaturity + 1,
+		autoRevocations: true,
+	}}
+
+	const checkFraudProof = true
+	const isTreasuryEnabled = false
+	for _, test := range tests {
+		_, err := CheckTransactionInputs(g.chain.subsidyCache, test.tx,
+			test.txHeight, view, checkFraudProof, params, &tip.Header,
+			isTreasuryEnabled, test.autoRevocations, standalone.SSVOriginal)
+		if !errors.Is(err, test.wantErr) {
+			t.Errorf("%q: mismatched error -- got %v, want %v", test.name, err,
+				test.wantErr)
+			continue
+		}
+	}
+}
+
 // TestAutoRevocations ensures that all of the validation rules associated with
 // the automatic ticket revocations agenda work as expected.
 func TestAutoRevocations(t *testing.T) {
