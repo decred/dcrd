@@ -228,6 +228,10 @@ const (
 	// amount required by the commitment.
 	ErrBadPayeeValue = ErrorKind("ErrBadPayeeValue")
 
+	// ErrTicketInputScript indicates that a ticket input is not one of the
+	// supported script forms or versions.
+	ErrTicketInputScript = ErrorKind("ErrTicketInputScript")
+
 	// ErrInvalidRevokeInput indicates that an input to a revocation transaction
 	// is either not a stake ticket submission or is not a supported version.
 	ErrInvalidRevokeInput = ErrorKind("ErrInvalidRevokeInput")
