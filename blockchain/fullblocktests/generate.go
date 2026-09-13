@@ -2112,8 +2112,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	rejected(ErrRegTxCreateStakeOut)
 
-	// Create block with scripts that do not involve p2pkh or p2sh addresses
-	// for a ticket purchase.
+	// Create block with a ticket purchase whose first output is not tagged
+	// OP_SSTX, which makes it a regular transaction with a stake output.
 	//
 	//   ... -> brs3(14)
 	//                  \-> bmf37(15)
