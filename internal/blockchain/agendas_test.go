@@ -250,6 +250,33 @@ func TestDeploymentParamsValidation(t *testing.T) {
 	}
 }
 
+// TestHistoricalAgendaInvariants ensures the hard-coded historical agendas are
+// sane by checking invariants.  In particular, all entries must be at a height
+// that is exactly one block prior to a rule change activation interval.
+func TestHistoricalAgendaInvariants(t *testing.T) {
+	perNetAgendas := makeHistoricalAgendas()
+	for net, agendas := range perNetAgendas {
+		var params *chaincfg.Params
+		switch net {
+		case wire.MainNet:
+			params = chaincfg.MainNetParams()
+		case wire.TestNet3:
+			params = chaincfg.TestNet3Params()
+		default:
+			t.Fatalf("unhandled network: %v", net)
+		}
+
+		rcai := int64(params.RuleChangeActivationInterval)
+		svh := params.StakeValidationHeight
+		for id, agenda := range agendas {
+			if (agenda.anchorHeight+1-svh)%rcai != 0 {
+				t.Fatalf("agenda id %s height %d is not one before a rule "+
+					"change activation interval", id, agenda.anchorHeight)
+			}
+		}
+	}
+}
+
 // TestMakeAgendasDefaultRequiredAgendas ensures [makeAgendas] creates the
 // required default agendas with the expected states when no deployments are
 // specified for them in the chain params.
