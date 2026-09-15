@@ -803,13 +803,6 @@ func (p *peer) genDicemixKeys() error {
 	if len(p.dcMsg) != int(p.pr.MessageCount) {
 		return errors.New("gen returned wrong message count")
 	}
-	for _, m := range p.dcMsg {
-		if len(m) != msize {
-			err := fmt.Errorf("gen returned bad message "+
-				"length [%v != %v]", len(m), msize)
-			return err
-		}
-	}
 
 	return nil
 }
