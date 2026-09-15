@@ -43,8 +43,6 @@ const pairingVersion byte = 3
 const (
 	timeoutDuration = 30 * time.Second
 	maxJitter       = timeoutDuration / 10
-	msgJitter       = 300 * time.Millisecond
-	peerJitter      = maxJitter - msgJitter
 )
 
 // expiredPRErr indicates that a dicemix session failed to complete due to the
@@ -399,10 +397,12 @@ type Client struct {
 	testWaiting chan struct{}
 	testTickC   chan time.Time
 	testHooks   map[hook]hookFunc
+
+	msgJitter time.Duration
 }
 
 // NewClient creates a wallet's mixing client manager.
-func NewClient(w Wallet) *Client {
+func NewClient(w Wallet, msgJitter time.Duration) *Client {
 	var prFlags byte
 	err := solverrpc.StartSolver()
 	if err == nil {
@@ -423,6 +423,7 @@ func NewClient(w Wallet) *Client {
 		blake256Hasher:  blake256.NewHasher256(),
 		epoch:           w.Mixpool().Epoch(),
 		stopping:        make(chan struct{}),
+		msgJitter:       msgJitter,
 	}
 }
 
@@ -569,7 +570,7 @@ func (c *Client) sendLocalPeerMsgs(ctx context.Context, deadline time.Time, s *s
 			continue
 		}
 		msg := delayedMsg{
-			sendTime: now.Add(p.msgJitter()),
+			sendTime: now.Add(p.msgJitter(c.msgJitter)),
 			deadline: deadline,
 			m:        nil,
 			p:        p,
@@ -696,7 +697,10 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 	}
 }
 
-func (p *peer) msgJitter() time.Duration {
+func (p *peer) msgJitter(msgJitter time.Duration) time.Duration {
+	if msgJitter == 0 {
+		return p.jitter
+	}
 	return p.jitter + rand.Duration(msgJitter)
 }
 
@@ -719,7 +723,7 @@ func (c *Client) prDelay(ctx context.Context, p *peer) error {
 		wait = sendAfter.Sub(now)
 		sendBefore = sendBefore.Add(c.epoch)
 	}
-	wait += p.msgJitter() + rand.Duration(sendBefore.Sub(now))
+	wait += p.msgJitter(c.msgJitter) + rand.Duration(sendBefore.Sub(now))
 	timer := time.NewTimer(wait)
 	select {
 	case <-ctx.Done():
@@ -965,7 +969,7 @@ func (c *Client) epochTicker(ctx context.Context) error {
 }
 
 // Dicemix performs a new mixing session for a coinjoin mix transaction.
-func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
+func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin, peerJitter time.Duration) error {
 	select {
 	case <-c.warming:
 	case <-ctx.Done():
@@ -979,7 +983,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 
 	p := &peer{
 		client:   c,
-		jitter:   rand.Duration(peerJitter),
+		jitter:   peerJitter,
 		res:      make(chan error, 1),
 		pub:      pub,
 		priv:     priv,
@@ -2083,7 +2087,12 @@ DCs:
 		return sesRun, err
 	}
 
-	time.Sleep(lowestJitter + rand.Duration(msgJitter))
+	var msgJitter time.Duration
+	if c.msgJitter > 0 {
+		msgJitter = rand.Duration(c.msgJitter)
+	}
+	time.Sleep(lowestJitter + msgJitter)
+
 	err = c.wallet.PublishTransaction(context.Background(), cj.tx)
 	if err != nil {
 		return sesRun, err
