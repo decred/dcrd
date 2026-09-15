@@ -736,6 +736,12 @@ func opcodeN(op *opcode, data []byte, vm *Engine) error {
 // opcodeNop is a common handler for the NOP family of opcodes.  As the name
 // implies it generally does nothing, however, it will return an error when
 // the flag to discourage use of NOPs is set for select opcodes.
+//
+// OP_2MUL and OP_2DIV are treated as NOPs, but are intentionally omitted from the
+// discouraged opcodes below to preserve the existing version 0 consensus rules.
+// Discouraging them would reject scripts that are currently valid when
+// ScriptDiscourageUpgradableNops is set.  Implementing or discouraging them must
+// therefore be considered as part of a future script version via a consensus vote.
 func opcodeNop(op *opcode, data []byte, vm *Engine) error {
 	switch op.value {
 	case OP_NOP1, OP_NOP4, OP_NOP5, OP_NOP6,
