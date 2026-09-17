@@ -1671,6 +1671,18 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		return nil, nil
 	}
 
+	// Apply the same per-identity, per-session uniqueness requirement as
+	// other message types.  Check here so orphan reconsideration cannot
+	// bypass it when a missing pair request arrives.
+	for _, prevHash := range p.messagesByIdentity[*id] {
+		e, ok := p.pool[prevHash]
+		if ok && e.msgtype == msgtypeKE && e.sid == ke.SessionID {
+			return nil, ruleError(fmt.Errorf("message %v by identity %x "+
+				"in session %x conflicts with already accepted message %v",
+				hash, *id, ke.SessionID, prevHash))
+		}
+	}
+
 	// While KEs are allowed to reference unknown PRs, they must at least
 	// reference the PR submitted by their own identity.  If not, the KE
 	// is saved as an orphan and may be processed later.
