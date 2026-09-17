@@ -50,6 +50,22 @@ func (e blamedIdentities) String() string {
 	return buf.String()
 }
 
+// hasSRMixDimensions reports whether an SR mix contains one vector for each
+// message contributed by the peer and one field element per session message in
+// every vector.  Both normal runs and blame assignment require these dimensions
+// before accessing the peer's submitted mix.
+func hasSRMixDimensions(mix [][][]byte, mcount, mtot uint32) bool {
+	if uint64(len(mix)) != uint64(mcount) {
+		return false
+	}
+	for _, vec := range mix {
+		if uint64(len(vec)) != uint64(mtot) {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 	sesRun.logf("running blame assignment")
 
@@ -347,6 +363,14 @@ SRLoop:
 	for i, p := range sesRun.peers {
 		if p.sr == nil {
 			sesRun.logf("blaming %x for missing messages", p.id[:])
+			blamed = append(blamed, *p.id)
+			continue
+		}
+
+		// Reject malformed matrices before recovering pads and indexing the
+		// submitted vectors during comparison.
+		if !hasSRMixDimensions(p.sr.DCMix, p.pr.MessageCount, sesRun.mtot) {
+			sesRun.logf("blaming %x for wrong SR DC-mix dimensions", p.id[:])
 			blamed = append(blamed, *p.id)
 			continue
 		}
