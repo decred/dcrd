@@ -120,7 +120,7 @@ type config struct {
 	LogSize          string `long:"logsize" description:"Maximum size of log file before it is rotated"`
 	NoFileLogging    bool   `long:"nofilelogging" description:"Disable file logging"`
 	DbType           string `long:"dbtype" description:"Database backend to use for the block chain"`
-	Profile          string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
+	Profile          string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65535"`
 	CPUProfile       string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
 	MemProfile       string `long:"memprofile" description:"Write mem profile to the specified file"`
 	TestNet          bool   `long:"testnet" description:"Use the test network"`
