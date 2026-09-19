@@ -35,7 +35,7 @@ Application Options:
 	    --dbtype=                Database backend to use for the block chain
 	                             (default: ffldb)
 	    --profile=               Enable HTTP profiling on given [addr:]port --
-	                             NOTE: port must be between 1024 and 65536
+	                             NOTE: port must be between 1024 and 65535
 	    --cpuprofile=            Write CPU profile to the specified file
 	    --memprofile=            Write mem profile to the specified file
 	    --testnet                Use the test network
