@@ -2080,6 +2080,7 @@ func TestVoteHeightPolicy(t *testing.T) {
 //
 //   - Rejects votes on unknown blocks
 //   - Rejects votes that claim an incorrect block height
+//   - Rejects votes that use a ticket that is not a winning ticket for a block
 func TestVoteValidity(t *testing.T) {
 	t.Parallel()
 
@@ -2158,6 +2159,27 @@ func TestVoteValidity(t *testing.T) {
 	}
 	testPoolMembership(tc, badHeightVote, false, false)
 	testVoteMetadataMembership(tc, badHeightVote, false)
+
+	// Create a vote that votes on a block with a ticket that is not a winning
+	// ticket.
+	harness.chain.SetHeight(params.StakeValidationHeight + 1)
+	block = harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
+	badTicketVote, err := harness.CreateVote(ticket)
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Ensure the vote is rejected with the expected error and verify it is not
+	// in the orphan pool, is not in the transaction pool, is not reported as
+	// available, and its vote metadata is not added.
+	_, err = harness.txPool.ProcessTransaction(badTicketVote, false, true, 0)
+	if !errors.Is(err, ErrIneligibleTicketVote) {
+		t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+			err, ErrIneligibleTicketVote)
+	}
+	testPoolMembership(tc, badTicketVote, false, false)
+	testVoteMetadataMembership(tc, badTicketVote, false)
 }
 
 // TestMaxVoteDoubleSpendRejection ensures that votes that spend the same ticket
