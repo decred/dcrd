@@ -179,8 +179,11 @@ func (s *fakeChain) SetHeight(height int64) {
 func (s *fakeChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
 	block, ok := s.blocks[*hash]
 	if !ok {
-		return wire.BlockHeader{}, fmt.Errorf("unable to find block %v in fake "+
-			"chain", hash)
+		str := fmt.Sprintf("unable to find block %s in fake chain", hash)
+		return wire.BlockHeader{}, blockchain.ContextError{
+			Err:         blockchain.ErrUnknownBlock,
+			Description: str,
+		}
 	}
 	return block.MsgBlock().Header, nil
 }
@@ -2040,6 +2043,89 @@ func TestVoteHeightPolicy(t *testing.T) {
 	}
 	testPoolMembership(tc, votes[1], false, true)
 	testVoteMetadataMembership(tc, votes[1], true)
+}
+
+// TestVoteValidity ensures the mempool has the following vote and chain state
+// semantics:
+//
+//   - Rejects votes on unknown blocks
+//   - Rejects votes that claim an incorrect block height
+func TestVoteValidity(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+	params := harness.chainParams
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the prior
+	// regular transaction.
+	ticket, err := harness.CreateTicketPurchaseFromTx(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction: %v", err)
+	}
+
+	// Add the ticket outputs as utxos to fake their existence.  Use one after
+	// the stake enabled height for the height of the fake utxos to ensure they
+	// are mature for the votes cast at stake validation height below.
+	harness.chain.SetHeight(params.StakeEnabledHeight + 1)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		noTreasury)
+
+	// Create a vote that votes on an unknown block.
+	harness.chain.SetHeight(params.StakeValidationHeight)
+	origHash := *harness.chain.BestHash()
+	harness.chain.SetBestHash(&chainhash.Hash{})
+	vote, err := harness.CreateVote(ticket)
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+	harness.chain.SetBestHash(&origHash)
+
+	// Ensure the vote is rejected with the expected error and verify it is not
+	// in the orphan pool, is not in the transaction pool, is not reported as
+	// available, and its vote metadata is not added.
+	_, err = harness.txPool.ProcessTransaction(vote, false, true, 0)
+	if !errors.Is(err, ErrVoteBlockUnknown) {
+		t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+			err, ErrVoteBlockUnknown)
+	}
+	testPoolMembership(tc, vote, false, false)
+	testVoteMetadataMembership(tc, vote, false)
+
+	// Create a vote that votes on a block at stake validation height, but
+	// claims the wrong height.
+	harness.chain.SetHeight(params.StakeValidationHeight)
+	block := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
+	badHeightVote, err := harness.CreateVote(ticket, func(tx *wire.MsgTx) {
+		script, _ := txscript.GenerateSSGenBlockRef(*harness.chain.BestHash(),
+			uint32(harness.chain.BestHeight()-1))
+		tx.TxOut[0].PkScript = script
+	})
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Ensure the vote is rejected with the expected error and verify it is not
+	// in the orphan pool, is not in the transaction pool, is not reported as
+	// available, and its vote metadata is not added.
+	_, err = harness.txPool.ProcessTransaction(badHeightVote, false, true, 0)
+	if !errors.Is(err, ErrVoteBlockHeight) {
+		t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+			err, ErrVoteBlockHeight)
+	}
+	testPoolMembership(tc, badHeightVote, false, false)
+	testVoteMetadataMembership(tc, badHeightVote, false)
 }
 
 // TestMaxVoteDoubleSpendRejection ensures that votes that spend the same ticket
