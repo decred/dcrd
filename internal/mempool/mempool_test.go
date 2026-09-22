@@ -44,16 +44,17 @@ const (
 // transactions to appear as though they are spending completely valid utxos.
 type fakeChain struct {
 	sync.RWMutex
-	mockBlockIdx  uint32
-	nextStakeDiff int64
-	utxos         *blockchain.UtxoViewpoint
-	utxoTimes     map[wire.OutPoint]int64
-	blocks        map[chainhash.Hash]*dcrutil.Block
-	currentHash   chainhash.Hash
-	currentHeight int64
-	medianTime    time.Time
-	scriptFlags   txscript.ScriptFlags
-	tspendMined   map[chainhash.Hash]struct{}
+	mockBlockIdx   uint32
+	nextStakeDiff  int64
+	utxos          *blockchain.UtxoViewpoint
+	utxoTimes      map[wire.OutPoint]int64
+	blocks         map[chainhash.Hash]*dcrutil.Block
+	currentHash    chainhash.Hash
+	currentHeight  int64
+	winningTickets map[chainhash.Hash][]chainhash.Hash
+	medianTime     time.Time
+	scriptFlags    txscript.ScriptFlags
+	tspendMined    map[chainhash.Hash]struct{}
 }
 
 // NextStakeDifficulty returns the next stake difficulty associated with the
@@ -170,6 +171,31 @@ func (s *fakeChain) BestHeight() int64 {
 func (s *fakeChain) SetHeight(height int64) {
 	s.Lock()
 	s.currentHeight = height
+	s.Unlock()
+}
+
+// WinningTicketsByHash returns the winning tickets for the given block hash
+// from the fake chain instance.  Winning tickets for a given block can be added
+// to the instance with [fakeChain.AddWinningTicket].
+func (s *fakeChain) WinningTicketsByHash(hash *chainhash.Hash) ([]chainhash.Hash, error) {
+	s.RLock()
+	winningTickets := s.winningTickets[*hash]
+	s.RUnlock()
+	return winningTickets, nil
+}
+
+// AddWinningTicket adds a winning ticket for the given block hash that will be
+// available via [fakeChain.WinningTicketsByHash] to the fake chain instance.
+func (s *fakeChain) AddWinningTicket(blockHash, ticketHash *chainhash.Hash) {
+	s.Lock()
+	winningTickets := s.winningTickets[*blockHash]
+	if winningTickets == nil {
+		winningTickets = make([]chainhash.Hash, 0, 5)
+	}
+	if !slices.Contains(winningTickets, *ticketHash) {
+		winningTickets = append(winningTickets, *ticketHash)
+	}
+	s.winningTickets[*blockHash] = winningTickets
 	s.Unlock()
 }
 
@@ -656,6 +682,7 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	subsidyCache := p.txPool.cfg.SubsidyCache
 	subsidy := subsidyCache.CalcStakeVoteSubsidyV3(p.chain.BestHeight(),
 		p.determineSubsidySplitVariant())
+
 	// Parse the ticket purchase transaction and generate the vote reward.
 	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
 		stake.TxSStxStakeOutputInfo(ticket.MsgTx())
@@ -783,10 +810,8 @@ func (p *poolHarness) SetTreasuryAgendaActive(active bool) {
 	scriptFlags, _ := p.chain.StandardVerifyFlags()
 	if active {
 		scriptFlags |= txscript.ScriptVerifyTreasury
-
 	} else {
 		scriptFlags &^= txscript.ScriptVerifyTreasury
-
 	}
 	p.chain.SetStandardVerifyFlags(scriptFlags)
 }
@@ -819,11 +844,12 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
 	chain := &fakeChain{
-		utxos:       blockchain.NewUtxoViewpoint(nil),
-		utxoTimes:   make(map[wire.OutPoint]int64),
-		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
-		scriptFlags: BaseStandardVerifyFlags,
-		tspendMined: make(map[chainhash.Hash]struct{}),
+		utxos:          blockchain.NewUtxoViewpoint(nil),
+		utxoTimes:      make(map[wire.OutPoint]int64),
+		blocks:         make(map[chainhash.Hash]*dcrutil.Block),
+		winningTickets: make(map[chainhash.Hash][]chainhash.Hash),
+		scriptFlags:    BaseStandardVerifyFlags,
+		tspendMined:    make(map[chainhash.Hash]struct{}),
 	}
 	var harness *poolHarness
 	harness = &poolHarness{
@@ -861,6 +887,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			BlockByHash:           chain.BlockByHash,
 			BestHash:              chain.BestHash,
 			BestHeight:            chain.BestHeight,
+			WinningTicketsByHash:  chain.WinningTicketsByHash,
 			HeaderByHash:          chain.HeaderByHash,
 			PastMedianTime:        chain.PastMedianTime,
 			CalcSequenceLock:      chain.CalcSequenceLock,
@@ -1137,10 +1164,12 @@ func TestVoteOrphan(t *testing.T) {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
 
-	// Create a vote that votes on a block at stake validation height.
+	// Create a vote that votes on a block at stake validation height and add
+	// the ticket as a winning ticket for the block.
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
 	block := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(block.Hash())
+	harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 	vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -1972,13 +2001,14 @@ func TestVoteHeightPolicy(t *testing.T) {
 	}
 
 	// Create votes on a block that is one block beyond the maximum future vote
-	// age.
+	// age and add the tickets they spend as winning tickets for the block.
 	votedHeight := params.StakeValidationHeight + maxFutureVoteAge + 1
 	harness.chain.SetHeight(votedHeight)
 	votes := make([]*dcrutil.Tx, 0, numVotes)
 	futureBlock := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(futureBlock.Hash())
 	for i := uint32(0); i < numVotes; i++ {
+		harness.chain.AddWinningTicket(futureBlock.Hash(), tickets[i].Hash())
 		vote, err := harness.CreateVote(tickets[i])
 		if err != nil {
 			t.Fatalf("unable to create vote 1: %v", err)
@@ -2103,10 +2133,12 @@ func TestVoteValidity(t *testing.T) {
 	testVoteMetadataMembership(tc, vote, false)
 
 	// Create a vote that votes on a block at stake validation height, but
-	// claims the wrong height.
+	// claims the wrong height and add the ticket as a winning ticket for the
+	// block.
 	harness.chain.SetHeight(params.StakeValidationHeight)
 	block := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(block.Hash())
+	harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 	badHeightVote, err := harness.CreateVote(ticket, func(tx *wire.MsgTx) {
 		script, _ := txscript.GenerateSSGenBlockRef(*harness.chain.BestHash(),
 			uint32(harness.chain.BestHeight()-1))
@@ -2167,9 +2199,11 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
 	votes := make([]*dcrutil.Tx, 0, maxVoteDoubleSpends*2)
 	for range maxVoteDoubleSpends * 2 {
-		// Ensure each vote is voting on a different block.
+		// Ensure each vote is voting on a different block and add the ticket
+		// as a winning ticket for each of the blocks.
 		block := harness.chain.AddMockBlock()
 		harness.chain.SetBestHash(block.Hash())
+		harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 		vote, err := harness.CreateVote(ticket)
 		if err != nil {
 			t.Fatalf("unable to create vote: %v", err)
@@ -2293,10 +2327,12 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
 		noTreasury)
 
-	// Create a vote that votes on a block at stake validation height.
+	// Create a vote that votes on a block at stake validation height and add
+	// the ticket as a winning ticket for the block.
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
 	block := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(block.Hash())
+	harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 	vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -3499,11 +3535,12 @@ func TestSubsidySplitSemantics(t *testing.T) {
 
 	// Create a vote that votes on a block at stake validation height using the
 	// proportions required when the modified subsidy split agenda is NOT
-	// active.
+	// active.  Also add the ticket as a winning ticket for the block.
 	harness.subsidySplitActive = false
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
 	block := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(block.Hash())
+	harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 	preDCP0010Vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -3602,11 +3639,12 @@ func TestSubsidySplitR2Semantics(t *testing.T) {
 
 	// Create a vote that votes on a block at stake validation height using the
 	// proportions required when the modified subsidy split round 2 agenda is
-	// NOT active.
+	// NOT active.  Also add the ticket as a winning ticket for the block.
 	harness.subsidySplitR2Active = false
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
 	block := harness.chain.AddMockBlock()
 	harness.chain.SetBestHash(block.Hash())
+	harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
 	preDCP0012Vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)

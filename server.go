@@ -4075,10 +4075,17 @@ func newServer(ctx context.Context, profiler *profileServer,
 		NextStakeDifficulty: func() (int64, error) {
 			return s.chain.BestSnapshot().NextStakeDiff, nil
 		},
-		FetchUtxoView:    s.chain.FetchUtxoView,
-		BlockByHash:      s.chain.BlockByHash,
-		BestHash:         func() *chainhash.Hash { return &s.chain.BestSnapshot().Hash },
-		BestHeight:       func() int64 { return s.chain.BestSnapshot().Height },
+		FetchUtxoView: s.chain.FetchUtxoView,
+		BlockByHash:   s.chain.BlockByHash,
+		BestHash:      func() *chainhash.Hash { return &s.chain.BestSnapshot().Hash },
+		BestHeight:    func() int64 { return s.chain.BestSnapshot().Height },
+		WinningTicketsByHash: func(hash *chainhash.Hash) ([]chainhash.Hash, error) {
+			winningTickets, _, _, err := s.chain.LotteryDataForBlock(hash)
+			if err != nil {
+				return nil, err
+			}
+			return winningTickets, nil
+		},
 		HeaderByHash:     s.chain.HeaderByHash,
 		CalcSequenceLock: s.chain.CalcSequenceLock,
 		SubsidyCache:     s.subsidyCache,

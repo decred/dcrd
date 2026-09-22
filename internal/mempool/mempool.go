@@ -8,6 +8,7 @@ package mempool
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -109,6 +110,10 @@ type Config struct {
 	// BestHeight defines the function to use to access the block height of
 	// the current best chain.
 	BestHeight func() int64
+
+	// WinningTicketsByHash defines the function to use to access the winning
+	// tickets for the given block hash.
+	WinningTicketsByHash func(*chainhash.Hash) ([]chainhash.Hash, error)
 
 	// HeaderByHash returns the block header identified by the given hash or an
 	// error if it doesn't exist.  Note that this will return headers from both
@@ -1131,6 +1136,45 @@ func (mp *TxPool) checkVoteBlock(vote *dcrutil.Tx) error {
 	return nil
 }
 
+// checkVoteTicket rejects the passed vote when it is recent enough and uses a
+// ticket that is not a winning ticket for the block it votes on.
+func (mp *TxPool) checkVoteTicket(vote *dcrutil.Tx, bestHeight int64) error {
+	// Only check winning tickets early up to the maximum vote age policy since
+	// determining the winning tickets can be relatively expensive for older
+	// votes.
+	//
+	// Any votes older than the maximum age are only able to reach this point
+	// when the policy to allow old votes is set.  Therefore, when old votes are
+	// not allowed, the check applies to all votes that could be permitted.
+	//
+	// On the other hand, when old votes are allowed, the check is deferred to
+	// the consensus rules that will reject any votes that attempt to use
+	// ineligible tickets in a block.
+	voteTx := vote.MsgTx()
+	nextBlockHeight := bestHeight + 1
+	votedHash, votedHeight := stake.SSGenBlockVotedOn(voteTx)
+	minVotedHeight := nextBlockHeight - int64(mp.cfg.Policy.MaxVoteAge)
+	if int64(votedHeight) < minVotedHeight {
+		return nil
+	}
+
+	// Reject votes that do not vote on a winning ticket for the block that is
+	// being voted on.
+	winningTickets, err := mp.cfg.WinningTicketsByHash(&votedHash)
+	if err != nil {
+		return wrapChainRuleError(err)
+	}
+	ticketSpent := voteTx.TxIn[1].PreviousOutPoint.Hash
+	if !slices.Contains(winningTickets, ticketSpent) {
+		str := fmt.Sprintf("vote %v votes on block %s (height %d) with "+
+			"ineligible ticket %s", vote.Hash(), votedHash, votedHeight,
+			ticketSpent)
+		return txRuleError(ErrIneligibleTicketVote, str)
+	}
+
+	return nil
+}
+
 // IsRegTxTreeKnownDisapproved returns whether or not the regular tree of the
 // block represented by the provided hash is known to be disapproved according
 // to the votes currently in the memory pool.
@@ -1773,6 +1817,20 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		mp.cfg.SigCache, isAutoRevocationsEnabled)
 	if err != nil {
 		return nil, wrapChainRuleError(err)
+	}
+
+	// Reject recent votes that do not vote on a winning ticket for the block
+	// that is being voted on.  This is intentionally limited to recent votes
+	// when old votes are allowed and done after signature validation to prevent
+	// introducing a potential DoS vector since determining the winning tickets
+	// can be relatively expensive for older votes.
+	//
+	// Any attempt to include older votes with ineligible tickets in a block
+	// will still be rejected by the consensus rules later.
+	if isVote {
+		if err := mp.checkVoteTicket(tx, bestHeight); err != nil {
+			return nil, err
+		}
 	}
 
 	// Only allow TSpends that have a valid Expiry.
