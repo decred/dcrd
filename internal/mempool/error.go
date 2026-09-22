@@ -85,6 +85,10 @@ const (
 	// ErrVoteBlockHeight indicates a vote claims an incorrect block height.
 	ErrVoteBlockHeight = ErrorKind("ErrVoteBlockHeight")
 
+	// ErrIneligibleTicketVote indicates a vote for a block with an ineligible
+	// ticket.
+	ErrIneligibleTicketVote = ErrorKind("ErrIneligibleTicketVote")
+
 	// ErrAlreadyExists indicates a transaction already exists on the
 	// main chain and is not fully spent.
 	ErrAlreadyExists = ErrorKind("ErrAlreadyExists")
