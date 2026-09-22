@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2023 The Decred developers
+// Copyright (c) 2017-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -38,11 +38,12 @@ const (
 	singleInputTicketSize int64 = 300
 )
 
-// fakeChain is used by the pool harness to provide generated test utxos and
-// a current faked chain height to the pool callbacks.  This, in turn, allows
-// transactions to be appear as though they are spending completely valid utxos.
+// fakeChain is used by the pool harness to provide generated test utxos and a
+// current faked chain height to the pool callbacks.  This, in turn, allows
+// transactions to appear as though they are spending completely valid utxos.
 type fakeChain struct {
 	sync.RWMutex
+	mockBlockIdx  uint32
 	nextStakeDiff int64
 	utxos         *blockchain.UtxoViewpoint
 	utxoTimes     map[wire.OutPoint]int64
@@ -106,7 +107,7 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 }
 
 // BlockByHash returns the block with the given hash from the fake chain
-// instance.  Blocks can be added to the instance with the AddBlock function.
+// instance.  Blocks can be added to the instance with [fakeChain.AddMockBlock].
 func (s *fakeChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error) {
 	s.RLock()
 	block, ok := s.blocks[*hash]
@@ -118,12 +119,25 @@ func (s *fakeChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error) {
 	return block, nil
 }
 
-// AddBlock adds a block that will be available to the BlockByHash function to
-// the fake chain instance.
-func (s *fakeChain) AddBlock(block *dcrutil.Block) {
+// AddMockBlock adds a new mock block to the harness and returns it.  The block
+// will have a unique hash for the harness instance and its header height is set
+// to the current best height associated with the harness.
+//
+// The block will also be available via [fakeChain.BlockByHash].
+func (s *fakeChain) AddMockBlock() *dcrutil.Block {
 	s.Lock()
-	s.blocks[*block.Hash()] = block
+	s.mockBlockIdx++
+	var finalState [6]byte
+	binary.LittleEndian.PutUint32(finalState[:], s.mockBlockIdx)
+	mockHdr := wire.BlockHeader{
+		Height:     uint32(s.currentHeight),
+		FinalState: finalState,
+	}
+	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{Header: mockHdr})
+	blockHash := mockBlock.Hash()
+	s.blocks[*blockHash] = mockBlock
 	s.Unlock()
+	return mockBlock
 }
 
 // BestHash returns the current best hash associated with the fake chain
@@ -159,8 +173,8 @@ func (s *fakeChain) SetHeight(height int64) {
 }
 
 // HeaderByHash returns the header for the block with the given hash from the
-// fake chain instance.  Blocks can be added to the instance with the AddBlock
-// function.
+// fake chain instance.  Blocks can be added to the instance with
+// [fakeChain.AddMockBlock].
 func (s *fakeChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
 	block, ok := s.blocks[*hash]
 	if !ok {
@@ -1105,8 +1119,10 @@ func TestVoteOrphan(t *testing.T) {
 		t.Fatalf("unable to create ticket purchase transaction: %v", err)
 	}
 
+	// Create a vote that votes on a block at stake validation height.
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
-
+	block := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
 	vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -1931,15 +1947,11 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// blocks at stake validation height to be able to force rejection due to
 	// exceeding the max allowed double spends.
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
-	var votes []*dcrutil.Tx
-	for i := 0; i < maxVoteDoubleSpends*2; i++ {
+	votes := make([]*dcrutil.Tx, 0, maxVoteDoubleSpends*2)
+	for range maxVoteDoubleSpends * 2 {
 		// Ensure each vote is voting on a different block.
-		var hash chainhash.Hash
-		mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
-		binary.LittleEndian.PutUint32(hash[:4], uint32(i))
-		harness.chain.SetBestHash(&hash)
-		harness.chain.blocks[hash] = mockBlock
-
+		block := harness.chain.AddMockBlock()
+		harness.chain.SetBestHash(block.Hash())
 		vote, err := harness.CreateVote(ticket)
 		if err != nil {
 			t.Fatalf("unable to create vote: %v", err)
@@ -1953,7 +1965,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 		acceptedTxns, err := harness.txPool.ProcessTransaction(vote, false,
 			true, 0)
 		if err != nil {
-			t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
+			t.Fatalf("ProcessTransaction: failed to accept valid vote: %v", err)
 		}
 
 		// Ensure the transaction was reported as accepted.
@@ -2055,11 +2067,9 @@ func TestDuplicateVoteRejection(t *testing.T) {
 		noTreasury)
 
 	// Create a vote that votes on a block at stake validation height.
-	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
-	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
-	harness.chain.SetBestHash(&hash)
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
-	harness.chain.blocks[hash] = mockBlock
+	block := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
 	vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -3255,13 +3265,12 @@ func TestSubsidySplitSemantics(t *testing.T) {
 		noTreasury)
 
 	// Create a vote that votes on a block at stake validation height using the
-	// proportions required when the modified subsidy split agenda is NOT active.
+	// proportions required when the modified subsidy split agenda is NOT
+	// active.
 	harness.subsidySplitActive = false
-	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
-	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
-	harness.chain.SetBestHash(&hash)
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
-	harness.chain.blocks[hash] = mockBlock
+	block := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
 	preDCP0010Vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
@@ -3362,11 +3371,9 @@ func TestSubsidySplitR2Semantics(t *testing.T) {
 	// proportions required when the modified subsidy split round 2 agenda is
 	// NOT active.
 	harness.subsidySplitR2Active = false
-	hash := chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e}
-	mockBlock := dcrutil.NewBlock(&wire.MsgBlock{})
-	harness.chain.SetBestHash(&hash)
 	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
-	harness.chain.blocks[hash] = mockBlock
+	block := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(block.Hash())
 	preDCP0012Vote, err := harness.CreateVote(ticket)
 	if err != nil {
 		t.Fatalf("unable to create vote: %v", err)
