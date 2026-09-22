@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -950,6 +951,20 @@ func testPoolMembership(tc *testContext, tx *dcrutil.Tx, inOrphanPool, inTxPool 
 		_, file, line, _ := runtime.Caller(1)
 		tc.t.Fatalf("%s:%d -- HaveTransaction: want %v, got %v", file,
 			line, wantHaveTx, gotHaveTx)
+	}
+}
+
+// testVoteMetadataMembership tests the transaction pool associated with the
+// provided test context to determine if the passed vote is present in the vote
+// metadata tracked for the block it votes on.
+func testVoteMetadataMembership(tc *testContext, vote *dcrutil.Tx, isMember bool) {
+	tc.t.Helper()
+
+	votedHash, _ := stake.SSGenBlockVotedOn(vote.MsgTx())
+	gotHashes := tc.harness.txPool.VoteHashesForBlock(&votedHash)
+	if got := slices.Contains(gotHashes, *vote.Hash()); got != isMember {
+		tc.t.Fatalf("VoteHashesForBlock membership: got %v, want %v", got,
+			isMember)
 	}
 }
 
@@ -1968,15 +1983,16 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 			t.Fatalf("ProcessTransaction: failed to accept valid vote: %v", err)
 		}
 
-		// Ensure the transaction was reported as accepted.
+		// Ensure the vote was reported as accepted.
 		if len(acceptedTxns) != 1 {
 			t.Fatalf("ProcessTransaction: reported %d accepted transactions from "+
 				"what should be 1", len(acceptedTxns))
 		}
 
-		// Ensure the transaction is not in the orphan pool, in the transaction
-		// pool, and reported as available.
+		// Ensure the vote is not in the orphan pool, is in the transaction
+		// pool, is reported as available, and its vote metadata is added.
 		testPoolMembership(tc, vote, false, true)
+		testVoteMetadataMembership(tc, vote, true)
 	}
 
 	// Attempt to add the remaining votes while ensuring they are all rejected
@@ -2001,30 +2017,37 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 				len(acceptedTxns))
 		}
 
-		// Ensure the transaction is not in the orphan pool, not in the
-		// transaction pool, and not reported as available.
+		// Ensure the transaction is not in the orphan pool, is not in the
+		// transaction pool, is not reported as available, and its vote metadata
+		// is not added.
 		testPoolMembership(tc, vote, false, false)
+		testVoteMetadataMembership(tc, vote, false)
 	}
 
 	// Remove one of the votes from the pool and ensure it is not in the orphan
-	// pool, not in the transaction pool, and not reported as available.
+	// pool, is not in the transaction pool, and is not reported as available.
+	// Then verify its vote metadata is still present.
 	vote := votes[2]
 	harness.txPool.RemoveTransaction(vote, true)
 	testPoolMembership(tc, vote, false, false)
+	testVoteMetadataMembership(tc, vote, true)
 
 	// Add one of the votes that was rejected above due to the pool being at the
 	// max allowed and ensure it is accepted now.  Also, ensure it is not in the
-	// orphan pool, is in the transaction pool, and is reported as available.
+	// orphan pool, is in the transaction pool, is reported as available, and
+	// its vote metadata is still present.
 	vote = votes[maxVoteDoubleSpends]
 	_, err = harness.txPool.ProcessTransaction(vote, false, true, 0)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
 	}
 	testPoolMembership(tc, vote, false, true)
+	testVoteMetadataMembership(tc, vote, true)
 
 	// Attempt to add another one of the votes and ensure it is rejected due to
-	// exceeding the max again.  Also, ensure it is not in the orphan pool, not
-	// in the transaction pool, and not reported as available.
+	// exceeding the max again.  Also, ensure it is not in the orphan pool, is
+	// not in the transaction pool, is not reported as available, and no vote
+	// metadata is added for it.
 	vote = votes[maxVoteDoubleSpends+1]
 	_, err = harness.txPool.ProcessTransaction(vote, false, true, 0)
 	if !errors.Is(err, ErrTooManyVotes) {
@@ -2032,6 +2055,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 			"ErrTooManyVotes error")
 	}
 	testPoolMembership(tc, vote, false, false)
+	testVoteMetadataMembership(tc, vote, false)
 }
 
 // TestDuplicateVoteRejection ensures that additional votes on the same block
@@ -2076,12 +2100,14 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	}
 
 	// Add the vote and ensure it is not in the orphan pool, is in the
-	// transaction pool, and is reported as available.
+	// transaction pool, is reported as available, and its vote metadata is
+	// added.
 	_, err = harness.txPool.ProcessTransaction(vote, false, true, 0)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
 	}
 	testPoolMembership(tc, vote, false, true)
+	testVoteMetadataMembership(tc, vote, true)
 
 	// Create another vote with a different hash that votes on the same block
 	// using the same ticket.
@@ -2098,28 +2124,32 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	}
 
 	// Attempt to add the duplicate vote and ensure it is rejected.  Also,
-	// ensure it is not in the orphan pool, not in the transaction pool, and not
-	// reported as available.
+	// ensure it is not in the orphan pool, is not in the transaction pool, is
+	// not reported as available, and its vote metadata is not added.
 	_, err = harness.txPool.ProcessTransaction(dupVote, false, true, 0)
 	if !errors.Is(err, ErrAlreadyVoted) {
 		t.Fatalf("Process Transaction: did not get expected " +
 			"ErrTooManyVotes error")
 	}
 	testPoolMembership(tc, dupVote, false, false)
+	testVoteMetadataMembership(tc, dupVote, false)
 
 	// Remove the original vote from the pool and ensure it is not in the orphan
-	// pool, not in the transaction pool, and not reported as available.
+	// pool, is not in the transaction pool, is not reported as available, and
+	// its vote metadata is still present.
 	harness.txPool.RemoveTransaction(vote, true)
 	testPoolMembership(tc, vote, false, false)
+	testVoteMetadataMembership(tc, vote, true)
 
 	// Add the duplicate vote which should now be accepted.  Also, ensure it is
-	// not in the orphan pool, is in the transaction pool, and is reported as
-	// available.
+	// not in the orphan pool, is in the transaction pool, is reported as
+	// available, and its vote metadata is not added.
 	_, err = harness.txPool.ProcessTransaction(dupVote, false, true, 0)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
 	}
 	testPoolMembership(tc, dupVote, false, true)
+	testVoteMetadataMembership(tc, dupVote, false)
 }
 
 // TestDuplicateTxError ensures that attempting to add a transaction to the
