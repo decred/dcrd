@@ -1101,6 +1101,36 @@ func (mp *TxPool) checkVoteHeightPolicy(vote *dcrutil.Tx, bestHeight int64) erro
 	return nil
 }
 
+// checkVoteBlock rejects the passed vote when the block it votes on is unknown
+// or claims an incorrect block height.
+//
+// The provided transaction MUST have already been determined to be a vote by
+// the caller.
+//
+// This function MUST be called with the mempool lock held (for reads).
+func (mp *TxPool) checkVoteBlock(vote *dcrutil.Tx) error {
+	// Reject votes on unknown blocks and mismatched heights.
+	voteTx := vote.MsgTx()
+	votedHash, votedHeight := stake.SSGenBlockVotedOn(voteTx)
+	header, err := mp.cfg.HeaderByHash(&votedHash)
+	if err != nil {
+		if errors.Is(err, blockchain.ErrUnknownBlock) {
+			str := fmt.Sprintf("vote %v votes on unknown block %s", vote.Hash(),
+				votedHash)
+			return txRuleError(ErrVoteBlockUnknown, str)
+		}
+		return wrapChainRuleError(err)
+	}
+	if votedHeight != header.Height {
+		str := fmt.Sprintf("vote %v votes on block %s (height %d) with "+
+			"incorrect height %d", vote.Hash(), votedHash, header.Height,
+			votedHeight)
+		return txRuleError(ErrVoteBlockHeight, str)
+	}
+
+	return nil
+}
+
 // IsRegTxTreeKnownDisapproved returns whether or not the regular tree of the
 // block represented by the provided hash is known to be disapproved according
 // to the votes currently in the memory pool.
@@ -1388,9 +1418,14 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		return nil, txRuleError(ErrInvalid, str)
 	}
 
-	// Reject votes on blocks that are too old or too far in the future.
+	// Reject votes on blocks that are too old or too far in the future, votes
+	// on unknown blocks, and votes that claim an incorrect block height.
 	if isVote {
 		if err := mp.checkVoteHeightPolicy(tx, bestHeight); err != nil {
+			return nil, err
+		}
+
+		if err := mp.checkVoteBlock(tx); err != nil {
 			return nil, err
 		}
 	}

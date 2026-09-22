@@ -79,6 +79,12 @@ const (
 	// maximum allowed by the mempool.
 	ErrFutureVote = ErrorKind("ErrFutureVote")
 
+	// ErrVoteBlockUnknown indicates a vote on an unknown block.
+	ErrVoteBlockUnknown = ErrorKind("ErrVoteBlockUnknown")
+
+	// ErrVoteBlockHeight indicates a vote claims an incorrect block height.
+	ErrVoteBlockHeight = ErrorKind("ErrVoteBlockHeight")
+
 	// ErrAlreadyExists indicates a transaction already exists on the
 	// main chain and is not fully spent.
 	ErrAlreadyExists = ErrorKind("ErrAlreadyExists")
