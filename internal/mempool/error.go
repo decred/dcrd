@@ -126,12 +126,6 @@ func (e RuleError) Unwrap() error {
 	return e.Err
 }
 
-// chainRuleError returns a RuleError that encapsulates the given
-// blockchain.RuleError.
-func chainRuleError(chainErr blockchain.RuleError) RuleError {
-	return RuleError{Err: chainErr, Description: chainErr.Description}
-}
-
 // txRuleError creates a RuleError given a set of arguments.
 func txRuleError(kind ErrorKind, desc string) RuleError {
 	return RuleError{Err: kind, Description: desc}
@@ -154,4 +148,15 @@ func wrapTxRuleError(kind ErrorKind, desc string, err error) error {
 	}
 
 	return txRuleError(kind, desc)
+}
+
+// wrapChainRuleError returns a new [RuleError] that encapsulates a
+// [blockchain.RuleError].  The error is simply passed through without
+// modification if it is not a [blockchain.RuleError] or nil.
+func wrapChainRuleError(err error) error {
+	var cerr blockchain.RuleError
+	if errors.As(err, &cerr) {
+		return RuleError{Err: err, Description: err.Error()}
+	}
+	return err
 }
