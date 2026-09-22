@@ -71,9 +71,13 @@ const (
 	// mempool.
 	ErrDuplicateRevocation = ErrorKind("ErrDuplicateRevocation")
 
-	// ErrOldVote indicates a ticket votes on a block height lower than
-	// the minimum allowed by the mempool.
+	// ErrOldVote indicates a ticket votes on a block height lower than the
+	// minimum allowed by the mempool.
 	ErrOldVote = ErrorKind("ErrOldVote")
+
+	// ErrFutureVote indicates a ticket votes on a block height higher than the
+	// maximum allowed by the mempool.
+	ErrFutureVote = ErrorKind("ErrFutureVote")
 
 	// ErrAlreadyExists indicates a transaction already exists on the
 	// main chain and is not fully spent.

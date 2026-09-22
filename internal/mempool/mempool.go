@@ -30,6 +30,17 @@ const (
 	// DCR/kB, this results in a maximum allowed high fee of 1 DCR/kB.
 	maxRelayFeeMultiplier = 1e4
 
+	// maxFutureVoteAge is the maximum number of blocks ahead of the current
+	// best chain tip that a vote is allowed to reference.
+	//
+	// Legitimate votes that reference a block beyond the current best chain tip
+	// should normally only be one block ahead when a vote arrives before the
+	// corresponding block announcement has been seen or fully processed.
+	//
+	// A slightly larger limit is used to provide a buffer for conditions such
+	// as high network latency, poor connectivity, and slow processing.
+	maxFutureVoteAge = 5
+
 	// maxVoteDoubleSpends is the maximum number of vote double spends allowed
 	// in the pool.
 	maxVoteDoubleSpends = 5
@@ -1058,6 +1069,38 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 	return nil
 }
 
+// checkVoteHeightPolicy rejects the passed vote when the height of the block it
+// votes on is too old or too far in the future.
+//
+// The provided transaction MUST have already been determined to be a vote by
+// the caller.
+//
+// This function MUST be called with the mempool lock held (for reads).
+func (mp *TxPool) checkVoteHeightPolicy(vote *dcrutil.Tx, bestHeight int64) error {
+	// Reject votes on blocks that are too old.
+	voteTx := vote.MsgTx()
+	nextBlockHeight := bestHeight + 1
+	_, votedHeight := stake.SSGenBlockVotedOn(voteTx)
+	minVotedHeight := nextBlockHeight - int64(mp.cfg.Policy.MaxVoteAge)
+	if int64(votedHeight) < minVotedHeight && !mp.cfg.Policy.AllowOldVotes {
+		str := fmt.Sprintf("vote %v references old block height %d which is "+
+			"before the current cutoff height of %v", vote.Hash(), votedHeight,
+			minVotedHeight)
+		return txRuleError(ErrOldVote, str)
+	}
+
+	// Reject votes on blocks that are too far in the future.
+	maxVotedHeight := bestHeight + maxFutureVoteAge
+	if int64(votedHeight) > maxVotedHeight {
+		str := fmt.Sprintf("vote %v references block height %d which is after "+
+			"the maximum permitted future height %d", vote.Hash(), votedHeight,
+			maxVotedHeight)
+		return txRuleError(ErrFutureVote, str)
+	}
+
+	return nil
+}
+
 // IsRegTxTreeKnownDisapproved returns whether or not the regular tree of the
 // block represented by the provided hash is known to be disapproved according
 // to the votes currently in the memory pool.
@@ -1345,6 +1388,13 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		return nil, txRuleError(ErrInvalid, str)
 	}
 
+	// Reject votes on blocks that are too old or too far in the future.
+	if isVote {
+		if err := mp.checkVoteHeightPolicy(tx, bestHeight); err != nil {
+			return nil, err
+		}
+	}
+
 	// Reject revocations before they can possibly be valid.  A vote must be
 	// missed for a revocation to be valid and votes are not allowed until stake
 	// validation height, so, a revocations can't possibly be valid until one
@@ -1456,19 +1506,6 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 					return nil, txRuleError(ErrDuplicateRevocation, str)
 				}
 			}
-		}
-	}
-
-	// Votes that are on too old of blocks are rejected.
-	if isVote {
-		_, voteHeight := stake.SSGenBlockVotedOn(msgTx)
-		if int64(voteHeight) < nextBlockHeight-int64(mp.cfg.Policy.MaxVoteAge) &&
-			!mp.cfg.Policy.AllowOldVotes {
-			str := fmt.Sprintf("transaction %v votes on old "+
-				"block height of %d which is before the "+
-				"current cutoff height of %v", tx.Hash(),
-				voteHeight, nextBlockHeight-int64(mp.cfg.Policy.MaxVoteAge))
-			return nil, txRuleError(ErrOldVote, str)
 		}
 	}
 
