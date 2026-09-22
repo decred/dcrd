@@ -1925,6 +1925,123 @@ func TestSequenceLockAcceptance(t *testing.T) {
 	}
 }
 
+// TestVoteHeightPolicy ensures the votes that are too old and too far in the
+// future relative to the current best chain are rejected as expected.
+func TestVoteHeightPolicy(t *testing.T) {
+	t.Parallel()
+
+	harness, outs, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+	params := harness.chainParams
+	pool := harness.txPool
+
+	// Create a transaction with several outputs from the first spendable output
+	// provided by the harness.
+	const numVotes = 2
+	multiOutputTx, err := harness.CreateSignedTx([]spendableOutput{outs[0]},
+		numVotes)
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create ticket purchase transactions spending the outputs of the prior
+	// regular transaction.
+	tickets := make([]*dcrutil.Tx, 0, numVotes)
+	for i := uint32(0); i < numVotes; i++ {
+		spend := txOutToSpendableOut(multiOutputTx, i, wire.TxTreeRegular)
+		ticket, err := harness.CreateTicketPurchase(spend, 40000+int64(i))
+		if err != nil {
+			t.Fatalf("unable to create ticket purchase transaction: %v", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+
+	// Add ticket outputs as utxos to fake their existence.  Use values after
+	// the stake enabled height for the height of the fake utxos to ensure they
+	// are mature for the votes cast below.
+	harness.chain.SetHeight(params.StakeEnabledHeight + 1)
+	for i := uint32(0); i < numVotes; i++ {
+		harness.chain.utxos.AddTxOuts(tickets[i], harness.chain.BestHeight(), i,
+			noTreasury)
+	}
+
+	// Create votes on a block that is one block beyond the maximum future vote
+	// age.
+	votedHeight := params.StakeValidationHeight + maxFutureVoteAge + 1
+	harness.chain.SetHeight(votedHeight)
+	votes := make([]*dcrutil.Tx, 0, numVotes)
+	futureBlock := harness.chain.AddMockBlock()
+	harness.chain.SetBestHash(futureBlock.Hash())
+	for i := uint32(0); i < numVotes; i++ {
+		vote, err := harness.CreateVote(tickets[i])
+		if err != nil {
+			t.Fatalf("unable to create vote 1: %v", err)
+		}
+		votes = append(votes, vote)
+	}
+
+	// Ensure the first vote is rejected at exactly one more than the max
+	// allowed future vote age boundary and verify it is not in the orphan pool,
+	// is not in the transaction pool, is not reported as available, and its
+	// vote metadata is not added.
+	harness.chain.SetHeight(votedHeight - maxFutureVoteAge - 1)
+	_, err = pool.ProcessTransaction(votes[0], false, true, 0)
+	if !errors.Is(err, ErrFutureVote) {
+		t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+			err, ErrFutureVote)
+	}
+	testPoolMembership(tc, votes[0], false, false)
+	testVoteMetadataMembership(tc, votes[0], false)
+
+	// Ensure the first vote is accepted at exactly the max allowed future vote
+	// age boundary and verify it is not in the orphan pool, is in the
+	// transaction pool, is reported as available, and its vote metadata is
+	// added.
+	harness.chain.SetHeight(votedHeight - maxFutureVoteAge)
+	acceptedTxns, err := pool.ProcessTransaction(votes[0], false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid vote: %v", err)
+	}
+	if len(acceptedTxns) != 1 {
+		t.Fatalf("ProcessTransaction: reported %d accepted transactions from "+
+			"what should be 1", len(acceptedTxns))
+	}
+	testPoolMembership(tc, votes[0], false, true)
+	testVoteMetadataMembership(tc, votes[0], true)
+
+	// Ensure the second vote is rejected once the chain height advances beyond
+	// the max vote age policy and verify it is not in the orphan pool, is not
+	// in the transaction pool, is not reported as available, and its vote
+	// metadata is not added.
+	policy := &pool.cfg.Policy
+	harness.chain.SetHeight(votedHeight + int64(policy.MaxVoteAge))
+	_, err = pool.ProcessTransaction(votes[1], false, true, 0)
+	if !errors.Is(err, ErrOldVote) {
+		t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+			err, ErrOldVote)
+	}
+	testPoolMembership(tc, votes[1], false, false)
+	testVoteMetadataMembership(tc, votes[1], false)
+
+	// Ensure the second vote is accepted at exactly the max allowed vote age
+	// policy and verify it is not in the orphan pool, is in the transaction
+	// pool, is reported as available, and its vote metadata is still present.
+	harness.chain.SetHeight(votedHeight + int64(policy.MaxVoteAge) - 1)
+	acceptedTxns, err = pool.ProcessTransaction(votes[1], false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid vote: %v", err)
+	}
+	if len(acceptedTxns) != 1 {
+		t.Fatalf("ProcessTransaction: reported %d accepted transactions from "+
+			"what should be 1", len(acceptedTxns))
+	}
+	testPoolMembership(tc, votes[1], false, true)
+	testVoteMetadataMembership(tc, votes[1], true)
+}
+
 // TestMaxVoteDoubleSpendRejection ensures that votes that spend the same ticket
 // while voting on different blocks are accepted to the pool until the maximum
 // allowed is reached and rejected afterwards.
