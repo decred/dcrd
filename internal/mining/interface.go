@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,13 +40,12 @@ type TxSource interface {
 	// transaction hashes exist in the source pool.
 	HaveAllTransactions(hashes []chainhash.Hash) bool
 
-	// VoteHashesForBlock returns the hashes for all votes on the provided
-	// block hash that are currently available in the source pool.
+	// VoteHashesForBlock returns the hashes for all recently accepted votes on
+	// the provided block hash.
 	VoteHashesForBlock(hash *chainhash.Hash) []chainhash.Hash
 
-	// VotesForBlocks returns a slice of vote descriptors for all votes on
-	// the provided block hashes that are currently available in the source
-	// pool.
+	// VotesForBlocks returns a slice of vote descriptors for all recently
+	// accepted votes on the provided block hashes.
 	VotesForBlocks(hashes []chainhash.Hash) [][]VoteDesc
 
 	// IsRegTxTreeKnownDisapproved returns whether or not the regular

@@ -239,6 +239,116 @@ type VerboseTxDesc struct {
 	Depends []*TxDesc
 }
 
+// voteTracker houses information related to votes that may or may not also be
+// in the mempool.
+type voteTracker struct {
+	cfg *Config
+
+	mtx sync.RWMutex
+
+	// votes houses metadata about the votes that were allowed to enter the
+	// mempool keyed by the block they vote on.
+	//
+	// It is not kept in sync with mempool membership because code outside of
+	// the mempool relies on being able to look up recent votes by block hash,
+	// regardless of their current membership in the pool.
+	//
+	// It is protected by the embedded mtx.
+	votes map[chainhash.Hash][]mining.VoteDesc
+}
+
+// newVoteTracker returns an initialized [voteTracker] instance.
+func newVoteTracker(cfg *Config) *voteTracker {
+	return &voteTracker{
+		cfg:   cfg,
+		votes: make(map[chainhash.Hash][]mining.VoteDesc),
+	}
+}
+
+// AddVote adds the given vote into the map of per-block votes.
+//
+// This function is safe for concurrent access.
+func (t *voteTracker) AddVote(vote *dcrutil.Tx) {
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+
+	voteTx := vote.MsgTx()
+	votedHash, votedHeight := stake.SSGenBlockVotedOn(voteTx)
+	ticketHash := &voteTx.TxIn[1].PreviousOutPoint.Hash
+
+	// Nothing to do if a vote for the ticket is already known.
+	vts := t.votes[votedHash]
+	for _, vt := range vts {
+		if vt.TicketHash == *ticketHash {
+			return
+		}
+	}
+
+	// Append the vote and update the maps.
+	voteHash := vote.Hash()
+	voteBits := stake.SSGenVoteBits(voteTx)
+	approvesParent := dcrutil.IsFlagSet16(voteBits, dcrutil.BlockValid)
+	voteTxDesc := mining.VoteDesc{
+		VoteHash:       *voteHash,
+		TicketHash:     *ticketHash,
+		ApprovesParent: approvesParent,
+	}
+	if vts == nil {
+		vts = make([]mining.VoteDesc, 0, t.cfg.ChainParams.TicketsPerBlock)
+	}
+	vts = append(vts, voteTxDesc)
+	t.votes[votedHash] = vts
+
+	approves := func() string {
+		if approvesParent {
+			return "yes"
+		}
+		return "no"
+	}
+	log.Debugf("Accepted %v vote %v for block hash %v (height %v)", approves(),
+		voteHash, votedHash, votedHeight)
+}
+
+// VoteHashesForBlock returns the hashes for all accepted votes on the provided
+// block hash.
+//
+// This function is safe for concurrent access.
+func (t *voteTracker) VoteHashesForBlock(blockHash *chainhash.Hash) []chainhash.Hash {
+	t.mtx.RLock()
+	defer t.mtx.RUnlock()
+
+	// Lookup the vote metadata for the block.
+	vts, exists := t.votes[*blockHash]
+	if !exists || len(vts) == 0 {
+		return nil
+	}
+
+	// Copy the vote hashes from the vote metadata.
+	hashes := make([]chainhash.Hash, 0, len(vts))
+	for _, vt := range vts {
+		hashes = append(hashes, vt.VoteHash)
+	}
+
+	return hashes
+}
+
+// VotesForBlocks returns the recently accepted vote metadata for all votes on
+// the provided block hashes.
+//
+// This function is safe for concurrent access.
+func (t *voteTracker) VotesForBlocks(hashes []chainhash.Hash) [][]mining.VoteDesc {
+	result := make([][]mining.VoteDesc, 0, len(hashes))
+
+	t.mtx.RLock()
+	for _, hash := range hashes {
+		votes := t.votes[hash]
+		result = append(result, votes)
+	}
+	t.mtx.RUnlock()
+
+	return result
+}
+
 // orphanTx is a normal transaction that references an ancestor transaction
 // that is not yet available.  It also contains additional information related
 // to it such as an expiration time to help prevent caching the orphan forever.
@@ -268,9 +378,7 @@ type TxPool struct {
 
 	transient map[chainhash.Hash]*dcrutil.Tx
 
-	// Votes on blocks.
-	votesMtx sync.RWMutex
-	votes    map[chainhash.Hash][]mining.VoteDesc
+	voteTrack *voteTracker
 
 	// TSpends. Access MUST be protected by the mempool mutex.
 	tspends map[chainhash.Hash]*dcrutil.Tx
@@ -282,84 +390,20 @@ type TxPool struct {
 	nextExpireScan time.Time
 }
 
-// insertVote inserts a vote into the map of block votes.
-//
-// This function MUST be called with the vote mutex locked (for writes).
-func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) {
-	// Get the block it is voting on; here we're agnostic of height.
-	msgTx := ssgen.MsgTx()
-	blockHash, blockHeight := stake.SSGenBlockVotedOn(msgTx)
-
-	// If there are currently no votes for this block,
-	// start a new buffered slice and store it.
-	vts, exists := mp.votes[blockHash]
-	if !exists {
-		vts = make([]mining.VoteDesc, 0, mp.cfg.ChainParams.TicketsPerBlock)
-	}
-
-	// Nothing to do if a vote for the ticket is already known.
-	ticketHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
-	for _, vt := range vts {
-		if vt.TicketHash.IsEqual(ticketHash) {
-			return
-		}
-	}
-
-	voteHash := ssgen.Hash()
-	voteBits := stake.SSGenVoteBits(msgTx)
-	vote := dcrutil.IsFlagSet16(voteBits, dcrutil.BlockValid)
-	voteTx := mining.VoteDesc{
-		VoteHash:       *voteHash,
-		TicketHash:     *ticketHash,
-		ApprovesParent: vote,
-	}
-
-	// Append the new vote.
-	mp.votes[blockHash] = append(vts, voteTx)
-
-	log.Debugf("Accepted vote %v for block hash %v (height %v), voting "+
-		"%v on the transaction tree", voteHash, blockHash, blockHeight,
-		vote)
-}
-
-// VoteHashesForBlock returns the hashes for all votes on the provided block
-// hash that are currently available in the mempool.
+// VoteHashesForBlock returns the hashes for all accepted votes on the provided
+// block hash.
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) VoteHashesForBlock(blockHash *chainhash.Hash) []chainhash.Hash {
-	mp.votesMtx.RLock()
-	vts, exists := mp.votes[*blockHash]
-	mp.votesMtx.RUnlock()
-
-	// Lookup the vote metadata for the block.
-	if !exists || len(vts) == 0 {
-		return nil
-	}
-
-	// Copy the vote hashes from the vote metadata.
-	hashes := make([]chainhash.Hash, 0, len(vts))
-	for _, vt := range vts {
-		hashes = append(hashes, vt.VoteHash)
-	}
-
-	return hashes
+	return mp.voteTrack.VoteHashesForBlock(blockHash)
 }
 
-// VotesForBlocks returns the vote metadata for all votes on the provided
-// block hashes that are currently available in the mempool.
+// VotesForBlocks returns the recently accepted vote metadata for all votes on
+// the provided block hashes.
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]mining.VoteDesc {
-	result := make([][]mining.VoteDesc, 0, len(hashes))
-
-	mp.votesMtx.RLock()
-	for _, hash := range hashes {
-		votes := mp.votes[hash]
-		result = append(result, votes)
-	}
-	mp.votesMtx.RUnlock()
-
-	return result
+	return mp.voteTrack.VotesForBlocks(hashes)
 }
 
 // TODO Pruning of the votes map DECRED
@@ -981,13 +1025,13 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType, isTr
 // tickets is not possible.
 //
 // This function MUST be called with the mempool lock held (for reads).
-// This function MUST NOT be called with the votes mutex held.
+// This function MUST NOT be called with the vote tracker mutex held.
 func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 	voteTx := vote.MsgTx()
 	ticketSpent := voteTx.TxIn[1].PreviousOutPoint.Hash
 	hashVotedOn, heightVotedOn := stake.SSGenBlockVotedOn(voteTx)
-	mp.votesMtx.RLock()
-	for _, existingVote := range mp.votes[hashVotedOn] {
+	mp.voteTrack.mtx.RLock()
+	for _, existingVote := range mp.voteTrack.votes[hashVotedOn] {
 		if existingVote.TicketHash == ticketSpent {
 			// Ensure the vote is still actually in the mempool.  This is needed
 			// because the votes map is not currently kept in sync with the
@@ -1002,14 +1046,14 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 				continue
 			}
 
-			mp.votesMtx.RUnlock()
+			mp.voteTrack.mtx.RUnlock()
 			str := fmt.Sprintf("vote %v spending ticket %v already votes on "+
 				"block %s (height %d)", vote.Hash(), ticketSpent, hashVotedOn,
 				heightVotedOn)
 			return txRuleError(ErrAlreadyVoted, str)
 		}
 	}
-	mp.votesMtx.RUnlock()
+	mp.voteTrack.mtx.RUnlock()
 
 	return nil
 }
@@ -1020,12 +1064,12 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 //
 // The function is safe for concurrent access.
 func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
-	mp.votesMtx.RLock()
-	vts := mp.votes[*hash]
-	mp.votesMtx.RUnlock()
+	mp.voteTrack.mtx.RLock()
+	defer mp.voteTrack.mtx.RUnlock()
 
 	// There are not possibly enough votes to tell if the regular transaction
 	// tree is approved or not, so assume it's valid.
+	vts := mp.voteTrack.votes[*hash]
 	if len(vts) <= int(mp.cfg.ChainParams.TicketsPerBlock/2) {
 		return false
 	}
@@ -1771,9 +1815,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 
 	// Keep track of votes separately.
 	if isVote {
-		mp.votesMtx.Lock()
-		mp.insertVote(tx)
-		mp.votesMtx.Unlock()
+		mp.voteTrack.AddVote(tx)
 	}
 
 	// Keep track of tspends separately.
@@ -2332,13 +2374,13 @@ func New(cfg *Config) *TxPool {
 		orphans:         make(map[chainhash.Hash]*orphanTx),
 		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
 		outpoints:       make(map[wire.OutPoint]*TxDesc),
-		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
 		tspends:         make(map[chainhash.Hash]*dcrutil.Tx),
 		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
 		staged:          make(map[chainhash.Hash]*TxDesc),
 		stagedOutpoints: make(map[wire.OutPoint]*TxDesc),
 		transient:       make(map[chainhash.Hash]*dcrutil.Tx),
 	}
+	mp.voteTrack = newVoteTracker(&mp.cfg)
 
 	// for a given transaction, scan the mempool to find which transactions
 	// spend it.
