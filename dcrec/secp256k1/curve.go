@@ -720,16 +720,6 @@ func mulAdd64Carry(digit1, digit2, m, c uint64) (hi, lo uint64) {
 // because it is used for replacing division with multiplication and thus the
 // intermediate results must be done via a field extension to a larger field.
 func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
-	// Convert n1 and n2 to base 2^64 digits.
-	n1Digit0 := uint64(n1.n[0]) | uint64(n1.n[1])<<32
-	n1Digit1 := uint64(n1.n[2]) | uint64(n1.n[3])<<32
-	n1Digit2 := uint64(n1.n[4]) | uint64(n1.n[5])<<32
-	n1Digit3 := uint64(n1.n[6]) | uint64(n1.n[7])<<32
-	n2Digit0 := uint64(n2.n[0]) | uint64(n2.n[1])<<32
-	n2Digit1 := uint64(n2.n[2]) | uint64(n2.n[3])<<32
-	n2Digit2 := uint64(n2.n[4]) | uint64(n2.n[5])<<32
-	n2Digit3 := uint64(n2.n[6]) | uint64(n2.n[7])<<32
-
 	// Compute the full 512-bit product n1*n2.
 	var r0, r1, r2, r3, r4, r5, r6, r7, c uint64
 
@@ -738,40 +728,40 @@ func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
 	//
 	// Note that r0 is ignored because it is not needed to compute the higher
 	// terms and it is shifted out below anyway.
-	c, _ = bits.Mul64(n2Digit0, n1Digit0)
-	c, r1 = mulAdd64(n2Digit0, n1Digit1, c)
-	c, r2 = mulAdd64(n2Digit0, n1Digit2, c)
-	r4, r3 = mulAdd64(n2Digit0, n1Digit3, c)
+	c, _ = bits.Mul64(n2.n[0], n1.n[0])
+	c, r1 = mulAdd64(n2.n[0], n1.n[1], c)
+	c, r2 = mulAdd64(n2.n[0], n1.n[2], c)
+	r4, r3 = mulAdd64(n2.n[0], n1.n[3], c)
 
 	// Terms resulting from the product of the second digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r1 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit1, n1Digit0, r1)
-	c, r2 = mulAdd64Carry(n2Digit1, n1Digit1, r2, c)
-	c, r3 = mulAdd64Carry(n2Digit1, n1Digit2, r3, c)
-	r5, r4 = mulAdd64Carry(n2Digit1, n1Digit3, r4, c)
+	c, _ = mulAdd64(n2.n[1], n1.n[0], r1)
+	c, r2 = mulAdd64Carry(n2.n[1], n1.n[1], r2, c)
+	c, r3 = mulAdd64Carry(n2.n[1], n1.n[2], r3, c)
+	r5, r4 = mulAdd64Carry(n2.n[1], n1.n[3], r4, c)
 
 	// Terms resulting from the product of the third digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r2 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit2, n1Digit0, r2)
-	c, r3 = mulAdd64Carry(n2Digit2, n1Digit1, r3, c)
-	c, r4 = mulAdd64Carry(n2Digit2, n1Digit2, r4, c)
-	r6, r5 = mulAdd64Carry(n2Digit2, n1Digit3, r5, c)
+	c, _ = mulAdd64(n2.n[2], n1.n[0], r2)
+	c, r3 = mulAdd64Carry(n2.n[2], n1.n[1], r3, c)
+	c, r4 = mulAdd64Carry(n2.n[2], n1.n[2], r4, c)
+	r6, r5 = mulAdd64Carry(n2.n[2], n1.n[3], r5, c)
 
 	// Terms resulting from the product of the fourth digit of the second number
 	// by all digits of the first number.
 	//
 	// Note that r3 is ignored because it is no longer needed to compute the
 	// higher terms and it is shifted out below anyway.
-	c, _ = mulAdd64(n2Digit3, n1Digit0, r3)
-	c, r4 = mulAdd64Carry(n2Digit3, n1Digit1, r4, c)
-	c, r5 = mulAdd64Carry(n2Digit3, n1Digit2, r5, c)
-	r7, r6 = mulAdd64Carry(n2Digit3, n1Digit3, r6, c)
+	c, _ = mulAdd64(n2.n[3], n1.n[0], r3)
+	c, r4 = mulAdd64Carry(n2.n[3], n1.n[1], r4, c)
+	c, r5 = mulAdd64Carry(n2.n[3], n1.n[2], r5, c)
+	r7, r6 = mulAdd64Carry(n2.n[3], n1.n[3], r6, c)
 
 	// At this point the upper 256 bits of the full 512-bit product n1*n2 are in
 	// r4..r7 (recall the low order results were discarded as noted above).
@@ -796,14 +786,10 @@ func mul512Rsh320Round(n1, n2 *ModNScalar) ModNScalar {
 	// less than the group order given the group order is > 2^255 and the
 	// maximum possible value of the result is 2^192.
 	var result ModNScalar
-	result.n[0] = uint32(r0)
-	result.n[1] = uint32(r0 >> 32)
-	result.n[2] = uint32(r1)
-	result.n[3] = uint32(r1 >> 32)
-	result.n[4] = uint32(r2)
-	result.n[5] = uint32(r2 >> 32)
-	result.n[6] = uint32(r3)
-	result.n[7] = uint32(r3 >> 32)
+	result.n[0] = r0
+	result.n[1] = r1
+	result.n[2] = r2
+	result.n[3] = r3
 	return result
 }
 
