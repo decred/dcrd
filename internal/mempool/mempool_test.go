@@ -2407,6 +2407,213 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	testVoteMetadataMembership(tc, dupVote, false)
 }
 
+// TestVotePruning ensures votes and their associated metadata are pruned from
+// the mempool and vote tracker as expected.
+//
+// In particular, it exercises the following:
+//   - Multiple votes for a single block are all pruned together
+//   - Votes on a recent block remain in both the mempool and tracked metadata
+//   - The heights on either side of, and including, the retention boundary
+//   - Pruning the votes of a block does not affect the votes for other blocks
+//   - Pruning when there are no votes or the votes have already been pruned has
+//     no effect
+func TestVotePruning(t *testing.T) {
+	harness, outs, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+	params := harness.chainParams
+	pool := harness.txPool
+
+	// Create a transaction with several outputs from the first spendable output
+	// provided by the harness to use as ticket purchase inputs.
+	const numVotes = 4
+	multiOutputTx, err := harness.CreateSignedTx([]spendableOutput{outs[0]},
+		numVotes)
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create ticket purchase transactions for each output above.
+	tickets := make([]*dcrutil.Tx, 0, numVotes)
+	for i := uint32(0); i < numVotes; i++ {
+		spend := txOutToSpendableOut(multiOutputTx, i, wire.TxTreeRegular)
+		ticket, err := harness.CreateTicketPurchase(spend, 40000+int64(i))
+		if err != nil {
+			t.Fatalf("unable to create ticket purchase transaction: %v", err)
+		}
+		tickets = append(tickets, ticket)
+	}
+
+	// Add ticket outputs as utxos to fake their existence.  Use values after
+	// the stake enabled height so they are mature for the votes cast below.
+	harness.chain.SetHeight(params.StakeEnabledHeight + 1)
+	for i := uint32(0); i < numVotes; i++ {
+		harness.chain.utxos.AddTxOuts(tickets[i], harness.chain.BestHeight(), i,
+			noTreasury)
+	}
+
+	// Create multiple votes on multiple blocks at different heights for the
+	// subsequent pruning tests.
+	const numBlocks = 2
+	const votesPerBlock = numVotes / numBlocks
+	blockHeightOffsets := [numBlocks]int64{0, 6}
+	blockHeights := make([]int64, numBlocks)
+	votesByBlock := make([][]*dcrutil.Tx, numBlocks)
+	for j, offset := range blockHeightOffsets {
+		blockHeight := params.StakeValidationHeight + offset
+		harness.chain.SetHeight(blockHeight)
+		block := harness.chain.AddMockBlock()
+		harness.chain.SetBestHash(block.Hash())
+		blockHeights[j] = blockHeight
+
+		// Create votes for the block at the current height and ensure they all
+		// get accepted to the transaction pool, are not in the orphan pool, and
+		// their metadata added.
+		votes := make([]*dcrutil.Tx, 0, votesPerBlock)
+		for i := 0; i < votesPerBlock; i++ {
+			ticket := tickets[j*votesPerBlock+i]
+			harness.chain.AddWinningTicket(block.Hash(), ticket.Hash())
+			vote, err := harness.CreateVote(ticket)
+			if err != nil {
+				t.Fatalf("unable to create vote 1: %v", err)
+			}
+			_, err = pool.ProcessTransaction(vote, false, true, 0)
+			if err != nil {
+				t.Fatalf("failed to accept valid vote: %v", err)
+			}
+			testPoolMembership(tc, vote, false, true)
+			testVoteMetadataMembership(tc, vote, true)
+
+			votes = append(votes, vote)
+		}
+		votesByBlock[j] = votes
+	}
+	secondBlockOff := blockHeightOffsets[1]
+	firstBlockPruneHeight := blockHeights[0] + heightDiffToPruneVotes + 1
+	secondBlockPruneHeight := blockHeights[1] + heightDiffToPruneVotes + 1
+	firstBlockVotes, secondBlockVotes := votesByBlock[0], votesByBlock[1]
+
+	// checkVotes asserts that every vote in the provided slice has the given
+	// mempool and vote metadata membership status.
+	checkVotes := func(votes []*dcrutil.Tx, wantMember bool) {
+		t.Helper()
+
+		for _, vote := range votes {
+			testPoolMembership(tc, vote, false, wantMember)
+			testVoteMetadataMembership(tc, vote, wantMember)
+		}
+	}
+
+	// setHeightAndPrune sets the fake chain to the provided height and invokes
+	// [TxPool.PruneStakeTx] on the harness instance with that height.
+	setHeightAndPrune := func(height int64) {
+		t.Helper()
+
+		harness.chain.SetHeight(height)
+		nextStakeDiff, err := harness.chain.NextStakeDifficulty()
+		if err != nil {
+			t.Fatalf("unable to retrieve next stake difficulty: %v", err)
+		}
+
+		pool.PruneStakeTx(nextStakeDiff, height)
+	}
+
+	// Pruning at a height that is one before the last height within the
+	// retention window of the first block must not remove the votes for the
+	// first block from either the mempool or the tracked metadata.
+	setHeightAndPrune(firstBlockPruneHeight - 2)
+	checkVotes(firstBlockVotes, true)
+	checkVotes(secondBlockVotes, true)
+
+	// Pruning at the last height within the retention window must still retain
+	// the votes.
+	setHeightAndPrune(firstBlockPruneHeight - 1)
+	checkVotes(firstBlockVotes, true)
+	checkVotes(secondBlockVotes, true)
+
+	// Pruning at the first height beyond the retention window of the first
+	// block must remove all of its votes together from both the mempool and the
+	// tracked vote metadata.  The votes from the second unrelated block must
+	// not be pruned because its own prune height has not been reached yet.
+	setHeightAndPrune(firstBlockPruneHeight)
+	checkVotes(firstBlockVotes, false)
+	checkVotes(secondBlockVotes, true)
+
+	// Pruning again at the same height, and at a later one that is still prior
+	// to the prune height of the second block, must not have any effect.  The
+	// votes for the first block remain pruned and the votes from the second
+	// block remain unaffected because its prune height has not been reached
+	// yet.
+	setHeightAndPrune(firstBlockPruneHeight)
+	setHeightAndPrune(firstBlockPruneHeight + secondBlockOff - 1)
+	checkVotes(firstBlockVotes, false)
+	checkVotes(secondBlockVotes, true)
+
+	// Finally, pruning at a height that pushes the second block outside of
+	// its own retention window must remove its votes as well.
+	setHeightAndPrune(secondBlockPruneHeight)
+	checkVotes(firstBlockVotes, false)
+	checkVotes(secondBlockVotes, false)
+
+	// Pruning when there are not votes or metadata has no effect.
+	setHeightAndPrune(secondBlockPruneHeight + 100)
+	checkVotes(firstBlockVotes, false)
+	checkVotes(secondBlockVotes, false)
+}
+
+// TestVoteTrackerPruneOldVotesBoundary ensures vote metadata is retained and
+// pruned at the exact retention boundary in a way that is independent of
+// transaction construction, signing, and mempool acceptance rules.
+//
+// These cases are also covered more holistically by [TestVotePruning] via the
+// full harness and [TxPool.PruneStakeTx].  This specifically targets
+// [voteTracker.PruneOldVotes] with minimal state.
+func TestVoteTrackerPruneOldVotesBoundary(t *testing.T) {
+	t.Parallel()
+
+	const blockHeight = 12345
+
+	tests := []struct {
+		name        string
+		pruneHeight int64
+		wantPruned  bool
+	}{{
+		name:        "one below the retention boundary is retained",
+		pruneHeight: blockHeight + heightDiffToPruneVotes - 1,
+		wantPruned:  false,
+	}, {
+		name:        "exactly at the retention boundary is retained",
+		pruneHeight: blockHeight + heightDiffToPruneVotes,
+		wantPruned:  false,
+	}, {
+		name:        "one past the retention boundary is pruned",
+		pruneHeight: blockHeight + heightDiffToPruneVotes + 1,
+		wantPruned:  true,
+	}}
+
+	params := chaincfg.MainNetParams()
+	var blockHash chainhash.Hash
+	blockHash[0] = 0x01
+	for _, test := range tests {
+		vt := newVoteTracker(&Config{ChainParams: params})
+		vt.votes[blockHash] = trackedVotes{
+			blockHeight: blockHeight,
+			votes:       []mining.VoteDesc{{}},
+		}
+
+		vt.PruneOldVotes(test.pruneHeight)
+
+		_, exists := vt.votes[blockHash]
+		if gotPruned := !exists; gotPruned != test.wantPruned {
+			t.Fatalf("%q: unexpected pruning result at height %d -- got "+
+				"pruned: %v, want pruned: %v", test.name, test.pruneHeight,
+				gotPruned, test.wantPruned)
+		}
+	}
+}
+
 // TestDuplicateTxError ensures that attempting to add a transaction to the
 // pool which is an exact duplicate of another transaction fails with the
 // appropriate error.
