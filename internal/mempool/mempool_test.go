@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"runtime"
 	"slices"
 	"sync"
 	"testing"
@@ -953,34 +952,29 @@ type testContext struct {
 // should be reported as available by the HaveTransaction function based upon
 // the two flags and tests that condition as well.
 func testPoolMembership(tc *testContext, tx *dcrutil.Tx, inOrphanPool, inTxPool bool) {
+	tc.t.Helper()
+
 	txHash := tx.Hash()
 	gotOrphanPool := tc.harness.txPool.IsOrphanInPool(txHash)
-	if inOrphanPool != gotOrphanPool {
-		_, file, line, _ := runtime.Caller(1)
-		tc.t.Fatalf("%s:%d -- IsOrphanInPool: want %v, got %v", file,
-			line, inOrphanPool, gotOrphanPool)
+	if gotOrphanPool != inOrphanPool {
+		tc.t.Fatalf("IsOrphanInPool: got %v, want %v", gotOrphanPool,
+			inOrphanPool)
 	}
 
 	gotTxPool := tc.harness.txPool.IsTransactionInPool(txHash)
-	if inTxPool != gotTxPool {
-		_, file, line, _ := runtime.Caller(1)
-		tc.t.Fatalf("%s:%d -- IsTransactionInPool: want %v, got %v",
-			file, line, inTxPool, gotTxPool)
+	if gotTxPool != inTxPool {
+		tc.t.Fatalf("IsTransactionInPool: got %v, want %v", gotTxPool, inTxPool)
 	}
 
 	gotHaveTx := tc.harness.txPool.HaveTransaction(txHash)
 	wantHaveTx := inOrphanPool || inTxPool
 	gotTxStaged := tc.harness.txPool.isTransactionStaged(txHash)
 	if gotTxStaged && (gotOrphanPool || gotTxPool) {
-		_, file, line, _ := runtime.Caller(1)
-		tc.t.Fatalf("%s:%d -- HaveTransaction: tx exists "+
-			"in multiple pools. staged: %v, txpool: %v, orphan: %v",
-			file, line, gotTxStaged, gotTxPool, gotOrphanPool)
+		tc.t.Fatalf("HaveTransaction: tx exists in multiple pools. staged: "+
+			"%v, txpool: %v, orphan: %v", gotTxStaged, gotTxPool, gotOrphanPool)
 	}
 	if wantHaveTx != gotHaveTx && !gotTxStaged {
-		_, file, line, _ := runtime.Caller(1)
-		tc.t.Fatalf("%s:%d -- HaveTransaction: want %v, got %v", file,
-			line, wantHaveTx, gotHaveTx)
+		tc.t.Fatalf("HaveTransaction: want %v, got %v", wantHaveTx, gotHaveTx)
 	}
 }
 
