@@ -1307,7 +1307,7 @@ func TestFieldMulInt(t *testing.T) {
 		in2:      5,
 		expected: "6cf4eb20f2447c77657fccb172d38c0aa91ea4ac446dc641fa463a6b5091fba7",
 	}, {
-		name:     "random sampling #3",
+		name:     "random sampling #4",
 		in1:      "fb4529be3e027a3d1587d8a500b72f2d312e3577340ef5175f96d113be4c2ceb",
 		in2:      8,
 		expected: "da294df1f013d1e8ac3ec52805b979698971abb9a077a8bafcb688a4f261820f",
@@ -1369,7 +1369,7 @@ func TestFieldMul(t *testing.T) {
 		in2:      "3",
 		expected: "0",
 	}, {
-		name:     "secp256k1 prime * 3",
+		name:     "secp256k1 prime * 8",
 		in1:      "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
 		in2:      "8",
 		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc27",
