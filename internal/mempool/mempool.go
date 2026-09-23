@@ -255,6 +255,15 @@ type VerboseTxDesc struct {
 	Depends []*TxDesc
 }
 
+// trackedVotes houses metadata about recent votes that vote on the same block.
+type trackedVotes struct {
+	// blockHeight specifies the known good height for the associated block.
+	blockHeight int64
+
+	// votes houses the metadata about the votes.
+	votes []mining.VoteDesc
+}
+
 // voteTracker houses information related to votes that may or may not also be
 // in the mempool.
 type voteTracker struct {
@@ -270,14 +279,14 @@ type voteTracker struct {
 	// regardless of their current membership in the pool.
 	//
 	// It is protected by the embedded mtx.
-	votes map[chainhash.Hash][]mining.VoteDesc
+	votes map[chainhash.Hash]trackedVotes
 }
 
 // newVoteTracker returns an initialized [voteTracker] instance.
 func newVoteTracker(cfg *Config) *voteTracker {
 	return &voteTracker{
 		cfg:   cfg,
-		votes: make(map[chainhash.Hash][]mining.VoteDesc),
+		votes: make(map[chainhash.Hash]trackedVotes),
 	}
 }
 
@@ -293,11 +302,15 @@ func (t *voteTracker) AddVote(vote *dcrutil.Tx) {
 	ticketHash := &voteTx.TxIn[1].PreviousOutPoint.Hash
 
 	// Nothing to do if a vote for the ticket is already known.
-	vts := t.votes[votedHash]
+	tracked, ok := t.votes[votedHash]
+	vts := tracked.votes
 	for _, vt := range vts {
 		if vt.TicketHash == *ticketHash {
 			return
 		}
+	}
+	if !ok {
+		tracked.blockHeight = int64(votedHeight)
 	}
 
 	// Append the vote and update the maps.
@@ -313,7 +326,8 @@ func (t *voteTracker) AddVote(vote *dcrutil.Tx) {
 		vts = make([]mining.VoteDesc, 0, t.cfg.ChainParams.TicketsPerBlock)
 	}
 	vts = append(vts, voteTxDesc)
-	t.votes[votedHash] = vts
+	tracked.votes = vts
+	t.votes[votedHash] = tracked
 
 	approves := func() string {
 		if approvesParent {
@@ -334,14 +348,14 @@ func (t *voteTracker) VoteHashesForBlock(blockHash *chainhash.Hash) []chainhash.
 	defer t.mtx.RUnlock()
 
 	// Lookup the vote metadata for the block.
-	vts, exists := t.votes[*blockHash]
-	if !exists || len(vts) == 0 {
+	tracked, exists := t.votes[*blockHash]
+	if !exists || len(tracked.votes) == 0 {
 		return nil
 	}
 
 	// Copy the vote hashes from the vote metadata.
-	hashes := make([]chainhash.Hash, 0, len(vts))
-	for _, vt := range vts {
+	hashes := make([]chainhash.Hash, 0, len(tracked.votes))
+	for _, vt := range tracked.votes {
 		hashes = append(hashes, vt.VoteHash)
 	}
 
@@ -357,12 +371,28 @@ func (t *voteTracker) VotesForBlocks(hashes []chainhash.Hash) [][]mining.VoteDes
 
 	t.mtx.RLock()
 	for _, hash := range hashes {
-		votes := t.votes[hash]
-		result = append(result, votes)
+		result = append(result, t.votes[hash].votes)
 	}
 	t.mtx.RUnlock()
 
 	return result
+}
+
+// PruneOldVotes prunes vote metadata for blocks that are sufficiently old
+// relative to the provided best chain height.
+//
+// This function is safe for concurrent access.
+func (t *voteTracker) PruneOldVotes(height int64) {
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+
+	for blockHash, tracked := range t.votes {
+		if tracked.blockHeight+heightDiffToPruneVotes < height {
+			log.Debugf("Pruning %d tracked votes for block %v (height %v)",
+				len(tracked.votes), blockHash, tracked.blockHeight)
+			delete(t.votes, blockHash)
+		}
+	}
 }
 
 // orphanTx is a normal transaction that references an ancestor transaction
@@ -421,8 +451,6 @@ func (mp *TxPool) VoteHashesForBlock(blockHash *chainhash.Hash) []chainhash.Hash
 func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]mining.VoteDesc {
 	return mp.voteTrack.VotesForBlocks(hashes)
 }
-
-// TODO Pruning of the votes map DECRED
 
 // TSpendHashes returns hashes of all existing tracked tspends. This function
 // is safe for concurrent access.
@@ -503,7 +531,6 @@ func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx) {
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) RemoveOrphansByTag(tag Tag) uint64 {
-
 	var numEvicted uint64
 	mp.mtx.Lock()
 	for _, otx := range mp.orphans {
@@ -1047,7 +1074,7 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 	ticketSpent := voteTx.TxIn[1].PreviousOutPoint.Hash
 	hashVotedOn, heightVotedOn := stake.SSGenBlockVotedOn(voteTx)
 	mp.voteTrack.mtx.RLock()
-	for _, existingVote := range mp.voteTrack.votes[hashVotedOn] {
+	for _, existingVote := range mp.voteTrack.votes[hashVotedOn].votes {
 		if existingVote.TicketHash == ticketSpent {
 			// Ensure the vote is still actually in the mempool.  This is needed
 			// because the votes map is not currently kept in sync with the
@@ -1186,7 +1213,7 @@ func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 
 	// There are not possibly enough votes to tell if the regular transaction
 	// tree is approved or not, so assume it's valid.
-	vts := mp.voteTrack.votes[*hash]
+	vts := mp.voteTrack.votes[*hash].votes
 	if len(vts) <= int(mp.cfg.ChainParams.TicketsPerBlock/2) {
 		return false
 	}
@@ -2180,8 +2207,8 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, checkTxFlags blockchain
 	return acceptedTxns
 }
 
-// pruneStakeTx is the internal function which implements the public
-// PruneStakeTx.  See the comment for PruneStakeTx for more details.
+// pruneStakeTx is an internal function which implements [TxPool.PruneStakeTx].
+// See its comment for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64, isAutoRevocationsEnabled bool) {
@@ -2238,14 +2265,19 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64, isAutoRevo
 			continue
 		}
 	}
+
+	// Prune old votes from the map of per-block votes.
+	mp.voteTrack.PruneOldVotes(height)
 }
 
-// PruneStakeTx is the function which is called every time a new block is
-// processed.  The idea is any outstanding SStx that hasn't been mined in a
-// certain period of time (CoinbaseMaturity) and the submitted SStx's
-// stake difficulty is below the current required stake difficulty should be
-// pruned from mempool since they will never be mined.  The same idea stands
-// for SSGen and SSRtx.
+// PruneStakeTx prunes stake transactions that are no longer deemed relevant for
+// the given parameters.  It is intended to be called every time a new block is
+// added to the main chain.  Therefore, the provided parameters are expected to
+// be relative to the best chain tip.
+//
+// For example, it prunes outstanding ticket purchases that have exceeded the
+// coinbase maturity or are now below the given required stake difficulty (aka
+// ticket price).  Similar pruning applies to votes and revocations.
 func (mp *TxPool) PruneStakeTx(requiredStakeDifficulty, height int64) {
 	isAutoRevocationsEnabled, err := mp.cfg.IsAutoRevocationsAgendaActive()
 	if err != nil {
