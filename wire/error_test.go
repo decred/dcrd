@@ -44,6 +44,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrMismatchedWitnessCount, "ErrMismatchedWitnessCount"},
 		{ErrUnknownTxType, "ErrUnknownTxType"},
 		{ErrReadInPrefixFromWitnessOnlyTx, "ErrReadInPrefixFromWitnessOnlyTx"},
+		{ErrNegativeTxTree, "ErrNegativeTxTree"},
 		{ErrInvalidMsg, "ErrInvalidMsg"},
 		{ErrUserAgentTooLong, "ErrUserAgentTooLong"},
 		{ErrTooManyFilterHeaders, "ErrTooManyFilterHeaders"},
