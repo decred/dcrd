@@ -696,6 +696,146 @@ func TestTxSerializeErrors(t *testing.T) {
 	}
 }
 
+// TestOutPointSerialize ensures [ReadOutPoint] and [WriteOutPoint] work as
+// intended for both valid and invalid data.  The write side is also tested for
+// short writes.
+func TestOutPointSerialize(t *testing.T) {
+	const (
+		pver            = ProtocolVersion
+		version         = 1
+		maxOutPointSize = chainhash.HashSize + 4 + 1
+	)
+
+	// This is intentionally using the raw bytes versus the reversed bytes that
+	// are typical for hash strings for test simplicity.
+	hashHex := "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+	hash, err := chainhash.NewHash(hexToBytes(hashHex))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	t.Run("Read", func(t *testing.T) {
+		tests := []struct {
+			name string   // test name
+			buf  []byte   // serialized data
+			err  error    // expected error
+			want OutPoint // expected result when no error
+		}{{
+			name: "normal regular tree",
+			buf:  hexToBytes(hashHex + "0a000000" + "00"),
+			want: OutPoint{Hash: *hash, Index: 10, Tree: TxTreeRegular},
+		}, {
+			name: "normal stake tree",
+			buf:  hexToBytes(hashHex + "08000000" + "01"),
+			want: OutPoint{Hash: *hash, Index: 8, Tree: TxTreeStake},
+		}, {
+			name: "negative tree",
+			buf:  hexToBytes(hashHex + "08000000" + "80"),
+			err:  ErrNegativeTxTree,
+		}, {
+			name: "no data",
+			buf:  nil,
+			err:  io.EOF,
+		}, {
+			name: "partial hash",
+			buf:  hexToBytes(hashHex[:chainhash.HashSize-2]),
+			err:  io.ErrUnexpectedEOF,
+		}, {
+			name: "missing index",
+			buf:  hexToBytes(hashHex),
+			err:  io.EOF,
+		}, {
+			name: "partial index",
+			buf:  hexToBytes(hashHex + "080000"),
+			err:  io.ErrUnexpectedEOF,
+		}, {
+			name: "missing tree",
+			buf:  hexToBytes(hashHex + "08000000"),
+			err:  io.EOF,
+		}}
+
+		for _, test := range tests {
+			var gotOutPoint OutPoint
+			r := bytes.NewReader(test.buf)
+			err := ReadOutPoint(r, pver, version, &gotOutPoint)
+			if !errors.Is(err, test.err) {
+				t.Errorf("%q: mismatched err -- got %v, want %v", test.name,
+					err, test.err)
+				continue
+			}
+			if err != nil {
+				continue
+			}
+
+			if gotOutPoint != test.want {
+				t.Errorf("%q: mismatched outpoint -- got: %+v, want: %+v\n",
+					test.name, gotOutPoint, test.want)
+				continue
+			}
+		}
+	})
+
+	t.Run("Write", func(t *testing.T) {
+		tests := []struct {
+			name string   // test name
+			op   OutPoint // outpoint to serialize
+			max  int      // max size of the fixed buffer to induce errors
+			err  error    // expected error
+			want []byte   // expected result
+		}{{
+			name: "normal regular tree",
+			op:   OutPoint{Hash: *hash, Index: 1, Tree: TxTreeRegular},
+			max:  maxOutPointSize,
+			want: hexToBytes(hashHex + "01000000" + "00"),
+		}, {
+			name: "normal stake tree",
+			op:   OutPoint{Hash: *hash, Index: 2, Tree: TxTreeStake},
+			max:  maxOutPointSize,
+			want: hexToBytes(hashHex + "02000000" + "01"),
+		}, {
+			name: "negative tree",
+			op:   OutPoint{Hash: *hash, Index: 3, Tree: -1},
+			max:  maxOutPointSize,
+			err:  ErrNegativeTxTree,
+			want: nil,
+		}, {
+			name: "short hash write",
+			op:   OutPoint{Hash: *hash, Index: 4, Tree: TxTreeRegular},
+			max:  chainhash.HashSize - 1,
+			err:  io.ErrShortWrite,
+			want: nil,
+		}, {
+			name: "short index write",
+			op:   OutPoint{Hash: *hash, Index: 5, Tree: TxTreeRegular},
+			max:  chainhash.HashSize + 3,
+			err:  io.ErrShortWrite,
+			want: hexToBytes(hashHex),
+		}, {
+			name: "short tree write",
+			op:   OutPoint{Hash: *hash, Index: 6, Tree: TxTreeRegular},
+			max:  maxOutPointSize - 1,
+			err:  io.ErrShortWrite,
+			want: hexToBytes(hashHex + "06000000"),
+		}}
+
+		for _, test := range tests {
+			w := newFixedWriter(test.max)
+			err := WriteOutPoint(w, pver, version, &test.op)
+			if !errors.Is(err, test.err) {
+				t.Errorf("%q: mismatched err -- got %v, want %v", test.name,
+					err, test.err)
+				continue
+			}
+
+			if !bytes.Equal(w.Bytes(), test.want) {
+				t.Errorf("%q: mismatched outpoint -- got: %s, want: %s\n",
+					test.name, spew.Sdump(w.Bytes()), spew.Sdump(test.want))
+				continue
+			}
+		}
+	})
+}
+
 // TestTxOverflowErrors performs tests to ensure deserializing transactions
 // which are intentionally crafted to use large values for the variable number
 // of inputs and outputs are handled properly.  This could otherwise potentially
