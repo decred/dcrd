@@ -1188,6 +1188,10 @@ func ReadOutPoint(r io.Reader, pver uint32, version uint16, op *OutPoint) error 
 		return err
 	}
 	op.Tree = int8(tree)
+	if op.Tree < 0 {
+		msg := fmt.Sprintf("negative transaction tree: %d", op.Tree)
+		return messageError("ReadOutPoint", ErrNegativeTxTree, msg)
+	}
 
 	return nil
 }
@@ -1195,6 +1199,11 @@ func ReadOutPoint(r io.Reader, pver uint32, version uint16, op *OutPoint) error 
 // WriteOutPoint encodes op to the Decred protocol encoding for an OutPoint
 // to w.
 func WriteOutPoint(w io.Writer, pver uint32, version uint16, op *OutPoint) error {
+	if op.Tree < 0 {
+		msg := fmt.Sprintf("negative transaction tree: %d", op.Tree)
+		return messageError("WriteOutPoint", ErrNegativeTxTree, msg)
+	}
+
 	_, err := w.Write(op.Hash[:])
 	if err != nil {
 		return err

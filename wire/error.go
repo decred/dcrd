@@ -111,6 +111,10 @@ const (
 	// transaction input prefix from a witness only transaction.
 	ErrReadInPrefixFromWitnessOnlyTx
 
+	// ErrNegativeTxTree is returned when a message involves a negative
+	// transaction tree.
+	ErrNegativeTxTree
+
 	// ErrInvalidMsg is returned for an invalid message structure.
 	ErrInvalidMsg
 
@@ -202,6 +206,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMismatchedWitnessCount:        "ErrMismatchedWitnessCount",
 	ErrUnknownTxType:                 "ErrUnknownTxType",
 	ErrReadInPrefixFromWitnessOnlyTx: "ErrReadInPrefixFromWitnessOnlyTx",
+	ErrNegativeTxTree:                "ErrNegativeTxTree",
 	ErrInvalidMsg:                    "ErrInvalidMsg",
 	ErrUserAgentTooLong:              "ErrUserAgentTooLong",
 	ErrTooManyFilterHeaders:          "ErrTooManyFilterHeaders",
