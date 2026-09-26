@@ -7,7 +7,6 @@ package blockchain
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
@@ -236,11 +235,12 @@ func utxoEntryToSpentTxOut(entry *UtxoEntry) spentTxOut {
 // connectStakeTransaction updates the view by adding all new utxos created by
 // the passed transaction from the stake transaction tree and marking all utxos
 // that the transaction spends as spent.  In addition, when the 'stxos' argument
-// is not nil, it will be updated to append an entry for each spent txout.  An
-// error will be returned if the view does not contain the required utxos.
+// is not nil, it will be updated to append an entry for each spent txout.
+//
+// It panics if the view does not contain the required utxos.
 func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 	blockHeight int64, blockIndex uint32, stxos *[]spentTxOut,
-	isTreasuryEnabled bool) error {
+	isTreasuryEnabled bool) {
 
 	// Treasurybase transactions don't have any inputs to spend or outputs to
 	// add.
@@ -250,7 +250,7 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 	// the required treasurybase when the treasury agenda is active.
 	msgTx := tx.MsgTx()
 	if isTreasuryEnabled && blockIndex == 0 {
-		return nil
+		return
 	}
 
 	// Treasury spends don't have any inputs to spend.
@@ -258,7 +258,7 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 	if isTreasurySpend {
 		// Add the transaction's outputs as available utxos.
 		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
-		return nil
+		return
 	}
 
 	// Spend the referenced utxos by marking them spent in the view and, if a
@@ -270,12 +270,11 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 			continue
 		}
 
-		// Ensure the referenced utxo exists in the view.  This should never
-		// happen unless a bug is introduced in the code.
+		// Assert the referenced utxo exists in the view.
 		prevOut := &txIn.PreviousOutPoint
 		entry := view.entries[*prevOut]
 		if entry == nil {
-			return AssertError(fmt.Sprintf("view missing input %v", *prevOut))
+			panicf("view missing input %v (tree %v)", prevOut, prevOut.Tree)
 		}
 
 		// Only create the stxo details if requested.
@@ -292,29 +291,23 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 
 	// Add the transaction's outputs as available utxos.
 	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
-
-	return nil
 }
 
 // connectStakeTransactions updates the view by adding all new utxos created by
 // the transactions in the stake transaction tree of the block and marking all
 // utxos those same transactions spend as spent.  In addition, when the 'stxos'
 // argument is not nil, it will be updated to append an entry for each spent
-// txout.  An error will be returned if the view does not contain the required
-// utxos.
+// txout.
+//
+// It panics if the view does not contain the required utxos.
 func (view *UtxoViewpoint) connectStakeTransactions(block *dcrutil.Block,
-	stxos *[]spentTxOut, isTreasuryEnabled bool) error {
+	stxos *[]spentTxOut, isTreasuryEnabled bool) {
 
 	// Connect all of the transactions in the stake transaction tree.
 	for i, tx := range block.STransactions() {
-		err := view.connectStakeTransaction(tx, block.Height(), uint32(i),
-			stxos, isTreasuryEnabled)
-		if err != nil {
-			return err
-		}
+		view.connectStakeTransaction(tx, block.Height(), uint32(i), stxos,
+			isTreasuryEnabled)
 	}
-
-	return nil
 }
 
 // connectRegularTransaction updates the view by adding all new utxos created by
@@ -322,29 +315,29 @@ func (view *UtxoViewpoint) connectStakeTransactions(block *dcrutil.Block,
 // utxos that the transaction spends as spent.
 //
 // When the 'stxos' argument is not nil, it will be updated to append an entry
-// for each spent txout.  An error will be returned if the view does not contain
-// the required utxos.
+// for each spent txout.
+//
+// It panics if the view does not contain the required utxos.
 func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
 	blockHeight int64, blockIndex uint32, stxos *[]spentTxOut,
-	isTreasuryEnabled bool) error {
+	isTreasuryEnabled bool) {
 
 	// Coinbase transactions don't have any inputs to spend.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		// Add the transaction's outputs as available utxos.
 		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
-		return nil
+		return
 	}
 
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
 	for _, txIn := range msgTx.TxIn {
-		// Ensure the referenced utxo exists in the view.  This should never
-		// happen unless a bug is introduced in the code.
+		// Assert the referenced utxo exists in the view.
 		prevOut := &txIn.PreviousOutPoint
 		entry := view.entries[*prevOut]
 		if entry == nil {
-			return AssertError(fmt.Sprintf("view missing input %v", *prevOut))
+			panicf("view missing input %v (tree %v)", *prevOut, prevOut.Tree)
 		}
 
 		// Only create the stxo details if requested.
@@ -367,7 +360,6 @@ func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
 
 	// Add the transaction's outputs as available utxos.
 	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
-	return nil
 }
 
 // connectRegularTransactions updates the view by adding all new utxos created
@@ -377,24 +369,20 @@ func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
 // spends.
 //
 // When the 'stxos' argument is not nil, it will be updated to append an entry
-// for each spent txout.  An error will be returned if the view does not contain
-// the required utxos.
+// for each spent txout.
+//
+// It panics if the view does not contain the required utxos.
 func (view *UtxoViewpoint) connectRegularTransactions(block *dcrutil.Block,
-	stxos *[]spentTxOut, isTreasuryEnabled bool) error {
+	stxos *[]spentTxOut, isTreasuryEnabled bool) {
 
 	// Connect all of the transactions in the regular transaction tree.
 	regularTxns := block.Transactions()
 	for i, tx := range regularTxns {
-		err := view.connectRegularTransaction(tx, block.Height(), uint32(i),
-			stxos, isTreasuryEnabled)
-		if err != nil {
-			view.zeroConfOuts = nil
-			return err
-		}
+		view.connectRegularTransaction(tx, block.Height(), uint32(i), stxos,
+			isTreasuryEnabled)
 	}
 
 	view.zeroConfOuts = nil
-	return nil
 }
 
 // disconnectTransactions updates the view by removing all utxos created by the
@@ -677,14 +665,8 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, params *chaincfg.Params,
 	// of transactions created in the regular tree of the same block, which is
 	// important since the regular tree may be disapproved by the subsequent
 	// block while the stake tree must remain valid.
-	err = view.connectStakeTransactions(block, stxos, isTreasuryEnabled)
-	if err != nil {
-		return err
-	}
-	err = view.connectRegularTransactions(block, stxos, isTreasuryEnabled)
-	if err != nil {
-		return err
-	}
+	view.connectStakeTransactions(block, stxos, isTreasuryEnabled)
+	view.connectRegularTransactions(block, stxos, isTreasuryEnabled)
 
 	// Update the best hash for view to include this block since all of its
 	// transactions have been connected.
@@ -782,10 +764,7 @@ func (view *UtxoViewpoint) disconnectBlock(params *chaincfg.Params,
 			return err
 		}
 
-		err = view.connectRegularTransactions(parent, nil, isTreasuryEnabled)
-		if err != nil {
-			return err
-		}
+		view.connectRegularTransactions(parent, nil, isTreasuryEnabled)
 	}
 
 	// Update the best hash for view to include this block since all of its

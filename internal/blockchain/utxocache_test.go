@@ -6,7 +6,6 @@ package blockchain
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -681,6 +680,19 @@ func TestFetchEntries(t *testing.T) {
 	}
 }
 
+// testPanic invokes the provided function and returns whether it panicked.
+func testPanic(fn func()) (panicked bool) {
+	// Setup a defer to catch panics and update the return variable.
+	defer func() {
+		if err := recover(); err != nil {
+			panicked = true
+		}
+	}()
+
+	fn()
+	return false
+}
+
 // TestCommit validates that all entries in both the cache and the provided view
 // are updated appropriately when committing the provided view to the cache.
 func TestCommit(t *testing.T) {
@@ -702,9 +714,9 @@ func TestCommit(t *testing.T) {
 		backendEntries    map[wire.OutPoint]*UtxoEntry // existing backend entries
 		wantViewEntries   map[wire.OutPoint]*UtxoEntry // expected committed view
 		wantCachedEntries map[wire.OutPoint]*UtxoEntry // expected committed cache
-		err               error                        // expected error
+		panics            bool                         // expected to panic
 	}{{
-		name: "modified spent by zero conf view entry w/o spent asserts",
+		name: "modified spent by zero conf view entry w/o spent panics",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: func() *UtxoEntry {
 				invalidEntry := entry1200.modifiedSpentByZeroConf.Clone()
@@ -712,7 +724,7 @@ func TestCommit(t *testing.T) {
 				return invalidEntry
 			}(),
 		},
-		err: AssertError(""),
+		panics: true,
 	}, {
 		name: "modified spent view entry w/ existing spent cache entry is a noop",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
@@ -960,13 +972,19 @@ func TestCommit(t *testing.T) {
 		}
 
 		// Commit the view to the cache.
-		err = utxoCache.Commit(view)
-		if !errors.Is(err, test.err) {
-			t.Fatalf("%q: unexpected error committing view to the cache -- "+
-				"got %v (%[2]T), want %v (%[3]T)", test.name, err, test.err)
+		panicked := testPanic(func() {
+			err = utxoCache.Commit(view)
+		})
+		if panicked != test.panics {
+			t.Fatalf("%q: unexpected panic result committing view to the "+
+				"cache -- got: %v, want %v", test.name, panicked, test.panics)
 		}
-		if test.err != nil {
+		if test.panics {
 			continue
+		}
+		if err != nil {
+			t.Fatalf("%q: unexpected error committing view to the cache: %v "+
+				"(%[2]T)", test.name, err)
 		}
 
 		// Validate the cached entries after committing.
