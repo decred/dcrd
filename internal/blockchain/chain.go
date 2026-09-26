@@ -1102,7 +1102,8 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled)
+		err = view.disconnectBlock(b.chainParams, block, parent, stxos,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1190,7 +1191,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err := view.connectBlock(b.db, block, parent, &stxos,
+			err := view.connectBlock(b.db, b.chainParams, block, parent, &stxos,
 				isTreasuryEnabled)
 			if err != nil {
 				return err
