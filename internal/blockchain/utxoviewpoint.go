@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
@@ -628,6 +629,26 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 	return view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled)
 }
 
+// addSBSSViolations updates the view to add the outputs that older consensus
+// rules allowed stake transactions to spend from the same block.
+func (view *UtxoViewpoint) addSBSSViolations(params *chaincfg.Params,
+	block *dcrutil.Block, isTreasuryEnabled bool) {
+
+	// Nothing to do for blocks that do not have a violation.
+	height := block.Height()
+	violationHash := sbssViolationHash(params, height)
+	if violationHash == nil {
+		return
+	}
+
+	for idx, tx := range block.Transactions() {
+		if *tx.Hash() == *violationHash {
+			view.AddTxOut(tx, 0, height, uint32(idx), isTreasuryEnabled)
+			return
+		}
+	}
+}
+
 // connectBlock updates the view by potentially disconnecting all of the
 // transactions in the regular tree of the parent block of the passed block in
 // the case the passed block disapproves the parent block, connecting all of
@@ -643,8 +664,9 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 //
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
-func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block,
-	stxos *[]spentTxOut, isTreasuryEnabled bool) error {
+func (view *UtxoViewpoint) connectBlock(db database.DB, params *chaincfg.Params,
+	block, parent *dcrutil.Block, stxos *[]spentTxOut,
+	isTreasuryEnabled bool) error {
 
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
@@ -654,6 +676,11 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 			return err
 		}
 	}
+
+	// Add utxo entries that were valid under old consensus rules but are no
+	// longer valid and would therefore cause the block to be incorrectly
+	// rejected.
+	view.addSBSSViolations(params, block, isTreasuryEnabled)
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
@@ -683,6 +710,38 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 	return nil
 }
 
+// removeSBSSViolations updates the view to mark the outputs that older
+// consensus rules allowed stake transactions to spend as spent so they are
+// removed once the block has been disconnected.
+func (view *UtxoViewpoint) removeSBSSViolations(params *chaincfg.Params,
+	block *dcrutil.Block) {
+
+	// Nothing to do for blocks that do not have a violation.
+	height := block.Height()
+	violationHash := sbssViolationHash(params, height)
+	if violationHash == nil {
+		return
+	}
+
+	for _, tx := range block.Transactions() {
+		if *tx.Hash() != *violationHash {
+			continue
+		}
+
+		out := wire.OutPoint{Hash: *violationHash, Index: 0,
+			Tree: wire.TxTreeRegular}
+		entry := view.entries[out]
+		if entry == nil {
+			panicf("SBS spend violation output %v for block %v (height %v) "+
+				"is missing from the view after disconnecting it", out,
+				block.Hash(), block.Height())
+		}
+
+		entry.Spend()
+		return
+	}
+}
+
 // disconnectBlock updates the view by disconnecting all transactions in both
 // the regular and stake trees of the passed block, in the case the block
 // disapproves the parent block, reconnecting all of the transactions in the
@@ -699,8 +758,9 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 // Note that, unlike block connection, the spent transaction output (stxo)
 // information is required and failure to provide it will result in an assertion
 // panic.
-func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block,
-	stxos []spentTxOut, isTreasuryEnabled bool) error {
+func (view *UtxoViewpoint) disconnectBlock(params *chaincfg.Params,
+	block, parent *dcrutil.Block, stxos []spentTxOut,
+	isTreasuryEnabled bool) error {
 
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block) {
@@ -727,6 +787,7 @@ func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block,
 	if err != nil {
 		return err
 	}
+	view.removeSBSSViolations(params, block)
 
 	// Reconnect the transactions in the regular tree of the parent block if the
 	// block that is being disconnected disapproves it.

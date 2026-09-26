@@ -937,7 +937,8 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled)
+		err = view.disconnectBlock(b.chainParams, block, parent, stxos,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1015,7 +1016,8 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// spent and add all transactions being created by this block to it.
 		// In the case the block votes against the parent, also disconnect
 		// all of the regular transactions in the parent block.
-		err = view.connectBlock(b.db, block, parent, nil, isTreasuryEnabled)
+		err = view.connectBlock(b.db, b.chainParams, block, parent, nil,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
