@@ -58,63 +58,12 @@ func (view *UtxoViewpoint) RemoveEntry(outpoint wire.OutPoint) {
 	delete(view.entries, outpoint)
 }
 
-// addTxOut adds the specified output to the view if it is not provably
-// unspendable.  When the view already has an entry for the output, it will be
-// marked unspent.  All fields will be updated for existing entries since it's
-// possible it has changed during a reorg.
-func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
-	packedFlags utxoFlags, blockHeight int64, blockIndex uint32,
-	ticketMinOuts *ticketMinimalOutputs) {
-
-	// Don't add provably unspendable outputs.
-	if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
-		return
-	}
-
-	// Update existing entries.  All fields are updated because it's possible
-	// (although extremely unlikely) that the existing entry is being replaced
-	// by a different transaction with the same hash.  This is allowed so long
-	// as the previous transaction is fully spent.
-	entry := view.LookupEntry(outpoint)
-	if entry == nil {
-		entry = new(UtxoEntry)
-		view.entries[outpoint] = entry
-	}
-
-	entry.amount = txOut.Value
-	entry.blockHeight = uint32(blockHeight)
-	entry.blockIndex = blockIndex
-	entry.scriptVersion = txOut.Version
-	entry.packedFlags = packedFlags
-	entry.ticketMinOuts = ticketMinOuts
-
-	// The referenced transaction output should always be marked as unspent and
-	// modified when being added to the view.
-	entry.state &^= utxoStateSpent | utxoStateSpentByZeroConf
-	entry.state |= utxoStateModified
-
-	// Deep copy the script when the script in the entry differs from the one in
-	// the txout.  This is required since the txout script is a subslice of the
-	// overall contiguous buffer that the msg tx houses for all scripts within
-	// the tx.  It is deep copied here since this entry may be added to the utxo
-	// cache, and we don't want the utxo cache holding the entry to prevent all
-	// of the other tx scripts from getting garbage collected.
-	if !bytes.Equal(entry.pkScript, txOut.PkScript) {
-		entry.pkScript = nil
-		scriptLen := len(txOut.PkScript)
-		if scriptLen != 0 {
-			entry.pkScript = make([]byte, scriptLen)
-			copy(entry.pkScript, txOut.PkScript)
-		}
-	}
-}
-
 // isTreasuryAddOutput returns true if the output is a treasury add.
 func isTreasuryAddOutput(txType stake.TxType, txOutIdx uint32) bool {
 	return txType == stake.TxTypeTAdd && txOutIdx == 0
 }
 
-// txOutsRange house a range of transaction outputs to potentially add to a
+// txOutsRange houses a range of transaction outputs to potentially add to a
 // view.  The start and end index semantics are identical to slice ranges.
 //
 // In other words, start is inclusive and end is exclusive.
@@ -122,18 +71,17 @@ type txOutsRange struct {
 	start, end uint32
 }
 
-// addTxOutsInternal adds the given range of outputs in the passed transaction
-// which are not provably unspendable to the view.  When the view already has
-// entries for any of the outputs, they are simply marked unspent.  All fields
-// will be updated for existing entries since it's possible it has changed
-// during a reorg.
+// addTxOuts adds the given range of outputs in the passed transaction which are
+// not provably unspendable to the view.  When the view already has entries for
+// any of the outputs, they are marked unspent.  All fields will be updated for
+// existing entries since it's possible it has changed during a reorg.
 //
 // The caller MUST have already ensured the provided range refers to outputs
 // that actually exist.
 //
 // This function implements the common logic for [view.AddTxOut] and
 // [view.AddTxOuts].
-func (view *UtxoViewpoint) addTxOutsInternal(tx *dcrutil.Tx, txOuts txOutsRange,
+func (view *UtxoViewpoint) addTxOuts(tx *dcrutil.Tx, txOuts txOutsRange,
 	blockHeight int64, blockIndex uint32, isTreasuryEnabled bool) {
 
 	// Set encoded flags for the transaction.
@@ -155,22 +103,53 @@ func (view *UtxoViewpoint) addTxOutsInternal(tx *dcrutil.Tx, txOuts txOutsRange,
 			continue
 		}
 
+		txOut := msgTx.TxOut[txOutIdx]
+		if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+			continue
+		}
+
 		// Update existing entries.  All fields are updated because it's
 		// possible (although extremely unlikely) that the existing entry is
 		// being replaced by a different transaction with the same hash.  This
 		// is allowed so long as the previous transaction is fully spent.
-		var ticketMinOuts *ticketMinimalOutputs
+		outpoint.Index = txOutIdx
+		entry := view.LookupEntry(outpoint)
+		if entry == nil {
+			entry = new(UtxoEntry)
+			view.entries[outpoint] = entry
+		}
+		entry.amount = txOut.Value
+		entry.blockHeight = uint32(blockHeight)
+		entry.blockIndex = blockIndex
+		entry.scriptVersion = txOut.Version
+		entry.packedFlags = flags
+		entry.ticketMinOuts = nil
 		if isTicketSubmissionOutput(txType, txOutIdx) {
-			ticketMinOuts = &ticketMinimalOutputs{
+			entry.ticketMinOuts = &ticketMinimalOutputs{
 				data: make([]byte, serializeSizeForMinimalOutputs(tx)),
 			}
-			putTxToMinimalOutputs(ticketMinOuts.data, tx)
+			putTxToMinimalOutputs(entry.ticketMinOuts.data, tx)
 		}
 
-		txOut := msgTx.TxOut[txOutIdx]
-		outpoint.Index = txOutIdx
-		view.addTxOut(outpoint, txOut, flags, blockHeight, blockIndex,
-			ticketMinOuts)
+		// The referenced transaction output should always be marked as unspent
+		// and modified when being added to the view.
+		entry.state &^= utxoStateSpent | utxoStateSpentByZeroConf
+		entry.state |= utxoStateModified
+
+		// Deep copy the script when the script in the entry differs from the
+		// one in the txout.  This is required since the txout script is a
+		// subslice of the overall contiguous buffer that the msg tx houses for
+		// all scripts within the tx and the entry may be added to the utxo
+		// cache.  Adding it to the cache without the deep copy would prevent
+		// all of the other tx scripts from getting garbage collected.
+		if !bytes.Equal(entry.pkScript, txOut.PkScript) {
+			entry.pkScript = nil
+			scriptLen := len(txOut.PkScript)
+			if scriptLen != 0 {
+				entry.pkScript = make([]byte, scriptLen)
+				copy(entry.pkScript, txOut.PkScript)
+			}
+		}
 	}
 }
 
@@ -188,8 +167,7 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 	}
 
 	txOuts := txOutsRange{txOutIdx, txOutIdx + 1}
-	view.addTxOutsInternal(tx, txOuts, blockHeight, blockIndex,
-		isTreasuryEnabled)
+	view.addTxOuts(tx, txOuts, blockHeight, blockIndex, isTreasuryEnabled)
 }
 
 // AddTxOuts adds all outputs in the passed transaction which are not provably
@@ -200,8 +178,7 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 	blockIndex uint32, isTreasuryEnabled bool) {
 
 	txOuts := txOutsRange{0, uint32(len(tx.MsgTx().TxOut))}
-	view.addTxOutsInternal(tx, txOuts, blockHeight, blockIndex,
-		isTreasuryEnabled)
+	view.addTxOuts(tx, txOuts, blockHeight, blockIndex, isTreasuryEnabled)
 }
 
 // PrevScript returns the script and script version associated with the provided
