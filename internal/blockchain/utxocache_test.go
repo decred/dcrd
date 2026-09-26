@@ -450,12 +450,12 @@ func TestSpendEntry(t *testing.T) {
 		outpoint       wire.OutPoint // outpoint for the entry to spend
 		wantEntry      *UtxoEntry    // expected entry in cache after spend
 		wantCacheSize  uint64        // expected size of the cache after spend
-		err            error         // expected error
 	}{{
-		name:          "spending cache entry already marked spent asserts",
+		name:          "spending cache entry already marked spent is a noop",
 		cachedEntries: entriesMap{outpoint: entry.modifiedSpent},
 		outpoint:      outpoint,
-		err:           AssertError(""),
+		wantEntry:     entry.modifiedSpent,
+		wantCacheSize: entry.modifiedSpent.size(),
 	}, {
 		name:          "spending nil (aka pruned) cache entry is a noop",
 		cachedEntries: entriesMap{outpoint: nil},
@@ -502,12 +502,9 @@ func TestSpendEntry(t *testing.T) {
 		// Spend the entry specified by the test and ensure the error matches
 		// the expected one.
 		err = utxoCache.spendEntry(test.outpoint)
-		if !errors.Is(err, test.err) {
-			t.Fatalf("%q: unexpected error spending outpoint %v -- got %v, "+
-				"want %v (%[4]T)", test.name, test.outpoint, err, test.err)
-		}
-		if test.err != nil {
-			continue
+		if err != nil {
+			t.Fatalf("%q: unexpected error spending outpoint %v: %v", test.name,
+				test.outpoint, err)
 		}
 
 		// Get the entry associated with the output from the cache and ensure it
@@ -717,14 +714,17 @@ func TestCommit(t *testing.T) {
 		},
 		err: AssertError(""),
 	}, {
-		name: "modified spent view entry w/ existing spent cache entry asserts",
+		name: "modified spent view entry w/ existing spent cache entry is a noop",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
 		},
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
 		},
-		err: AssertError(""),
+		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
+		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedSpent,
+		},
 	}, {
 		name: "nil view entries are removed from view and do not affect cache",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
