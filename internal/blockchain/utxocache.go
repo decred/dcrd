@@ -319,9 +319,6 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 // exists) and marked spent to ensure the utxo is later removed from the backend
 // on the next cache flush.
 //
-// An error will be returned in the case the output exists in the cache and is
-// already spent.
-//
 // This function MUST be called with the cache lock held.
 func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 	// Attempt to get the entry associated with the output from the cache.
@@ -340,14 +337,21 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 		return nil
 	}
 
-	// Sanity check double spends of existing entries.  This should be
-	// impossible to hit since a view should never be committed until after
-	// double spend checks have already been done.  However, it is good practice
-	// to be paranoid and double check assumptions when it comes to potential
-	// double spends.
+	// No updates to the cache are needed when the output is already marked
+	// spent in it.  This is not a double spend since the view only contains a
+	// single spend of the output and double spends are prevented when the
+	// transactions are validated against the view.
+	//
+	// It is worth noting that this case is currently exceedingly rare in normal
+	// operation since the cache is flushed to the backend on every block
+	// connect and disconnect once the chain is current, there are no reorgs
+	// when syncing before the chain is current.
+	//
+	// However, this case is still possible even when flushing every block when
+	// the spend of an output that has not been flushed to the backend is undone
+	// by a disapproval and spent again in the block that disapproves it.
 	if cachedEntry != nil && cachedEntry.IsSpent() {
-		return AssertError(fmt.Sprintf("attempt to double spend output %v in "+
-			"view commit", outpoint))
+		return nil
 	}
 
 	// Attempt to repopulate the cache from the backend when there is no entry
