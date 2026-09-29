@@ -375,10 +375,31 @@ SRLoop:
 		p.srKP = sharedSecrets.SRSecrets
 		p.dcKP = sharedSecrets.DCSecrets
 
+		// The DC-net path below validates its dimensions before indexing, but the
+		// SR path does not: p.srMsg is sized to the peer's MessageCount, which is
+		// checked, while the submitted matrix is trusted to have that many rows
+		// each of length mtot. A peer that publishes a short row, or too few rows,
+		// would otherwise be read out of bounds here. Blame it and move on, which
+		// is how every other dimension mismatch in this file is handled.
+		if len(p.sr.DCMix) != len(p.srMsg) {
+			sesRun.logf("blaming %x for wrong number of SR mix vectors",
+				p.id[:])
+			blamed = append(blamed, *p.id)
+			continue
+		}
 		for j, m := range p.srMsg {
 			// Recover SR pads and mix with committed messages
 			pads := mixing.SRMixPads(p.srKP[j], starts[i]+uint32(j))
 			srMix := mixing.SRMix(m, pads)
+
+			// Each committed vector must be as wide as the mix that is being
+			// compared against it.
+			if len(p.sr.DCMix[j]) != len(srMix) {
+				sesRun.logf("blaming %x for bad SR mix vector length",
+					p.id[:])
+				blamed = append(blamed, *p.id)
+				continue SRLoop
+			}
 
 			// Blame when committed mix does not match provided.
 			for k := range srMix {
