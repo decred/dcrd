@@ -4400,7 +4400,14 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd any) (any, error
 	c := cmd.(*types.SendRawTransactionCmd)
 	// Deserialize and send off to tx relay
 
-	allowHighFees := *c.AllowHighFees
+	// The parameter is optional, so a client is free to send an explicit JSON null
+	// for it. The declared default is only applied when the field is absent, which
+	// leaves the pointer nil here, and dereferencing it unconditionally panics.
+	// Every other optional pointer parameter in this command set is nil-guarded at
+	// its dereference site, so treat the absent and false cases identically: a
+	// request that does not opt in to high fees is treated as one that declines
+	// them.
+	allowHighFees := c.AllowHighFees != nil && *c.AllowHighFees
 	hexStr := c.HexTx
 	if len(hexStr)%2 != 0 {
 		hexStr = "0" + hexStr
