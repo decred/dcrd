@@ -166,6 +166,10 @@ type Config struct {
 	// described by a currently-accepted pair request message in the
 	// mixpool while not being the confirmed mix tx for any session.
 	NonMixSpendsPairRequest func(tx *dcrutil.Tx) bool
+
+	// MisbehavingMixSpend returns whether the transaction spends an
+	// output that has been flagged for mixing misbehavior.
+	MisbehavingMixSpend func(tx *dcrutil.Tx) bool
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -1354,6 +1358,14 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, allowHighFees,
 		str := fmt.Sprintf("non-mix transaction %v spends current mixpool "+
 			"pair request UTXOs", txHash)
 		return nil, txRuleError(ErrMixpoolDoubleSpend, str)
+	}
+
+	// Don't allow non-mix transactions which spend outputs controlled by
+	// misbehaving mixing peers.
+	if mp.cfg.MisbehavingMixSpend != nil && mp.cfg.MisbehavingMixSpend(tx) {
+		str := fmt.Sprintf("non-mix transaction %v spends outputs "+
+			"controlled by a misbehaving mixing peer", txHash)
+		return nil, txRuleError(ErrMixingMisbehavior, str)
 	}
 
 	// Aside from a few exceptions for votes and revocations, the transaction

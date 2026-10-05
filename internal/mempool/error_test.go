@@ -19,6 +19,8 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalid, "ErrInvalid"},
 		{ErrOrphanPolicyViolation, "ErrOrphanPolicyViolation"},
 		{ErrMempoolDoubleSpend, "ErrMempoolDoubleSpend"},
+		{ErrMixpoolDoubleSpend, "ErrMixpoolDoubleSpend"},
+		{ErrMixingMisbehavior, "ErrMixingMisbehavior"},
 		{ErrAlreadyVoted, "ErrorAlreadyVoted"},
 		{ErrDuplicate, "ErrDuplicate"},
 		{ErrCoinbase, "ErrCoinbase"},
