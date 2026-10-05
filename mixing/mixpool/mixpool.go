@@ -1679,6 +1679,27 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 		return nil, nil
 	}
 
+	// Check the KE does not conflict with an already accepted KE message
+	// by the same identity for the same session.
+	if ses, ok := p.sessions[ke.SessionID]; ok {
+		for prevHash := range ses.hashes {
+			e, ok := p.pool[prevHash]
+			if !ok {
+				return nil, fmt.Errorf("unknown message %v recorded by session %x",
+					prevHash, ke.SessionID[:])
+			}
+			sesKE, ok := e.msg.(*wire.MsgMixKeyExchange)
+			if !ok {
+				continue
+			}
+			if sesKE.Identity == ke.Identity {
+				return nil, ruleError(fmt.Errorf("message %v by identity %x "+
+					"in session %x conflicts with already accepted message %v",
+					hash, *id, ke.SessionID[:], prevHash))
+			}
+		}
+	}
+
 	// While KEs are allowed to reference unknown PRs, they must at least
 	// reference the PR submitted by their own identity.  If not, the KE
 	// is saved as an orphan and may be processed later.
