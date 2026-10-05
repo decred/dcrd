@@ -33,6 +33,10 @@ const (
 	// to double spend current pair request UTXOs in the mixpool.
 	ErrMixpoolDoubleSpend = ErrorKind("ErrMixpoolDoubleSpend")
 
+	// ErrMixingMisbehavior indicates a non-mix transaction that attempts
+	// to spend outputs controlled by a misbehaving mixing peer.
+	ErrMixingMisbehavior = ErrorKind("ErrMixingMisbehavior")
+
 	// ErrAlreadyVoted indicates a ticket already voted.
 	ErrAlreadyVoted = ErrorKind("ErrorAlreadyVoted")
 

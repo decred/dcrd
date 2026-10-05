@@ -4122,6 +4122,9 @@ func newServer(ctx context.Context, profiler *profileServer,
 		NonMixSpendsPairRequest: func(tx *dcrutil.Tx) bool {
 			return s.mixMsgPool.NonMixSpendsPR(tx.MsgTx())
 		},
+		MisbehavingMixSpend: func(tx *dcrutil.Tx) bool {
+			return s.mixMsgPool.Observer().MisbehavingTx(tx.MsgTx())
+		},
 	}
 	s.txMemPool = mempool.New(&txC)
 
