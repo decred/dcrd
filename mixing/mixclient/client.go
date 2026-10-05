@@ -1441,6 +1441,18 @@ func (c *Client) completePairing(ctx context.Context, ps *pairedSessions) (*sess
 	}
 }
 
+func hasSRMixDimensions(mix [][][]byte, mcount, mtot uint32) bool {
+	if len(mix) != int(mcount) {
+		return false
+	}
+	for _, vec := range mix {
+		if len(vec) != int(mtot) {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRun, err error) {
 	var blamed blamedIdentities
 
@@ -1845,17 +1857,10 @@ func (c *Client) run(ctx context.Context, ps *pairedSessions) (sesRun *sessionRu
 
 	// Recover roots
 	vs := make([][][]byte, 0, len(prs))
-SRs:
 	for i, sr := range srs {
-		if uint32(len(sr.DCMix)) != sesRun.mcounts[i] {
+		if !hasSRMixDimensions(sr.DCMix, sesRun.mcounts[i], sesRun.mtot) {
 			blamed = append(blamed, sr.Identity)
 			continue
-		}
-		for _, srMixVec := range sr.DCMix {
-			if uint32(len(srMixVec)) != sesRun.mtot {
-				blamed = append(blamed, sr.Identity)
-				continue SRs
-			}
 		}
 		vs = append(vs, sr.DCMix...)
 	}

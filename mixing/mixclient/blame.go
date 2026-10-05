@@ -351,6 +351,12 @@ SRLoop:
 			continue
 		}
 
+		if !hasSRMixDimensions(p.sr.DCMix, p.pr.MessageCount, sesRun.mtot) {
+			sesRun.logf("blaming %x for wrong SR DC-mix dimensions", p.id[:])
+			blamed = append(blamed, *p.id)
+			continue
+		}
+
 		// Recover shared secrets
 		revealed := &mixing.RevealedKeys{
 			ECDHPublicKeys: ecdh,
