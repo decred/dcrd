@@ -42,6 +42,13 @@ const (
 	// pool after a forced eviction occurs due to exceeding the overall max
 	// limit.  It is set to 75% of the overall max limit.
 	maxPostEvictionOrphans = maxOrphans * 3 / 4
+
+	// maxMessagesPerIdentity is the maximum number of messages the
+	// mixpool will accept belonging to a single mixing peer.  Any
+	// additional messages beyond this limit are dropped.
+	maxMessagesPerIdentity = 7 * // messages per session (KE, CT, SR, DC, FP, CM, RS)
+		2 * // 10m epochs in 20m
+		mixing.MaxPeers
 )
 
 type idPubKey = [33]byte
@@ -1323,6 +1330,10 @@ func (p *Pool) AcceptMessage(msg mixing.Message, src Source) (accepted []mixing.
 		return nil, nil
 	}
 
+	if len(p.messagesByIdentity[*id]) >= maxMessagesPerIdentity {
+		return nil, ruleError(fmt.Errorf("identity %x has exceeded maximum message limit", id[:]))
+	}
+
 	ses := p.sessions[sid]
 	if ses == nil {
 		return nil, ruleError(fmt.Errorf("%s %s belongs to unknown session %x",
@@ -1627,6 +1638,11 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 				continue
 			}
 
+			if len(p.messagesByIdentity[*id]) >= maxMessagesPerIdentity {
+				log.Debugf("identity %x has exceeded maximum message limit", id[:])
+				continue
+			}
+
 			p.acceptEntry(orphan, msgtype, &orphanHash, id, ses)
 
 			acceptedMessages = append(acceptedMessages, orphan)
@@ -1703,6 +1719,10 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 					hash, *id, ke.SessionID[:], prevHash))
 			}
 		}
+	}
+
+	if len(p.messagesByIdentity[*id]) >= maxMessagesPerIdentity {
+		return nil, ruleError(fmt.Errorf("identity %x has exceeded maximum message limit", id[:]))
 	}
 
 	// While KEs are allowed to reference unknown PRs, they must at least
