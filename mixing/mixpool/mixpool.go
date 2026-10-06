@@ -31,6 +31,7 @@ const minconf = 1
 const feeRate = 0.0001e8
 const maxRelayFeeMultiplier = 1e4
 const earlyKEDuration = 5 * time.Second
+const lateKEDuration = 20 * time.Minute
 
 const (
 	// maxOrphans specifies the maximum number of orphans allowed in the orphan
@@ -1667,6 +1668,10 @@ func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
 	keEpoch := time.Unix(int64(ke.Epoch), 0)
 	if now.Add(earlyKEDuration).Before(keEpoch) {
 		err := fmt.Errorf("KE received too early for stated epoch")
+		return ruleError(err)
+	}
+	if now.Add(-lateKEDuration).After(keEpoch) {
+		err := fmt.Errorf("KE received too late for stated epoch")
 		return ruleError(err)
 	}
 
