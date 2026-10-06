@@ -1690,6 +1690,10 @@ func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
 		err := fmt.Errorf("KE received too late for stated epoch")
 		return ruleError(err)
 	}
+	if keEpoch.Sub(keEpoch.Truncate(time.Minute)) != 0 {
+		err := fmt.Errorf("KE epoch is not a multiple of one minute")
+		return ruleError(err)
+	}
 
 	return nil
 }

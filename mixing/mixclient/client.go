@@ -689,6 +689,7 @@ func (c *Client) waitForEpoch(ctx context.Context) (time.Time, error) {
 			testWaiting = nil
 			testTickC = c.testTickC
 		case testEpoch := <-testTickC:
+			testEpoch = testEpoch.Truncate(c.epoch)
 			return testEpoch, nil
 		}
 	}

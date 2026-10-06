@@ -275,7 +275,7 @@ func TestAccept(t *testing.T) {
 
 	var (
 		seenPRs               = []chainhash.Hash{pr.Hash()}
-		epoch      uint64     = uint64(time.Now().Unix())
+		epoch      uint64     = uint64(time.Now().Truncate(time.Minute).Unix())
 		sid        [32]byte   = mixing.SortPRsForSession([]*wire.MsgMixPairReq{pr}, epoch)
 		run        uint32     = 0
 		pos        uint32     = 0

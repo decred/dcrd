@@ -67,7 +67,7 @@ func TestOrphans(t *testing.T) {
 	pr.WriteHash(h)
 
 	prs := []*wire.MsgMixPairReq{pr}
-	epoch := uint64(time.Now().Unix())
+	epoch := uint64(time.Now().Truncate(time.Minute).Unix())
 	sid := mixing.SortPRsForSession(prs, epoch)
 	ke := &wire.MsgMixKeyExchange{
 		Identity: id,
@@ -209,7 +209,7 @@ func TestOrphanEviction(t *testing.T) {
 		pr.WriteHash(h)
 
 		prs := []*wire.MsgMixPairReq{pr}
-		epoch := uint64(time.Now().Unix())
+		epoch := uint64(time.Now().Truncate(time.Minute).Unix())
 		sid := mixing.SortPRsForSession(prs, epoch)
 		ke := &wire.MsgMixKeyExchange{
 			Identity:  id,
