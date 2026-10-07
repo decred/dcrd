@@ -24,15 +24,6 @@ func checkPRLimits(pr *wire.MsgMixPairReq) error {
 	return nil
 }
 
-func checkKELimits(ke *wire.MsgMixKeyExchange) error {
-	if len(ke.SeenPRs) > mixing.MaxPeers {
-		return ruleError(fmt.Errorf("%d referenced PRs exceeds max peers %d",
-			len(ke.SeenPRs), mixing.MaxPeers))
-	}
-
-	return nil
-}
-
 func checkCTLimits(ct *wire.MsgMixCiphertexts) error {
 	if len(ct.Ciphertexts) > mixing.MaxPeers {
 		return ruleError(fmt.Errorf("%d ciphertexts exceeds max peers %d",
