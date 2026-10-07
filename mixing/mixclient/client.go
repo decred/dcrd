@@ -943,6 +943,23 @@ func (c *Client) epochTicker(ctx context.Context) error {
 			c.logf("Have %d compatible/%d local PRs waiting for pairing %x",
 				len(prs), len(localPeers), p.pairing)
 
+			// Limit initial PR set to the higher wire max peer
+			// limit.
+			if len(prs) > wire.MaxMixPeers {
+				// Place local peers first, then others, and
+				// trim length.
+				keptPRs := make([]*wire.MsgMixPairReq, 0, len(prs))
+				for _, p := range localPeers {
+					keptPRs = append(keptPRs, p.pr)
+				}
+				for _, pr := range prs {
+					if _, ok := localPeers[pr.Identity]; !ok {
+						keptPRs = append(keptPRs, pr)
+					}
+				}
+				prs = keptPRs[:wire.MaxMixPeers]
+			}
+
 			// pairSession calls pairingWG.Done once the session
 			// is formed and the selected peers have been removed
 			// from then pending pairing.
