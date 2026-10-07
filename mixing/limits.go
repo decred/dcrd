@@ -22,7 +22,7 @@ const (
 	// MaxPeers is the maximum number of peers allowed together in a
 	// single mix session.  This restricts the maximum dimensions of the
 	// slot reservation and XOR DC-net matrices and the maximum number of
-	// previous messages that may be referenced by mix messages.
+	// previous messages that may be referenced by non-KE mix messages.
 	MaxPeers = 64
 
 	// MaxMcount is the maximum number of mixed messages that any single

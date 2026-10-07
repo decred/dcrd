@@ -1667,10 +1667,6 @@ func validateOwnerProofP2PKHv0(extractFunc func([]byte) []byte, pkscript, pubkey
 }
 
 func (p *Pool) checkAcceptKE(ke *wire.MsgMixKeyExchange) error {
-	if err := checkKELimits(ke); err != nil {
-		return err
-	}
-
 	// Validate PR order and session ID.
 	if err := mixing.ValidateSession(ke); err != nil {
 		return ruleError(err)
