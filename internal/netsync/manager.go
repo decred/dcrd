@@ -676,9 +676,10 @@ func (m *SyncManager) startInitialHeaderSync() {
 	// local chain from the sync peer.
 	m.fetchNextHeaders(m.syncPeer)
 
-	// Update the sync height when it is higher than the currently best known
-	// value.
-	m.maybeUpdateSyncHeight(syncHeight)
+	// Update the sync height to the height claimed by the new sync peer, but no
+	// lower than the best known header.
+	_, bestHeaderHeight := m.cfg.Chain.BestHeader()
+	m.syncHeight.Store(max(syncHeight, bestHeaderHeight))
 
 	// Start the header sync progress stall timeout.
 	m.hdrSyncState.ResetStallTimeout()
