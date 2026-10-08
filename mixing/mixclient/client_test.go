@@ -174,6 +174,13 @@ func (w *testWallet) privForPkScript(p2pkhScript []byte) *secp256k1.PrivateKey {
 	return w.privForHash160(hash160)
 }
 
+func TestMain(t *testing.T) {
+	timeoutDuration = 1 * time.Second
+	maxJitter = timeoutDuration / 10
+	msgJitter = 10 * time.Millisecond
+	peerJitter = maxJitter - msgJitter
+}
+
 func TestHonest(t *testing.T) {
 	requireCsppsolver(t)
 
