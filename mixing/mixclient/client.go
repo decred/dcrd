@@ -39,12 +39,17 @@ import (
 const MinPeers = mixing.MinPeers
 
 const pairingVersion byte = 3
+const pairingVersionTestnet byte = 4
 
 const (
 	timeoutDuration = 30 * time.Second
 	maxJitter       = timeoutDuration / 10
 	msgJitter       = 300 * time.Millisecond
 	peerJitter      = maxJitter - msgJitter
+
+	timeoutDurationTestnet = 10 * time.Second
+	maxJitterTestnet       = timeoutDurationTestnet / 10
+	peerJitterTestnet      = maxJitterTestnet - msgJitter
 )
 
 // expiredPRErr indicates that a dicemix session failed to complete due to the
@@ -149,10 +154,10 @@ type deadlines struct {
 	recvCM   time.Time
 }
 
-func (d *deadlines) start(begin time.Time) {
+func (d *deadlines) start(begin time.Time, stageTimeout time.Duration) {
 	t := begin
 	add := func() time.Time {
-		t = t.Add(timeoutDuration)
+		t = t.Add(stageTimeout)
 		return t
 	}
 	d.recvKE = add()
@@ -390,7 +395,11 @@ type Client struct {
 	blake256Hasher   hash.Hash
 	blake256HasherMu sync.Mutex
 
-	epoch time.Duration
+	epoch          time.Duration
+	stageTimeout   time.Duration
+	maxJitter      time.Duration
+	peerJitter     time.Duration
+	pairingVersion byte
 
 	stopping chan struct{}
 
@@ -411,6 +420,20 @@ func NewClient(w Wallet) *Client {
 
 	height, _ := w.BestBlock()
 	mixPool := w.Mixpool()
+	epoch := w.Mixpool().Epoch()
+	stageTimeout := timeoutDuration
+	pairingVersion := pairingVersion
+	maxJitter := maxJitter
+	peerJitter := peerJitter
+	// Mixpool hardcodes a 3m epoch for testnet.  As there are no other
+	// chain parameters exposed by the Wallet interface, this is currently
+	// the only way to detect testnet in the current API.
+	if epoch == 3*time.Minute {
+		stageTimeout = timeoutDurationTestnet
+		pairingVersion = pairingVersionTestnet
+		maxJitter = maxJitterTestnet
+		peerJitter = peerJitterTestnet
+	}
 	return &Client{
 		atomicPRFlags:   uint32(prFlags),
 		wallet:          w,
@@ -422,6 +445,10 @@ func NewClient(w Wallet) *Client {
 		workQueue:       make(chan *queueWork, runtime.NumCPU()),
 		blake256Hasher:  blake256.NewHasher256(),
 		epoch:           w.Mixpool().Epoch(),
+		stageTimeout:    stageTimeout,
+		maxJitter:       maxJitter,
+		peerJitter:      peerJitter,
+		pairingVersion:  pairingVersion,
 		stopping:        make(chan struct{}),
 	}
 }
@@ -713,8 +740,8 @@ func (c *Client) prDelay(ctx context.Context, p *peer) error {
 
 	now := time.Now().UTC()
 	epoch := now.Truncate(c.epoch).Add(c.epoch)
-	sendBefore := epoch.Add(-timeoutDuration - maxJitter)
-	sendAfter := epoch.Add(timeoutDuration)
+	sendBefore := epoch.Add(-c.stageTimeout - c.maxJitter)
+	sendAfter := epoch.Add(c.stageTimeout)
 	var wait time.Duration
 	if !now.Before(sendBefore) {
 		wait = sendAfter.Sub(now)
@@ -857,7 +884,7 @@ func (c *Client) epochTicker(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	timerC := time.After(timeoutDuration + 2*time.Second)
+	timerC := time.After(c.stageTimeout + 2*time.Second)
 	testWaiting := c.testWaiting
 	var testTickC <-chan time.Time
 	for {
@@ -990,7 +1017,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 
 	p := &peer{
 		client:   c,
-		jitter:   rand.Duration(peerJitter),
+		jitter:   rand.Duration(c.peerJitter),
 		res:      make(chan error, 1),
 		pub:      pub,
 		priv:     priv,
@@ -1008,7 +1035,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 	pr, err := wire.NewMsgMixPairReq(*p.id, cj.prExpiry, cj.mixValue,
 		string(mixing.ScriptClassP2PKHv0), cj.tx.Version,
 		cj.tx.LockTime, cj.mcount, cj.inputValue, cj.prUTXOs,
-		cj.change, prFlags, pairingVersion)
+		cj.change, prFlags, c.pairingVersion)
 	if err != nil {
 		return err
 	}
@@ -1044,7 +1071,7 @@ func (c *Client) Dicemix(ctx context.Context, cj *CoinJoin) error {
 	pending.localPeers[*p.id] = p
 	c.mu.Unlock()
 
-	deadline := time.Now().Add(timeoutDuration)
+	deadline := time.Now().Add(c.stageTimeout)
 	err = p.submit(deadline, pr)
 	if err != nil {
 		c.mu.Lock()
@@ -1176,7 +1203,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 	}()
 
 	ps.epoch = epoch
-	ps.deadlines.start(epoch)
+	ps.deadlines.start(epoch, c.stageTimeout)
 
 	sid := mixing.SortPRsForSession(prs, unixEpoch)
 	ps.runs = append(ps.runs, sessionRun{
@@ -1284,7 +1311,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			if altses.err != nil {
 				// Continue run attempts in case peer
 				// agreement can be established.
-				ps.deadlines.start(time.Now())
+				ps.deadlines.start(time.Now(), c.stageTimeout)
 				continue
 			}
 
@@ -1363,7 +1390,7 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 				ps.runs = append(ps.runs, *rerun)
 				newRun = &ps.runs[len(ps.runs)-1]
 			}
-			ps.deadlines.start(time.Now())
+			ps.deadlines.start(time.Now(), c.stageTimeout)
 			if requirePeerAgreement {
 				ps.peerAgreementRunIdx = len(ps.runs) - 1
 			}
@@ -2181,7 +2208,7 @@ func (c *Client) roots(ctx context.Context, seenSRs []chainhash.Hash,
 	checkedFPByIdentity := make(map[identity]struct{})
 	for {
 		rcv.FPs = rcv.FPs[:0]
-		rcvCtx, rcvCtxCancel := context.WithDeadline(ctx, time.Now().Add(timeoutDuration))
+		rcvCtx, rcvCtxCancel := context.WithDeadline(ctx, time.Now().Add(c.stageTimeout))
 		err := c.mixpool.Receive(rcvCtx, rcv)
 		rcvCtxCancel()
 		if err != nil {

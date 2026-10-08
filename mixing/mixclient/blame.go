@@ -68,7 +68,7 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 		}
 	}()
 
-	deadline := time.Now().Add(timeoutDuration)
+	deadline := time.Now().Add(c.stageTimeout)
 
 	// Send initial secrets messages from any peers who detected
 	// misbehavior.
@@ -104,7 +104,7 @@ func (c *Client) blame(ctx context.Context, sesRun *sessionRun) (err error) {
 
 	// Wait for all secrets, or timeout.
 	rcv.RSs = make([]*wire.MsgMixSecrets, 0, len(sesRun.prs))
-	rcvCtx, rcvCtxCancel := context.WithTimeout(ctx, timeoutDuration)
+	rcvCtx, rcvCtxCancel := context.WithTimeout(ctx, c.stageTimeout)
 	_ = mp.Receive(rcvCtx, rcv)
 	rcvCtxCancel()
 	rss := rcv.RSs
