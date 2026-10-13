@@ -726,6 +726,29 @@ func TestCommit(t *testing.T) {
 		},
 		panics: true,
 	}, {
+		name: "modified spent by zero conf view entry w/ unmodified unspent " +
+			"cache entry panics",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedSpentByZeroConf,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.unmodified,
+		},
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.unmodified,
+		},
+		panics: true,
+	}, {
+		name: "modified spent by zero conf view entry w/ modified unspent " +
+			"fresh cache entry panics",
+		viewEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedSpentByZeroConf,
+		},
+		cachedEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1200: entry1200.modifiedFresh,
+		},
+		panics: true,
+	}, {
 		name: "modified spent view entry w/ existing spent cache entry is a noop",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200.modifiedSpent,
@@ -934,16 +957,29 @@ func TestCommit(t *testing.T) {
 			outpoint85314: entry85314.modified,
 		},
 	}, {
-		name: "view entry spent by zero conf removed and has no effect on cache",
+		// This covers the following scenarios:
+		//
+		// - modified spent zero conf view entries without a corresponding cache
+		//   or backend entry are removed from the view and have no effect on
+		//   the cache
+		// - modified spent zero conf view entries with a corresponding spent
+		//   fresh cache entry are removed from the view and have no effect on
+		//   the cache
+		//
+		// NOTE: Outputs spent by a later transaction in the same regular tree
+		// normally do not exist in the cache or backend, but it is possible
+		// when the same transaction was created by a different block.
+		name: "several modified spent zero conf view entry combinations",
 		viewEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint299: entry299.modifiedSpentByZeroConf,
+			outpoint299:  entry299.modifiedSpentByZeroConf,
+			outpoint1100: entry1100.modifiedSpentByZeroConf,
 		},
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100.unmodified,
+			outpoint1100: entry1100.modifiedSpentFresh,
 		},
 		wantViewEntries: map[wire.OutPoint]*UtxoEntry{},
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
-			outpoint1100: entry1100.unmodified,
+			outpoint1100: entry1100.modifiedSpentFresh,
 		},
 	}}
 
