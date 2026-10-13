@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The Decred developers
+// Copyright (c) 2020-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package blockchain
 import (
 	"testing"
 
+	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/v5/chaingen"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
@@ -226,4 +227,304 @@ func TestFetchUtxoView(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	testInputsSpent(view, spendB1aTx1Out0, true)
+}
+
+// testDisapprovalScenarios exercises the utxo state transitions that occur when
+// a block disapproves the regular transaction tree of its parent along with
+// reinclusion and spending of transactions and outputs resurrected by the
+// disapproval.
+//
+// Concretely, it exercises the following scenarios:
+//
+//   - Disapproval followed by spending a resurrected output in a different
+//     regular transaction
+//   - Disapproval followed by spending a resurrected output in a stake
+//     transaction (ticket purchase)
+//   - Disapproval of a block containing a zero conf spend followed by
+//     reinclusion of only the transaction that created the spent output
+//   - Disapproval followed by reinclusion of a transaction and a zero conf
+//     spend of its previously unspent output in the disapproving block
+//   - Disapproval of a block containing a zero conf spend, followed by
+//     reinclusion of the creating transaction and a new zero conf spend that
+//     replaces the disapproved spend
+func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
+	// Create a test harness initialized with the genesis block as the tip and
+	// advance it to stake validation height.
+	params := chaincfg.RegNetParams()
+	g := newChaingenHarness(t, params)
+	g.AdvanceToStakeValidationHeight()
+	g.ForceUtxoCacheFlush()
+
+	if !flushUtxoCache {
+		g.DisableUtxoCacheFlushes()
+	}
+
+	// outpoint is a convenience method for creating a regular tree outpoint for
+	// the provided transaction and output index.
+	outpoint := func(tx *wire.MsgTx, index uint32) wire.OutPoint {
+		hash := tx.TxHash()
+		return *wire.NewOutPoint(&hash, index, wire.TxTreeRegular)
+	}
+
+	// stakeOutpoint is a convenience method for creating a stake tree outpoint
+	// for the provided transaction and output index.
+	stakeOutpoint := func(tx *wire.MsgTx, index uint32) wire.OutPoint {
+		hash := tx.TxHash()
+		return *wire.NewOutPoint(&hash, index, wire.TxTreeStake)
+	}
+
+	// findSpendingTicket is a convenience method for finding which ticket in
+	// the provided block spends the given output.
+	findSpendingTicket := func(b *wire.MsgBlock, out wire.OutPoint) *wire.MsgTx {
+		t.Helper()
+
+		for _, tx := range b.STransactions {
+			if !stake.IsSStx(tx) {
+				continue
+			}
+			for _, txIn := range tx.TxIn {
+				if txIn.PreviousOutPoint == out {
+					return tx
+				}
+			}
+		}
+		t.Fatalf("no ticket spends outpoint %v (tree %d)", out, out.Tree)
+		return nil
+	}
+
+	// disapproveParent is a munger that modifies the block to disapprove the
+	// regular transaction tree of its parent.
+	disapproveParent := func(b *wire.MsgBlock) {
+		const (
+			voteBitNo  = 0x0000
+			voteBitYes = 0x0001
+		)
+		b.Header.VoteBits &^= voteBitYes
+		g.ReplaceVoteBits(voteBitNo)(b)
+	}
+
+	// addTx returns a munger that modifies the block by adding the provided
+	// transaction.
+	addTx := func(tx *wire.MsgTx) func(b *wire.MsgBlock) {
+		return func(b *wire.MsgBlock) {
+			b.AddTransaction(tx)
+		}
+	}
+
+	// addZeroConfSpend returns a munger that modifies the block by adding a
+	// transaction that spends the provided output index of the transaction at
+	// the provided index in the regular tree.
+	addZeroConfSpend := func(txIndex, txOutIndex uint32) func(b *wire.MsgBlock) {
+		return func(b *wire.MsgBlock) {
+			const fee = dcrutil.Amount(1)
+			spend := chaingen.MakeSpendableOut(b, txIndex, txOutIndex)
+			b.AddTransaction(g.CreateSpendTx(&spend, fee))
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with a regular transaction that spends a coinbase output,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block and spends the resurrected coinbase output with a different regular
+	// transaction.
+	//
+	// This exercises spending an output that becomes available again when the
+	// regular transaction tree of the previous block is disapproved.
+	//
+	//   ... -> s1b0 -> s1b1 (disapproves s1b0)
+	//
+	// s1b0: txA (spends a coinbase output)
+	// s1b1: txB (spends the coinbase output previously spent by txA)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		sharedSpend := outs[0]
+		b0 := g.NextBlock("s1b0", &sharedSpend, outs[1:])
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+
+		ticketOuts := g.OldestCoinbaseOuts()
+		b1 := g.NextBlock("s1b1", &sharedSpend, ticketOuts[1:], disapproveParent)
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s1b1")
+		txB := b1.Transactions[1]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with a regular transaction that spends a coinbase output,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block and spends the resurrected coinbase output in the stake tree.
+	//
+	// This exercises the same utxo transition as the previous scenario, but
+	// spends the restored output by a stake transaction.  This ensures the
+	// correct handling applies to stake transactions as well as regular
+	// transactions.
+	//
+	//   ... -> s2b0 -> s2b1 (disapproves s2b0)
+	//
+	// s2b0: txA (spends a coinbase output)
+	// s2b1: ticket (spends the coinbase output previously spent by txA)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		sharedSpend := outs[0]
+		b0 := g.NextBlock("s2b0", &sharedSpend, outs[1:])
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+
+		// Replace the output the first ticket spends with the coinbase output
+		// previously spent by txA.
+		outs = g.OldestCoinbaseOuts()
+		outs[1] = sharedSpend
+		b1 := g.NextBlock("s2b1", nil, outs[1:], disapproveParent)
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s2b1")
+		ticket := findSpendingTicket(b1, sharedSpend.PrevOut())
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(stakeOutpoint(ticket, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with two regular transactions where the second transaction
+	// spends an output from the first transaction as a zero conf spend,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block and reincludes only the first transaction.
+	//
+	// This exercises disapproval of a regular transaction tree where a tx
+	// spends an output created earlier in that tree.  The disapproving block
+	// reincludes the creating tx (txA) without reincluding its original zero
+	// conf spend (txB), so the output of txA must be spendable and the output
+	// of txB must not be spendable.
+	//
+	//   ... -> s3b0 -> s3b1 (disapproves s3b0)
+	//
+	// s3b0: txA (spends a coinbase output) -> txB (zero conf spend of txA)
+	// s3b1: txA (reincluded from s3b0)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s3b0", &outs[0], outs[1:], addZeroConfSpend(1, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		g.NextBlock("s3b1", nil, outs[1:], disapproveParent, addTx(txA))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s3b1")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with a regular transaction that spends a coinbase output,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block, reincludes that transaction, and spends its output with a new zero
+	// conf transaction.
+	//
+	// Unlike the previous scenario, the original block does not contain a zero
+	// conf spend of the reincluded transaction.  This exercises spending an
+	// output created by a transaction that is reincluded in the disapproving
+	// block when that output was not spent in the original block.
+	//
+	//   ... -> s4b0 -> s4b1 (disapproves s4b0)
+	//
+	// s4b0: txA (spends a coinbase output)
+	// s4b1: txA (reincluded from s4b0) -> txB (zero conf spend of txA)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s4b0", &outs[0], outs[1:])
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		b1 := g.NextBlock("s4b1", nil, outs[1:], disapproveParent, addTx(txA),
+			addZeroConfSpend(1, 0))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s4b1")
+		txB := b1.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with a regular transaction that spends a coinbase output,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block, reincludes that transaction, and spends its output with a new zero
+	// conf transaction.
+	//
+	// This exercises replacing a zero conf spend from the disapproved regular
+	// transaction tree with a different zero conf spend of the same output in
+	// the disapproving block.  The resulting utxo state must reflect the new
+	// spend rather than the displaced transaction.
+	//
+	//   ... -> s5b0 -> s5b1 (disapproves s5b0)
+	//
+	// s5b0: txA (spends a coinbase output) -> txB (zero conf spend of txA)
+	// s5b1: txA (reincluded from s5b0) -> txC (new zero conf spend of txA)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s5b0", &outs[0], outs[1:], addZeroConfSpend(1, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		b1 := g.NextBlock("s5b1", nil, outs[1:], disapproveParent, addTx(txA),
+			addZeroConfSpend(1, 0))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s5b1")
+		txC := b1.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoSpendable(outpoint(txC, 0))
+	}
+}
+
+// TestDisapprovalScenarios exercises the UTXO state transitions caused by
+// disapproval of the regular transaction tree of a parent block.
+//
+// See [testDisapprovalScenarios] for details of the tested scenarios.
+//
+// Each scenario is exercised with the UTXO cache flushing enabled and disabled
+// to provide coverage of both cache states.
+func TestDisapprovalScenarios(t *testing.T) {
+	// Run the disapproval scenarios with flushes enabled to mimic the UTXO
+	// cache behavior when the chain is current.  That is, the UTXO cache is
+	// flushed after every block.
+	t.Run("utxo cache flush enabled", func(t *testing.T) {
+		testDisapprovalScenarios(t, true)
+	})
+
+	// Run the scenarios again with flushes disabled to mimic the UTXO cache
+	// behavior during initial chain synchronization.
+	t.Run("utxo cache flush disabled", func(t *testing.T) {
+		testDisapprovalScenarios(t, false)
+	})
 }
