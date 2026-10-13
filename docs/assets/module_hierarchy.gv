@@ -25,7 +25,7 @@ digraph {
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	lru [label="container/lru" fillcolor=royalblue3]
 	peer [label="peer/v3" fillcolor=khaki]
-	rpcclient [label="rpcclient/v8" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v9" fillcolor=mediumseagreen]
 	addrmgr [label="addrmgr/v3" fillcolor=lightsalmon]
 	blockchain [label="blockchain/v5" fillcolor=orchid]
 	apbf [label="container/apbf" fillcolor=goldenrod]
