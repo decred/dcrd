@@ -592,11 +592,17 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		//
 		// Thus, remove the entry from the view and continue to the next one.
 		if entry.isSpentByZeroConf() {
-			// Assert zero confirmation spends are also marked as spent.
+			// Assert zero confirmation spends are also marked as spent and do
+			// not have an unspent cache entry.
 			if !entry.IsSpent() {
 				panicf("output %v (tree %d) from view@%s is simultaneously "+
 					"marked spent by a transaction later in the same block "+
 					"and not spent", outpoint, outpoint.Tree, view.BestHash())
+			}
+			if ce := c.entries[outpoint]; ce != nil && !ce.IsSpent() {
+				panicf("output %v (tree %d) from view@%s is marked as only "+
+					"having ever existed in the view, but has an unspent "+
+					"cache entry", outpoint, outpoint.Tree, view.BestHash())
 			}
 
 			delete(view.entries, outpoint)

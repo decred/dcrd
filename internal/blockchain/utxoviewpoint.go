@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
@@ -270,11 +271,16 @@ func (view *UtxoViewpoint) connectStakeTransaction(tx *dcrutil.Tx,
 			continue
 		}
 
-		// Assert the referenced utxo exists in the view.
+		// Assert the referenced utxo exists in the view and it is not already
+		// spent.
 		prevOut := &txIn.PreviousOutPoint
 		entry := view.entries[*prevOut]
 		if entry == nil {
 			panicf("view missing input %v (tree %v)", prevOut, prevOut.Tree)
+		}
+		if entry.IsSpent() {
+			panicf("attempt to spend already spent output %v (tree %d)",
+				*prevOut, prevOut.Tree)
 		}
 
 		// Only create the stxo details if requested.
@@ -333,11 +339,16 @@ func (view *UtxoViewpoint) connectRegularTransaction(tx *dcrutil.Tx,
 	// Spend the referenced utxos by marking them spent in the view and, if a
 	// slice was provided for the spent txout details, append an entry to it.
 	for _, txIn := range msgTx.TxIn {
-		// Assert the referenced utxo exists in the view.
+		// Assert the referenced utxo exists in the view and it is not already
+		// spent.
 		prevOut := &txIn.PreviousOutPoint
 		entry := view.entries[*prevOut]
 		if entry == nil {
 			panicf("view missing input %v (tree %v)", *prevOut, prevOut.Tree)
+		}
+		if entry.IsSpent() {
+			panicf("attempt to spend already spent output %v (tree %d)",
+				*prevOut, prevOut.Tree)
 		}
 
 		// Only create the stxo details if requested.
@@ -617,6 +628,292 @@ func (view *UtxoViewpoint) addSBSSViolations(params *chaincfg.Params,
 			return
 		}
 	}
+}
+
+// assertBlockUtxoView panics if the utxo view is not consistent with the
+// completed transition represented by the passed block.
+//
+// In particular, all transaction inputs must reference spent outputs and all
+// spendable transaction outputs must have corresponding entries with the
+// expected details and spent state.
+//
+// This function must only be used to assert internal invariants for a fully
+// validated block whose transactions have been applied to the view.
+func (view *UtxoViewpoint) assertBlockUtxoView(params *chaincfg.Params, block *dcrutil.Block, isTreasuryEnabled bool) {
+	// Track all outputs spent by the regular transaction tree of the block and
+	// the index of the transaction that spent them.
+	//
+	// This is used to determine which outputs the block produces that must be
+	// spent due to later transactions in the regular tree spending them.
+	numRegularSpent := countSpentRegularOutputs(block)
+	spentRegularOuts := make(map[wire.OutPoint]uint32, numRegularSpent)
+	for txIdx, tx := range block.Transactions() {
+		msgTx := tx.MsgTx()
+
+		// Coinbases have no real inputs and are required to be a single input
+		// that is a null outpoint instead.  That assumption is safe to use here
+		// since the assertions below double check the null outpoint
+		// requirement.
+		//
+		// Note that this intentionally only skips the first input of the
+		// coinbase instead of the entire transaction even though they will only
+		// consist of a single input.  This is done in order to ensure any error
+		// in coinbase detection is unable to inadvertently allow additional
+		// unexpected inputs.
+		isCoinBase := txIdx == 0
+		if isCoinBase && !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+			panicf("block %s first tx %s is not a coinbase", block.Hash(),
+				tx.Hash())
+		}
+		for txInIdx, txIn := range msgTx.TxIn {
+			if isCoinBase && txInIdx == 0 {
+				continue
+			}
+			spentRegularOuts[txIn.PreviousOutPoint] = uint32(txIdx)
+		}
+	}
+
+	// assertInputs asserts that every non-excepted input spent by the block has
+	// a corresponding spent entry in the view with the expected details.
+	//
+	// The only exceptions are inputs that intentionally have no real inputs and
+	// historical violations.
+	assertInputs := func(transactions []*dcrutil.Tx, stakeTree bool) {
+		for txIdx, tx := range transactions {
+			msgTx := tx.MsgTx()
+			txType := stake.TxTypeRegular
+			treeName := "regular"
+			if stakeTree {
+				txType = stake.DetermineTxType(msgTx)
+				treeName = "stake"
+			}
+			isCoinBase := !stakeTree && txIdx == 0
+
+			for txInIdx, txIn := range msgTx.TxIn {
+				// Coinbases, the stakebase of votes, treasurybases, and
+				// treasury spends have no real inputs and are required to be a
+				// null outpoint instead.  All other inputs are required to be
+				// real non-null outpoints.
+				//
+				// Note that this intentionally only skips the first input of
+				// coinbases, treasurybases, and treasury spends instead of the
+				// entire transaction even though they will only consist of a
+				// single input.  This is done in order to ensure any error in
+				// transaction type detection is unable to inadvertently allow
+				// additional unexpected inputs.
+				prevOut := &txIn.PreviousOutPoint
+				wantNullOut := txInIdx == 0 && (isCoinBase || txType ==
+					stake.TxTypeSSGen || txType == stake.TxTypeTreasuryBase ||
+					txType == stake.TxTypeTSpend)
+				if gotNull := isNullOutpoint(prevOut); gotNull != wantNullOut {
+					op := "null outpoint"
+					if !gotNull {
+						op = fmt.Sprintf("non-null outpoint %s (tree %d)",
+							prevOut, prevOut.Tree)
+					}
+					panicf("block %s %s tree idx %d: tx %s:%d spends %v",
+						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx, op)
+				}
+				if wantNullOut {
+					continue
+				}
+
+				// Every spent input must have an entry in the view.
+				entry := view.entries[*prevOut]
+				if entry == nil {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): input is missing from utxo view",
+						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx,
+						prevOut, prevOut.Tree)
+				}
+
+				// All spent inputs must be marked spent with an exception for
+				// historical SBSS violations.
+				//
+				// Without this exception, the assertion would panic for these
+				// historical violations.  This demonstrates the assertion would
+				// have caught the underlying issue had it been in place, even
+				// though it does not explicitly check the condition that
+				// originally allowed them.
+				isHistoricalSBSS := stakeTree && prevOut.Index == 0 &&
+					prevOut.Tree == wire.TxTreeRegular &&
+					isSBSSViolation(params, block.Height(), &prevOut.Hash)
+				if !entry.IsSpent() && !isHistoricalSBSS {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): utxo is not marked spent", block.Hash(),
+						treeName, txIdx, tx.Hash(), txInIdx, prevOut,
+						prevOut.Tree)
+				}
+
+				// The entry details must match the input witness details.
+				if entry.Amount() != txIn.ValueIn {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): utxo amount mismatch (entry %d, input "+
+						"witness %d)", block.Hash(), treeName, txIdx, tx.Hash(),
+						txInIdx, prevOut, prevOut.Tree, entry.Amount(),
+						txIn.ValueIn)
+				}
+				if entry.BlockHeight() != int64(txIn.BlockHeight) {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): utxo block height mismatch (entry %d, "+
+						"input witness %d)", block.Hash(), treeName, txIdx,
+						tx.Hash(), txInIdx, prevOut, prevOut.Tree,
+						entry.BlockHeight(), int64(txIn.BlockHeight))
+				}
+				if entry.BlockIndex() != txIn.BlockIndex {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): utxo block index mismatch (entry %d, "+
+						"input witness %d)", block.Hash(), treeName, txIdx,
+						tx.Hash(), txInIdx, prevOut, prevOut.Tree,
+						entry.BlockIndex(), txIn.BlockIndex)
+				}
+
+				// Stake transactions must not spend transactions from the same
+				// block with an exception for historical SBSS violations.
+				if stakeTree && int64(txIn.BlockHeight) == block.Height() &&
+					!isHistoricalSBSS {
+
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): stake tx spends output from same block",
+						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx,
+						prevOut, prevOut.Tree)
+				}
+			}
+		}
+	}
+
+	// assertOutputs asserts that every output created by the block has a
+	// corresponding entry in the view with the expected details and spent
+	// state.
+	assertOutputs := func(transactions []*dcrutil.Tx, stakeTree bool) {
+		txTree := wire.TxTreeRegular
+		treeName := "regular"
+		if stakeTree {
+			txTree = wire.TxTreeStake
+			treeName = "stake"
+		}
+
+		for txIdx, tx := range transactions {
+			msgTx := tx.MsgTx()
+			txType := stake.TxTypeRegular
+			if stakeTree {
+				txType = stake.DetermineTxType(msgTx)
+			}
+
+			// Treasurybase transactions don't create any utxos.
+			if stakeTree && isTreasuryEnabled && txIdx == 0 {
+				continue
+			}
+
+			// Determine the expected encoded utxo flags.
+			isCoinBase := !stakeTree && txIdx == 0
+			hasExpiry := msgTx.Expiry != wire.NoExpiryValue
+			wantPackedFlags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
+
+			outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: txTree}
+			for txOutIdx, txOut := range msgTx.TxOut {
+				// Treasury adds and provably unspendable outputs are never
+				// represented as utxos.
+				if isTreasuryAddOutput(txType, uint32(txOutIdx)) ||
+					txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+
+					continue
+				}
+
+				outpoint.Index = uint32(txOutIdx)
+				entry := view.entries[outpoint]
+				if entry == nil {
+					panicf("block %s %s tree idx %d: output %v: output is "+
+						"missing from utxo view", block.Hash(), treeName, txIdx,
+						outpoint)
+				}
+
+				// Outputs that are spent later in the regular tree must be
+				// marked spent and all others must be marked unspent.
+				spenderIdx, spent := spentRegularOuts[outpoint]
+				wantSpent := !stakeTree && spent && spenderIdx > uint32(txIdx)
+				if entry.IsSpent() != wantSpent {
+					panicf("block %s %s tree idx %d: output %v: spent state "+
+						"mismatch (entry %v, want %v)", block.Hash(), treeName,
+						txIdx, outpoint, entry.IsSpent(), wantSpent)
+				}
+
+				// All outputs must be marked modified.
+				if !entry.isModified() {
+					panicf("block %s %s tree idx %d: output %v: utxo is not "+
+						"marked modified", block.Hash(), treeName, txIdx,
+						outpoint)
+				}
+
+				// The entry details must match the output details.
+				if entry.Amount() != txOut.Value {
+					panicf("block %s %s tree idx %d: output %v: amount "+
+						"mismatch (entry %d, tx output %d)", block.Hash(),
+						treeName, txIdx, outpoint, entry.Amount(), txOut.Value)
+				}
+				if entry.ScriptVersion() != txOut.Version {
+					panicf("block %s %s tree idx %d: output %v: script "+
+						"version mismatch (entry %d, tx output %d)",
+						block.Hash(), treeName, txIdx, outpoint,
+						entry.ScriptVersion(), txOut.Version)
+				}
+				if !bytes.Equal(entry.PkScript(), txOut.PkScript) {
+					panicf("block %s %s tree idx %d: output %v: public key "+
+						"script mismatch (entry %x, tx output %x)",
+						block.Hash(), treeName, txIdx, outpoint,
+						entry.PkScript(), txOut.PkScript)
+				}
+				if entry.BlockHeight() != block.Height() {
+					panicf("block %s %s tree idx %d: output %v: block height "+
+						"mismatch (entry %d, block %d)", block.Hash(),
+						treeName, txIdx, outpoint, entry.BlockHeight(),
+						block.Height())
+				}
+				if entry.BlockIndex() != uint32(txIdx) {
+					panicf("block %s %s tree idx %d: output %v: block index "+
+						"mismatch (entry %d, tx idx %d)", block.Hash(), treeName,
+						txIdx, outpoint, entry.BlockIndex(), uint32(txIdx))
+				}
+				if entry.packedFlags != wantPackedFlags {
+					panicf("block %s %s tree idx %d: output %v: packed flags "+
+						"mismatch (entry %x, want %x)", block.Hash(), treeName,
+						txIdx, outpoint, entry.packedFlags, wantPackedFlags)
+				}
+
+				wantMinOuts := isTicketSubmissionOutput(txType, uint32(txOutIdx))
+				hasMinOuts := entry.ticketMinOuts != nil
+				if hasMinOuts != wantMinOuts {
+					panicf("block %s %s tree idx %d: output %v: ticket "+
+						"minimal outputs presence mismatch (entry present %v, "+
+						"want %v)", block.Hash(), treeName, txIdx, outpoint,
+						hasMinOuts, wantMinOuts)
+				}
+				if wantMinOuts {
+					wantData := make([]byte, serializeSizeForMinimalOutputs(tx))
+					written := putTxToMinimalOutputs(wantData, tx)
+					if wantLen := len(wantData); written != wantLen {
+						panicf("block %s %s tree idx %d: output %v: ticket"+
+							" minimal outputs serialization size mismatch "+
+							"(written %d, expected %d)", block.Hash(),
+							treeName, txIdx, outpoint, written, wantLen)
+					}
+
+					if !bytes.Equal(entry.ticketMinOuts.data, wantData) {
+						panicf("block %s %s tree idx %d: output %v: ticket "+
+							"minimal outputs data mismatch (entry size %d, "+
+							"expected size %d)", block.Hash(), treeName, txIdx,
+							outpoint, len(entry.ticketMinOuts.data),
+							len(wantData))
+					}
+				}
+			}
+		}
+	}
+
+	assertInputs(block.Transactions(), false)
+	assertInputs(block.STransactions(), true)
+	assertOutputs(block.Transactions(), false)
+	assertOutputs(block.STransactions(), true)
 }
 
 // connectBlock updates the view by potentially disconnecting all of the
