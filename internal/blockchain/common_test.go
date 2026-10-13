@@ -144,11 +144,11 @@ func chainSetup(t testing.TB, params *chaincfg.Params) (*BlockChain, error) {
 			ChainParams: &paramsCopy,
 			TimeSource:  NewMedianTime(),
 			SigCache:    sigCache,
-			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
+			UtxoCache: newTestUtxoCache(&UtxoCacheConfig{
 				Backend: utxoBackend,
 				FlushBlockDB: func() error {
-					// Don't flush to disk since it is slow and this is used in a lot of
-					// tests.
+					// Don't flush to disk since it is slow and this is used in
+					// a lot of tests.
 					return nil
 				},
 				MaxSize: 100 * 1024, // 100 KiB
@@ -592,13 +592,13 @@ func removeHistoricalConsensusChange(t *testing.T, chain *BlockChain, agendaID s
 // threshold state checking.
 //
 // The chaingen generator is embedded in the struct so callers can directly
-// access its method the same as if they were directly working with the
+// access its methods the same as if they were directly working with the
 // underlying generator.
 //
 // Since chaingen involves creating fully valid and solved blocks, which is
 // relatively expensive, only tests which actually require that functionality
 // should make use of this harness.  In many cases, a much faster synthetic
-// chain instance created by newFakeChain will suffice.
+// chain instance created by [newFakeChain] will suffice.
 type chaingenHarness struct {
 	*chaingen.Generator
 
@@ -908,6 +908,43 @@ func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 	}
 }
 
+// ExpectUtxoSpendable expects the provided outpoint to exist in the utxo set
+// and not be spent.  The lookup is performed through the utxo cache associated
+// with the harness generator.
+func (g *chaingenHarness) ExpectUtxoSpendable(outpoint wire.OutPoint) {
+	g.t.Helper()
+
+	entry, err := g.chain.utxoCache.FetchEntry(outpoint)
+	if err != nil {
+		g.t.Fatalf("unexpected error fetching utxo %v (tree %d): %v", outpoint,
+			outpoint.Tree, err)
+	}
+	if entry == nil {
+		g.t.Fatalf("utxo %v (tree %d) is not spendable: no entry", outpoint,
+			outpoint.Tree)
+	}
+	if entry.IsSpent() {
+		g.t.Fatalf("utxo %v (tree %d) is not spendable: entry is spent",
+			outpoint, outpoint.Tree)
+	}
+}
+
+// ExpectUtxoUnspendable expects the provided outpoint to be missing from the
+// utxo set or marked spent.  The lookup is performed through the utxo cache
+// associated with the harness generator.
+func (g *chaingenHarness) ExpectUtxoUnspendable(outpoint wire.OutPoint) {
+	g.t.Helper()
+
+	entry, err := g.chain.utxoCache.FetchEntry(outpoint)
+	if err != nil {
+		g.t.Fatalf("unexpected error fetching utxo %v (tree %d): %v", outpoint,
+			outpoint.Tree, err)
+	}
+	if entry != nil && !entry.IsSpent() {
+		g.t.Fatalf("utxo %v (tree %d) is spendable", outpoint, outpoint.Tree)
+	}
+}
+
 // AcceptedToSideChainWithExpectedTip expects the tip block associated with the
 // generator to be accepted to a side chain, but the current best chain tip to
 // be the provided value.
@@ -1001,6 +1038,43 @@ func (g *chaingenHarness) ExpectIsCurrent(expected bool) {
 		g.t.Fatalf("mismatched is current status for block %q (hash %s, "+
 			"height %d) -- got %v, want %v", g.BlockName(&best.Hash), best.Hash,
 			best.Height, isCurrent, expected)
+	}
+}
+
+// DisableUtxoCacheFlushes unconditionally disables flushing of the utxo cache
+// associated with the harness to backend.
+func (g *chaingenHarness) DisableUtxoCacheFlushes() {
+	g.t.Helper()
+
+	cache := g.chain.utxoCache.(*testUtxoCache)
+	cache.disableFlush = true
+}
+
+// ForceUtxoCacheFlush flushes all modified entries in the utxo cache associated
+// with the harness to the backend and evicts all entries that are spent.  It
+// temporarily enables caching for the duration of the forced flush when it is
+// unconditionally disabled.
+func (g *chaingenHarness) ForceUtxoCacheFlush() {
+	g.t.Helper()
+
+	// Temporarily enable flushing on the utxo cache for the duration of the
+	// forced flush when it is unconditionally disabled.
+	if cache := g.chain.utxoCache.(*testUtxoCache); cache.disableFlush {
+		cache.disableFlush = false
+		defer func() {
+			cache.disableFlush = true
+		}()
+	}
+
+	const forceFlush = true
+	const logFlush = false
+	g.chain.chainLock.Lock()
+	tip := g.chain.bestChain.Tip()
+	err := g.chain.utxoCache.MaybeFlush(&tip.hash, uint32(tip.height),
+		forceFlush, logFlush)
+	g.chain.chainLock.Unlock()
+	if err != nil {
+		g.t.Fatalf("unexpected error flushing utxo cache: %v", err)
 	}
 }
 
