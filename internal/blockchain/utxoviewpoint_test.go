@@ -247,6 +247,15 @@ func TestFetchUtxoView(t *testing.T) {
 //   - Disapproval of a block containing a zero conf spend, followed by
 //     reinclusion of the creating transaction and a new zero conf spend that
 //     replaces the disapproved spend
+//   - Reorganization from a disapproving block that reincludes a transaction
+//     to a branch that approves the original parent and restores its zero conf
+//     spend
+//   - Reorganization away from and back to a branch that disapproves a parent
+//     and reincludes a transaction from its regular tree
+//   - Disapproval of a block containing a longer chain of zero conf spends,
+//     followed by reinclusion of the first transaction, reconstruction of
+//     the zero conf spend chain, and a reorganization away from and back
+//     to that branch
 func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 	// Create a test harness initialized with the genesis block as the tip and
 	// advance it to stake validation height.
@@ -504,6 +513,222 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		g.ExpectUtxoUnspendable(outpoint(txA, 0))
 		g.ExpectUtxoUnspendable(outpoint(txB, 0))
 		g.ExpectUtxoSpendable(outpoint(txC, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block containing a zero conf spend, followed by a block that
+	// disapproves the parent and reincludes only the transaction that created
+	// the spent output.
+	//
+	// Then reorganize to a competing branch whose first block approves the
+	// original parent.  This restores the original zero conf spend and removes
+	// the effect of the reinclusion on the active utxo view.
+	//
+	//   ... -> s6b0 -> s6b1 (disapproves s6b0)
+	//              \-> s6b1a (approves s6b0) -> s6b2a
+	//
+	// s6b0: txA (spends a coinbase output) -> txB (zero conf spend of txA)
+	// s6b1: txA (reincluded from s6b0)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s6b0", &outs[0], outs[1:], addZeroConfSpend(1, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		g.NextBlock("s6b1", nil, outs[1:], disapproveParent, addTx(txA))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s6b1")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+
+		g.SetTip("s6b0")
+		g.NextBlock("s6b1a", nil, outs[1:])
+		g.AcceptedToSideChainWithExpectedTip("s6b1")
+		g.NextBlock("s6b2a", nil, nil)
+		g.AcceptTipBlock()
+		g.ExpectTip("s6b2a")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with two regular transactions where the second transaction
+	// spends an output from the first transaction as a zero conf spend followed
+	// by a block that disapproves the parent and reincludes its first
+	// transaction.
+	//
+	// Then create a competing branch that disapproves the same parent without
+	// reincluding either transaction.
+	//
+	// Finally, reorganize back to the branch that reincluded the transaction.
+	//
+	// This exercises disconnecting and reconnecting a branch that disapproves
+	// the regular transaction tree of the parent block and reincludes its
+	// creating transaction.  The utxo state must remain correct when the chain
+	// switches first to a competing disapproving branch and then back again.
+	//
+	//   ... -> s7b0 -> s7b1 (disapproves s7b0)  -> s7b2  -> s7b3
+	//              \-> s7b1a (disapproves s7b0) -> s7b2a
+	//
+	// s7b0:  txA (spends a coinbase output) -> txB (zero conf spend of txA)
+	// s7b1:  txA (reincluded from s7b0)
+	// s7b1a: disapproves s7b0 without reincluding txA or txB
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s7b0", &outs[0], outs[1:], addZeroConfSpend(1, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		g.NextBlock("s7b1", nil, outs[1:], disapproveParent, addTx(txA))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s7b1")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+
+		// Force a cache flush when automatic flushing is disabled to ensure the
+		// output of txA is in the backend and therefore not fresh in the cache.
+		// The reorganization below will then cause a spent entry in the cache
+		// for the later zero conf spend.
+		if !flushUtxoCache {
+			g.ForceUtxoCacheFlush()
+		}
+
+		// Create a competing branch that disapproves the parent without
+		// reincluding either of its regular transactions and eventually becomes
+		// the best chain.
+		g.SetTip("s7b0")
+		g.NextBlock("s7b1a", &outs[0], outs[1:], disapproveParent)
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptedToSideChainWithExpectedTip("s7b1")
+		g.NextBlock("s7b2a", nil, nil)
+		g.AcceptTipBlock()
+		g.ExpectTip("s7b2a")
+		g.ExpectUtxoSpendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+
+		// Extend the reinclusion branch until it becomes the best chain again.
+		g.SetTip("s7b1")
+		g.NextBlock("s7b2", nil, nil)
+		g.AcceptedToSideChainWithExpectedTip("s7b2a")
+		g.NextBlock("s7b3", nil, nil)
+		g.AcceptTipBlock()
+		g.ExpectTip("s7b3")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoSpendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with a chain of regular transactions where each
+	// transaction spends an output from the preceding transaction as a zero
+	// conf spend, followed by a block that disapproves the regular tx tree of
+	// the previous block, reincludes the first transaction, and creates a new
+	// chain of zero conf spends from its output.
+	//
+	// Then create a competing branch that disapproves the same parent without
+	// reincluding any of the disapproved transactions.
+	//
+	// Finally, reorganize back to the branch that reincluded the transaction.
+	//
+	// This exercises disconnecting and reconnecting a longer zero conf
+	// transaction chain when switching between competing branches that both
+	// disapprove the same parent where one of the branches does not include any
+	// of the original transactions and the other builds a new chain of spends
+	// from the reincluded first transaction.
+	//
+	//   ... -> s8b0 -> s8b1 (disapproves s8b0)  -> s8b2  -> s8b3
+	//              \-> s8b1a (disapproves s8b0) -> s8b2a
+	//
+	// s8b0:  txA -> txB -> txC -> txD
+	// s8b1:  txA (reincluded from s8b0) -> txE -> txF -> txG
+	// s8b1a: disapproves s8b0 without reincluding txA, txB, txC, or txD
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s8b0", &outs[0], outs[1:], addZeroConfSpend(1, 0),
+			addZeroConfSpend(2, 0), addZeroConfSpend(3, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		txC := b0.Transactions[3]
+		txD := b0.Transactions[4]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoUnspendable(outpoint(txC, 0))
+		g.ExpectUtxoSpendable(outpoint(txD, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		b1 := g.NextBlock("s8b1", nil, outs[1:], disapproveParent, addTx(txA),
+			addZeroConfSpend(1, 0), addZeroConfSpend(2, 0),
+			addZeroConfSpend(3, 0))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		g.ExpectTip("s8b1")
+		txE := b1.Transactions[2]
+		txF := b1.Transactions[3]
+		txG := b1.Transactions[4]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoUnspendable(outpoint(txC, 0))
+		g.ExpectUtxoUnspendable(outpoint(txD, 0))
+		g.ExpectUtxoUnspendable(outpoint(txE, 0))
+		g.ExpectUtxoUnspendable(outpoint(txF, 0))
+		g.ExpectUtxoSpendable(outpoint(txG, 0))
+
+		// Create a competing branch that disapproves the parent without
+		// reincluding any of its regular transactions and eventually becomes
+		// the best chain.
+		g.SetTip("s8b0")
+		g.NextBlock("s8b1a", &outs[0], outs[1:], disapproveParent)
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptedToSideChainWithExpectedTip("s8b1")
+		g.NextBlock("s8b2a", nil, nil)
+		g.AcceptTipBlock()
+		g.ExpectTip("s8b2a")
+		g.ExpectUtxoSpendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoUnspendable(outpoint(txC, 0))
+		g.ExpectUtxoUnspendable(outpoint(txD, 0))
+		g.ExpectUtxoUnspendable(outpoint(txE, 0))
+		g.ExpectUtxoUnspendable(outpoint(txF, 0))
+		g.ExpectUtxoUnspendable(outpoint(txG, 0))
+
+		// Extend the reinclusion branch until it becomes the best chain again.
+		g.SetTip("s8b1")
+		g.NextBlock("s8b2", nil, nil)
+		g.AcceptedToSideChainWithExpectedTip("s8b2a")
+		g.NextBlock("s8b3", nil, nil)
+		g.AcceptTipBlock()
+		g.ExpectTip("s8b3")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoUnspendable(outpoint(txC, 0))
+		g.ExpectUtxoUnspendable(outpoint(txD, 0))
+		g.ExpectUtxoUnspendable(outpoint(txE, 0))
+		g.ExpectUtxoUnspendable(outpoint(txF, 0))
+		g.ExpectUtxoSpendable(outpoint(txG, 0))
 	}
 }
 
