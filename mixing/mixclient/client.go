@@ -41,7 +41,9 @@ const MinPeers = mixing.MinPeers
 const pairingVersion byte = 3
 const pairingVersionTestnet byte = 4
 
-const (
+// durations below should be treated as constants, they are only variables so
+// they can be overridden in tests.
+var (
 	timeoutDuration = 30 * time.Second
 	maxJitter       = timeoutDuration / 10
 	msgJitter       = 300 * time.Millisecond
