@@ -7086,6 +7086,25 @@ func TestHandleSendRawTransaction(t *testing.T) {
 	hexTx := hex.EncodeToString(txB)
 
 	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleSendRawTransaction: nil allowHighFees",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx: hexTx,
+			// A client that explicitly sends JSON null for the optional parameter
+			// leaves this nil, because the declared default is only applied when the
+			// field is absent. Every other case below passes a non-nil pointer, which
+			// is why the nil dereference went unnoticed.
+			AllowHighFees: nil,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr =
+				errors.New("unable to process transaction")
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDeserialization,
+	}, {
 		name:    "handleSendRawTransaction: invalid tx hex",
 		handler: handleSendRawTransaction,
 		cmd: &types.SendRawTransactionCmd{
