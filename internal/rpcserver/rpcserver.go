@@ -4400,7 +4400,11 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd any) (any, error
 	c := cmd.(*types.SendRawTransactionCmd)
 	// Deserialize and send off to tx relay
 
-	allowHighFees := *c.AllowHighFees
+	allowHighFees := false
+	if c.AllowHighFees != nil {
+		allowHighFees = *c.AllowHighFees
+	}
+
 	hexStr := c.HexTx
 	if len(hexStr)%2 != 0 {
 		hexStr = "0" + hexStr
