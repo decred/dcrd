@@ -7208,6 +7208,19 @@ func TestHandleSendRawTransaction(t *testing.T) {
 			return syncManager
 		}(),
 		result: tx.Hash().String(),
+	}, {
+		name:    "handleSendRawTransaction: nil allowHighFees",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: nil,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransaction = []*dcrutil.Tx{tx}
+			return syncManager
+		}(),
+		result: tx.Hash().String(),
 	}})
 }
 
