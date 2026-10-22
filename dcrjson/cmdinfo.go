@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -138,7 +138,7 @@ func fieldUsage(structField reflect.StructField, defaultVal *reflect.Value) stri
 
 	// Indirect the pointer if needed.
 	fieldType := structField.Type
-	if fieldType.Kind() == reflect.Ptr {
+	if fieldType.Kind() == reflect.Pointer {
 		fieldType = fieldType.Elem()
 	}
 
@@ -189,7 +189,7 @@ func methodUsageText(rtp reflect.Type, defaults map[int]reflect.Value, method in
 	for i := 0; i < numFields; i++ {
 		rtf := rt.Field(i)
 		var isOptional bool
-		if kind := rtf.Type.Kind(); kind == reflect.Ptr {
+		if kind := rtf.Type.Kind(); kind == reflect.Pointer {
 			isOptional = true
 		}
 
