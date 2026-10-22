@@ -6,7 +6,8 @@ secp256k1
 [![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v4)
 
 Package secp256k1 provides an optimized pure-Go implementation of secp256k1
-elliptic curve cryptography.
+elliptic curve cryptography with architecture-specific backends that are
+automatically selected at compile time.
 
 It is designed for correctness, performance, security, and high assurance
 through specialized secp256k1 arithmetic, constant-time engineering, formal
@@ -16,8 +17,8 @@ structures and functions for working with public and private secp256k1 keys.
 
 In addition, subpackages are provided to produce, verify, parse, and serialize
 ECDSA signatures and EC-Schnorr-DCRv0 (a custom Schnorr-based signature scheme
-specific to Decred) signatures.  See the README.md files in the relevant sub
-packages for more details about those aspects.
+specific to Decred) signatures.  See the README.md files in the relevant
+subpackages for more details about those aspects.
 
 ## Features
 
@@ -34,6 +35,7 @@ packages for more details about those aspects.
   - Point doubling
   - Scalar multiplication with an arbitrary point
   - Scalar multiplication with the base point (group generator)
+- Automatic optimal arithmetic backend selection for the target architecture
 - Specialized arithmetic optimized specifically for secp256k1
   - `FieldVal` for arithmetic modulo the secp256k1 field prime
   - `ModNScalar` for arithmetic modulo the secp256k1 group order
@@ -53,7 +55,7 @@ multiple complementary validation techniques.
 Key implementation characteristics include:
 
 - Continuous production use since 2013 across the Decred and Bitcoin ecosystems
-- Specialized secp256k1 arithmetic rather than generic elliptic curve
+- Specialized secp256k1 arithmetic with architecture-specific optimized
   implementations
 - Constant-time field and scalar arithmetic for secret-dependent operations
 - Formal verification of critical arithmetic operations using the Z3 theorem
@@ -94,6 +96,21 @@ secp256k1 elliptic curve cryptography.
 ## References
 
 The secp256k1 domain parameters are specified in [SEC 2: Recommended Elliptic Curve Domain Parameters](https://www.secg.org/sec2-v2.pdf).
+
+## Caveats
+
+Constant time implementations are designed to eliminate data dependent timing
+variation at the algorithmic level.  This property depends on the Go compiler
+continuing to compile the relevant operations into constant-time machine
+instructions.
+
+This package also consistently uses temporary stack allocated buffers which it
+attempts to clear in order to reduce the likelihood of sensitive data lingering
+in memory, but Go does not guarantee such writes are never optimized away.
+
+Significant effort has been made to ensure correctness including careful review
+of the generated assembly, but it is impossible to guarantee exact behavior of
+future versions of the Go compiler.
 
 ## secp256k1 use in Decred
 
