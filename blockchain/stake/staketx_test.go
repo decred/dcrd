@@ -412,6 +412,23 @@ func TestSSGenErrors(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------------
+	// Test for wrong index on the ticket input.
+
+	var ssgenWrongIndex = dcrutil.NewTxDeep(ssgenMsgTx)
+	ssgenWrongIndex.SetTree(wire.TxTreeStake)
+	ssgenWrongIndex.SetIndex(0)
+	ssgenWrongIndex.MsgTx().TxIn[1].PreviousOutPoint.Index = 1
+
+	err = CheckSSGen(ssgenWrongIndex.MsgTx())
+	if !errors.Is(err, ErrSSGenWrongIndex) {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			ErrSSGenWrongIndex, err)
+	}
+	if IsSSGen(ssgenWrongIndex.MsgTx()) {
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	// ---------------------------------------------------------------------------
 	// Wrong tree for inputs test
 
 	// Replace TxTreeStake with TxTreeRegular
