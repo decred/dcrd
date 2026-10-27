@@ -1089,6 +1089,8 @@ func TestShouldFlush(t *testing.T) {
 	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcf" +
 		"d008de596471f11a5aff475")
 
+	now := time.Unix(time.Now().Unix(), 0)
+
 	tests := []struct {
 		name           string
 		totalEntrySize uint64
@@ -1101,7 +1103,7 @@ func TestShouldFlush(t *testing.T) {
 		name:           "already flushed through the best hash",
 		totalEntrySize: 100,
 		maxSize:        1000,
-		lastFlushTime:  time.Now(),
+		lastFlushTime:  now.Add(-periodicFlushInterval * 2),
 		lastFlushHash:  block1000Hash,
 		bestHash:       block1000Hash,
 		want:           false,
@@ -1109,7 +1111,15 @@ func TestShouldFlush(t *testing.T) {
 		name:           "less than max size and periodic duration not reached",
 		totalEntrySize: 100,
 		maxSize:        1000,
-		lastFlushTime:  time.Now(),
+		lastFlushTime:  now,
+		lastFlushHash:  block1000Hash,
+		bestHash:       block2000Hash,
+		want:           false,
+	}, {
+		name:           "periodic duration one nanosecond from being reached",
+		totalEntrySize: 100,
+		maxSize:        1000,
+		lastFlushTime:  now.Add(-periodicFlushInterval + time.Nanosecond),
 		lastFlushHash:  block1000Hash,
 		bestHash:       block2000Hash,
 		want:           false,
@@ -1117,7 +1127,7 @@ func TestShouldFlush(t *testing.T) {
 		name:           "equal to max size",
 		totalEntrySize: 1000,
 		maxSize:        1000,
-		lastFlushTime:  time.Now(),
+		lastFlushTime:  now,
 		lastFlushHash:  block1000Hash,
 		bestHash:       block2000Hash,
 		want:           true,
@@ -1125,7 +1135,7 @@ func TestShouldFlush(t *testing.T) {
 		name:           "greater than max size",
 		totalEntrySize: 1001,
 		maxSize:        1000,
-		lastFlushTime:  time.Now(),
+		lastFlushTime:  now,
 		lastFlushHash:  block1000Hash,
 		bestHash:       block2000Hash,
 		want:           true,
@@ -1133,7 +1143,7 @@ func TestShouldFlush(t *testing.T) {
 		name:           "less than max size but periodic duration reached",
 		totalEntrySize: 100,
 		maxSize:        1000,
-		lastFlushTime:  time.Now().Add(periodicFlushInterval * -1),
+		lastFlushTime:  now.Add(-periodicFlushInterval),
 		lastFlushHash:  block1000Hash,
 		bestHash:       block2000Hash,
 		want:           true,
@@ -1148,6 +1158,7 @@ func TestShouldFlush(t *testing.T) {
 		utxoCache.totalEntrySize = test.totalEntrySize
 		utxoCache.lastFlushTime = test.lastFlushTime
 		utxoCache.lastFlushHash = *test.lastFlushHash
+		utxoCache.timeNow = func() time.Time { return now }
 
 		// Validate that should flush returns the expected value.
 		got := utxoCache.shouldFlush(test.bestHash)

@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Decred developers
+// Copyright (c) 2022-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -675,7 +675,7 @@ func (c *UtxoCache) shouldFlush(bestHash *chainhash.Hash) bool {
 	}
 
 	// Flush if the periodic flush interval has been reached.
-	return time.Since(c.lastFlushTime) >= periodicFlushInterval
+	return c.timeNow().Sub(c.lastFlushTime) >= periodicFlushInterval
 }
 
 // flush commits all modified entries to the backend and conditionally evicts
