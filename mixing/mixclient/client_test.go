@@ -289,7 +289,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	c := newTestClient(w, l)
 	c.testHooks = map[hook]hookFunc{
 		hookBeforeRun: func(c *Client, ps *pairedSessions, _ *sessionRun, _ *peer) {
-			ps.deadlines.recvKE = time.Now().Add(5 * time.Second)
+			ps.deadlines.start(time.Now(), c.stageTimeout)
 		},
 		h: f,
 	}
