@@ -1632,6 +1632,16 @@ func (p *Pool) reconsiderOrphans(accepted mixing.Message, id *idPubKey) []mixing
 				continue
 			}
 
+			// Remove the orphan if it conflicts with a different message of the
+			// same type from this identity in the session.
+			if prevHash, ok := p.identityMessage(id, msgtype, &ke.SessionID); ok {
+				log.Debugf("orphan %v by identity %x in session %x "+
+					"conflicts with already accepted message %v",
+					&orphanHash, id[:], ke.SessionID[:], &prevHash)
+				p.removeOrphan(&orphanHash, id)
+				continue
+			}
+
 			if len(p.messagesByIdentity[*id]) >= maxMessagesPerIdentity {
 				log.Debugf("identity %x has exceeded maximum message limit", id[:])
 				continue
