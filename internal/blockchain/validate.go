@@ -3112,12 +3112,6 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	// vote is associated with.
 	const ticketInIdx = 1
 	ticketIn := msgTx.TxIn[ticketInIdx]
-	if ticketIn.PreviousOutPoint.Index != submissionOutputIdx {
-		str := fmt.Sprintf("vote %s:%d references output %d instead of the "+
-			"first output", voteHash, ticketInIdx,
-			ticketIn.PreviousOutPoint.Index)
-		return ruleError(ErrInvalidVoteInput, str)
-	}
 
 	// Ensure the referenced ticket is available.
 	ticketHash := &ticketIn.PreviousOutPoint.Hash
