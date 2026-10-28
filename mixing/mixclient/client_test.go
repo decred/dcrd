@@ -192,6 +192,15 @@ func (w *testWallet) privForPkScript(p2pkhScript []byte) *secp256k1.PrivateKey {
 	return w.privForHash160(hash160)
 }
 
+func TestMain(m *testing.M) {
+	// Override stage timeout and jitter times to make tests run faster.
+	timeoutDurationTestnet = 1 * time.Second
+	maxJitterTestnet = timeoutDurationTestnet / 10
+	msgJitter = 10 * time.Millisecond
+	peerJitterTestnet = maxJitterTestnet - msgJitter
+	m.Run()
+}
+
 func TestHonest(t *testing.T) {
 	requireCsppsolver(t)
 
