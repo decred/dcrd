@@ -42,6 +42,42 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
+// TestParseAndSetDebugLevelsAtomic ensures invalid debug level specifications
+// do not apply any of their valid pairs and reject extra equals signs.
+func TestParseAndSetDebugLevelsAtomic(t *testing.T) {
+	oldLevel := rpcsLog.Level()
+	defer rpcsLog.SetLevel(oldLevel)
+
+	setLogLevel("RPCS", "warn")
+	wantLevel := rpcsLog.Level()
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "invalid subsystem after valid pair",
+			input: "RPCS=debug,INVALID=trace",
+		},
+		{
+			name:  "extra equals sign",
+			input: "RPCS=debug=trace",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := parseAndSetDebugLevels(test.input); err == nil {
+				t.Fatalf("parseAndSetDebugLevels(%q) unexpectedly succeeded", test.input)
+			}
+
+			if gotLevel := rpcsLog.Level(); gotLevel != wantLevel {
+				t.Fatalf("RPCS log level changed to %v after parsing %q, want %v",
+					gotLevel, test.input, wantLevel)
+			}
+		})
+	}
+}
+
 // TestDefaultAltDNSNames ensures that there are no additional hostnames added
 // by default during the configuration load phase.
 func TestDefaultAltDNSNames(t *testing.T) {
