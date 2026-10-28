@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -27,9 +28,25 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// requireCsppsolver starts a background instance of the csppsolver process then
+// confirms it is working correctly by calling it with a trivial polynomial and
+// checking the result.
 func requireCsppsolver(t *testing.T) {
 	if err := solverrpc.StartSolver(); err != nil {
 		t.Skipf("test requires csppsolver, but it cannot be started: %v", err)
+	}
+
+	// Starting the solver only checks that the process was spawned, solve
+	// x^2 - 3x + 2 = (x - 1)(x - 2) to check that it actually works.
+	minus3 := new(big.Int).Sub(mixing.F, big.NewInt(3))
+	a := []*big.Int{big.NewInt(2), minus3, big.NewInt(1)}
+	roots, err := solverrpc.Roots(a, mixing.F)
+	if err != nil {
+		t.Skipf("test requires csppsolver, but it returned an error: %v", err)
+	}
+	if len(roots) != 2 {
+		t.Skipf("test requires csppsolver, but it returned %d roots for "+
+			"a polynomial with 2 roots", len(roots))
 	}
 }
 
