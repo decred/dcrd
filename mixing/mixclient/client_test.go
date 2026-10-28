@@ -64,6 +64,7 @@ func newTestClient(w *testWallet, logger slog.Logger) *Client {
 	c := NewClient(w)
 	c.testWaiting = make(chan struct{})
 	c.testTickC = make(chan time.Time)
+	c.observer = nil // Disable the misbehaving peer observer.
 	c.SetLogger(logger)
 	return c
 }
