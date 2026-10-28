@@ -1309,20 +1309,14 @@ func (p *Pool) AcceptMessage(msg mixing.Message, src Source) (accepted []mixing.
 
 	// Check that a message from this identity does not conflict with a
 	// different message of the same type in the session.
-	var haveKE bool
-	for _, prevHash := range p.messagesByIdentity[*id] {
-		e := p.pool[prevHash]
-		if e.msgtype == msgtype && bytes.Equal(e.msg.Sid(), msg.Sid()) {
-			return nil, ruleError(fmt.Errorf("message %v by identity %x "+
-				"in session %x conflicts with already accepted message %v",
-				hash, *id, msg.Sid(), prevHash))
-		}
-		if !haveKE && e.msgtype == msgtypeKE && bytes.Equal(e.msg.Sid(), msg.Sid()) {
-			haveKE = true
-		}
+	if prevHash, ok := p.identityMessage(id, msgtype, &sid); ok {
+		return nil, ruleError(fmt.Errorf("message %v by identity %x "+
+			"in session %x conflicts with already accepted message %v",
+			hash, *id, msg.Sid(), prevHash))
 	}
+
 	// Save as an orphan if their KE is not (yet) accepted.
-	if !haveKE {
+	if _, haveKE := p.identityMessage(id, msgtypeKE, &sid); !haveKE {
 		p.addOrphan(msg, &hash, id, src)
 
 		// TODO: Consider return an error containing the unknown
@@ -1702,23 +1696,10 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 
 	// Check the KE does not conflict with an already accepted KE message
 	// by the same identity for the same session.
-	if ses, ok := p.sessions[ke.SessionID]; ok {
-		for prevHash := range ses.hashes {
-			e, ok := p.pool[prevHash]
-			if !ok {
-				return nil, fmt.Errorf("unknown message %v recorded by session %x",
-					prevHash, ke.SessionID[:])
-			}
-			sesKE, ok := e.msg.(*wire.MsgMixKeyExchange)
-			if !ok {
-				continue
-			}
-			if sesKE.Identity == ke.Identity {
-				return nil, ruleError(fmt.Errorf("message %v by identity %x "+
-					"in session %x conflicts with already accepted message %v",
-					hash, *id, ke.SessionID[:], prevHash))
-			}
-		}
+	if prevHash, ok := p.identityMessage(id, msgtypeKE, &ke.SessionID); ok {
+		return nil, ruleError(fmt.Errorf("message %v by identity %x "+
+			"in session %x conflicts with already accepted message %v",
+			hash, *id, ke.SessionID[:], prevHash))
 	}
 
 	if len(p.messagesByIdentity[*id]) >= maxMessagesPerIdentity {
@@ -1799,6 +1780,21 @@ func (p *Pool) acceptKE(ke *wire.MsgMixKeyExchange, hash *chainhash.Hash, id *id
 	p.acceptEntry(ke, msgtypeKE, hash, id, ses)
 	p.latestKE[*id] = ke
 	return ke, nil
+}
+
+// identityMessage returns the hash of an accepted message of the specified
+// type sent by an identity in a session. The returned bool is false when no
+// such message exists.
+//
+// This function MUST be called with the mixpool lock held (for reads).
+func (p *Pool) identityMessage(id *idPubKey, msgtype msgtype, sid *[32]byte) (chainhash.Hash, bool) {
+	for _, hash := range p.messagesByIdentity[*id] {
+		e := p.pool[hash]
+		if e.msgtype == msgtype && e.sid == *sid {
+			return hash, true
+		}
+	}
+	return chainhash.Hash{}, false
 }
 
 func (p *Pool) acceptEntry(msg mixing.Message, msgtype msgtype, hash *chainhash.Hash,
