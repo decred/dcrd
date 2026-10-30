@@ -1941,6 +1941,66 @@ func TestInvalidTicketInput(t *testing.T) {
 	}
 }
 
+// TestVoteInputIndex ensures that [checkVoteInputs] accepts a vote whose
+// ticket input references the first output of the ticket purchase and rejects
+// a vote whose ticket input references any other output.
+func TestVoteInputIndex(t *testing.T) {
+	t.Parallel()
+
+	// Create a test harness initialized with the genesis block as the tip and
+	// advance it to stake validation height.
+	//
+	//   ... -> bsv#
+	params := chaincfg.RegNetParams()
+	g := newChaingenHarness(t, params)
+	g.AdvanceToStakeValidationHeight()
+
+	// Generate the next block without accepting it to obtain a vote for a
+	// winning ticket of the tip block.  The votes are the first stake
+	// transactions of the block.
+	tip := g.Tip()
+	voteMsgTx := g.NextBlock("b1", nil, nil).STransactions[0]
+	if !stake.IsSSGen(voteMsgTx) {
+		t.Fatal("first stake transaction of the next block is not a vote")
+	}
+	voteTx := dcrutil.NewTx(voteMsgTx)
+	badVoteTx := voteMsgTx.Copy()
+	badVoteTx.TxIn[1].PreviousOutPoint.Index = 2
+
+	// Fetch a utxo view that contains the first output of the ticket purchase.
+	// It does not contain the change output, so the modified vote is rejected
+	// for its index rather than for a missing output.
+	view, err := g.chain.FetchUtxoView(voteTx, true)
+	if err != nil {
+		t.Fatalf("unexpected error fetching utxo view: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		tx      *dcrutil.Tx
+		wantErr error
+	}{{
+		name: "vote references first output",
+		tx:   voteTx,
+	}, {
+		name:    "vote references change output",
+		tx:      dcrutil.NewTx(badVoteTx),
+		wantErr: ErrInvalidVoteInput,
+	}}
+
+	const isTreasuryEnabled = false
+	const isAutoRevocationsEnabled = false
+	for _, test := range tests {
+		err := checkVoteInputs(g.chain.subsidyCache, test.tx,
+			int64(tip.Header.Height)+1, view, params, &tip.Header,
+			isTreasuryEnabled, isAutoRevocationsEnabled, standalone.SSVOriginal)
+		if !errors.Is(err, test.wantErr) {
+			t.Errorf("%q: mismatched error -- got %v, want %v", test.name, err,
+				test.wantErr)
+		}
+	}
+}
+
 // TestAutoRevocations ensures that all of the validation rules associated with
 // the automatic ticket revocations agenda work as expected.
 func TestAutoRevocations(t *testing.T) {
