@@ -93,8 +93,13 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 		return nil, err
 	}
 
-	// Determine if treasury agenda is active.
+	// Determine if the treasury agenda is active for the tip block and its
+	// parent.
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip.parent)
+	if err != nil {
+		return nil, err
+	}
+	isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(tip))
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +118,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
 	err = view.disconnectBlock(b.chainParams, tipBlock, parent, stxos,
-		isTreasuryEnabled)
+		isTreasuryEnabled, isParentTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +132,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// block.
 	utilBlock := dcrutil.NewBlock(block)
 	err = view.connectBlock(b.db, b.chainParams, utilBlock, parent, nil,
-		isTreasuryEnabled)
+		isTreasuryEnabled, isParentTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}

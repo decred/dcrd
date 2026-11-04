@@ -575,7 +575,7 @@ func (b *BlockChain) isMajorityVersion(minVer int32, startNode *blockNode, numRe
 // connectBlock handles connecting the passed node/block to the end of the main
 // (best) chain.
 //
-// This passed utxo view must have all referenced txos the block spends marked
+// The passed utxo view must have all referenced txos the block spends marked
 // as spent and all of the new txos the block creates added to it.  In addition,
 // the passed stxos slice must be populated with all of the information for the
 // spent txos.  This approach is used because the connection validation that
@@ -1083,8 +1083,13 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		}
 		nextBlockToDetach = parent
 
-		// Determine if treasury agenda is active.
+		// Determine if the treasury agenda is active for the block being
+		// disconnected and its parent.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
+		if err != nil {
+			return err
+		}
+		isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(n))
 		if err != nil {
 			return err
 		}
@@ -1103,7 +1108,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
 		err = view.disconnectBlock(b.chainParams, block, parent, stxos,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isParentTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1173,8 +1178,13 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// Store the loaded block as parent of next iteration.
 		prevBlockAttached = block
 
-		// Determine if treasury agenda is active.
+		// Determine if the treasury agenda is active for the block being
+		// connected and its parent.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
+		if err != nil {
+			return err
+		}
+		isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(n))
 		if err != nil {
 			return err
 		}
@@ -1192,7 +1202,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
 			err := view.connectBlock(b.db, b.chainParams, block, parent, &stxos,
-				isTreasuryEnabled)
+				isTreasuryEnabled, isParentTreasuryEnabled)
 			if err != nil {
 				return err
 			}

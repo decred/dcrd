@@ -412,6 +412,15 @@ func (node *blockNode) CalcPastMedianTime() time.Time {
 	return time.Unix(medianTimestamp, 0)
 }
 
+// grandparent returns the grandparent of the provided block node or nil when no
+// grandparent exists.
+func grandparent(node *blockNode) *blockNode {
+	if node == nil || node.parent == nil {
+		return nil
+	}
+	return node.parent.parent
+}
+
 // compareHashesAsUint256LE compares two raw hashes treated as if they were
 // little-endian uint256s in a way that is more efficient than converting them
 // to big integers first.  It returns 1 when a > b, -1 when a < b, and 0 when a

@@ -579,8 +579,11 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block,
 // Disconnecting a transaction entails removing the utxos created by it and
 // restoring the outputs spent by it with the help of the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block,
-	isTreasuryEnabled bool) error {
+//
+// Note that the treasury flag must specify whether the agenda is active for the
+// passed block rather than the block that disapproves it.
+func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB,
+	block *dcrutil.Block, isTreasuryEnabled bool) error {
 
 	// Load all of the spent txos for the block from the database spend journal.
 	var stxos []spentTxOut
@@ -932,13 +935,14 @@ func (view *UtxoViewpoint) assertBlockUtxoView(params *chaincfg.Params, block *d
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
 func (view *UtxoViewpoint) connectBlock(db database.DB, params *chaincfg.Params,
-	block, parent *dcrutil.Block, stxos *[]spentTxOut,
-	isTreasuryEnabled bool) error {
+	block, parent *dcrutil.Block, stxos *[]spentTxOut, isTreasuryEnabled,
+	isParentTreasuryEnabled bool) error {
 
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
-		err := view.disconnectDisapprovedBlock(db, parent, isTreasuryEnabled)
+		err := view.disconnectDisapprovedBlock(db, parent,
+			isParentTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1020,8 +1024,8 @@ func (view *UtxoViewpoint) removeSBSSViolations(params *chaincfg.Params,
 // information is required and failure to provide it will result in an assertion
 // panic.
 func (view *UtxoViewpoint) disconnectBlock(params *chaincfg.Params,
-	block, parent *dcrutil.Block, stxos []spentTxOut,
-	isTreasuryEnabled bool) error {
+	block, parent *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled,
+	isParentTreasuryEnabled bool) error {
 
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block) {
@@ -1056,12 +1060,12 @@ func (view *UtxoViewpoint) disconnectBlock(params *chaincfg.Params,
 		// Load all of the utxos referenced by the inputs for all transactions
 		// in the regular tree of the parent block that don't already exist in
 		// the utxo view from the database.
-		err := view.fetchRegularInputUtxos(parent, isTreasuryEnabled)
+		err := view.fetchRegularInputUtxos(parent, isParentTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 
-		view.connectRegularTransactions(parent, nil, isTreasuryEnabled)
+		view.connectRegularTransactions(parent, nil, isParentTreasuryEnabled)
 	}
 
 	// Update the best hash for view to include this block since all of its
@@ -1330,12 +1334,6 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		return view, nil
 	}
 
-	// Determine if the treasury agenda is active.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip)
-	if err != nil {
-		return nil, err
-	}
-
 	// Disconnect the transactions in the regular tree of the tip block if the
 	// caller requests it.  In order to avoid the overhead of repeated lookups,
 	// only create a view with the changes once and cache it.
@@ -1352,8 +1350,13 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 			}
 
 			// Disconnect the transactions in the regular tree of the tip block.
+			isTipTreasuryEnabled, err := b.isTreasuryAgendaActive(tip.parent)
+			if err != nil {
+				b.disapprovedViewLock.Unlock()
+				return nil, err
+			}
 			err = view.disconnectDisapprovedBlock(b.db, tipBlock,
-				isTreasuryEnabled)
+				isTipTreasuryEnabled)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err
@@ -1384,6 +1387,13 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		outpoint.Index = uint32(txOutIdx)
 		filteredSet.add(view, &outpoint)
 	}
+
+	// Determine if the treasury agenda is active for the block after the tip.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip)
+	if err != nil {
+		return nil, err
+	}
+
 	// Ignore coinbases, treasurybases, and treasury spends since none of them
 	// have any inputs.
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)

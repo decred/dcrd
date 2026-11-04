@@ -4416,7 +4416,12 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		err = view.disconnectDisapprovedBlock(b.db, parent, isTreasuryEnabled)
+		isParentTrsyEnabled, err := b.isTreasuryAgendaActive(grandparent(node))
+		if err != nil {
+			return err
+		}
+
+		err = view.disconnectDisapprovedBlock(b.db, parent, isParentTrsyEnabled)
 		if err != nil {
 			return err
 		}
@@ -4725,7 +4730,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	}
 
 	// Load all of the spent txos for the tip block from the spend journal.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip.parent)
 	if err != nil {
 		return err
 	}
@@ -4741,8 +4746,12 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
+	isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(tip))
+	if err != nil {
+		return err
+	}
 	err = view.disconnectBlock(b.chainParams, tipBlock, parent, stxos,
-		isTreasuryEnabled)
+		isTreasuryEnabled, isParentTreasuryEnabled)
 	if err != nil {
 		return err
 	}

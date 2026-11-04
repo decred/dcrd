@@ -923,8 +923,13 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		}
 		nextBlockToDetach = parent
 
-		// Determine if treasury agenda is active.
+		// Determine if the treasury agenda is active for the block being
+		// disconnected and its parent.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
+		if err != nil {
+			return err
+		}
+		isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(n))
 		if err != nil {
 			return err
 		}
@@ -943,7 +948,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
 		err = view.disconnectBlock(b.chainParams, block, parent, stxos,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isParentTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1011,8 +1016,13 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// Store the loaded block as parent of the block in the next iteration.
 		prevBlockAttached = block
 
-		// Determine if treasury agenda is active.
+		// Determine if the treasury agenda is active for the block being
+		// connected and its parent.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
+		if err != nil {
+			return err
+		}
+		isParentTreasuryEnabled, err := b.isTreasuryAgendaActive(grandparent(n))
 		if err != nil {
 			return err
 		}
@@ -1022,7 +1032,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		// In the case the block votes against the parent, also disconnect
 		// all of the regular transactions in the parent block.
 		err = view.connectBlock(b.db, b.chainParams, block, parent, nil,
-			isTreasuryEnabled)
+			isTreasuryEnabled, isParentTreasuryEnabled)
 		if err != nil {
 			return err
 		}
