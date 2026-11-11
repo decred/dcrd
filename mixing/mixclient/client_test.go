@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -27,9 +28,25 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// requireCsppsolver starts a background instance of the csppsolver process then
+// confirms it is working correctly by calling it with a trivial polynomial and
+// checking the result.
 func requireCsppsolver(t *testing.T) {
 	if err := solverrpc.StartSolver(); err != nil {
 		t.Skipf("test requires csppsolver, but it cannot be started: %v", err)
+	}
+
+	// Starting the solver only checks that the process was spawned, solve
+	// x^2 - 3x + 2 = (x - 1)(x - 2) to check that it actually works.
+	minus3 := new(big.Int).Sub(mixing.F, big.NewInt(3))
+	a := []*big.Int{big.NewInt(2), minus3, big.NewInt(1)}
+	roots, err := solverrpc.Roots(a, mixing.F)
+	if err != nil {
+		t.Skipf("test requires csppsolver, but it returned an error: %v", err)
+	}
+	if len(roots) != 2 {
+		t.Skipf("test requires csppsolver, but it returned %d roots for "+
+			"a polynomial with 2 roots", len(roots))
 	}
 }
 
@@ -47,6 +64,7 @@ func newTestClient(w *testWallet, logger slog.Logger) *Client {
 	c := NewClient(w)
 	c.testWaiting = make(chan struct{})
 	c.testTickC = make(chan time.Time)
+	c.observer = nil // Disable the misbehaving peer observer.
 	c.SetLogger(logger)
 	return c
 }
@@ -174,6 +192,15 @@ func (w *testWallet) privForPkScript(p2pkhScript []byte) *secp256k1.PrivateKey {
 	return w.privForHash160(hash160)
 }
 
+func TestMain(m *testing.M) {
+	// Override stage timeout and jitter times to make tests run faster.
+	timeoutDurationTestnet = 1 * time.Second
+	maxJitterTestnet = timeoutDurationTestnet / 10
+	msgJitter = 10 * time.Millisecond
+	peerJitterTestnet = maxJitterTestnet - msgJitter
+	m.Run()
+}
+
 func TestHonest(t *testing.T) {
 	requireCsppsolver(t)
 
@@ -271,7 +298,7 @@ func testDisruption(t *testing.T, misbehavingID *identity, h hook, f hookFunc) {
 	c := newTestClient(w, l)
 	c.testHooks = map[hook]hookFunc{
 		hookBeforeRun: func(c *Client, ps *pairedSessions, _ *sessionRun, _ *peer) {
-			ps.deadlines.recvKE = time.Now().Add(5 * time.Second)
+			ps.deadlines.start(time.Now(), c.stageTimeout)
 		},
 		h: f,
 	}

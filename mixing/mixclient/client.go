@@ -41,7 +41,9 @@ const MinPeers = mixing.MinPeers
 const pairingVersion byte = 3
 const pairingVersionTestnet byte = 4
 
-const (
+// durations below should be treated as constants, they are only variables so
+// they can be overridden in tests.
+var (
 	timeoutDuration = 30 * time.Second
 	maxJitter       = timeoutDuration / 10
 	msgJitter       = 300 * time.Millisecond
@@ -917,9 +919,11 @@ func (c *Client) epochTicker(ctx context.Context) error {
 
 		c.log("Epoch tick")
 
-		err = c.observer.CheckPrevEpoch(uint64(prevEpoch.Unix()))
-		if err != nil {
-			return err
+		if c.observer != nil {
+			err = c.observer.CheckPrevEpoch(uint64(prevEpoch.Unix()))
+			if err != nil {
+				return err
+			}
 		}
 		prevEpoch = epoch
 
@@ -942,7 +946,9 @@ func (c *Client) epochTicker(ctx context.Context) error {
 
 			// Exclude identities who have timed out too many
 			// times.
-			prs = c.observer.ExcludePRs(prs)
+			if c.observer != nil {
+				prs = c.observer.ExcludePRs(prs)
+			}
 
 			prsMap := make(map[identity]struct{})
 			for _, pr := range prs {
