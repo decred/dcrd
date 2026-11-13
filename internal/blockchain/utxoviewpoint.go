@@ -433,6 +433,12 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 				txIdx == 0
 		}
 
+		// Treasurybase transactions don't have any inputs to spend or outputs
+		// to add since their outputs are not represented as utxos.
+		if isTreasuryBase {
+			continue
+		}
+
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake
@@ -443,14 +449,17 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block,
 
 		// It is instructive to note that there is no practical difference
 		// between a utxo that does not exist and one that has been spent with a
-		// pruned utxo set. So, even though the outputs here technically no
+		// pruned utxo set.  So, even though the outputs here technically no
 		// longer exist, any missing entries are added to the view and marked
 		// spent because the code relies on their existence in the view in order
 		// to signal modifications have happened.
 		outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
 		for txOutIdx, txOut := range msgTx.TxOut {
-			// Don't add provably unspendable outputs.
-			if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+			// Treasury adds and provably unspendable outputs are never
+			// represented as utxos.
+			if isTreasuryAddOutput(txType, uint32(txOutIdx)) ||
+				txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+
 				continue
 			}
 
