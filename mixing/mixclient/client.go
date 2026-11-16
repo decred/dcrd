@@ -1175,13 +1175,17 @@ func (c *Client) pairSession(ctx context.Context, ps *pairedSessions, prs []*wir
 			if !c.mixpool.HaveMessage(&prHash) {
 				continue
 			}
-			p2 := p.cloneLocalPeer(revealedSecrets)
-			if revealedSecrets {
-				err := p2.genDicemixKeys()
-				if err != nil {
-					p2.sendRes(err)
-					continue
-				}
+
+			// Always generate fresh keys and messages before requeuing. DC-net
+			// output or SR roots may have been revealed by this session and
+			// reusing them in a later session with a different peer set would
+			// allow linking the mixed outputs.
+			const freshGen = true
+			p2 := p.cloneLocalPeer(freshGen)
+			err := p2.genDicemixKeys()
+			if err != nil {
+				p2.sendRes(err)
+				continue
 			}
 			addPending = append(addPending, p2)
 		}
