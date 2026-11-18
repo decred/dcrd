@@ -876,10 +876,9 @@ func checkProofOfStake(ticket *wire.MsgTx, header *wire.BlockHeader, minStakeDif
 func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) error {
 	// A block must have at least one regular transaction.
 	msgBlock := block.MsgBlock()
-	numTx := len(msgBlock.Transactions)
-	if numTx == 0 {
-		return ruleError(ErrNoTransactions, "block does not contain "+
-			"any transactions")
+	if len(msgBlock.Transactions) == 0 {
+		return ruleError(ErrNoTransactions, "block does not contain any "+
+			"transactions")
 	}
 
 	// A block must not exceed the maximum allowed block payload when serialized
@@ -903,12 +902,26 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 
 	// Do some preliminary checks on each regular transaction to ensure they
 	// are sane.
+	//
+	// Also ensure there are no duplicate transactions.
+	regularTxns := block.Transactions()
+	stakeTxns := block.STransactions()
+	numTotalTxns := len(regularTxns) + len(stakeTxns)
+	blockTxns := make(map[chainhash.Hash]struct{}, numTotalTxns)
 	maxTxSize := uint64(chainParams.MaxTxSize)
-	for _, tx := range msgBlock.Transactions {
-		err := standalone.CheckTransactionSanity(tx, maxTxSize)
+	for _, tx := range regularTxns {
+		err := standalone.CheckTransactionSanity(tx.MsgTx(), maxTxSize)
 		if err != nil {
 			return standaloneToChainRuleError(err)
 		}
+
+		hash := tx.Hash()
+		if _, exists := blockTxns[*hash]; exists {
+			str := fmt.Sprintf("regular tree contains duplicate transaction %v",
+				hash)
+			return ruleError(ErrDuplicateTx, str)
+		}
+		blockTxns[*hash] = struct{}{}
 	}
 
 	// Do some preliminary checks on stake transactions that do not require
@@ -916,9 +929,11 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 	// tallying the tickets.
 	//
 	// Also ensure all ticket purchases meet the minimum network difficulty and
-	// the difficulty specified by the block header.
+	// the difficulty specified by the block header and that there are no
+	// duplicate transactions.
 	var totalTickets int64
-	for _, stx := range msgBlock.STransactions {
+	for _, tx := range stakeTxns {
+		stx := tx.MsgTx()
 		err := standalone.CheckTransactionSanity(stx, maxTxSize)
 		if err != nil {
 			return standaloneToChainRuleError(err)
@@ -932,6 +947,14 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 
 			totalTickets++
 		}
+
+		hash := tx.Hash()
+		if _, exists := blockTxns[*hash]; exists {
+			str := fmt.Sprintf("stake tree transaction %v duplicates a "+
+				"transaction in the block", hash)
+			return ruleError(ErrDuplicateTx, str)
+		}
+		blockTxns[*hash] = struct{}{}
 	}
 
 	// A block header must commit to the actual number of tickets purchases that
@@ -941,20 +964,6 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 			"does not match %d contained in the block", header.FreshStake,
 			totalTickets)
 		return ruleError(ErrFreshStakeMismatch, str)
-	}
-
-	// Check for duplicate transactions.
-	existingTxHashes := make(map[chainhash.Hash]struct{})
-	regularTransactions := block.Transactions()
-	stakeTransactions := block.STransactions()
-	allTransactions := append(regularTransactions, stakeTransactions...)
-	for _, tx := range allTransactions {
-		hash := tx.Hash()
-		if _, exists := existingTxHashes[*hash]; exists {
-			str := fmt.Sprintf("block contains duplicate transaction %v", hash)
-			return ruleError(ErrDuplicateTx, str)
-		}
-		existingTxHashes[*hash] = struct{}{}
 	}
 
 	return nil
