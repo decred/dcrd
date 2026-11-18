@@ -698,17 +698,89 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, params *chaincfg.Params,
 	return nil
 }
 
+// outpointIndex houses details about the outpoints spent and created by the
+// regular transaction tree of a block.
+type outpointIndex struct {
+	// spentOuts tracks all outpoints spent by the regular transaction tree of
+	// the block and the index of the transaction that spent them.
+	spentOuts map[wire.OutPoint]uint32
+
+	// createdOuts tracks all spendable outpoints created by the regular
+	// transaction tree of the block and the index of the transaction that
+	// created them.
+	createdOuts map[wire.OutPoint]uint32
+}
+
+// newOutpointIndex returns details about the outpoints spent and created by the
+// regular transaction tree of the block.
+//
+// In particular, it includes all outputs spent and all spendable outputs
+// created mapped to the index of the transaction that spent them or created
+// them, respectively.
+//
+// An output spent more than once is associated with the last spender.  An
+// output created more than once is associated with the last creator.  However,
+// in practice, the consensus rule checks prevent both possibilities.
+//
+// This is only intended for use in assertions that run after all consensus
+// rules have been enforced since it relies on facts those rules establish.
+//
+// Specifically, it panics if the first transaction in the tree is not a
+// coinbase.
+func newOutpointIndex(block *dcrutil.Block, isTreasuryEnabled bool) *outpointIndex {
+	numRegularSpent := countSpentRegularOutputs(block)
+	spentRegularOuts := make(map[wire.OutPoint]uint32, numRegularSpent)
+	createdRegularOuts := make(map[wire.OutPoint]uint32)
+	for txIdx, tx := range block.Transactions() {
+		msgTx := tx.MsgTx()
+
+		// Coinbases have no real inputs and are required to be a single input
+		// that is a null outpoint instead.  That assumption is safe to use here
+		// since other assertions double check the null outpoint requirement.
+		//
+		// Note that this intentionally only skips the first input of the
+		// coinbase instead of the entire transaction even though they will only
+		// consist of a single input.  This is done in order to ensure any error
+		// in coinbase detection is unable to inadvertently allow additional
+		// unexpected inputs.
+		isCoinBase := txIdx == 0
+		if isCoinBase && !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+			panicf("block %s first tx %s is not a coinbase", block.Hash(),
+				tx.Hash())
+		}
+		for txInIdx, txIn := range msgTx.TxIn {
+			if isCoinBase && txInIdx == 0 {
+				continue
+			}
+			spentRegularOuts[txIn.PreviousOutPoint] = uint32(txIdx)
+		}
+
+		// Track the transaction that creates each spendable output.
+		outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: wire.TxTreeRegular}
+		for txOutIdx, txOut := range msgTx.TxOut {
+			if txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+				continue
+			}
+
+			outpoint.Index = uint32(txOutIdx)
+			createdRegularOuts[outpoint] = uint32(txIdx)
+		}
+	}
+
+	return &outpointIndex{
+		spentOuts:   spentRegularOuts,
+		createdOuts: createdRegularOuts,
+	}
+}
+
 // blockUtxoViewAsserter houses details needed to assert that a utxo view is
 // consistent with the completed transition that connects a block.
 type blockUtxoViewAsserter struct {
 	view              *UtxoViewpoint
 	params            *chaincfg.Params
 	block             *dcrutil.Block
+	outpointIdx       *outpointIndex
 	isTreasuryEnabled bool
-
-	// spentRegularOuts tracks all outputs spent by the regular transaction tree
-	// of the block and the index of the transaction that spent them.
-	spentRegularOuts map[wire.OutPoint]uint32
 }
 
 // assertTreeInputs panics if the utxo view is not consistent with the completed
@@ -764,6 +836,25 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 			}
 			if wantNullOut {
 				continue
+			}
+
+			// Ensure regular tree transactions that spend outputs created by
+			// the regular tree of the same block only spend outputs created by
+			// earlier transactions.
+			//
+			// This is guaranteed by the explicit spend ordering checks which
+			// also prevent a new transaction from replacing an existing one
+			// with the same hash when an earlier transaction spends the final
+			// output of the existing one.
+			if !stakeTree && prevOut.Tree == wire.TxTreeRegular {
+				creatorIdx, created := a.outpointIdx.createdOuts[*prevOut]
+				if created && creatorIdx >= uint32(txIdx) {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): input spends output created by tx idx "+
+						"%d that is not earlier in the regular tree",
+						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx,
+						prevOut, prevOut.Tree, creatorIdx)
+				}
 			}
 
 			// Every spent input must have an entry in the view.
@@ -930,7 +1021,7 @@ func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 
 			// Outputs that are spent later in the regular tree must be marked
 			// spent and all others must be marked unspent.
-			spenderIdx, spent := a.spentRegularOuts[outpoint]
+			spenderIdx, spent := a.outpointIdx.spentOuts[outpoint]
 			wantSpent := !stakeTree && spent && spenderIdx > uint32(txIdx)
 			if entry.IsSpent() != wantSpent {
 				panicf("block %s %s tree idx %d: output %v: spent state "+
@@ -1025,46 +1116,6 @@ func (a *blockUtxoViewAsserter) assertStakeOutputs() {
 	a.assertTreeOutputs(stakeTree)
 }
 
-// spentRegularOutputs returns all outputs spent by the regular transaction tree
-// of the block and the index of the transaction that spent them.  An output
-// spent more than once is associated with the last spender.
-//
-// This is only intended for use in assertions that run after all consensus
-// rules have been enforced since it relies on facts those rules establish.
-//
-// Specifically, it panics if the first transaction in the tree is not a
-// coinbase.
-func spentRegularOutputs(block *dcrutil.Block, isTreasuryEnabled bool) map[wire.OutPoint]uint32 {
-	numRegularSpent := countSpentRegularOutputs(block)
-	spentRegularOuts := make(map[wire.OutPoint]uint32, numRegularSpent)
-	for txIdx, tx := range block.Transactions() {
-		msgTx := tx.MsgTx()
-
-		// Coinbases have no real inputs and are required to be a single input
-		// that is a null outpoint instead.  That assumption is safe to use here
-		// since other assertions double check the null outpoint requirement.
-		//
-		// Note that this intentionally only skips the first input of the
-		// coinbase instead of the entire transaction even though they will only
-		// consist of a single input.  This is done in order to ensure any error
-		// in coinbase detection is unable to inadvertently allow additional
-		// unexpected inputs.
-		isCoinBase := txIdx == 0
-		if isCoinBase && !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
-			panicf("block %s first tx %s is not a coinbase", block.Hash(),
-				tx.Hash())
-		}
-		for txInIdx, txIn := range msgTx.TxIn {
-			if isCoinBase && txInIdx == 0 {
-				continue
-			}
-			spentRegularOuts[txIn.PreviousOutPoint] = uint32(txIdx)
-		}
-	}
-
-	return spentRegularOuts
-}
-
 // makeBlockUtxoViewAsserter returns a utxo block view asserter for the provided
 // parameters.
 func makeBlockUtxoViewAsserter(view *UtxoViewpoint, params *chaincfg.Params,
@@ -1075,7 +1126,7 @@ func makeBlockUtxoViewAsserter(view *UtxoViewpoint, params *chaincfg.Params,
 		params:            params,
 		block:             block,
 		isTreasuryEnabled: isTreasuryEnabled,
-		spentRegularOuts:  spentRegularOutputs(block, isTreasuryEnabled),
+		outpointIdx:       newOutpointIndex(block, isTreasuryEnabled),
 	}
 }
 
