@@ -705,14 +705,38 @@ type outpointIndex struct {
 	// the block and the index of the transaction that spent them.
 	spentOuts map[wire.OutPoint]uint32
 
+	// stakeSpentOuts optionally tracks all outpoints spent by the stake
+	// transaction tree of the block.  Unlike the regular tree, the stake tree
+	// is not affected by disapproval, so this is only applicable when
+	// determining which outpoints the block decides the final state over the
+	// regular tree of the parent that it disapproves.
+	stakeSpentOuts map[wire.OutPoint]struct{}
+
 	// createdOuts tracks all spendable outpoints created by the regular
 	// transaction tree of the block and the index of the transaction that
 	// created them.
 	createdOuts map[wire.OutPoint]uint32
 }
 
-// modifies returns whether the provided outpoint is spent or created by the
-// regular transaction tree of the block.
+// addStakeSpends adds the outpoints spent by the stake tree of the provided
+// block.  The block must be the block the index was created for.
+func (idx *outpointIndex) addStakeSpends(block *dcrutil.Block) {
+	numSpent := countSpentStakeOutputs(block)
+	idx.stakeSpentOuts = make(map[wire.OutPoint]struct{}, numSpent)
+	for _, tx := range block.STransactions() {
+		for _, txIn := range tx.MsgTx().TxIn {
+			prevOut := &txIn.PreviousOutPoint
+			if isNullOutpoint(prevOut) {
+				continue
+			}
+			idx.stakeSpentOuts[*prevOut] = struct{}{}
+		}
+	}
+}
+
+// modifies returns whether the provided outpoint is spent by the regular
+// tree of the block, spent by the stake tree when applicable, or created by the
+// regular tree.
 //
 // It always returns false for a nil index.
 func (idx *outpointIndex) modifies(outpoint *wire.OutPoint) bool {
@@ -720,6 +744,9 @@ func (idx *outpointIndex) modifies(outpoint *wire.OutPoint) bool {
 		return false
 	}
 	if _, ok := idx.spentOuts[*outpoint]; ok {
+		return true
+	}
+	if _, ok := idx.stakeSpentOuts[*outpoint]; ok {
 		return true
 	}
 	_, ok := idx.createdOuts[*outpoint]
@@ -806,8 +833,17 @@ type blockUtxoViewAsserter struct {
 	// undoes the effects of the regular tree outpoints of the disapproved
 	// parent.
 	//
-	// It is the regular tree of the disapproved parent when disconnecting
-	// because it is reconnected after the block is disconnected.
+	// When connecting, the disapproving block takes precedence over the parent,
+	// because the block is connected after the regular tree of the parent is
+	// disconnected.  So, it is the outpoints created or spent by the regular
+	// tree and spent by the stake tree of the disapproving block in that case.
+	//
+	// When disconnecting, the parent takes precedence over the block because
+	// the parent is reconnected after the block is disconnected.  So, it is the
+	// regular tree of the disapproved parent in that case.  The stake tree is
+	// not affected by disapproval and is not allowed to spend from the regular
+	// tree of the same block, so no additional handling is needed for it when
+	// disconnecting.
 	//
 	// The relevant skipped outpoints are asserted by a separate instance for
 	// the block that decides the final state.
@@ -1209,12 +1245,35 @@ func makeBlockUtxoViewAsserter(view *UtxoViewpoint, params *chaincfg.Params,
 // In particular, all transaction inputs must reference spent and modified
 // outputs, all spendable transaction outputs must have corresponding entries
 // with the expected details and spent state, and outputs that are never
-// represented as utxos must not have entries.
+// represented as utxos must not have entries.  When the block disapproves its
+// parent, the regular tree of the parent is disconnected as a part of the
+// transition.  The assertions also verify that transition while accounting for
+// the fact that the connecting block takes precedence over the parent for any
+// outpoint it spends or creates.
 //
 // This function must only be used to assert internal invariants for a fully
 // validated block whose transactions have been applied to the view.
-func (view *UtxoViewpoint) assertBlockConnected(params *chaincfg.Params, block *dcrutil.Block, isTreasuryEnabled bool) {
+func (view *UtxoViewpoint) assertBlockConnected(params *chaincfg.Params,
+	block, parent *dcrutil.Block, isTreasuryEnabled, isParentTreasuryEnabled bool) {
+
 	a := makeBlockUtxoViewAsserter(view, params, block, isTreasuryEnabled)
+	if !headerApprovesParent(&block.MsgBlock().Header) {
+		// The final state of outpoints is decided by the child when connecting
+		// a block that disapproves its parent.
+		//
+		// The stake tree is not affected by disapproval, so any outpoint it
+		// spends takes precedence over the inputs restored for the parent.
+		a.outpointIdx.addStakeSpends(block)
+		decidedByIdx := a.outpointIdx
+
+		p := makeBlockUtxoViewAsserter(view, params, parent,
+			isParentTreasuryEnabled)
+		p.isDisconnect = true
+		p.decidedByIdx = decidedByIdx
+		p.assertRegularInputs()
+		p.assertRegularOutputs()
+	}
+
 	a.assertRegularInputs()
 	a.assertStakeInputs()
 	a.assertRegularOutputs()
