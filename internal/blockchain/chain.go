@@ -1113,6 +1113,10 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			return err
 		}
 
+		// Assert the view is consistent with disconnecting the block.
+		view.assertBlockDisconnected(b.chainParams, block, parent,
+			isTreasuryEnabled, isParentTreasuryEnabled)
+
 		// Update the database and chain state.
 		err = b.disconnectBlock(n, block, parent, view)
 		if err != nil {

@@ -711,6 +711,21 @@ type outpointIndex struct {
 	createdOuts map[wire.OutPoint]uint32
 }
 
+// modifies returns whether the provided outpoint is spent or created by the
+// regular transaction tree of the block.
+//
+// It always returns false for a nil index.
+func (idx *outpointIndex) modifies(outpoint *wire.OutPoint) bool {
+	if idx == nil {
+		return false
+	}
+	if _, ok := idx.spentOuts[*outpoint]; ok {
+		return true
+	}
+	_, ok := idx.createdOuts[*outpoint]
+	return ok
+}
+
 // newOutpointIndex returns details about the outpoints spent and created by the
 // regular transaction tree of the block.
 //
@@ -774,24 +789,45 @@ func newOutpointIndex(block *dcrutil.Block, isTreasuryEnabled bool) *outpointInd
 }
 
 // blockUtxoViewAsserter houses details needed to assert that a utxo view is
-// consistent with the completed transition that connects a block.
+// consistent with the completed transition that connects or disconnects a
+// block.
 type blockUtxoViewAsserter struct {
-	view              *UtxoViewpoint
-	params            *chaincfg.Params
-	block             *dcrutil.Block
-	outpointIdx       *outpointIndex
+	view        *UtxoViewpoint
+	params      *chaincfg.Params
+	block       *dcrutil.Block
+	outpointIdx *outpointIndex
+
+	// decidedByIdx houses outpoints whose final state is decided elsewhere and
+	// are therefore not asserted by this instance.  It is nil when it does not
+	// apply.
+	//
+	// This applies when the block disapproves its parent because the last
+	// operation applied to an outpoint decides its final state and disapproval
+	// undoes the effects of the regular tree outpoints of the disapproved
+	// parent.
+	//
+	// It is the regular tree of the disapproved parent when disconnecting
+	// because it is reconnected after the block is disconnected.
+	//
+	// The relevant skipped outpoints are asserted by a separate instance for
+	// the block that decides the final state.
+	decidedByIdx *outpointIndex
+
 	isTreasuryEnabled bool
+	isDisconnect      bool
 }
 
 // assertTreeInputs panics if the utxo view is not consistent with the completed
 // transition represented by the inputs in the specified tree of the block
 // associated with the block utxo view asserter.
 //
-// In particular, every non-excepted input must have a corresponding spent entry
-// in the view with the expected details.
+// In particular, every non-excepted input must have a corresponding entry in
+// the view with the expected details.  The entries must be spent when
+// connecting and unspent when disconnecting since the inputs are restored in
+// that case.
 //
-// The only exceptions are inputs that intentionally have no real inputs and
-// historical violations.
+// The only exceptions are inputs that intentionally have no real inputs,
+// historical violations, and outpoints that are decided elsewhere.
 func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 	block := a.block
 	treeName := "regular"
@@ -838,6 +874,12 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 				continue
 			}
 
+			// The final state of outpoints spent or created by the regular tree
+			// of a reconnected parent is decided by the parent.
+			if a.isDisconnect && a.decidedByIdx.modifies(prevOut) {
+				continue
+			}
+
 			// Ensure regular tree transactions that spend outputs created by
 			// the regular tree of the same block only spend outputs created by
 			// earlier transactions.
@@ -846,6 +888,10 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 			// also prevent a new transaction from replacing an existing one
 			// with the same hash when an earlier transaction spends the final
 			// output of the existing one.
+			//
+			// When disconnecting, outputs created by the block are removed,
+			// including the historical SBSS violations, so the final state of
+			// the outpoint is decided by the output assertions.
 			if !stakeTree && prevOut.Tree == wire.TxTreeRegular {
 				creatorIdx, created := a.outpointIdx.createdOuts[*prevOut]
 				if created && creatorIdx >= uint32(txIdx) {
@@ -855,9 +901,18 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx,
 						prevOut, prevOut.Tree, creatorIdx)
 				}
+				if a.isDisconnect && created {
+					continue
+				}
+			}
+			isHistoricalSBSS := stakeTree && prevOut.Index == 0 &&
+				prevOut.Tree == wire.TxTreeRegular &&
+				isSBSSViolation(a.params, block.Height(), &prevOut.Hash)
+			if a.isDisconnect && isHistoricalSBSS {
+				continue
 			}
 
-			// Every spent input must have an entry in the view.
+			// Every input must have an entry in the view.
 			entry := a.view.entries[*prevOut]
 			if entry == nil {
 				panicf("block %s %s tree idx %d: tx %s:%d spending input %v "+
@@ -865,24 +920,23 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 					treeName, txIdx, tx.Hash(), txInIdx, prevOut, prevOut.Tree)
 			}
 
-			// All spent inputs must be marked spent with an exception for
-			// historical SBSS violations.
+			// All inputs must be marked spent when connecting and unspent when
+			// disconnecting with an exception for historical SBSS violations.
 			//
 			// Without this exception, the assertion would panic for these
 			// historical violations.  This demonstrates the assertion would
 			// have caught the underlying issue had it been in place, even
 			// though it does not explicitly check the condition that originally
 			// allowed them.
-			isHistoricalSBSS := stakeTree && prevOut.Index == 0 &&
-				prevOut.Tree == wire.TxTreeRegular &&
-				isSBSSViolation(a.params, block.Height(), &prevOut.Hash)
-			if !entry.IsSpent() && !isHistoricalSBSS {
+			wantSpent := !a.isDisconnect
+			if entry.IsSpent() != wantSpent && !isHistoricalSBSS {
 				panicf("block %s %s tree idx %d: tx %s:%d spending input %v "+
-					"(tree %d): utxo is not marked spent", block.Hash(),
-					treeName, txIdx, tx.Hash(), txInIdx, prevOut, prevOut.Tree)
+					"(tree %d): spent state mismatch (entry %v, want %v)",
+					block.Hash(), treeName, txIdx, tx.Hash(), txInIdx, prevOut,
+					prevOut.Tree, entry.IsSpent(), wantSpent)
 			}
 
-			// All spent inputs must be marked modified.
+			// All inputs must be marked modified.
 			if !entry.isModified() {
 				panicf("block %s %s tree idx %d: tx %s:%d spending input %v "+
 					"(tree %d): utxo is not marked modified", block.Hash(),
@@ -950,9 +1004,18 @@ func (a *blockUtxoViewAsserter) assertStakeInputs() {
 // block associated with the block utxo view asserter.
 //
 // In particular, every created spendable output must have a corresponding entry
-// in the view with the expected details and spent state.  Similarly, every
-// output that does not create a spendable output, such as unspendable outputs
-// and treasurybase transactions, must not have an entry in the view.
+// in the view with the expected details and spent state.  The entries must be
+// unspent unless a later transaction in the regular tree spends them when
+// connecting and must be spent when disconnecting since the outputs are removed
+// in that case.
+//
+// Similarly, every output that does not create a spendable output, such as
+// unspendable outputs and treasurybase transactions, must not have an entry in
+// the view.
+//
+// The only exceptions are outputs that are decided elsewhere.  For example,
+// outputs that are decided by the parent block when a disapproving block is
+// disconnected.
 func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 	block := a.block
 	txTree := wire.TxTreeRegular
@@ -1013,6 +1076,12 @@ func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 				continue
 			}
 
+			// The final state of outpoints spent or created by the regular tree
+			// of a reconnected parent is decided by the parent.
+			if a.isDisconnect && a.decidedByIdx.modifies(&outpoint) {
+				continue
+			}
+
 			entry := a.view.entries[outpoint]
 			if entry == nil {
 				panicf("block %s %s tree idx %d: output %v: output is missing "+
@@ -1020,9 +1089,13 @@ func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 			}
 
 			// Outputs that are spent later in the regular tree must be marked
-			// spent and all others must be marked unspent.
+			// spent when connecting and all others must be marked unspent.
+			//
+			// Disconnecting removes all outputs, so they must all be marked
+			// spent.
 			spenderIdx, spent := a.outpointIdx.spentOuts[outpoint]
-			wantSpent := !stakeTree && spent && spenderIdx > uint32(txIdx)
+			spent = spent && !stakeTree
+			wantSpent := a.isDisconnect || (spent && spenderIdx > uint32(txIdx))
 			if entry.IsSpent() != wantSpent {
 				panicf("block %s %s tree idx %d: output %v: spent state "+
 					"mismatch (entry %v, want %v)", block.Hash(), treeName,
@@ -1245,6 +1318,41 @@ func (view *UtxoViewpoint) disconnectBlock(params *chaincfg.Params,
 	// transactions have been connected.
 	view.SetBestHash(&block.MsgBlock().Header.PrevBlock)
 	return nil
+}
+
+// assertBlockDisconnected panics if the utxo view is not consistent
+// with the completed transition that disconnects the passed block.
+//
+// In particular, all spendable outputs created by the block must be spent and
+// all inputs spent by the block must be restored with the details from their
+// input witnesses, with an exception for historical SBSS violations.  When the
+// block disapproves its parent, the regular tree of the parent is reconnected
+// as part of the transition, so it has the same assertions applied as
+// connecting a block and takes precedence over the block for any outpoint it
+// spends or creates.
+//
+// This function must only be used to assert internal invariants for a fully
+// validated block that has been disconnected from the view.
+func (view *UtxoViewpoint) assertBlockDisconnected(params *chaincfg.Params,
+	block, parent *dcrutil.Block, isTreasuryEnabled,
+	isParentTreasuryEnabled bool) {
+
+	a := makeBlockUtxoViewAsserter(view, params, block, isTreasuryEnabled)
+	a.isDisconnect = true
+	if !headerApprovesParent(&block.MsgBlock().Header) {
+		p := makeBlockUtxoViewAsserter(view, params, parent,
+			isParentTreasuryEnabled)
+		p.assertRegularInputs()
+		p.assertRegularOutputs()
+
+		// The final state of outpoints is decided by the parent when
+		// disconnecting a block that disapproves its parent.
+		a.decidedByIdx = p.outpointIdx
+	}
+	a.assertRegularInputs()
+	a.assertStakeInputs()
+	a.assertRegularOutputs()
+	a.assertStakeOutputs()
 }
 
 // Entries returns the underlying map that stores of all the utxo entries.

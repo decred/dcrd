@@ -953,6 +953,10 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 			return err
 		}
 
+		// Assert the view is consistent with disconnecting the block.
+		view.assertBlockDisconnected(b.chainParams, block, parent,
+			isTreasuryEnabled, isParentTreasuryEnabled)
+
 		// Commit all entries in the view to the utxo cache.  All entries in the
 		// view that are marked as modified and spent are removed from the view.
 		// Additionally, all entries that are added to the cache are removed
