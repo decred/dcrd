@@ -900,6 +900,13 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 		return ruleError(ErrWrongBlockSize, str)
 	}
 
+	// txLoc houses the transaction tree and index within the tree at which a
+	// transaction is encountered.
+	type txLoc struct {
+		tree  int8
+		index uint32
+	}
+
 	// Do some preliminary checks on each regular transaction to ensure they
 	// are sane.
 	//
@@ -907,9 +914,9 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 	regularTxns := block.Transactions()
 	stakeTxns := block.STransactions()
 	numTotalTxns := len(regularTxns) + len(stakeTxns)
-	blockTxns := make(map[chainhash.Hash]struct{}, numTotalTxns)
+	blockTxns := make(map[chainhash.Hash]txLoc, numTotalTxns)
 	maxTxSize := uint64(chainParams.MaxTxSize)
-	for _, tx := range regularTxns {
+	for txIdx, tx := range regularTxns {
 		err := standalone.CheckTransactionSanity(tx.MsgTx(), maxTxSize)
 		if err != nil {
 			return standaloneToChainRuleError(err)
@@ -921,7 +928,7 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 				hash)
 			return ruleError(ErrDuplicateTx, str)
 		}
-		blockTxns[*hash] = struct{}{}
+		blockTxns[*hash] = txLoc{wire.TxTreeRegular, uint32(txIdx)}
 	}
 
 	// Do some preliminary checks on stake transactions that do not require
@@ -932,7 +939,7 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 	// the difficulty specified by the block header and that there are no
 	// duplicate transactions.
 	var totalTickets int64
-	for _, tx := range stakeTxns {
+	for txIdx, tx := range stakeTxns {
 		stx := tx.MsgTx()
 		err := standalone.CheckTransactionSanity(stx, maxTxSize)
 		if err != nil {
@@ -954,16 +961,92 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 				"transaction in the block", hash)
 			return ruleError(ErrDuplicateTx, str)
 		}
-		blockTxns[*hash] = struct{}{}
+		blockTxns[*hash] = txLoc{wire.TxTreeStake, uint32(txIdx)}
 	}
 
-	// A block header must commit to the actual number of tickets purchases that
+	// A block header must commit to the actual number of tickets purchased that
 	// are in the block.
 	if int64(header.FreshStake) != totalTickets {
 		str := fmt.Sprintf("block header commitment to %d ticket purchases "+
 			"does not match %d contained in the block", header.FreshStake,
 			totalTickets)
 		return ruleError(ErrFreshStakeMismatch, str)
+	}
+
+	// Restrict the allowed spend ordering of transactions in blocks.
+	//
+	// These conditions are otherwise implicitly rejected during contextual
+	// transaction validation due to transaction processing order and output
+	// maturity requirements.  Rejecting them here makes the requirements
+	// explicit and avoids potentially significant additional work for
+	// transactions that will ultimately be rejected.
+	//
+	// In particular:
+	//
+	// - Regular transactions must not spend outputs of transactions at or after
+	//   their position in the regular tree of the same block (earlier
+	//   transactions are allowed)
+	//   - This intentionally includes outputs of the transaction itself even
+	//     though constructing a self-referential transaction is computationally
+	//     infeasible
+	// - Regular transactions must not spend outputs of any stake transactions
+	//   in the same block
+	// - Stake transactions must not spend outputs of any transaction in the
+	//   block, regardless of tree or position, with the exception of the
+	//   explicitly permitted historical SBSS violations
+	//
+	// Note that these checks also prevent a theoretical case that is only
+	// possible due to hash collisions that implicit checks alone would not.
+	// Namely, those checks would technically allow a block to include a
+	// transaction that spends the final unspent output of an existing
+	// transaction from a previous block and then include a different
+	// transaction with the same hash later in the same block.  These checks
+	// intentionally reject that case as well even though finding distinct
+	// transactions with the same hash is computationally infeasible.
+	for txIdx, tx := range regularTxns {
+		for txInIdx, txIn := range tx.MsgTx().TxIn {
+			prevOut := &txIn.PreviousOutPoint
+			loc, ok := blockTxns[prevOut.Hash]
+			if !ok || loc.tree != prevOut.Tree {
+				continue
+			}
+
+			switch {
+			case loc.tree == wire.TxTreeRegular && loc.index >= uint32(txIdx):
+				str := fmt.Sprintf("regular transaction input %s:%d spends "+
+					"output %v created by the same or a later regular tree "+
+					"transaction", tx.Hash(), txInIdx, txIn.PreviousOutPoint)
+				return ruleError(ErrMissingTxOut, str)
+
+			case loc.tree == wire.TxTreeStake:
+				str := fmt.Sprintf("regular transaction input %s:%d spends "+
+					"output %v created by a stake transaction in the same block",
+					tx.Hash(), txInIdx, txIn.PreviousOutPoint)
+				return ruleError(ErrMissingTxOut, str)
+			}
+		}
+	}
+	for _, tx := range stakeTxns {
+		for txInIdx, txIn := range tx.MsgTx().TxIn {
+			// Historical SBSS violations are explicitly permitted.
+			prevOut := &txIn.PreviousOutPoint
+			if prevOut.Tree == wire.TxTreeRegular && prevOut.Index == 0 &&
+				isSBSSViolation(chainParams, block.Height(), &prevOut.Hash) {
+
+				continue
+			}
+
+			// This intentionally does not check the tree because stake
+			// transactions must not spend outputs of any transaction in the
+			// block, regardless of tree or position.
+			if _, ok := blockTxns[prevOut.Hash]; !ok {
+				continue
+			}
+			str := fmt.Sprintf("stake transaction input %s:%d spends output %v "+
+				"created by a transaction in the same block", tx.Hash(),
+				txInIdx, txIn.PreviousOutPoint)
+			return ruleError(ErrMissingTxOut, str)
+		}
 	}
 
 	return nil

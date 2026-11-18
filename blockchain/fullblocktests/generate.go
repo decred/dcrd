@@ -2398,7 +2398,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		tx := g.CreateSpendTx(&spend, lowFee)
 		b.AddTransaction(tx)
 	})
-	rejected(ErrImmatureSpend)
+	rejected(ErrMissingTxOut)
 
 	// Create block with a stake transaction that spends an output created by
 	// a later stake transaction in the same block.
