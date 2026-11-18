@@ -645,9 +645,9 @@ func (view *UtxoViewpoint) addSBSSViolations(params *chaincfg.Params,
 // assertBlockUtxoView panics if the utxo view is not consistent with the
 // completed transition represented by the passed block.
 //
-// In particular, all transaction inputs must reference spent outputs and all
-// spendable transaction outputs must have corresponding entries with the
-// expected details and spent state.
+// In particular, all transaction inputs must reference spent and modified
+// outputs and all spendable transaction outputs must have corresponding entries
+// with the expected details and spent state.
 //
 // This function must only be used to assert internal invariants for a fully
 // validated block whose transactions have been applied to the view.
@@ -755,6 +755,14 @@ func (view *UtxoViewpoint) assertBlockUtxoView(params *chaincfg.Params, block *d
 						"%v (tree %d): utxo is not marked spent", block.Hash(),
 						treeName, txIdx, tx.Hash(), txInIdx, prevOut,
 						prevOut.Tree)
+				}
+
+				// All spent inputs must be marked modified.
+				if !entry.isModified() {
+					panicf("block %s %s tree idx %d: tx %s:%d spending input "+
+						"%v (tree %d): utxo is not marked modified",
+						block.Hash(), treeName, txIdx, tx.Hash(), txInIdx,
+						prevOut, prevOut.Tree)
 				}
 
 				// The entry details must match the input witness details.
