@@ -19,6 +19,15 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// utxoSetDelta records a net change to the utxo set.
+type utxoSetDelta struct {
+	// count is the net change in the number of utxos.
+	count int64
+
+	// amount is the net change in the total value of all utxos.
+	amount int64
+}
+
 // utxoViewCommitAssertions records expectations used when committing a utxo
 // view.  It is only used when the commit assertions are enabled for a view.
 type utxoViewCommitAssertions struct {
@@ -27,6 +36,10 @@ type utxoViewCommitAssertions struct {
 	// is used when committing the view to ensure that all modified entries
 	// were accounted for by those assertions.
 	expectedModified map[wire.OutPoint]struct{}
+
+	// expectedDelta records the net change to the utxo set the block assertions
+	// expect committing the view to result in based only on the block data.
+	expectedDelta utxoSetDelta
 }
 
 // UtxoViewpoint represents a view into the set of unspent transaction outputs
@@ -105,6 +118,10 @@ func (view *UtxoViewpoint) enableCommitAssertions() {
 		panicf("attempt to enable commit assertions on view@%s that already "+
 			"has %d expected modified entries", view.BestHash(), numEntries)
 	}
+	if ca.expectedDelta.count != 0 || ca.expectedDelta.amount != 0 {
+		panicf("attempt to enable commit assertions on view@%s that already "+
+			"has utxo set delta expectations", view.BestHash())
+	}
 }
 
 // expectModified records the entry for the provided outpoint is expected to be
@@ -114,6 +131,24 @@ func (view *UtxoViewpoint) expectModified(outpoint *wire.OutPoint) {
 	if view.commitAssertions != nil {
 		view.commitAssertions.expectedModified[*outpoint] = struct{}{}
 	}
+}
+
+// expectUtxoSetDelta records the expected change to the utxo set resulting from
+// creating or spending an output when the view is committed.  It has no effect
+// unless the commit assertions are enabled.
+func (view *UtxoViewpoint) expectUtxoSetDelta(created bool, amount int64) {
+	if view.commitAssertions == nil {
+		return
+	}
+
+	var count int64 = 1
+	if !created {
+		count = -1
+		amount = -amount
+	}
+
+	view.commitAssertions.expectedDelta.count += count
+	view.commitAssertions.expectedDelta.amount += amount
 }
 
 // isTreasuryAddOutput returns true if the output is a treasury add.
@@ -960,6 +995,19 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 				continue
 			}
 
+			// Every real input is expected to change the utxo set with the
+			// exception of historical SBSS violations since the outputs they
+			// spent were never in the utxo set to begin with.
+			//
+			// The spent output is restored when disconnecting and removed when
+			// connecting.
+			isHistoricalSBSS := stakeTree && prevOut.Index == 0 &&
+				prevOut.Tree == wire.TxTreeRegular &&
+				isSBSSViolation(a.params, block.Height(), &prevOut.Hash)
+			if !isHistoricalSBSS {
+				a.view.expectUtxoSetDelta(a.isDisconnect, txIn.ValueIn)
+			}
+
 			// The final state of outpoints spent or created by the regular tree
 			// of a reconnected parent is decided by the parent.
 			if a.isDisconnect && a.decidedByIdx.modifies(prevOut) {
@@ -991,9 +1039,6 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 					continue
 				}
 			}
-			isHistoricalSBSS := stakeTree && prevOut.Index == 0 &&
-				prevOut.Tree == wire.TxTreeRegular &&
-				isSBSSViolation(a.params, block.Height(), &prevOut.Hash)
 			if a.isDisconnect && isHistoricalSBSS {
 				continue
 			}
@@ -1162,6 +1207,10 @@ func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 
 				continue
 			}
+
+			// Every spendable output is expected to change the utxo set.  The
+			// output is created when connecting and removed when disconnecting.
+			a.view.expectUtxoSetDelta(!a.isDisconnect, txOut.Value)
 
 			// The final state of outpoints spent or created by the regular tree
 			// of a reconnected parent is decided by the parent.

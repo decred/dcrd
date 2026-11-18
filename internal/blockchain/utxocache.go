@@ -265,15 +265,16 @@ func (c *UtxoCache) hitRatio() float64 {
 	return float64(c.hits) / float64(totalLookups) * 100
 }
 
-// addEntry adds the specified output to the cache.  The entry being added MUST
-// NOT be mutated by the caller after being passed to this function.
+// addEntry adds the specified output to the cache and returns any existing
+// cache entry that was replaced.  The entry being added MUST NOT be mutated by
+// the caller after being passed to this function.
 //
 // Note that this function does not check if the entry is unspendable and
 // therefore the caller should ensure that the entry is spendable before adding
 // it to the cache.
 //
 // This function MUST be called with the cache lock held.
-func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
+func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) *UtxoEntry {
 	// The entry will either be added to the cache when there is not already
 	// an existing entry for the specified outpoint or will overwrite the
 	// existing one when there is, but in either case the resulting cache
@@ -289,7 +290,7 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 		entry.state |= utxoStateFresh
 		c.entries[outpoint] = entry
 		c.totalEntrySize += entry.size()
-		return
+		return nil
 	}
 
 	// There is an existing entry in the cache at this point.
@@ -310,9 +311,13 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 	c.entries[outpoint] = entry
 	c.totalEntrySize -= cachedEntry.size()
 	c.totalEntrySize += entry.size()
+	return cachedEntry
 }
 
-// spendEntry marks the specified output as spent.
+// spendEntry marks the specified output as spent and returns the resulting
+// spent cache entry when the cache (or backend) already has an associated entry
+// that is not already spent.  Any returned entry MUST NOT be mutated by the
+// caller since it is owned by the cache.
 //
 // When the provided output does not already have an associated entry in the
 // cache, the cache will be populated with the entry from the backend (if one
@@ -320,7 +325,7 @@ func (c *UtxoCache) addEntry(outpoint wire.OutPoint, entry *UtxoEntry) {
 // on the next cache flush.
 //
 // This function MUST be called with the cache lock held.
-func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
+func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	// Attempt to get the entry associated with the output from the cache.
 	//
 	// In the case there is a nil entry in the cache for the output, it does not
@@ -334,7 +339,7 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 	// nothing more to do.
 	cachedEntry, found := c.entries[outpoint]
 	if found && cachedEntry == nil {
-		return nil
+		return nil, nil
 	}
 
 	// No updates to the cache are needed when the output is already marked
@@ -351,7 +356,7 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 	// the spend of an output that has not been flushed to the backend is undone
 	// by a disapproval and spent again in the block that disapproves it.
 	if cachedEntry != nil && cachedEntry.IsSpent() {
-		return nil
+		return nil, nil
 	}
 
 	// Attempt to repopulate the cache from the backend when there is no entry
@@ -376,7 +381,7 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 		c.misses++
 		backendEntry, err := c.backend.FetchEntry(outpoint)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// The cache does not need to be updated when the associated utxo does
@@ -387,7 +392,7 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 		// there should realistically never be any future lookups for the spent
 		// output given that would be a double spend.
 		if backendEntry == nil {
-			return nil
+			return nil, nil
 		}
 
 		// Add the entry to the cache and update its total entry size.
@@ -396,7 +401,7 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 
 		// Mark the output as spent and modified.
 		backendEntry.Spend()
-		return nil
+		return backendEntry, nil
 	}
 
 	// Remove the entry associated with the output from the cache when the
@@ -411,12 +416,12 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) error {
 		// and avoid querying the backend.
 		c.entries[outpoint] = nil
 		c.totalEntrySize -= cachedEntry.size()
-		return nil
+		return cachedEntry, nil
 	}
 
 	// Mark the output as spent and modified.
 	cachedEntry.Spend()
-	return nil
+	return cachedEntry, nil
 }
 
 // fetchEntry returns the specified transaction output from the utxo set.  If
@@ -555,10 +560,16 @@ func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*Ut
 // corrupt utxo set which could lead to issues such as coin inflation or
 // incorrectly making coins unspendable.
 //
+// It also panics when the net change to the utxo set differs from what the
+// block assertions expect.
+//
 // This function is safe for concurrent access.
 func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 	defer c.cacheLock.Unlock()
 	c.cacheLock.Lock()
+
+	// delta tracks the net change to the utxo set that results from the commit.
+	var delta utxoSetDelta
 
 	for outpoint, entry := range view.entries {
 		// There is nothing to update in the cache when the view entry is nil,
@@ -636,8 +647,13 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		// cache to ensure the utxo is later removed from the backend on the
 		// next cache flush.
 		if entry.IsSpent() {
-			if err := c.spendEntry(outpoint); err != nil {
+			spentEntry, err := c.spendEntry(outpoint)
+			if err != nil {
 				return err
+			}
+			if spentEntry != nil {
+				delta.count--
+				delta.amount -= spentEntry.Amount()
 			}
 
 			delete(view.entries, outpoint)
@@ -646,12 +662,29 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 
 		// Update the existing entry in the cache or add a new one whenever the
 		// view entry is both modified and unspent and remove it from the view.
-		c.addEntry(outpoint, entry)
+		delta.count++
+		delta.amount += entry.Amount()
+		replacedEntry := c.addEntry(outpoint, entry)
+		if replacedEntry != nil && !replacedEntry.IsSpent() {
+			delta.count--
+			delta.amount -= replacedEntry.Amount()
+		}
 		delete(view.entries, outpoint)
 	}
 
+	// The net change to the utxo set must match what is expected from the block
+	// data when the commit assertions are enabled for the view.
 	if view.commitAssertions != nil {
+		expectedDelta := &view.commitAssertions.expectedDelta
+		if delta != *expectedDelta {
+			panicf("committing view@%s changed the utxo set by %d entries and "+
+				"%d atoms instead of the expected %d entries and %d atoms",
+				view.BestHash(), delta.count, delta.amount, expectedDelta.count,
+				expectedDelta.amount)
+		}
+
 		clear(view.commitAssertions.expectedModified)
+		view.commitAssertions.expectedDelta = utxoSetDelta{}
 	}
 	return nil
 }

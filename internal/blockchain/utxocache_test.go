@@ -500,7 +500,7 @@ func TestSpendEntry(t *testing.T) {
 
 		// Spend the entry specified by the test and ensure the error matches
 		// the expected one.
-		err = utxoCache.spendEntry(test.outpoint)
+		_, err = utxoCache.spendEntry(test.outpoint)
 		if err != nil {
 			t.Fatalf("%q: unexpected error spending outpoint %v: %v", test.name,
 				test.outpoint, err)
