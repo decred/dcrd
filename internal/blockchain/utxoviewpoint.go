@@ -646,8 +646,9 @@ func (view *UtxoViewpoint) addSBSSViolations(params *chaincfg.Params,
 // completed transition represented by the passed block.
 //
 // In particular, all transaction inputs must reference spent and modified
-// outputs and all spendable transaction outputs must have corresponding entries
-// with the expected details and spent state.
+// outputs, all spendable transaction outputs must have corresponding entries
+// with the expected details and spent state, and outputs that are never
+// represented as utxos must not have entries.
 //
 // This function must only be used to assert internal invariants for a fully
 // validated block whose transactions have been applied to the view.
@@ -820,8 +821,19 @@ func (view *UtxoViewpoint) assertBlockUtxoView(params *chaincfg.Params, block *d
 				txType = stake.DetermineTxType(msgTx)
 			}
 
-			// Treasurybase transactions don't create any utxos.
+			// Treasurybase transactions don't create any utxos, so their
+			// outputs must not have entries.
 			if stakeTree && isTreasuryEnabled && txIdx == 0 {
+				outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: txTree}
+				for txOutIdx := range msgTx.TxOut {
+					outpoint.Index = uint32(txOutIdx)
+					if view.entries[outpoint] != nil {
+						panicf("block %s %s tree idx %d: output %v: unexpected "+
+							"treasurybase output exists in utxo view",
+							block.Hash(), treeName, txIdx, outpoint)
+					}
+				}
+
 				continue
 			}
 
@@ -833,14 +845,24 @@ func (view *UtxoViewpoint) assertBlockUtxoView(params *chaincfg.Params, block *d
 			outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: txTree}
 			for txOutIdx, txOut := range msgTx.TxOut {
 				// Treasury adds and provably unspendable outputs are never
-				// represented as utxos.
+				// represented as utxos, so they must not have entries.
+				outpoint.Index = uint32(txOutIdx)
 				if isTreasuryAddOutput(txType, uint32(txOutIdx)) ||
 					txscript.IsUnspendable(txOut.Value, txOut.PkScript) {
+
+					if view.entries[outpoint] != nil {
+						outputName := "unspendable"
+						if isTreasuryAddOutput(txType, uint32(txOutIdx)) {
+							outputName = "treasury add"
+						}
+						panicf("block %s %s tree idx %d: output %v: %v output "+
+							"exists in utxo view", block.Hash(), treeName,
+							txIdx, outpoint, outputName)
+					}
 
 					continue
 				}
 
-				outpoint.Index = uint32(txOutIdx)
 				entry := view.entries[outpoint]
 				if entry == nil {
 					panicf("block %s %s tree idx %d: output %v: output is "+
