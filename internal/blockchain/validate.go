@@ -649,39 +649,6 @@ func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags
 	return checkTransactionContext(tx, params, flags)
 }
 
-// checkProofOfStake ensures that all ticket purchases in the block pay at least
-// the amount required by the block header stake bits which indicate the target
-// stake difficulty (aka ticket price) as claimed.
-func checkProofOfStake(block *dcrutil.Block, minStakeDiff int64) error {
-	header := &block.MsgBlock().Header
-	for _, stx := range block.STransactions() {
-		msgTx := stx.MsgTx()
-		if !stake.IsSStx(msgTx) {
-			continue
-		}
-
-		// The ticket price must not be below the stake difficulty claimed by
-		// the block header.
-		ticketPaidAmt := msgTx.TxOut[submissionOutputIdx].Value
-		if ticketPaidAmt < header.SBits {
-			str := fmt.Sprintf("ticket %v pays less than the stake difficulty "+
-				"committed to by the block header (%v < %v)", stx.Hash(),
-				ticketPaidAmt, header.SBits)
-			return ruleError(ErrNotEnoughStake, str)
-		}
-
-		// The ticket price must not be below the network minimum.
-		if ticketPaidAmt < minStakeDiff {
-			str := fmt.Sprintf("ticket %v pays less than the network minimum "+
-				"stake difficulty of (%v < %v)", stx.Hash(), ticketPaidAmt,
-				minStakeDiff)
-			return ruleError(ErrStakeBelowMinimum, str)
-		}
-	}
-
-	return nil
-}
-
 // standaloneToChainRuleError attempts to convert the passed error from a
 // [standalone.RuleError] to a [RuleError] with the equivalent error kind.  The
 // error is simply passed through without modification if it is not a
@@ -875,17 +842,38 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 	return nil
 }
 
+// checkProofOfStake ensures that the provided ticket purchase pays at least the
+// network minimum stake difficulty and the stake difficulty specified by the
+// block header.
+//
+// NOTE: The provided transaction MUST be a valid ticket purchase or the
+// function may panic.
+func checkProofOfStake(ticket *wire.MsgTx, header *wire.BlockHeader, minStakeDiff int64) error {
+	// The ticket price must not be below the stake difficulty claimed by
+	// the block header.
+	ticketPaidAmt := ticket.TxOut[submissionOutputIdx].Value
+	if ticketPaidAmt < header.SBits {
+		str := fmt.Sprintf("ticket %v pays less than the stake difficulty "+
+			"committed to by the block header (%v < %v)", ticket.TxHash(),
+			ticketPaidAmt, header.SBits)
+		return ruleError(ErrNotEnoughStake, str)
+	}
+
+	// The ticket price must not be below the network minimum.
+	if ticketPaidAmt < minStakeDiff {
+		str := fmt.Sprintf("ticket %v pays less than the network minimum "+
+			"stake difficulty of (%v < %v)", ticket.TxHash(), ticketPaidAmt,
+			minStakeDiff)
+		return ruleError(ErrStakeBelowMinimum, str)
+	}
+
+	return nil
+}
+
 // checkBlockDataSanity performs some preliminary checks on a block and its
 // transactions to ensure it is sane before continuing with block processing.
 // These checks are context free.
 func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) error {
-	// All ticket purchases must meet the difficulty specified by the block
-	// header.
-	err := checkProofOfStake(block, chainParams.MinimumStakeDiff)
-	if err != nil {
-		return err
-	}
-
 	// A block must have at least one regular transaction.
 	msgBlock := block.MsgBlock()
 	numTx := len(msgBlock.Transactions)
@@ -925,7 +913,10 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 
 	// Do some preliminary checks on stake transactions that do not require
 	// additional context to determine their type to ensure they are sane while
-	// tallying each type before continuing.
+	// tallying the tickets.
+	//
+	// Also ensure all ticket purchases meet the minimum network difficulty and
+	// the difficulty specified by the block header.
 	var totalTickets int64
 	for _, stx := range msgBlock.STransactions {
 		err := standalone.CheckTransactionSanity(stx, maxTxSize)
@@ -934,6 +925,11 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 		}
 
 		if stake.IsSStx(stx) {
+			err := checkProofOfStake(stx, header, chainParams.MinimumStakeDiff)
+			if err != nil {
+				return err
+			}
+
 			totalTickets++
 		}
 	}
