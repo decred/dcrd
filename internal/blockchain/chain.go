@@ -1244,7 +1244,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		}
 
 		// Assert the view is consistent with connecting the block.
-		view.assertBlockUtxoView(b.chainParams, block, isTreasuryEnabled)
+		view.assertBlockConnected(b.chainParams, block, isTreasuryEnabled)
 
 		// Update the database and chain state.
 		err = b.connectBlock(n, block, parent, view, stxos, &hdrCommitments)

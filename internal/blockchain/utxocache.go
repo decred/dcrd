@@ -1038,7 +1038,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 		}
 
 		// Assert the view is consistent with connecting the block.
-		view.assertBlockUtxoView(b.chainParams, block, isTreasuryEnabled)
+		view.assertBlockConnected(b.chainParams, block, isTreasuryEnabled)
 
 		// Commit all entries in the view to the utxo cache.  All entries in the
 		// view that are marked as modified and spent are removed from the view.
