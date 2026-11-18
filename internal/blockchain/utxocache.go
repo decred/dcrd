@@ -546,6 +546,79 @@ func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*Ut
 	return c.backend.FetchStats()
 }
 
+// assertSpendCommitted panics if the state of the cache for the provided
+// outpoint is not valid after a spent entry has been committed for it.  The
+// provided spent entry must be the one the cache reported as spent, if any.
+//
+// In particular, the resulting entry in the cache must not be unspent and must
+// be marked modified when it is not nil.  Further, the cache must retain a nil
+// entry for spent entries that are fresh and must retain spent entries that are
+// not fresh as the modified spent entry the cache is expected to have taken
+// ownership of.
+//
+// This function MUST be called with the cache lock held.
+func (c *UtxoCache) assertSpendCommitted(view *UtxoViewpoint, outpoint wire.OutPoint, spentEntry *UtxoEntry) {
+	cachedEntry, ok := c.entries[outpoint]
+	if cachedEntry != nil && !cachedEntry.IsSpent() {
+		panicf("output %v (tree %d) from view@%s is unspent in the cache "+
+			"after being committed as spent", outpoint, outpoint.Tree,
+			view.BestHash())
+	}
+	if spentEntry != nil && spentEntry.isFresh() && (!ok || cachedEntry != nil) {
+		panicf("output %v (tree %d) from view@%s is fresh and does not have a "+
+			"nil entry in the cache after being committed as spent",
+			outpoint, outpoint.Tree, view.BestHash())
+	}
+	if cachedEntry != nil && !cachedEntry.isModified() {
+		panicf("output %v (tree %d) from view@%s is not marked modified after "+
+			"being committed as spent", outpoint, outpoint.Tree, view.BestHash())
+	}
+	if spentEntry != nil && !spentEntry.isFresh() && cachedEntry != spentEntry {
+		panicf("output %v (tree %d) from view@%s might exist in the backend "+
+			"but is not retained as the modified spent entry in the cache "+
+			"after being committed as spent", outpoint, outpoint.Tree,
+			view.BestHash())
+	}
+}
+
+// assertAddCommitted panics if the state of the cache for the provided outpoint
+// is not valid after an unspent entry has been committed for it.  The provided
+// entry must be the view entry the cache is expected to have taken ownership of
+// and the replaced entry, if any, must be the one the cache reported as
+// replaced.
+//
+// In particular, the entry must be the modified unspent entry in the cache.
+// The fresh state must also be consistent with the state of the entry it
+// replaced.  When there is no replaced entry, the new entry must be fresh.
+// This assumes the backend does not have the output since the backend is
+// intentionally not checked here.  The assumption relies on transaction hash
+// uniqueness for outputs created by connecting a block.  Otherwise, it follows
+// from the cache retaining spent entries until they are removed from the
+// backend by a flush or a prior backend miss.
+//
+// This could technically avoid enforcing the case when an entry that should be
+// fresh is incorrectly marked as non-fresh since it would ultimately only
+// result in an extra delete of an entry that doesn't exist when the cache is
+// flushed.  However, enforcing it as an invariant keeps the cache state
+// deterministic and catches unexpected changes to the fresh state even when
+// they would be harmless.
+//
+// This function MUST be called with the cache lock held.
+func (c *UtxoCache) assertAddCommitted(view *UtxoViewpoint, outpoint wire.OutPoint, entry, replacedEntry *UtxoEntry) {
+	cachedEntry := c.entries[outpoint]
+	if cachedEntry != entry || entry.IsSpent() || !entry.isModified() {
+		panicf("output %v (tree %d) from view@%s is not the modified unspent "+
+			"entry in the cache after being committed as unspent", outpoint,
+			outpoint.Tree, view.BestHash())
+	}
+	wantFresh := replacedEntry == nil || replacedEntry.isFresh()
+	if entry.isFresh() != wantFresh {
+		panicf("output %v (tree %d) from view@%s has incorrect fresh state "+
+			"after being committed (entry %v, want %v)", outpoint,
+			outpoint.Tree, view.BestHash(), entry.isFresh(), wantFresh)
+	}
+}
+
 // Commit updates the cache based on the state of each entry in the provided
 // view.
 //
@@ -561,7 +634,8 @@ func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*Ut
 // incorrectly making coins unspendable.
 //
 // It also panics when the net change to the utxo set differs from what the
-// block assertions expect.
+// block assertions expect or the resulting state of the cache for any committed
+// entry is invalid
 //
 // This function is safe for concurrent access.
 func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
@@ -655,6 +729,9 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 				delta.count--
 				delta.amount -= spentEntry.Amount()
 			}
+			if view.commitAssertions != nil {
+				c.assertSpendCommitted(view, outpoint, spentEntry)
+			}
 
 			delete(view.entries, outpoint)
 			continue
@@ -668,6 +745,9 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		if replacedEntry != nil && !replacedEntry.IsSpent() {
 			delta.count--
 			delta.amount -= replacedEntry.Amount()
+		}
+		if view.commitAssertions != nil {
+			c.assertAddCommitted(view, outpoint, entry, replacedEntry)
 		}
 		delete(view.entries, outpoint)
 	}
