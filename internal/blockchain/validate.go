@@ -4440,8 +4440,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// rejected.
 	view.addSBSSViolations(b.chainParams, block, isTreasuryEnabled)
 
-	// Load all of the utxos referenced by the inputs for all transactions
-	// in the block don't already exist in the utxo view from the database.
+	// Load all of the utxos referenced by the inputs for all transactions in
+	// the block that are not already in the utxo view from the backing store.
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
