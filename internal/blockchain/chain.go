@@ -1243,8 +1243,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			b.index.SetStatusFlags(n, statusValidated)
 		}
 
-		// Assert the resulting utxo view is consistent with all transactions in
-		// the block.
+		// Assert the view is consistent with connecting the block.
 		view.assertBlockUtxoView(b.chainParams, block, isTreasuryEnabled)
 
 		// Update the database and chain state.
