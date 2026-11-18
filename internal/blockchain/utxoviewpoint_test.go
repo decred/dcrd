@@ -256,6 +256,8 @@ func TestFetchUtxoView(t *testing.T) {
 //     followed by reinclusion of the first transaction, reconstruction of
 //     the zero conf spend chain, and a reorganization away from and back
 //     to that branch
+//   - Consecutive disapprovals that reinclude the same transaction along with
+//     a different zero conf spend of its output each time
 func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 	// Create a test harness initialized with the genesis block as the tip and
 	// advance it to stake validation height.
@@ -357,6 +359,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		ticketOuts := g.OldestCoinbaseOuts()
 		b1 := g.NextBlock("s1b1", &sharedSpend, ticketOuts[1:], disapproveParent)
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s1b1")
 		txB := b1.Transactions[1]
@@ -395,6 +398,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		outs[1] = sharedSpend
 		b1 := g.NextBlock("s2b1", nil, outs[1:], disapproveParent)
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s2b1")
 		ticket := findSpendingTicket(b1, sharedSpend.PrevOut())
@@ -433,6 +437,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		outs = g.OldestCoinbaseOuts()
 		g.NextBlock("s3b1", nil, outs[1:], disapproveParent, addTx(txA))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s3b1")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -468,6 +473,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		b1 := g.NextBlock("s4b1", nil, outs[1:], disapproveParent, addTx(txA),
 			addZeroConfSpend(1, 0))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s4b1")
 		txB := b1.Transactions[2]
@@ -506,6 +512,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		b1 := g.NextBlock("s5b1", nil, outs[1:], disapproveParent, addTx(txA),
 			addZeroConfSpend(1, 0))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s5b1")
 		txC := b1.Transactions[2]
@@ -543,6 +550,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		outs = g.OldestCoinbaseOuts()
 		g.NextBlock("s6b1", nil, outs[1:], disapproveParent, addTx(txA))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s6b1")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -553,6 +561,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		g.NextBlock("s6b1a", nil, outs[1:])
 		g.AcceptedToSideChainWithExpectedTip("s6b1")
 		g.NextBlock("s6b2a", nil, nil)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s6b2a")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -596,6 +605,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		outs = g.OldestCoinbaseOuts()
 		g.NextBlock("s7b1", nil, outs[1:], disapproveParent, addTx(txA))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s7b1")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -629,6 +639,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		g.NextBlock("s7b2", nil, nil)
 		g.AcceptedToSideChainWithExpectedTip("s7b2a")
 		g.NextBlock("s7b3", nil, nil)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s7b3")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -681,6 +692,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 			addZeroConfSpend(1, 0), addZeroConfSpend(2, 0),
 			addZeroConfSpend(3, 0))
 		g.AssertTipDisapprovesPrevious()
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s8b1")
 		txE := b1.Transactions[2]
@@ -719,6 +731,7 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		g.NextBlock("s8b2", nil, nil)
 		g.AcceptedToSideChainWithExpectedTip("s8b2a")
 		g.NextBlock("s8b3", nil, nil)
+		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		g.ExpectTip("s8b3")
 		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
@@ -729,6 +742,61 @@ func testDisapprovalScenarios(t *testing.T, flushUtxoCache bool) {
 		g.ExpectUtxoUnspendable(outpoint(txE, 0))
 		g.ExpectUtxoUnspendable(outpoint(txF, 0))
 		g.ExpectUtxoSpendable(outpoint(txG, 0))
+	}
+
+	// -------------------------------------------------------------------------
+	// Create a block with two regular transactions where the second transaction
+	// spends an output from the first transaction as a zero conf spend,
+	// followed by a block that disapproves the regular tx tree of the previous
+	// block and reincludes the first transaction along with a new zero conf
+	// spend, followed by another block that disapproves that block and
+	// reincludes the first transaction along with yet another zero conf spend.
+	//
+	// This exercises consecutive disapprovals where the same transaction is
+	// reincluded each time and the output it creates is spent by a different
+	// zero conf spend in every block.
+	//
+	//   ... -> s9b0 -> s9b1 (disapproves s9b0) -> s9b2 (disapproves s9b1)
+	//
+	// s9b0: txA (spends a coinbase output) -> txB (zero conf spend of txA)
+	// s9b1: txA (reincluded from s9b0) -> txC (new zero conf spend of txA)
+	// s9b2: txA (reincluded from s9b1) -> txD (new zero conf spend of txA)
+	// -------------------------------------------------------------------------
+	{
+		outs := g.OldestCoinbaseOuts()
+		b0 := g.NextBlock("s9b0", &outs[0], outs[1:], addZeroConfSpend(1, 0))
+		g.AcceptTipBlock()
+		txA := b0.Transactions[1]
+		txB := b0.Transactions[2]
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoSpendable(outpoint(txB, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		b1 := g.NextBlock("s9b1", nil, outs[1:], disapproveParent, addTx(txA),
+			addZeroConfSpend(1, 0))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		txC := b1.Transactions[2]
+		g.ExpectTip("s9b1")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoSpendable(outpoint(txC, 0))
+
+		outs = g.OldestCoinbaseOuts()
+		b2 := g.NextBlock("s9b2", nil, outs[1:], disapproveParent, addTx(txA),
+			addZeroConfSpend(1, 0))
+		g.AssertTipDisapprovesPrevious()
+		g.AcceptTipBlock()
+		txD := b2.Transactions[2]
+		g.SaveTipCoinbaseOuts()
+		g.ExpectTip("s9b2")
+		g.ExpectUtxoUnspendable(txA.TxIn[0].PreviousOutPoint)
+		g.ExpectUtxoUnspendable(outpoint(txA, 0))
+		g.ExpectUtxoUnspendable(outpoint(txB, 0))
+		g.ExpectUtxoUnspendable(outpoint(txC, 0))
+		g.ExpectUtxoSpendable(outpoint(txD, 0))
 	}
 }
 
