@@ -1048,6 +1048,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 	// parent, the regular transactions are reconnected.
 	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
+	view.enableCommitAssertions()
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
 		select {

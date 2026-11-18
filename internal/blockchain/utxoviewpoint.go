@@ -19,6 +19,16 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// utxoViewCommitAssertions records expectations used when committing a utxo
+// view.  It is only used when the commit assertions are enabled for a view.
+type utxoViewCommitAssertions struct {
+	// expectedModified records the outpoints of entries that are expected to
+	// be modified according to the block assertions applied to the view.  It
+	// is used when committing the view to ensure that all modified entries
+	// were accounted for by those assertions.
+	expectedModified map[wire.OutPoint]struct{}
+}
+
 // UtxoViewpoint represents a view into the set of unspent transaction outputs
 // from a specific point of view in the chain.  For example, it could be for
 // the end of the main chain, some point in the history of the main chain, or
@@ -37,6 +47,11 @@ type UtxoViewpoint struct {
 	// before outputs from earlier transactions in the block are added to the
 	// view.
 	zeroConfOuts map[wire.OutPoint]struct{}
+
+	// commitAssertions records expectations used when committing the view
+	// according to the block assertions applied to the view.  It will be nil
+	// unless enabled via [UtxoViewpoint.enableCommitAssertions].
+	commitAssertions *utxoViewCommitAssertions
 }
 
 // BestHash returns the hash of the best block in the chain the view currently
@@ -64,6 +79,41 @@ func (view *UtxoViewpoint) LookupEntry(outpoint wire.OutPoint) *UtxoEntry {
 // view.
 func (view *UtxoViewpoint) RemoveEntry(outpoint wire.OutPoint) {
 	delete(view.entries, outpoint)
+}
+
+// enableCommitAssertions enables additional assertions when the view is
+// committed to the utxo cache.  Specifically, it asserts that every entry
+// marked modified in the view was expected to be modified according to the
+// block assertions applied to the view.  The expectations are accumulated until
+// the view is committed.
+//
+// It will panic if the view already has any commit assertion expectations
+// recorded.
+//
+// It is only suitable for views that apply the block assertions before the view
+// is committed.
+func (view *UtxoViewpoint) enableCommitAssertions() {
+	if view.commitAssertions == nil {
+		view.commitAssertions = &utxoViewCommitAssertions{
+			expectedModified: make(map[wire.OutPoint]struct{}),
+		}
+		return
+	}
+
+	ca := view.commitAssertions
+	if numEntries := len(ca.expectedModified); numEntries != 0 {
+		panicf("attempt to enable commit assertions on view@%s that already "+
+			"has %d expected modified entries", view.BestHash(), numEntries)
+	}
+}
+
+// expectModified records the entry for the provided outpoint is expected to be
+// marked as modified when the view is committed.  It has no effect unless the
+// commit assertions are enabled.
+func (view *UtxoViewpoint) expectModified(outpoint *wire.OutPoint) {
+	if view.commitAssertions != nil {
+		view.commitAssertions.expectedModified[*outpoint] = struct{}{}
+	}
 }
 
 // isTreasuryAddOutput returns true if the output is a treasury add.
@@ -973,6 +1023,7 @@ func (a *blockUtxoViewAsserter) assertTreeInputs(stakeTree bool) {
 			}
 
 			// All inputs must be marked modified.
+			a.view.expectModified(prevOut)
 			if !entry.isModified() {
 				panicf("block %s %s tree idx %d: tx %s:%d spending input %v "+
 					"(tree %d): utxo is not marked modified", block.Hash(),
@@ -1139,6 +1190,7 @@ func (a *blockUtxoViewAsserter) assertTreeOutputs(stakeTree bool) {
 			}
 
 			// All outputs must be marked modified.
+			a.view.expectModified(&outpoint)
 			if !entry.isModified() {
 				panicf("block %s %s tree idx %d: output %v: utxo is not "+
 					"marked modified", block.Hash(), treeName, txIdx, outpoint)

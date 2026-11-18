@@ -548,6 +548,13 @@ func (c *UtxoCache) FetchStats(bestHash *chainhash.Hash, bestHeight uint32) (*Ut
 // removed from the view.  Additionally, all entries that are added to the cache
 // are removed from the provided view.
 //
+// It panics when the commit assertions are enabled for the view and any entry
+// in the view that is marked modified was not accounted for by the block
+// assertions.  In other words, it asserts there are no unexpected modified
+// entries in the view since such entries would almost certainly result in a
+// corrupt utxo set which could lead to issues such as coin inflation or
+// incorrectly making coins unspendable.
+//
 // This function is safe for concurrent access.
 func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 	defer c.cacheLock.Unlock()
@@ -565,6 +572,18 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		// entry was not modified.
 		if !entry.isModified() {
 			continue
+		}
+
+		// Modified entries must have been verified by the block assertions when
+		// they are enabled for the view so that any unexpected modification is
+		// detected prior to it being applied to the cache.
+		if view.commitAssertions != nil {
+			_, ok := view.commitAssertions.expectedModified[outpoint]
+			if !ok {
+				panicf("output %v (tree %d) from view@%s is marked modified "+
+					"without being verified by the block assertions", outpoint,
+					outpoint.Tree, view.BestHash())
+			}
 		}
 
 		// ---------------------------------------------------------------------
@@ -631,6 +650,9 @@ func (c *UtxoCache) Commit(view *UtxoViewpoint) error {
 		delete(view.entries, outpoint)
 	}
 
+	if view.commitAssertions != nil {
+		clear(view.commitAssertions.expectedModified)
+	}
 	return nil
 }
 
@@ -888,6 +910,7 @@ func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain) error {
 	// and this loop will be skipped.
 	view := NewUtxoViewpoint(c)
 	view.SetBestHash(&tip.hash)
+	view.enableCommitAssertions()
 	var nextBlockToDetach *dcrutil.Block
 	n := lastFlushedNode
 	for n != nil && n != fork {
