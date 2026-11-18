@@ -48,6 +48,10 @@ func (msg *MsgMixDCNet) BtcDecode(r io.Reader, pver uint32) error {
 	if err != nil {
 		return err
 	}
+	if len(dcnet) == 0 {
+		msg := fmt.Sprintf("too few mixed messages [%v]", len(dcnet))
+		return messageError(op, ErrInvalidMsg, msg)
+	}
 	msg.DCNet = dcnet
 
 	count, err := ReadVarInt(r, pver)

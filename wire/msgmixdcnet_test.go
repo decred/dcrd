@@ -113,6 +113,29 @@ func TestMsgMixDCNetWire(t *testing.T) {
 	}
 }
 
+// TestMsgMixDCNetDecodeRejectsEmpty ensures BtcDecode rejects a DC-net message
+// that encodes no mixed messages.  BtcEncode already rejects this case, as does
+// the sibling MsgMixSlotReserve.BtcDecode, so the decoder must do the same to
+// avoid accepting a message it cannot re-encode.
+func TestMsgMixDCNetDecodeRejectsEmpty(t *testing.T) {
+	pver := MixVersion
+
+	// Minimal DC-net serialization with an outer DC-mix dimension of zero.
+	var buf bytes.Buffer
+	buf.Write(repeat(0x00, 64)) // Signature
+	buf.Write(repeat(0x00, 33)) // Identity
+	buf.Write(repeat(0x00, 32)) // Session ID
+	buf.Write(repeat(0x00, 4))  // Run
+	buf.WriteByte(0x00)         // DC-net outer dimension (no mixed messages)
+	buf.WriteByte(0x00)         // Seen slot reservations count
+
+	msg := new(MsgMixDCNet)
+	err := msg.BtcDecode(bytes.NewReader(buf.Bytes()), pver)
+	if !errors.Is(err, ErrInvalidMsg) {
+		t.Errorf("decode of empty DC-net: want %v, got %v", ErrInvalidMsg, err)
+	}
+}
+
 func TestMsgMixDCNetCrossProtocol(t *testing.T) {
 	t.Parallel()
 
