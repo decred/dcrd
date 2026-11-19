@@ -204,8 +204,8 @@ public key it is dealing with.
 ### Hash160 Use in Addresses
 
 The term `Hash160` is used as shorthand to refer to a hash that is created via a
-combination of [RIPEMD-160](../../../crypto/ripemd160) and
-[BLAKE256](../../../crypto/blake256).  Specifically, it is the result of
+combination of [RIPEMD-160](../../crypto/ripemd160) and
+[BLAKE256](../../crypto/blake256).  Specifically, it is the result of
 `RIPEMD-160(BLAKE256(data))`.
 
 For address types that involve Hash160 hashes, such as version 0 public key hash
