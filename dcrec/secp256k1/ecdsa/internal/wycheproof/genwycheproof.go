@@ -32,7 +32,7 @@ const (
 		"testvectors_v1/ecdsa_secp256k1_sha256_bitcoin_test.json"
 	bitcoinVectorSHA256 = "d3729ce83ff9740c45e74921009a4061eff6c09185b8dd1225ccd06ac57048a4"
 
-	outputFile    = "wycheproof_vectors_test.go"
+	outputFile    = "vectors.go"
 	maxVectorSize = 2 << 20
 )
 
@@ -65,8 +65,8 @@ func main() {
 func generate() error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	sources := []vectorSource{
-		{vectorURL, vectorSHA256, "wycheproofECDSATestGroups"},
-		{bitcoinVectorURL, bitcoinVectorSHA256, "wycheproofECDSABitcoinTestGroups"},
+		{vectorURL, vectorSHA256, "ECDSATestGroups"},
+		{bitcoinVectorURL, bitcoinVectorSHA256, "ECDSABitcoinTestGroups"},
 	}
 
 	var source bytes.Buffer
@@ -74,7 +74,17 @@ func generate() error {
 		"// The source files are from C2SP/wycheproof commit\n" +
 		"// 65ca494727a52944c204441c860b039e6786b99b and are\n" +
 		"// ecdsa_secp256k1_sha256_test.json and\n" +
-		"// ecdsa_secp256k1_sha256_bitcoin_test.json.\n\npackage ecdsa\n\n")
+		"// ecdsa_secp256k1_sha256_bitcoin_test.json.\n\npackage wycheproof\n\n" +
+		"// ECDSATest is one secp256k1 ECDSA verification vector.\n" +
+		"type ECDSATest struct {\n" +
+		"\tTCID int\n" +
+		"\tMsg, Sig, Result string\n" +
+		"}\n\n" +
+		"// ECDSATestGroup groups vectors for one public key.\n" +
+		"type ECDSATestGroup struct {\n" +
+		"\tPublicKey string\n" +
+		"\tTests []ECDSATest\n" +
+		"}\n\n")
 
 	for _, vectorSource := range sources {
 		vectors, err := downloadVectors(client, vectorSource.url, vectorSource.hash)
@@ -133,13 +143,19 @@ func downloadVectors(client *http.Client, url, expectedHash string) (*vectorFile
 }
 
 func writeTestGroups(source *bytes.Buffer, tableName string, groups []vectorGroup) error {
-	fmt.Fprintf(source, "var %s = []wycheproofECDSATestGroup{\n", tableName)
+	switch tableName {
+	case "ECDSATestGroups":
+		fmt.Fprintln(source, "// ECDSATestGroups contains the selected standard test vectors.")
+	case "ECDSABitcoinTestGroups":
+		fmt.Fprintln(source, "// ECDSABitcoinTestGroups contains the Bitcoin test vectors.")
+	}
+	fmt.Fprintf(source, "var %s = []ECDSATestGroup{\n", tableName)
 	for _, group := range groups {
 		if group.PublicKey.Uncompressed == "" {
 			return fmt.Errorf("test group has no uncompressed public key")
 		}
 		tests := group.Tests
-		if tableName == "wycheproofECDSATestGroups" {
+		if tableName == "ECDSATestGroups" {
 			// The selected standard tcIds are 464-476. Earlier vectors are omitted
 			// because the Bitcoin file covers them; tcId 476 still exercises a valid
 			// high-S signature with plain Verify; pinned hashes stabilize the list.
@@ -154,7 +170,7 @@ func writeTestGroups(source *bytes.Buffer, tableName string, groups []vectorGrou
 		if len(tests) == 0 {
 			continue
 		}
-		fmt.Fprintf(source, "\t{%q, []wycheproofECDSATest{\n", group.PublicKey.Uncompressed)
+		fmt.Fprintf(source, "\t{%q, []ECDSATest{\n", group.PublicKey.Uncompressed)
 		for i, test := range tests {
 			switch test.Result {
 			case "valid", "invalid", "acceptable":

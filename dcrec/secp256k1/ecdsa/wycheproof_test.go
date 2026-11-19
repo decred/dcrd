@@ -11,41 +11,29 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa/internal/wycheproof"
 )
-
-//go:generate go run genwycheproof.go
-
-type wycheproofECDSATest struct {
-	tcID     int
-	msg, sig string
-	result   string
-}
-
-type wycheproofECDSATestGroup struct {
-	publicKey string
-	tests     []wycheproofECDSATest
-}
 
 // TestWycheproofECDSAVerification runs the secp256k1 ECDSA verification test
 // vectors published by Project Wycheproof.
 func TestWycheproofECDSAVerification(t *testing.T) {
 	t.Run("standard", func(t *testing.T) {
-		testWycheproofECDSATestGroups(t, wycheproofECDSATestGroups,
+		testWycheproofECDSATestGroups(t, wycheproof.ECDSATestGroups,
 			verifyECDSASignature)
 	})
 	t.Run("bitcoin", func(t *testing.T) {
-		testWycheproofECDSATestGroups(t, wycheproofECDSABitcoinTestGroups,
+		testWycheproofECDSATestGroups(t, wycheproof.ECDSABitcoinTestGroups,
 			verifyBitcoinECDSASignature)
 	})
 }
 
 // testWycheproofECDSATestGroups checks the provided Wycheproof vectors.
-func testWycheproofECDSATestGroups(t *testing.T, groups []wycheproofECDSATestGroup,
+func testWycheproofECDSATestGroups(t *testing.T, groups []wycheproof.ECDSATestGroup,
 	verifySignature func(*Signature, []byte, *secp256k1.PublicKey) bool) {
 	t.Helper()
 
 	for groupIndex, group := range groups {
-		pubKeyBytes, err := hex.DecodeString(group.publicKey)
+		pubKeyBytes, err := hex.DecodeString(group.PublicKey)
 		if err != nil {
 			t.Fatalf("group %d: invalid public key hex: %v", groupIndex, err)
 		}
@@ -54,22 +42,22 @@ func testWycheproofECDSATestGroups(t *testing.T, groups []wycheproofECDSATestGro
 			t.Fatalf("group %d: failed to parse public key: %v", groupIndex, err)
 		}
 
-		for _, test := range group.tests {
-			testName := fmt.Sprintf("tcId %d", test.tcID)
-			msg, err := hex.DecodeString(test.msg)
+		for _, test := range group.Tests {
+			testName := fmt.Sprintf("tcId %d", test.TCID)
+			msg, err := hex.DecodeString(test.Msg)
 			if err != nil {
 				t.Fatalf("%s: invalid message hex: %v", testName, err)
 			}
 			digest := sha256.Sum256(msg)
 
-			sigBytes, err := hex.DecodeString(test.sig)
+			sigBytes, err := hex.DecodeString(test.Sig)
 			if err != nil {
 				t.Fatalf("%s: invalid signature hex: %v", testName, err)
 			}
 			sig, err := ParseDERSignature(sigBytes)
 			verified := err == nil && verifySignature(sig, digest[:], pubKey)
 
-			switch test.result {
+			switch test.Result {
 			case "valid":
 				if err != nil {
 					t.Errorf("%s: failed to parse valid signature: %v",
@@ -88,7 +76,7 @@ func testWycheproofECDSATestGroups(t *testing.T, groups []wycheproofECDSATestGro
 			case "acceptable":
 				// Either result is permitted for acceptable vectors.
 			default:
-				t.Errorf("%s: unknown result %q", testName, test.result)
+				t.Errorf("%s: unknown result %q", testName, test.Result)
 			}
 		}
 	}
