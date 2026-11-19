@@ -366,15 +366,25 @@ func TestAddEntry(t *testing.T) {
 	type entriesMap map[wire.OutPoint]*UtxoEntry
 	tests := []struct {
 		name          string        // test description
-		cachedEntries entriesMap    // existing cache entires
+		cachedEntries entriesMap    // existing cache entries
 		outpoint      wire.OutPoint // outpoint for entry to add/update
 		entry         *UtxoEntry    // entry to add/update
+		wantReplaced  *UtxoEntry    // expected replaced entry returned
 		wantEntry     *UtxoEntry    // expected entry in updated cache
 		wantCacheSize uint64        // expected size of updated cache
 	}{{
 		name:          "entry not in cache adds modified fresh entry",
 		outpoint:      outpoint,
 		entry:         origEntry.unmodified,
+		wantReplaced:  nil,
+		wantEntry:     origEntry.modifiedFresh,
+		wantCacheSize: origEntry.modifiedFresh.size(),
+	}, {
+		name:          "pruned cache entry adds modified fresh entry",
+		cachedEntries: entriesMap{outpoint: nil},
+		outpoint:      outpoint,
+		entry:         origEntry.unmodified,
+		wantReplaced:  nil,
 		wantEntry:     origEntry.modifiedFresh,
 		wantCacheSize: origEntry.modifiedFresh.size(),
 	}, {
@@ -382,6 +392,7 @@ func TestAddEntry(t *testing.T) {
 		cachedEntries: entriesMap{outpoint: origEntry.unmodified},
 		outpoint:      outpoint,
 		entry:         mutatedEntry.modified,
+		wantReplaced:  origEntry.unmodified,
 		wantEntry:     mutatedEntry.modified,
 		wantCacheSize: mutatedEntry.modified.size(),
 	}, {
@@ -389,6 +400,7 @@ func TestAddEntry(t *testing.T) {
 		cachedEntries: entriesMap{outpoint: origEntry.unmodified},
 		outpoint:      outpoint,
 		entry:         mutatedEntry.modifiedFresh,
+		wantReplaced:  origEntry.unmodified,
 		wantEntry:     mutatedEntry.modified,
 		wantCacheSize: mutatedEntry.modified.size(),
 	}, {
@@ -396,6 +408,7 @@ func TestAddEntry(t *testing.T) {
 		cachedEntries: entriesMap{outpoint: origEntry.modifiedFresh},
 		outpoint:      outpoint,
 		entry:         mutatedEntry.modified,
+		wantReplaced:  origEntry.modifiedFresh,
 		wantEntry:     mutatedEntry.modifiedFresh,
 		wantCacheSize: mutatedEntry.modifiedFresh.size(),
 	}, {
@@ -403,6 +416,7 @@ func TestAddEntry(t *testing.T) {
 		cachedEntries: entriesMap{outpoint: origEntry.modifiedFresh},
 		outpoint:      outpoint,
 		entry:         mutatedEntry.modifiedFresh,
+		wantReplaced:  origEntry.modifiedFresh,
 		wantEntry:     mutatedEntry.modifiedFresh,
 		wantCacheSize: mutatedEntry.modifiedFresh.size(),
 	}}
@@ -412,13 +426,19 @@ func TestAddEntry(t *testing.T) {
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 
 		// Add/update the entry specified by the test.
-		utxoCache.addEntry(test.outpoint, test.entry.Clone())
+		replacedEntry := utxoCache.addEntry(test.outpoint, test.entry.Clone())
+
+		// Ensure the returned entry matches the expected one.
+		if !reflect.DeepEqual(replacedEntry, test.wantReplaced) {
+			t.Fatalf("%q: unexpected replaced entry -- got %+v, want %+v",
+				test.name, replacedEntry, test.wantReplaced)
+		}
 
 		// Get the entry associated with the output from the cache and ensure it
 		// matches the expected one.
 		gotEntry := utxoCache.entries[test.outpoint]
 		if !reflect.DeepEqual(gotEntry, test.wantEntry) {
-			t.Fatalf("%q: unexpected entry after spend -- got: %+v, want %+v",
+			t.Fatalf("%q: unexpected entry after add -- got: %+v, want %+v",
 				test.name, gotEntry, test.wantEntry)
 		}
 
@@ -447,41 +467,48 @@ func TestSpendEntry(t *testing.T) {
 		cachedEntries  entriesMap    // existing cache entries
 		backendEntries entriesMap    // existing backend entries
 		outpoint       wire.OutPoint // outpoint for the entry to spend
+		wantSpent      *UtxoEntry    // expected returned spent entry
 		wantEntry      *UtxoEntry    // expected entry in cache after spend
 		wantCacheSize  uint64        // expected size of the cache after spend
 	}{{
 		name:          "spending cache entry already marked spent is a noop",
 		cachedEntries: entriesMap{outpoint: entry.modifiedSpent},
 		outpoint:      outpoint,
+		wantSpent:     nil,
 		wantEntry:     entry.modifiedSpent,
 		wantCacheSize: entry.modifiedSpent.size(),
 	}, {
 		name:          "spending nil (aka pruned) cache entry is a noop",
 		cachedEntries: entriesMap{outpoint: nil},
 		outpoint:      outpoint,
+		wantSpent:     nil,
 		wantEntry:     nil,
 		wantCacheSize: 0,
 	}, {
 		name:          "spending entry not in cache queries backend (no utxo)",
 		outpoint:      outpoint,
+		wantSpent:     nil,
 		wantEntry:     nil,
 		wantCacheSize: 0,
 	}, {
 		name:           "spending entry not in cache queries backend (with utxo)",
 		outpoint:       outpoint,
 		backendEntries: entriesMap{outpoint: entry.modified},
+		wantSpent:      entry.modifiedSpent,
 		wantEntry:      entry.modifiedSpent,
 		wantCacheSize:  entry.modifiedSpent.size(),
 	}, {
 		name:          "spending cache entry marked fresh makes it nil",
 		cachedEntries: entriesMap{outpoint: entry.modifiedFresh},
 		outpoint:      outpoint,
+		wantSpent:     entry.modifiedFresh,
 		wantEntry:     nil,
 		wantCacheSize: 0,
 	}, {
 		name:          "spending cache entry not marked fresh makes it spent",
 		cachedEntries: entriesMap{outpoint: entry.modified},
 		outpoint:      outpoint,
+		wantSpent:     entry.modifiedSpent,
 		wantEntry:     entry.modifiedSpent,
 		wantCacheSize: entry.modifiedSpent.size(),
 	}}
@@ -500,10 +527,16 @@ func TestSpendEntry(t *testing.T) {
 
 		// Spend the entry specified by the test and ensure the error matches
 		// the expected one.
-		_, err = utxoCache.spendEntry(test.outpoint)
+		spentEntry, err := utxoCache.spendEntry(test.outpoint)
 		if err != nil {
 			t.Fatalf("%q: unexpected error spending outpoint %v: %v", test.name,
 				test.outpoint, err)
+		}
+
+		// Ensure the returned entry matches the expected one.
+		if !reflect.DeepEqual(spentEntry, test.wantSpent) {
+			t.Fatalf("%q: unexpected spent entry return -- got %+v, want %+v",
+				test.name, spentEntry, test.wantSpent)
 		}
 
 		// Get the entry associated with the output from the cache and ensure it
