@@ -1048,6 +1048,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 	// parent, the regular transactions are reconnected.
 	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
+	view.enableCommitAssertions()
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
 		select {
@@ -1112,6 +1113,10 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		if err != nil {
 			return err
 		}
+
+		// Assert the view is consistent with disconnecting the block.
+		view.assertBlockDisconnected(b.chainParams, block, parent,
+			isTreasuryEnabled, isParentTreasuryEnabled)
 
 		// Update the database and chain state.
 		err = b.disconnectBlock(n, block, parent, view)
@@ -1243,9 +1248,9 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 			b.index.SetStatusFlags(n, statusValidated)
 		}
 
-		// Assert the resulting utxo view is consistent with all transactions in
-		// the block.
-		view.assertBlockUtxoView(b.chainParams, block, isTreasuryEnabled)
+		// Assert the view is consistent with connecting the block.
+		view.assertBlockConnected(b.chainParams, block, parent,
+			isTreasuryEnabled, isParentTreasuryEnabled)
 
 		// Update the database and chain state.
 		err = b.connectBlock(n, block, parent, view, stxos, &hdrCommitments)
