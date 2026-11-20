@@ -288,3 +288,119 @@ func TestOrphanEviction(t *testing.T) {
 	acceptOrphanAndCheck(orphans[maxOrphans], numSources)
 	assertOrphanPoolSize(maxPostEvictionOrphans + 1)
 }
+
+// TestConflictingOrphans ensures that only one of multiple distinct orphan
+// messages of the same type sent by an identity in a session is accepted once
+// the identity's KE is accepted, and that the conflicting orphans are removed.
+func TestConflictingOrphans(t *testing.T) {
+	pub, priv, err := generateSecp256k1(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := *(*[33]byte)(pub.SerializeCompressed())
+
+	h := blake256.NewHasher256()
+
+	pr := &wire.MsgMixPairReq{
+		Identity: id,
+		UTXOs: []wire.MixPairReqUTXO{
+			{},
+		},
+		MessageCount: 1,
+		MixAmount:    1 << 18,
+		Expiry:       testStartingHeight + 10,
+		ScriptClass:  string(mixing.ScriptClassP2PKHv0),
+		InputValue:   1<<18 + 3000,
+	}
+	err = mixing.SignMessage(pr, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr.WriteHash(h)
+
+	prs := []*wire.MsgMixPairReq{pr}
+	epoch := uint64(time.Now().Truncate(time.Minute).Unix())
+	sid := mixing.SortPRsForSession(prs, epoch)
+	ke := &wire.MsgMixKeyExchange{
+		Identity: id,
+		SeenPRs: []chainhash.Hash{
+			pr.Hash(),
+		},
+		SessionID: sid,
+		Epoch:     epoch,
+		Run:       0,
+	}
+	err = mixing.SignMessage(ke, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ke.WriteHash(h)
+
+	// Create 3 distinct FPs by the same identity in the same session.
+	fps := make([]*wire.MsgMixFactoredPoly, 3)
+	for i := range fps {
+		fp := &wire.MsgMixFactoredPoly{
+			Identity:  id,
+			SessionID: sid,
+			Run:       0,
+			Roots:     [][]byte{{byte(i + 1)}},
+		}
+		err = mixing.SignMessage(fp, priv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fp.WriteHash(h)
+		fps[i] = fp
+	}
+
+	mp := NewPool(newTestBlockchain())
+
+	if _, err := mp.AcceptMessage(pr, ZeroSource); err != nil {
+		t.Fatalf("unexpected error accepting PR: %v", err)
+	}
+
+	// The FPs must all be saved as orphans since the KE is unknown.
+	for i, fp := range fps {
+		accepted, err := mp.AcceptMessage(fp, ZeroSource)
+		if err != nil {
+			t.Fatalf("unexpected error accepting FP %d: %v", i, err)
+		}
+		if len(accepted) != 0 {
+			t.Fatalf("FP %d was accepted without the KE", i)
+		}
+	}
+	if len(mp.orphans) != len(fps) {
+		t.Fatalf("unexpected number of orphans: got %d, want %d",
+			len(mp.orphans), len(fps))
+	}
+
+	// Accepting the KE must accept exactly one of the orphan FPs.
+	accepted, err := mp.AcceptMessage(ke, ZeroSource)
+	if err != nil {
+		t.Fatalf("unexpected error accepting KE: %v", err)
+	}
+	if len(accepted) != 2 || accepted[0] != ke {
+		t.Fatalf("unexpected accepted messages: %#v", accepted)
+	}
+	if _, ok := accepted[1].(*wire.MsgMixFactoredPoly); !ok {
+		t.Fatalf("unexpected accepted message type %T", accepted[1])
+	}
+
+	var acceptedFPs int
+	for _, fp := range fps {
+		fpHash := fp.Hash()
+		if mp.HaveMessage(&fpHash) {
+			acceptedFPs++
+		}
+	}
+	if acceptedFPs != 1 {
+		t.Fatalf("unexpected number of accepted FPs: got %d, want 1",
+			acceptedFPs)
+	}
+
+	// The conflicting orphans must have been removed.
+	if len(mp.orphans) != 0 {
+		t.Fatalf("unexpected number of orphans: got %d, want 0",
+			len(mp.orphans))
+	}
+}
