@@ -649,39 +649,6 @@ func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags
 	return checkTransactionContext(tx, params, flags)
 }
 
-// checkProofOfStake ensures that all ticket purchases in the block pay at least
-// the amount required by the block header stake bits which indicate the target
-// stake difficulty (aka ticket price) as claimed.
-func checkProofOfStake(block *dcrutil.Block, minStakeDiff int64) error {
-	header := &block.MsgBlock().Header
-	for _, stx := range block.STransactions() {
-		msgTx := stx.MsgTx()
-		if !stake.IsSStx(msgTx) {
-			continue
-		}
-
-		// The ticket price must not be below the stake difficulty claimed by
-		// the block header.
-		ticketPaidAmt := msgTx.TxOut[submissionOutputIdx].Value
-		if ticketPaidAmt < header.SBits {
-			str := fmt.Sprintf("ticket %v pays less than the stake difficulty "+
-				"committed to by the block header (%v < %v)", stx.Hash(),
-				ticketPaidAmt, header.SBits)
-			return ruleError(ErrNotEnoughStake, str)
-		}
-
-		// The ticket price must not be below the network minimum.
-		if ticketPaidAmt < minStakeDiff {
-			str := fmt.Sprintf("ticket %v pays less than the network minimum "+
-				"stake difficulty of (%v < %v)", stx.Hash(), ticketPaidAmt,
-				minStakeDiff)
-			return ruleError(ErrStakeBelowMinimum, str)
-		}
-	}
-
-	return nil
-}
-
 // standaloneToChainRuleError attempts to convert the passed error from a
 // [standalone.RuleError] to a [RuleError] with the equivalent error kind.  The
 // error is simply passed through without modification if it is not a
@@ -875,23 +842,43 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 	return nil
 }
 
+// checkProofOfStake ensures that the provided ticket purchase pays at least the
+// network minimum stake difficulty and the stake difficulty specified by the
+// block header.
+//
+// NOTE: The provided transaction MUST be a valid ticket purchase or the
+// function may panic.
+func checkProofOfStake(ticket *wire.MsgTx, header *wire.BlockHeader, minStakeDiff int64) error {
+	// The ticket price must not be below the stake difficulty claimed by
+	// the block header.
+	ticketPaidAmt := ticket.TxOut[submissionOutputIdx].Value
+	if ticketPaidAmt < header.SBits {
+		str := fmt.Sprintf("ticket %v pays less than the stake difficulty "+
+			"committed to by the block header (%v < %v)", ticket.TxHash(),
+			ticketPaidAmt, header.SBits)
+		return ruleError(ErrNotEnoughStake, str)
+	}
+
+	// The ticket price must not be below the network minimum.
+	if ticketPaidAmt < minStakeDiff {
+		str := fmt.Sprintf("ticket %v pays less than the network minimum "+
+			"stake difficulty of (%v < %v)", ticket.TxHash(), ticketPaidAmt,
+			minStakeDiff)
+		return ruleError(ErrStakeBelowMinimum, str)
+	}
+
+	return nil
+}
+
 // checkBlockDataSanity performs some preliminary checks on a block and its
 // transactions to ensure it is sane before continuing with block processing.
 // These checks are context free.
 func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) error {
-	// All ticket purchases must meet the difficulty specified by the block
-	// header.
-	err := checkProofOfStake(block, chainParams.MinimumStakeDiff)
-	if err != nil {
-		return err
-	}
-
 	// A block must have at least one regular transaction.
 	msgBlock := block.MsgBlock()
-	numTx := len(msgBlock.Transactions)
-	if numTx == 0 {
-		return ruleError(ErrNoTransactions, "block does not contain "+
-			"any transactions")
+	if len(msgBlock.Transactions) == 0 {
+		return ruleError(ErrNoTransactions, "block does not contain any "+
+			"transactions")
 	}
 
 	// A block must not exceed the maximum allowed block payload when serialized
@@ -913,32 +900,71 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 		return ruleError(ErrWrongBlockSize, str)
 	}
 
+	// txLoc houses the transaction tree and index within the tree at which a
+	// transaction is encountered.
+	type txLoc struct {
+		tree  int8
+		index uint32
+	}
+
 	// Do some preliminary checks on each regular transaction to ensure they
 	// are sane.
+	//
+	// Also ensure there are no duplicate transactions.
+	regularTxns := block.Transactions()
+	stakeTxns := block.STransactions()
+	numTotalTxns := len(regularTxns) + len(stakeTxns)
+	blockTxns := make(map[chainhash.Hash]txLoc, numTotalTxns)
 	maxTxSize := uint64(chainParams.MaxTxSize)
-	for _, tx := range msgBlock.Transactions {
-		err := standalone.CheckTransactionSanity(tx, maxTxSize)
+	for txIdx, tx := range regularTxns {
+		err := standalone.CheckTransactionSanity(tx.MsgTx(), maxTxSize)
 		if err != nil {
 			return standaloneToChainRuleError(err)
 		}
+
+		hash := tx.Hash()
+		if _, exists := blockTxns[*hash]; exists {
+			str := fmt.Sprintf("regular tree contains duplicate transaction %v",
+				hash)
+			return ruleError(ErrDuplicateTx, str)
+		}
+		blockTxns[*hash] = txLoc{wire.TxTreeRegular, uint32(txIdx)}
 	}
 
 	// Do some preliminary checks on stake transactions that do not require
 	// additional context to determine their type to ensure they are sane while
-	// tallying each type before continuing.
+	// tallying the tickets.
+	//
+	// Also ensure all ticket purchases meet the minimum network difficulty and
+	// the difficulty specified by the block header and that there are no
+	// duplicate transactions.
 	var totalTickets int64
-	for _, stx := range msgBlock.STransactions {
+	for txIdx, tx := range stakeTxns {
+		stx := tx.MsgTx()
 		err := standalone.CheckTransactionSanity(stx, maxTxSize)
 		if err != nil {
 			return standaloneToChainRuleError(err)
 		}
 
 		if stake.IsSStx(stx) {
+			err := checkProofOfStake(stx, header, chainParams.MinimumStakeDiff)
+			if err != nil {
+				return err
+			}
+
 			totalTickets++
 		}
+
+		hash := tx.Hash()
+		if _, exists := blockTxns[*hash]; exists {
+			str := fmt.Sprintf("stake tree transaction %v duplicates a "+
+				"transaction in the block", hash)
+			return ruleError(ErrDuplicateTx, str)
+		}
+		blockTxns[*hash] = txLoc{wire.TxTreeStake, uint32(txIdx)}
 	}
 
-	// A block header must commit to the actual number of tickets purchases that
+	// A block header must commit to the actual number of tickets purchased that
 	// are in the block.
 	if int64(header.FreshStake) != totalTickets {
 		str := fmt.Sprintf("block header commitment to %d ticket purchases "+
@@ -947,18 +973,80 @@ func checkBlockDataSanity(block *dcrutil.Block, chainParams *chaincfg.Params) er
 		return ruleError(ErrFreshStakeMismatch, str)
 	}
 
-	// Check for duplicate transactions.
-	existingTxHashes := make(map[chainhash.Hash]struct{})
-	regularTransactions := block.Transactions()
-	stakeTransactions := block.STransactions()
-	allTransactions := append(regularTransactions, stakeTransactions...)
-	for _, tx := range allTransactions {
-		hash := tx.Hash()
-		if _, exists := existingTxHashes[*hash]; exists {
-			str := fmt.Sprintf("block contains duplicate transaction %v", hash)
-			return ruleError(ErrDuplicateTx, str)
+	// Restrict the allowed spend ordering of transactions in blocks.
+	//
+	// These conditions are otherwise implicitly rejected during contextual
+	// transaction validation due to transaction processing order and output
+	// maturity requirements.  Rejecting them here makes the requirements
+	// explicit and avoids potentially significant additional work for
+	// transactions that will ultimately be rejected.
+	//
+	// In particular:
+	//
+	// - Regular transactions must not spend outputs of transactions at or after
+	//   their position in the regular tree of the same block (earlier
+	//   transactions are allowed)
+	//   - This intentionally includes outputs of the transaction itself even
+	//     though constructing a self-referential transaction is computationally
+	//     infeasible
+	// - Regular transactions must not spend outputs of any stake transactions
+	//   in the same block
+	// - Stake transactions must not spend outputs of any transaction in the
+	//   block, regardless of tree or position, with the exception of the
+	//   explicitly permitted historical SBSS violations
+	//
+	// Note that these checks also prevent a theoretical case that is only
+	// possible due to hash collisions that implicit checks alone would not.
+	// Namely, those checks would technically allow a block to include a
+	// transaction that spends the final unspent output of an existing
+	// transaction from a previous block and then include a different
+	// transaction with the same hash later in the same block.  These checks
+	// intentionally reject that case as well even though finding distinct
+	// transactions with the same hash is computationally infeasible.
+	for txIdx, tx := range regularTxns {
+		for txInIdx, txIn := range tx.MsgTx().TxIn {
+			prevOut := &txIn.PreviousOutPoint
+			loc, ok := blockTxns[prevOut.Hash]
+			if !ok || loc.tree != prevOut.Tree {
+				continue
+			}
+
+			switch {
+			case loc.tree == wire.TxTreeRegular && loc.index >= uint32(txIdx):
+				str := fmt.Sprintf("regular transaction input %s:%d spends "+
+					"output %v created by the same or a later regular tree "+
+					"transaction", tx.Hash(), txInIdx, txIn.PreviousOutPoint)
+				return ruleError(ErrMissingTxOut, str)
+
+			case loc.tree == wire.TxTreeStake:
+				str := fmt.Sprintf("regular transaction input %s:%d spends "+
+					"output %v created by a stake transaction in the same block",
+					tx.Hash(), txInIdx, txIn.PreviousOutPoint)
+				return ruleError(ErrMissingTxOut, str)
+			}
 		}
-		existingTxHashes[*hash] = struct{}{}
+	}
+	for _, tx := range stakeTxns {
+		for txInIdx, txIn := range tx.MsgTx().TxIn {
+			// Historical SBSS violations are explicitly permitted.
+			prevOut := &txIn.PreviousOutPoint
+			if prevOut.Tree == wire.TxTreeRegular && prevOut.Index == 0 &&
+				isSBSSViolation(chainParams, block.Height(), &prevOut.Hash) {
+
+				continue
+			}
+
+			// This intentionally does not check the tree because stake
+			// transactions must not spend outputs of any transaction in the
+			// block, regardless of tree or position.
+			if _, ok := blockTxns[prevOut.Hash]; !ok {
+				continue
+			}
+			str := fmt.Sprintf("stake transaction input %s:%d spends output %v "+
+				"created by a transaction in the same block", tx.Hash(),
+				txInIdx, txIn.PreviousOutPoint)
+			return ruleError(ErrMissingTxOut, str)
+		}
 	}
 
 	return nil
@@ -4440,8 +4528,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// rejected.
 	view.addSBSSViolations(b.chainParams, block, isTreasuryEnabled)
 
-	// Load all of the utxos referenced by the inputs for all transactions
-	// in the block don't already exist in the utxo view from the database.
+	// Load all of the utxos referenced by the inputs for all transactions in
+	// the block that are not already in the utxo view from the backing store.
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.

@@ -2128,6 +2128,31 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	rejected(ErrRegTxCreateStakeOut)
 
+	// Create block with duplicate transactions in the stake transaction tree.
+	//
+	// The header ticket purchase commitment is updated to include the duplicate
+	// so it is the only violation.
+	//
+	//   ... -> brs3(14)
+	//                  \-> bmf38(15)
+	g.SetTip("brs3")
+	g.NextBlock("bmf38", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.AddSTransaction(b.STransactions[5])
+		b.Header.FreshStake++
+	})
+	rejected(ErrDuplicateTx)
+
+	// Create block with a stake tree transaction that is a duplicate of a
+	// transaction in the regular transaction tree.
+	//
+	//   ... -> brs3(14)
+	//                  \-> bmf39(15)
+	g.SetTip("brs3")
+	g.NextBlock("bmf39", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.AddSTransaction(b.Transactions[1])
+	})
+	rejected(ErrDuplicateTx)
+
 	// ---------------------------------------------------------------------
 	// Block header median time tests.
 	// ---------------------------------------------------------------------
@@ -2361,6 +2386,46 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		b.AddTransaction(tx)
 	})
 	rejected(ErrRegTxCreateStakeOut)
+
+	// Create block that spends a stake tree output created in the same block
+	// from the regular tree.
+	//
+	//   ... -> bts1(17)
+	//                  \-> bts7(18)
+	g.SetTip("bts1")
+	g.NextBlock("bts7", outs[18], ticketOuts[18], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableStakeOut(b, 5, 2)
+		tx := g.CreateSpendTx(&spend, lowFee)
+		b.AddTransaction(tx)
+	})
+	rejected(ErrMissingTxOut)
+
+	// Create block with a stake transaction that spends an output created by
+	// a later stake transaction in the same block.
+	//
+	//   ... -> bts1(17)
+	//                  \-> bts8(18)
+	g.SetTip("bts1")
+	g.NextBlock("bts8", outs[18], ticketOuts[18], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableStakeOut(b, 7, 2)
+		b.STransactions[6].TxIn[0].PreviousOutPoint = spend.PrevOut()
+	})
+	rejected(ErrMissingTxOut)
+
+	// Create block with a stake transaction that spends a regular tree output
+	// created in the same block.
+	//
+	//   ... -> bts1(17)
+	//                  \-> bts9(18)
+	g.SetTip("bts1")
+	g.NextBlock("bts9", outs[18], ticketOuts[18], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b, 1, 0)
+		ticketPrice := dcrutil.Amount(g.CalcNextReqStakeDifficulty(g.Tip()))
+		ticket := g.CreateTicketPurchaseTx(&spend, ticketPrice, lowFee)
+		b.AddSTransaction(ticket)
+		b.Header.FreshStake++
+	})
+	rejected(ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Extra subsidy tests.
