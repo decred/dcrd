@@ -333,17 +333,19 @@ func parseAndSetDebugLevels(debugLevel string) error {
 	}
 
 	// Split the specified string into subsystem/level pairs while detecting
-	// issues and update the log levels accordingly.
+	// issues.  Defer updating the log levels until all pairs have been
+	// validated to ensure the update is atomic when an error is encountered.
+	logLevelPairs := make([]struct {
+		subsysID string
+		logLevel string
+	}, 0)
 	for _, logLevelPair := range strings.Split(debugLevel, ",") {
-		if !strings.Contains(logLevelPair, "=") {
+		subsysID, logLevel, ok := strings.Cut(logLevelPair, "=")
+		if !ok {
 			str := "the specified debug level contains an invalid " +
 				"subsystem/level pair [%v]"
 			return fmt.Errorf(str, logLevelPair)
 		}
-
-		// Extract the specified subsystem and log level.
-		fields := strings.Split(logLevelPair, "=")
-		subsysID, logLevel := fields[0], fields[1]
 
 		// Validate subsystem.
 		if _, exists := subsystemLoggers[subsysID]; !exists {
@@ -358,7 +360,15 @@ func parseAndSetDebugLevels(debugLevel string) error {
 			return fmt.Errorf(str, logLevel)
 		}
 
-		setLogLevel(subsysID, logLevel)
+		logLevelPairs = append(logLevelPairs, struct {
+			subsysID string
+			logLevel string
+		}{subsysID, logLevel})
+	}
+
+	// Apply the validated log levels only after all pairs have been checked.
+	for _, pair := range logLevelPairs {
+		setLogLevel(pair.subsysID, pair.logLevel)
 	}
 
 	return nil
