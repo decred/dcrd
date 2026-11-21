@@ -1,5 +1,5 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2025 The Decred developers
+// Copyright (c) 2015-2026 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -522,9 +522,38 @@ var helpDescsEnUS = map[string]string{
 	"getmixmessageresult-type":    "Command type of the message",
 	"getmixmessageresult-message": "Serialized message in hex encoding",
 
-	// GetMixPairRequests help.
-	"getmixpairrequests--synopsis": "Returns current set of mixing pair request messages from mixpool.",
-	"getmixpairrequests--result0":  "JSON array of hex-encoded mixing pair request messages.",
+	// GetMixpoolInfo help.
+	"getmixpoolinfo--synopsis": "Returns the current state of the mixpool including timing of the next mix epoch and pending pair requests.",
+	"getmixpoolinfo--result0":  "JSON object describing current mixpool state.",
+
+	// GetMixpoolInfoResult help.
+	"getmixpoolinforesult-epoch":     "Duration between mix epochs, in seconds",
+	"getmixpoolinforesult-nextepoch": "Unix timestamp of the next mix epoch",
+	"getmixpoolinforesult-pairings":  "Pending pair requests grouped by mixing compatibility",
+
+	// Pairing help.
+	"pairing-mixamount":    "Amount of each mixed output, in DCR",
+	"pairing-scriptclass":  "Script class of the mixed outputs",
+	"pairing-txversion":    "Transaction version of the mix transaction",
+	"pairing-locktime":     "Lock time of the mix transaction",
+	"pairing-pairingflags": "Pairing flags",
+	"pairing-pairrequests": "The pair requests matching these mixing parameters",
+
+	// PairRequest help.
+	"pairrequest-hash":         "Hash of the pair request message",
+	"pairrequest-identity":     "Participant ephemeral public key identity as a hex string",
+	"pairrequest-messagecount": "Number of mixed outputs, each of value mixamount, the pair request is creating",
+	"pairrequest-inputvalue":   "Total value of inputs contributed by the pair request, in DCR",
+	"pairrequest-utxos":        "Unspent transaction outputs contributed by the pair request",
+	"pairrequest-expiry":       "Block height at which the pair request expires",
+
+	// PairRequestUTXO help.
+	"pairrequestutxo-txid":         "The hash of the origin transaction",
+	"pairrequestutxo-vout":         "The index of the output being contributed",
+	"pairrequestutxo-tree":         "The tree of the output being contributed",
+	"pairrequestutxo-amountin":     "The amount of the output, in DCR",
+	"pairrequestutxo-blockheight":  "The height of the block containing the origin transaction",
+	"pairrequestutxo-scriptPubKey": "The public key script used to pay coins as a JSON object",
 
 	// GetNetworkHashPSCmd help.
 	"getnetworkhashps--synopsis": "Returns the estimated network hashes per second for the block heights provided by the parameters.",
@@ -993,7 +1022,7 @@ var rpcResultTypes = map[types.Method][]any{
 	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
 	"getmixmessage":         {(*types.GetMixMessageResult)(nil)},
-	"getmixpairrequests":    {(*[]string)(nil)},
+	"getmixpoolinfo":        {(*types.GetMixpoolInfoResult)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
 	"getnetworkinfo":        {(*[]types.GetNetworkInfoResult)(nil)},
