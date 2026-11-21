@@ -307,7 +307,7 @@
 <g id="node23" class="node">
 <title>peer</title>
 <path fill="khaki" stroke="black" d="M286.65,-108C286.65,-108 255,-108 255,-108 249,-108 243,-102 243,-96 243,-96 243,-84 243,-84 243,-78 249,-72 255,-72 255,-72 286.65,-72 286.65,-72 292.65,-72 298.65,-78 298.65,-84 298.65,-84 298.65,-96 298.65,-96 298.65,-102 292.65,-108 286.65,-108"/>
-<text text-anchor="middle" x="270.82" y="-84.58" font-family="Times New Roman,serif" font-size="14.00">peer/v3</text>
+<text text-anchor="middle" x="270.82" y="-84.58" font-family="Times New Roman,serif" font-size="14.00">peer/v4</text>
 </g>
 <!-- txscript&#45;&gt;peer -->
 <g id="edge15" class="edge">
