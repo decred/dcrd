@@ -9,7 +9,7 @@ digraph {
 	bech32 [label="bech32" fillcolor=antiquewhite3]
 	chainhash [label="chaincfg/chainhash" fillcolor=aquamarine]
 	dcrjson [label="dcrjson/v4" fillcolor=indianred]
-	types [label="rpc/jsonrpc/types/v4" fillcolor=tomato]
+	types [label="rpc/jsonrpc/types/v5" fillcolor=tomato]
 	wire [label="wire" fillcolor=coral]
 	chaincfg [label="chaincfg/v3" fillcolor=cadetblue]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
